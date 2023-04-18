@@ -1,9 +1,14 @@
 package com.github.gradusnikov.eclipse.assistai.handlers;
 
 import java.io.BufferedReader;
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Flow;
@@ -177,20 +182,12 @@ public class AssistAICodeRefactorHandler {
 			        openAIClient.subscribe(createSubscriber());
                                 openAIClient.subscribe(createPrintSubscriber());
 
-                                try (InputStream in = getClass().getResourceAsStream("refactor-prompt.txt");
-                                     BufferedReader reader = new BufferedReader(new InputStreamReader(in)) )
+                                try 
                                 {
-                                    StringBuilder promptBuilder = new StringBuilder();
-                                    String line;
-                                    while ((line = reader.readLine()) != null)
-                                    {
-                                        promptBuilder.append(line).append("\n");
-                                    }
-                                    String prompt = promptBuilder.toString();
-                                    prompt = prompt.replace("${documentText}", documentText);
-                                    prompt = prompt.replace("${selectedText}", selectedText);
-                                    prompt = prompt.replace("${fileName}", fileName);
-
+                                    String prompt = createPromptText("refactor-prompt.txt", 
+                                                                     "${documentText}", documentText,
+                                                                     "${selectedText}", selectedText,
+                                                                     "${fileName}", fileName);
                                     openAIClient.run(prompt);
                                 } 
                                 catch (Exception e)
@@ -213,4 +210,29 @@ public class AssistAICodeRefactorHandler {
         				   .map( mpart -> mpart.getObject() )
         				   .map( ChatGPTViewPart.class::cast );
 	}
+	
+	
+	public String createPromptText( String resourceFile, String ... substitutions ) throws IOException
+	{
+            try (InputStream in = getClass().getResourceAsStream("refactor-prompt.txt");
+                 DataInputStream dis = new DataInputStream( in );)
+            {
+                
+                String prompt = new String( dis.readAllBytes(), StandardCharsets.UTF_8 );
+                
+                if ( substitutions.length % 2 != 0  )
+                {
+                    throw new IllegalArgumentException("Expecting key, value pairs");
+                    
+                }
+                for ( int i = 0; i < substitutions.length; i = i+2 )
+                {
+                    prompt = prompt.replace( substitutions[i], substitutions[i+1]);
+                }
+                return prompt.toString();
+            }
+            
+	    
+	}
+	
 }
