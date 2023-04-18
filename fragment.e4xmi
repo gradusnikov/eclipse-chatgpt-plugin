@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="ASCII"?>
+<fragment:ModelFragments xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:basic="http://www.eclipse.org/ui/2010/UIModel/application/descriptor/basic" xmlns:commands="http://www.eclipse.org/ui/2010/UIModel/application/commands" xmlns:fragment="http://www.eclipse.org/ui/2010/UIModel/fragment" xmlns:menu="http://www.eclipse.org/ui/2010/UIModel/application/ui/menu" xmi:id="_BxaXACerEeWxCPrV0pAZQQ">
+  <fragments xsi:type="fragment:StringModelFragment" xmi:id="_QqSikIrOEeW7h_qdP9N9fw" featurename="commands" parentElementId="xpath:/">
+    <elements xsi:type="commands:Command" xmi:id="_UCYfwIrOEeW7h_qdP9N9fw" elementId="assistai.refactor" commandName="Refactor" description="Asks ChatGPT to refactor the selected code">
+      <persistedState key="persistState" value="false"/>
+    </elements>
+  </fragments>
+  <fragments xsi:type="fragment:StringModelFragment" xmi:id="_fW12kIrOEeW7h_qdP9N9fw" featurename="handlers" parentElementId="xpath:/">
+    <elements xsi:type="commands:Handler" xmi:id="_k2L0IIrOEeW7h_qdP9N9fw" elementId="org.eclipse.pde.ui.templates.handler.0" contributionURI="bundleclass://AssistAI/com.github.gradusnikov.eclipse.assistai.handlers.AssistAICodeRefactorHandler" command="_UCYfwIrOEeW7h_qdP9N9fw">
+      <persistedState key="persistState" value="false"/>
+    </elements>
+  </fragments>
+  <fragments xsi:type="fragment:StringModelFragment" xmi:id="_pVgfIIrOEeW7h_qdP9N9fw" featurename="menuContributions" parentElementId="xpath:/">
+    <elements xsi:type="menu:MenuContribution" xmi:id="_BducUIrPEeW7h_qdP9N9fw" elementId="org.eclipse.pde.ui.templates.menucontribution.1" positionInParent="after=additions" parentId="popup">
+      <persistedState key="persistState" value="false"/>
+      <children xsi:type="menu:Menu" xmi:id="_Dtii0IrPEeW7h_qdP9N9fw" elementId="org.eclipse.pde.ui.templates.menu.e4handlers" label="Code Assit AI" iconURI="platform:/plugin/AssistAI/icons/Sample.png" tooltip="" mnemonics=" CTRL + I">
+        <children xsi:type="menu:HandledMenuItem" xmi:id="_Dtii0YrPEeW7h_qdP9N9fw" elementId="org.eclipse.pde.ui.templates.handledmenuitem." label="" iconURI="platform:/plugin/AssistAI/icons/Sample.png" command="_UCYfwIrOEeW7h_qdP9N9fw"/>
+      </children>
+    </elements>
+  </fragments>
+  <fragments xsi:type="fragment:StringModelFragment" xmi:id="_AQJWAM2tEe2ZG5Twjghs_w" featurename="descriptors" parentElementId="xpath:/">
+    <elements xsi:type="basic:PartDescriptor" xmi:id="_CF9oIM2tEe2ZG5Twjghs_w" elementId="assitai.partdescriptor.chatgptview" label="Code Assist AI" iconURI="platform:/plugin/AssistAI/icons/Sample.png" category="Code Assist AI" closeable="true" contributionURI="bundleclass://AssistAI/com.github.gradusnikov.eclipse.assistai.part.ChatGPTViewPart">
+      <tags>View</tags>
+      <tags>categoryTag:Code Assist AI</tags>
+    </elements>
+  </fragments>
+</fragment:ModelFragments>

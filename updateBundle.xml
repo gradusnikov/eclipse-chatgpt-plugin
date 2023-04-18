@@ -1,0 +1,28 @@
+<project name="BundleUpdater" default="update-bundle">
+
+  <property name="plugin.project.path" value="." />
+  <property name="manifest.path" value="${plugin.project.path}/META-INF/MANIFEST.MF" />
+  <property name="build.properties.path" value="${plugin.project.path}/build.properties" />
+  <property name="libs.path" value="${plugin.project.path}/lib" />
+
+  <target name="init">
+    <fileset id="jars" dir="${libs.path}" includes="**/*.jar" />
+    <pathconvert refid="jars" property="jars.list" pathsep=",${line.separator}               " />
+  </target>
+
+  <target name="update-manifest" depends="init">
+    <replaceregexp file="${manifest.path}"
+                   match="^Bundle-ClassPath\:\s+\.(.*)$"
+                   replace="Bundle-ClassPath: .,${line.separator}               ${jars.list}"
+                   byline="true" />
+  </target>
+
+  <target name="update-build-properties" depends="init">
+    <replaceregexp file="${build.properties.path}"
+                   match="^bin.includes\s=\s+(.*)(libs\/\S+\.jar,\\)$"
+                   replace="bin.includes = \1${jars.list},\\" />
+  </target>
+
+  <target name="update-bundle" depends="update-manifest,update-build-properties" />
+
+</project>

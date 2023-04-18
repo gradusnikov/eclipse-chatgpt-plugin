@@ -1,0 +1,30 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Code Assist AI
+Bundle-SymbolicName: AssistAI;singleton:=true
+Bundle-Vendor: Wojciech Gradkowski
+Bundle-Version: 1.0.0.qualifier
+Bundle-Activator: com.github.gradusnikov.eclipse.assistai.Activator
+Require-Bundle: javax.inject,
+ org.eclipse.e4.ui.services,
+ org.eclipse.core.runtime,
+ javax.annotation,
+ org.eclipse.ui,
+ org.eclipse.jface.text,
+ org.eclipse.ui.workbench.texteditor,
+ org.eclipse.e4.ui.di,
+ org.eclipse.e4.core.di,
+ org.eclipse.e4.ui.model.workbench,
+ org.eclipse.e4.ui.workbench,
+ org.eclipse.e4.core.contexts,
+ AssistAIDependencies;bundle-version="1.0.0",
+ org.eclipse.jdt.core,
+ org.eclipse.jdt.ui
+Bundle-RequiredExecutionEnvironment: JavaSE-17
+Automatic-Module-Name: AssitAI
+Bundle-Classpath: .,
+ ./lib/jackson-annotations-2.15.0-rc1.jar,
+ ./lib/jackson-core-2.15.0-rc1.jar,
+ ./lib/jackson-databind-2.15.0-rc1.jar
+Import-Package: javax.annotation;version="1.2.0"
+Bundle-ActivationPolicy: lazy
