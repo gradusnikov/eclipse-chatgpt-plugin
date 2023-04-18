@@ -26,9 +26,8 @@ import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 public class OpenAIStreamJavaHttpClient {
 	
 	
-    private String API_KEY;// = "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";
+    private String API_KEY;
     private String API_URL = "https://api.openai.com/v1/chat/completions";
-//    private static final String MODEL = "gpt-3.5-turbo";
     private String MODEL;// = "gpt-4";
     
     private SubmissionPublisher<String> publisher;
