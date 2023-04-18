@@ -52,42 +52,83 @@ public class AssistAICodeRefactorHandler {
 	{
 	}
 	
-	public Flow.Subscriber<String> createSubscriber() {
-		return new Flow.Subscriber<String>() {
-			private Flow.Subscription subscription;
-			private ChatMessage message;
-			@Override
-			public void onSubscribe(Subscription subscription) {
-				this.subscription = subscription;
-				message = new ChatMessage(conversation.size(), "assistent");
-System.out.println("Message "  + message.id );				
-				conversation.add( message );
-				findMessageView().ifPresent( messageView -> messageView.appendMessage( message.id ) );
-                subscription.request(1);
-			}
+        public Flow.Subscriber<String> createSubscriber()
+        {
+            return new Flow.Subscriber<String>()
+            {
+                private Flow.Subscription subscription;
+                private ChatMessage message;
 
-			@Override
-			public void onNext(String item) {
-				message.append(item);
-System.out.print(item);				
-				findMessageView().ifPresent( messageView -> messageView.setMessageHtml( message.id, message.message ) );
-                subscription.request(1);
-			}
+                @Override
+                public void onSubscribe(Subscription subscription)
+                {
+                    this.subscription = subscription;
+                    synchronized (conversation)
+                    {
+                        message = new ChatMessage(conversation.size(), "assistent");
+                        conversation.add(message);
+                    }
+                    findMessageView().ifPresent(messageView -> messageView.appendMessage(message.id));
+                    subscription.request(1);
+                }
 
-			@Override
-			public void onError(Throwable throwable) {
-                throwable.printStackTrace();
-			}
+                @Override
+                public void onNext(String item)
+                {
+                    message.append(item);
+                    findMessageView().ifPresent(messageView -> messageView.setMessageHtml(message.id, message.message));
+                    subscription.request(1);
+                }
 
-			@Override
-			public void onComplete() {
-//				findMessageView().ifPresent( messageView -> messageView.appendHtml( "\n\n" ) );
-System.out.print("\n\n");				
-                subscription.request(1);
-			}}; 
-			
-	}
+                @Override
+                public void onError(Throwable throwable)
+                {
+                    Activator.getDefault().getLog().error(throwable.getMessage(), throwable);
+                }
 
+                @Override
+                public void onComplete()
+                {
+                    subscription.request(1);
+                }
+            };
+        }
+
+        private Flow.Subscriber<String> createPrintSubscriber()
+        {
+            return new Flow.Subscriber<String>()
+            {
+                private Flow.Subscription subscription;
+
+                @Override
+                public void onSubscribe(Subscription subscription)
+                {
+                    this.subscription = subscription;
+                    subscription.request(1);
+                }
+
+                @Override
+                public void onNext(String item)
+                {
+                    System.out.print(item);
+                    subscription.request(1);
+                }
+
+                @Override
+                public void onError(Throwable throwable)
+                {
+                }
+
+                @Override
+                public void onComplete()
+                {
+                    System.out.print("\n\n");
+                    subscription.request(1);
+                }
+            };
+
+        }
+	
 	@Execute
 	public void execute(@Named(IServiceConstants.ACTIVE_SHELL) Shell s ) {	
 		
@@ -134,25 +175,29 @@ System.out.print("\n\n");
 			        Activator.getDefault().getLog().info("Execution thread");
 			        OpenAIStreamJavaHttpClient openAIClient = new OpenAIStreamJavaHttpClient();
 			        openAIClient.subscribe(createSubscriber());
+                                openAIClient.subscribe(createPrintSubscriber());
 
-					try (InputStream in = getClass().getResourceAsStream("refactor-prompt.txt");
-						 BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
-						
-						StringBuilder promptBuilder = new StringBuilder();
-						String line;
-						while ((line = reader.readLine()) != null) {
-							promptBuilder.append(line).append("\n");
-						}
-						String prompt = promptBuilder.toString();
-						prompt = prompt.replace("${documentText}", documentText);
-						prompt = prompt.replace("${selectedText}", selectedText);
-						prompt = prompt.replace("${fileName}", fileName);
+                                try (InputStream in = getClass().getResourceAsStream("refactor-prompt.txt");
+                                     BufferedReader reader = new BufferedReader(new InputStreamReader(in)) )
+                                {
+                                    StringBuilder promptBuilder = new StringBuilder();
+                                    String line;
+                                    while ((line = reader.readLine()) != null)
+                                    {
+                                        promptBuilder.append(line).append("\n");
+                                    }
+                                    String prompt = promptBuilder.toString();
+                                    prompt = prompt.replace("${documentText}", documentText);
+                                    prompt = prompt.replace("${selectedText}", selectedText);
+                                    prompt = prompt.replace("${fileName}", fileName);
 
-						openAIClient.run(prompt);
-					} catch (Exception e) {
-						return Status.error("Unable to run the task: " + e.getMessage(), e);
-					}
-					return Status.OK_STATUS;
+                                    openAIClient.run(prompt);
+                                } 
+                                catch (Exception e)
+                                {
+                                    return Status.error("Unable to run the task: " + e.getMessage(), e);
+                                }
+                                return Status.OK_STATUS;
 			    }
 			};
 			job.schedule();
