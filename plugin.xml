@@ -3,7 +3,7 @@
 <plugin>
 
    <extension
-         id="com.imaginglaboraotry.eclipse.assistai.fragment"
+         id="com.github.gradusnikov.eclipse.assistai.fragment"
          point="org.eclipse.e4.workbench.model">
       <fragment
             apply="always"
@@ -13,15 +13,15 @@
    <extension
          point="org.eclipse.ui.preferencePages">
       <page
-            class="com.imaginglaboratory.eclipse.assistai.preferences.SamplePreferencePage"
-            id="com.imaginglaboratory.eclipse.assistai.preferences.SamplePreferencePage"
+            class="com.github.gradusnikov.eclipse.assistai.preferences.SamplePreferencePage"
+            id="com.github.gradusnikov.eclipse.assistai.preferences.SamplePreferencePage"
             name="Assit AI">
       </page>
    </extension>
    <extension
          point="org.eclipse.core.runtime.preferences">
       <initializer
-            class="com.imaginglaboratory.eclipse.assistai.preferences.PreferenceInitializer">
+            class="com.github.gradusnikov.eclipse.assistai.preferences.PreferenceInitializer">
       </initializer>
    </extension>
    <!-- extension
