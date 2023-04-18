@@ -177,7 +177,6 @@ public class AssistAICodeRefactorHandler {
 			Job job = new Job("Asking AI for help") {
 			    @Override
 			    protected IStatus run(IProgressMonitor arg0) {
-			        Activator.getDefault().getLog().info("Execution thread");
 			        OpenAIStreamJavaHttpClient openAIClient = new OpenAIStreamJavaHttpClient();
 			        openAIClient.subscribe(createSubscriber());
                                 openAIClient.subscribe(createPrintSubscriber());

@@ -49,7 +49,6 @@ public class OpenAIStreamJavaHttpClient
         API_KEY = Activator.getDefault().getPreferenceStore().getString(PreferenceConstants.OPENAI_API_KEY);
         MODEL = Activator.getDefault().getPreferenceStore().getString(PreferenceConstants.OPENAI_MODEL_NAME);
 
-        Activator.getDefault().getLog().info("Using API Key: " + API_KEY);
 
         Map<String, Object> requestBody = new LinkedHashMap<>();
         List<Map<String, Object>> messages = new ArrayList<>();
@@ -77,7 +76,7 @@ public class OpenAIStreamJavaHttpClient
         }
         catch (JsonProcessingException e)
         {
-            e.printStackTrace();
+            Activator.getDefault().getLog().error( e.getMessage(), e );
         }
 
         return null;
@@ -94,7 +93,9 @@ public class OpenAIStreamJavaHttpClient
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
-        Activator.getDefault().getLog().info("Sending request.");
+        
+        Activator.getDefault().getLog().info("Sending request to ChatGPT.");
+        
         try
         {
             HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
