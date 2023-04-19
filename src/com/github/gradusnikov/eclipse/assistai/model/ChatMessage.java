@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.handlers;
+package com.github.gradusnikov.eclipse.assistai.model;
 
 
 public class ChatMessage {
