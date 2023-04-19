@@ -32,13 +32,10 @@ import com.github.gradusnikov.eclipse.assistai.services.OpenAIStreamJavaHttpClie
 public class AssistAICodeRefactorHandler
 {
 
-    @Inject
-    private AppendMessageToViewSubscriber subscriber;
 
     @Inject
-    private PrintMessageSubscriber debugSubscriber;
-
-
+    private JobFactory jobFactory;
+    
     public AssistAICodeRefactorHandler()
     {
     }
@@ -71,72 +68,27 @@ public class AssistAICodeRefactorHandler
 
             String fileName = activeEditor.getEditorInput().getName();
 
-            IJavaElement elem = JavaUI.getEditorInputJavaElement(textEditor.getEditorInput());
-            if (elem instanceof ICompilationUnit)
-            {
-                ITextSelection sel = (ITextSelection) textEditor.getSelectionProvider().getSelection();
-                IJavaElement selected;
-                try
-                {
-                    selected = ((ICompilationUnit) elem).getElementAt(sel.getOffset());
-                    if (selected != null && selected.getElementType() == IJavaElement.METHOD)
-                    {
-                        System.out.println("Selected method: " + selected);
-                    }
-                }
-                catch (JavaModelException e)
-                {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
-            }
-
-            Job job = new Job("Asking AI for help")
-            {
-                @Override
-                protected IStatus run(IProgressMonitor arg0)
-                {
-                    OpenAIStreamJavaHttpClient openAIClient = new OpenAIStreamJavaHttpClient();
-                    openAIClient.subscribe(subscriber);
-                    openAIClient.subscribe(debugSubscriber);
-
-                    try
-                    {
-                        String prompt = createPromptText("refactor-prompt.txt", "${documentText}", documentText,
-                                "${selectedText}", selectedText, "${fileName}", fileName);
-                        openAIClient.run(prompt);
-                    }
-                    catch (Exception e)
-                    {
-                        return Status.error("Unable to run the task: " + e.getMessage(), e);
-                    }
-                    return Status.OK_STATUS;
-                }
-            };
+//            IJavaElement elem = JavaUI.getEditorInputJavaElement(textEditor.getEditorInput());
+//            if (elem instanceof ICompilationUnit)
+//            {
+//                ITextSelection sel = (ITextSelection) textEditor.getSelectionProvider().getSelection();
+//                IJavaElement selected;
+//                try
+//                {
+//                    selected = ((ICompilationUnit) elem).getElementAt(sel.getOffset());
+//                    if (selected != null && selected.getElementType() == IJavaElement.METHOD)
+//                    {
+//                        System.out.println("Selected method: " + selected);
+//                    }
+//                }
+//                catch (JavaModelException e)
+//                {
+//                    // TODO Auto-generated catch block
+//                    e.printStackTrace();
+//                }
+//            }
+            Job job = jobFactory.createRefactorJob(documentText, selectedText, fileName);
             job.schedule();
         }
     }
-
-    public String createPromptText(String resourceFile, String... substitutions) throws IOException
-    {
-        try (InputStream in = getClass().getResourceAsStream("refactor-prompt.txt");
-                DataInputStream dis = new DataInputStream(in);)
-        {
-
-            String prompt = new String(dis.readAllBytes(), StandardCharsets.UTF_8);
-
-            if (substitutions.length % 2 != 0)
-            {
-                throw new IllegalArgumentException("Expecting key, value pairs");
-
-            }
-            for (int i = 0; i < substitutions.length; i = i + 2)
-            {
-                prompt = prompt.replace(substitutions[i], substitutions[i + 1]);
-            }
-            return prompt.toString();
-        }
-
-    }
-
 }
