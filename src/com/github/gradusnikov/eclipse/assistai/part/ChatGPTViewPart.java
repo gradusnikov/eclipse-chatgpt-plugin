@@ -7,7 +7,6 @@ import java.nio.charset.StandardCharsets;
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 
-import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.e4.ui.di.Focus;
 import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.swt.SWT;
@@ -20,9 +19,6 @@ public class ChatGPTViewPart
 {
 
     private Browser browser;
-
-    @Inject
-    private IEclipseContext context;
 
     @Inject
     private UISynchronize uiSync;
@@ -66,7 +62,11 @@ public class ChatGPTViewPart
         // Create the JavaScript-to-Java callback
         new CopyCodeFunction(browser, "eclipseFunc");
     }
-
+    /**
+     * Loads the CSS files for the ChatGPTViewPart component.
+     *
+     * @return A concatenated string containing the content of the loaded CSS files.
+     */
     private String loadCss()
     {
         StringBuilder css = new StringBuilder();
@@ -85,7 +85,11 @@ public class ChatGPTViewPart
         }
         return css.toString();
     }
-
+    /**
+     * Loads the JavaScript files for the ChatGPTViewPart component.
+     *
+     * @return A concatenated string containing the content of the loaded JavaScript files.
+     */
     private String loadJavaScripts()
     {
         String[] jsFiles = {"showdownjs.min.js", "highlight.min.js", "markdown.js"};
@@ -119,12 +123,22 @@ public class ChatGPTViewPart
                     "window.scrollTo(0, document.body.scrollHeight);");
         });
     }
-
+    /**
+     * Replaces newline characters with line break escape sequences in the given string.
+     *
+     * @param html The input string containing newline characters.
+     * @return A string with newline characters replaced by line break escape sequences.
+     */
     private String fixLineBreaks(String html)
     {
         return html.replace("\n", "\\n");
     }
-
+    /**
+     * Escapes HTML quotation marks in the given string.
+     * 
+     * @param html The input string containing HTML.
+     * @return A string with escaped quotation marks for proper HTML handling.
+     */
     private String escapeHtmlQuotes(String html)
     {
         return html.replace("\"", "\\\"").replace("'", "\\'");

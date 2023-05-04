@@ -1,11 +1,11 @@
 package com.github.gradusnikov.eclipse.assistai.preferences;
 
-import org.eclipse.jface.preference.*;
+import org.eclipse.jface.preference.FieldEditorPreferencePage;
+import org.eclipse.jface.preference.StringFieldEditor;
+import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
-
-import org.eclipse.ui.IWorkbench;
 
 /**
  * This class represents a preference page that

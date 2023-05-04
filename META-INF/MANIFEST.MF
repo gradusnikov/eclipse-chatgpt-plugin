@@ -1,6 +1,6 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: Code Assist AI
+Bundle-Name: Assist AI
 Bundle-SymbolicName: AssistAI;singleton:=true
 Bundle-Vendor: Wojciech Gradkowski
 Bundle-Version: 1.0.0.qualifier

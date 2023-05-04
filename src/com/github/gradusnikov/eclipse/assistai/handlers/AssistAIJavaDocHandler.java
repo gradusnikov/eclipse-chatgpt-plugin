@@ -1,5 +1,7 @@
 package com.github.gradusnikov.eclipse.assistai.handlers;
 
+import java.util.Arrays;
+
 import javax.inject.Inject;
 import javax.inject.Named;
 
@@ -7,9 +9,12 @@ import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Execute;
 import org.eclipse.e4.ui.services.IServiceConstants;
 import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IJavaElement;
+import org.eclipse.jdt.core.ILocalVariable;
+import org.eclipse.jdt.core.IMethod;
+import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaModelException;
-import org.eclipse.jdt.internal.core.NamedMember;
 import org.eclipse.jdt.ui.JavaUI;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.ITextSelection;
@@ -21,14 +26,14 @@ import org.eclipse.ui.texteditor.ITextEditor;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
 
-public class AssistAICodeRefactorHandler
+public class AssistAIJavaDocHandler
 {
 
 
     @Inject
     private JobFactory jobFactory;
     
-    public AssistAICodeRefactorHandler()
+    public AssistAIJavaDocHandler()
     {
     }
 
@@ -48,21 +53,18 @@ public class AssistAICodeRefactorHandler
 
             // Retrieve the document and text selection
             ITextSelection textSelection = (ITextSelection) textEditor.getSelectionProvider().getSelection();
-
-            Activator.getDefault().getLog().info("Text selection:\n" + textSelection);
-
-            IDocument document  = textEditor.getDocumentProvider().getDocument(textEditor.getEditorInput());
-            String documentText = document.get();
-            String selectedText = textSelection.getText();
-            String fileName     = activeEditor.getEditorInput().getName();
+            IDocument 	   document  = textEditor.getDocumentProvider().getDocument(textEditor.getEditorInput());
+            IJavaElement   compilationUnit = JavaUI.getEditorInputJavaElement(textEditor.getEditorInput());
             
-            Activator.getDefault().getLog().info("Selected Text:\n" + textSelection.getText());
+            String selectedText = textSelection.getText();
+            
+            String documentText = document.get();
+            String fileName     = activeEditor.getEditorInput().getName();
             
             // get java elements
             String selectedJavaElement = "";
             String selectedJavaType = "";
             
-            IJavaElement compilationUnit = JavaUI.getEditorInputJavaElement(textEditor.getEditorInput());
             if (compilationUnit instanceof ICompilationUnit)
             {
                 IJavaElement selectedElement;
@@ -74,24 +76,18 @@ public class AssistAICodeRefactorHandler
                         switch ( selectedElement.getElementType() )
                         {
                             case IJavaElement.METHOD:
-                                selectedJavaElement = selectedElement.toString();
-                                selectedJavaType = "method";
-                                break;
-                            case IJavaElement.TYPE:
-                                selectedJavaElement = selectedElement.toString();
-                                
-                                selectedJavaType = "type";
-                                break;
                             case IJavaElement.FIELD:
-                                selectedJavaElement = selectedElement.toString();
-                                selectedJavaType = "field";
-                                break;
                             case IJavaElement.LOCAL_VARIABLE:
-                                selectedJavaElement = selectedElement.toString();
-                                selectedJavaType = "variable";
-                                break;
+                            	selectedJavaElement = selectedElement.toString();
+                            	selectedJavaType = javaElementTypeToString(selectedElement);
+                            	break;
+                            case IJavaElement.TYPE:
+                            	selectedJavaElement = "";
+                            	selectedJavaType = "class declaration";
+                           default:
                         }
                     }
+                    selectedJavaElement = selectedJavaElement.replaceAll("\\[.*\\]", "");
                 }
                 catch (JavaModelException e)
                 {
@@ -99,9 +95,35 @@ public class AssistAICodeRefactorHandler
                     e.printStackTrace();
                 }
             }
-            Job job = jobFactory.createRefactorJob(documentText, selectedText, fileName);
-//            Job job = jobFactory.createJavaDocJob(documentText, selectedJavaElement, selectedJavaType);
+            Job job = jobFactory.createJavaDocJob(documentText, selectedJavaElement, selectedJavaType);
             job.schedule();
         }
     }
+    
+    public String javaElementTypeToString( IJavaElement element )
+    {
+        switch ( element.getElementType() )
+        {
+        	case IJavaElement.ANNOTATION: return "annotation";
+        	case IJavaElement.CLASS_FILE: return "class file";
+        	case IJavaElement.COMPILATION_UNIT: return "compilation unit";
+        	case IJavaElement.FIELD: return "field";
+        	case IJavaElement.IMPORT_CONTAINER: return "import container";
+        	case IJavaElement.IMPORT_DECLARATION: return "import declaration";
+        	case IJavaElement.INITIALIZER: return "initializer";
+        	case IJavaElement.JAVA_MODEL: return "java model";
+        	case IJavaElement.JAVA_MODULE: return "java module";
+        	case IJavaElement.JAVA_PROJECT: return "java project";
+        	case IJavaElement.LOCAL_VARIABLE: return "local variable";
+        	case IJavaElement.METHOD: return "method";
+        	case IJavaElement.PACKAGE_DECLARATION: return "package declaration";
+        	case IJavaElement.PACKAGE_FRAGMENT: return "package fragment";
+        	case IJavaElement.PACKAGE_FRAGMENT_ROOT: return "package fragment root";
+        	case IJavaElement.TYPE: return "type";
+        	case IJavaElement.TYPE_PARAMETER: return "type parameter";
+        	default: return "";
+        }
+
+    }
+    
 }

@@ -16,13 +16,16 @@ import java.util.Map;
 import java.util.concurrent.Flow;
 import java.util.concurrent.SubmissionPublisher;
 
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 
+/**
+ * A Java HTTP client for streaming requests to OpenAI API.
+ * This class allows subscribing to responses received from the OpenAI API and processes the chat completions.
+ */
 public class OpenAIStreamJavaHttpClient
 {
 
@@ -37,12 +40,19 @@ public class OpenAIStreamJavaHttpClient
         publisher = new SubmissionPublisher<>();
 
     }
-
+    /**
+     * Subscribes a given Flow.Subscriber to receive String data from OpenAI API responses.
+     * @param subscriber the Flow.Subscriber to be subscribed to the publisher
+     */
     public void subscribe(Flow.Subscriber<String> subscriber)
     {
         publisher.subscribe(subscriber);
     }
-
+    /**
+     * Returns the JSON request body as a String for the given prompt.
+     * @param prompt the user input to be included in the request body
+     * @return the JSON request body as a String
+     */
     private String getRequestBody(String prompt)
     {
 
@@ -82,6 +92,12 @@ public class OpenAIStreamJavaHttpClient
         return null;
     }
 
+	/**
+	 * Executes the HTTP request to OpenAI API with the given prompt and processes the responses.
+	 * @param prompt the user input to be sent to the OpenAI API
+	 * @throws IOException if an I/O error occurs when sending or receiving
+	 * @throws InterruptedException if the operation is interrupted
+	 */
     public void run(String prompt) throws IOException, InterruptedException
     {
 

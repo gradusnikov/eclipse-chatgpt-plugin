@@ -15,6 +15,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
+import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.services.OpenAIStreamJavaHttpClient;
 
 @Creatable
@@ -56,10 +57,10 @@ public class JobFactory
         };        
     }
     
-    public String createPromptText(String resourceFile, String... substitutions) throws IOException
+    private String createPromptText(String resourceFile, String... substitutions) throws IOException
     {
-        try (InputStream in = getClass().getResourceAsStream("refactor-prompt.txt");
-                DataInputStream dis = new DataInputStream(in);)
+        try (InputStream in = getClass().getResourceAsStream(resourceFile);
+             DataInputStream dis = new DataInputStream(in);)
         {
 
             String prompt = new String(dis.readAllBytes(), StandardCharsets.UTF_8);
@@ -76,6 +77,33 @@ public class JobFactory
             return prompt.toString();
         }
 
+    }
+
+    public Job createJavaDocJob(String documentText, String selectedJavaElement, String selectedJavaType)
+    {
+        return new Job("Asking AI to document: " + selectedJavaElement ) {
+            @Override
+            protected IStatus run(IProgressMonitor arg0) {
+                Activator.getDefault().getLog().info( this.getName() );
+                OpenAIStreamJavaHttpClient openAIClient = clientProvider.get();
+                openAIClient.subscribe(subscriber);
+                openAIClient.subscribe(debugSubscriber);
+
+                try 
+                {
+                    String prompt = createPromptText("document-prompt.txt", 
+                                                     "${documentText}", documentText,
+                                                     "${javaType}", selectedJavaType,
+                                                     "${name}", selectedJavaElement);
+                    openAIClient.run(prompt);
+                } 
+                catch (Exception e)
+                {
+                    return Status.error("Unable to run the task: " + e.getMessage(), e);
+                }
+                return Status.OK_STATUS;
+            }
+        };  
     }
     
     
