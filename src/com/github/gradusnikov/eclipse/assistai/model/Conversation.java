@@ -17,9 +17,19 @@ public class Conversation
     {
         return conversation.size();
     }
-
+    
+    public void clear()
+    {
+        conversation.clear();
+    }
+    
     public void add(ChatMessage message)
     {
         conversation.add(message);
+    }
+    
+    public synchronized ChatMessage newMessage( String role )
+    {
+        return new ChatMessage( conversation.size(), role );
     }
 }

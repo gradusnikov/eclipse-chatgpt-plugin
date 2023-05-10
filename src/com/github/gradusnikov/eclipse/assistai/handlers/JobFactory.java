@@ -6,16 +6,15 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
+import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.services.OpenAIStreamJavaHttpClient;
 
 @Creatable
@@ -29,15 +28,11 @@ public class JobFactory
         DOCUMENT,
         EXPLAIN
     }
+    @Inject
+    private ILog logger;
     
     @Inject
-    private AppendMessageToViewSubscriber subscriber;
-
-    @Inject
-    private PrintMessageSubscriber debugSubscriber;
-    
-    @Inject
-    private Provider<OpenAIStreamJavaHttpClient> clientProvider;
+    private OpenAIHttpClientProvider clientProvider;
     
     public Job createJob( JobType type, 
                           String context, 
@@ -65,9 +60,7 @@ public class JobFactory
         return new Job("Asking AI for help") {
             @Override
             protected IStatus run(IProgressMonitor arg0) {
-                OpenAIStreamJavaHttpClient openAIClient = clientProvider.get();
-                openAIClient.subscribe(subscriber);
-                openAIClient.subscribe(debugSubscriber);
+                OpenAIStreamJavaHttpClient openAIClient = clientProvider.get(  );
 
                 try 
                 {
@@ -113,10 +106,8 @@ public class JobFactory
         return new Job("Asking AI to document: " + selectedJavaElement ) {
             @Override
             protected IStatus run(IProgressMonitor arg0) {
-                Activator.getDefault().getLog().info( this.getName() );
-                OpenAIStreamJavaHttpClient openAIClient = clientProvider.get();
-                openAIClient.subscribe(subscriber);
-                openAIClient.subscribe(debugSubscriber);
+                logger.info( this.getName() );
+                OpenAIStreamJavaHttpClient openAIClient = clientProvider.get(  );
 
                 try 
                 {
@@ -134,15 +125,16 @@ public class JobFactory
             }
         };  
     }
+    
+
+    
     public Job createJUnitJob(String documentText, String selectedJavaElement, String selectedJavaType)
     {
         return new Job("Asking AI to generate JUnit for: " + selectedJavaElement ) {
             @Override
             protected IStatus run(IProgressMonitor arg0) {
-                Activator.getDefault().getLog().info( this.getName() );
-                OpenAIStreamJavaHttpClient openAIClient = clientProvider.get();
-                openAIClient.subscribe(subscriber);
-                openAIClient.subscribe(debugSubscriber);
+                logger.info( this.getName() );
+                OpenAIStreamJavaHttpClient openAIClient = clientProvider.get(  );
 
                 try 
                 {
@@ -160,5 +152,25 @@ public class JobFactory
             }
         };  
     }
-    
+
+    public Job createSendUserMessageJob( String text )
+    {
+        return new Job("Asking ChatGPT with the user prompt" ) {
+            @Override
+            protected IStatus run(IProgressMonitor arg0) {
+                logger.info( this.getName() );
+                OpenAIStreamJavaHttpClient openAIClient = clientProvider.get(  );
+                try 
+                {
+                    openAIClient.run(text);
+                } 
+                catch (Exception e)
+                {
+                    return Status.error("Unable to run the task: " + e.getMessage(), e);
+                }
+                return Status.OK_STATUS;
+            }
+        };  
+    }
+
 }

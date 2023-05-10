@@ -1,63 +1,73 @@
 package com.github.gradusnikov.eclipse.assistai.handlers;
 
+import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
+import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
-import com.github.gradusnikov.eclipse.assistai.model.Conversation;
-import com.github.gradusnikov.eclipse.assistai.part.PartAccessor;
+import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 
 @Creatable
+@Singleton
 public class AppendMessageToViewSubscriber implements Flow.Subscriber<String>
 {
     @Inject
-    private PartAccessor parts;
-    @Inject
-    private Conversation conversation;
+    private ILog logger;
     
     private Flow.Subscription subscription;
     
     private ChatMessage message;
+    private  ChatGPTPresenter presenter;
     
-    public AppendMessageToViewSubscriber()
+    public AppendMessageToViewSubscriber( )
     {
     }
     
+    public void setPresenter(ChatGPTPresenter presenter)
+    {
+        this.presenter = presenter;
+    }
+
     @Override
     public void onSubscribe(Subscription subscription)
     {
+        Objects.requireNonNull( presenter );
         this.subscription = subscription;
-        synchronized (conversation)
-        {
-            message = new ChatMessage(conversation.size(), "assistent");
-            conversation.add(message);
-        }
-        parts.findMessageView().ifPresent(messageView -> messageView.appendMessage(message.id));
+        message = presenter.beginMessageFromAssitant();
         subscription.request(1);
     }
 
     @Override
     public void onNext(String item)
     {
+        Objects.requireNonNull( presenter );
+        Objects.requireNonNull( message );
+        Objects.requireNonNull( subscription );
         message.append(item);
-        parts.findMessageView().ifPresent(messageView -> messageView.setMessageHtml( message.id, message.message ));
+        presenter.updateMessageFromAssistant( message );
         subscription.request(1);
     }
 
     @Override
     public void onError(Throwable throwable)
     {
-        Activator.getDefault().getLog().error(throwable.getMessage(), throwable);
+        message = null;
+        logger.error(throwable.getMessage(), throwable);
     }
 
     @Override
     public void onComplete()
     {
+        Objects.requireNonNull( presenter );
+        message = null;
+        subscription = null;
+        presenter.endMessageFromAssistant();
         subscription.request(1);
     }
     
