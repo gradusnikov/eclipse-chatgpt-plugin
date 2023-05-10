@@ -19,7 +19,8 @@ Require-Bundle: javax.inject,
  org.eclipse.e4.core.contexts,
  AssistAIDependencies;bundle-version="1.0.0",
  org.eclipse.jdt.core,
- org.eclipse.jdt.ui
+ org.eclipse.jdt.ui,
+ org.eclipse.swt
 Bundle-RequiredExecutionEnvironment: JavaSE-17
 Automatic-Module-Name: AssitAI
 Bundle-Classpath: .,

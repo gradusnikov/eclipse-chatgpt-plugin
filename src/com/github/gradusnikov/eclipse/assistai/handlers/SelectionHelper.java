@@ -1,14 +1,15 @@
 package com.github.gradusnikov.eclipse.assistai.handlers;
 
 import org.eclipse.jdt.core.IJavaElement;
+import org.eclipse.jface.text.ITextSelection;
 import org.eclipse.jface.text.TextSelection;
 
 public class SelectionHelper 
 {
 	private String type;
-	private TextSelection selection;
+	private ITextSelection selection;
 	
-	public SelectionHelper( String type, TextSelection selection )
+	public SelectionHelper( ITextSelection selection, IJavaElement   compilationUnit )
 	{
 		this.type = type;
 		this.selection = selection;

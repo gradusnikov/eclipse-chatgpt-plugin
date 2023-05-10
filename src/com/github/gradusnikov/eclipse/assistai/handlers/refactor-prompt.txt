@@ -11,6 +11,15 @@ When you encounter a code comment that starts with the "@ChatGPT" tag:
 2. replace the comment in-line with the result of the task given after the @ChatGPT tag.   
 3. Don't mention this action in your reasoning, just do whatever the comment asks you
 
+Return the response in the following markdown format:
+
+<your refactoring explanation and reasoning>
+
+```<language>
+<your source code>
+```
+
+Let's work this out in a step by step way to be sure we have the right answer.
 
 [snippet]="${selectedText}"
 

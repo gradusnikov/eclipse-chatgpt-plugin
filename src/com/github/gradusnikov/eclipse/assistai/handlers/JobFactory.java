@@ -22,6 +22,14 @@ import com.github.gradusnikov.eclipse.assistai.services.OpenAIStreamJavaHttpClie
 @Singleton
 public class JobFactory
 {
+    enum JobType
+    {
+        REFACTOR,
+        UNIT_TEST,
+        DOCUMENT,
+        EXPLAIN
+    }
+    
     @Inject
     private AppendMessageToViewSubscriber subscriber;
 
@@ -30,6 +38,27 @@ public class JobFactory
     
     @Inject
     private Provider<OpenAIStreamJavaHttpClient> clientProvider;
+    
+    public Job createJob( JobType type, 
+                          String context, 
+                          String selectedSnippet,
+                          String selectedJavaElement, 
+                          String selectedJavaType )
+    {
+        
+        switch ( type )
+        {
+            case DOCUMENT:
+                return createJavaDocJob( context, selectedJavaElement, selectedJavaType );
+            case UNIT_TEST:
+                return createJUnitJob( context, selectedJavaElement, selectedJavaType );
+            case REFACTOR:
+                return createRefactorJob( context, selectedSnippet, selectedJavaType );
+            default:
+                throw new IllegalArgumentException();
+        }
+        
+    }
     
     public Job createRefactorJob( String documentText, String selectedText, String fileName )
     {
@@ -79,7 +108,7 @@ public class JobFactory
 
     }
 
-    public Job createJavaDocJob(String documentText, String selectedJavaElement, String selectedJavaType)
+    public Job createJavaDocJob( String documentText, String selectedJavaElement, String selectedJavaType)
     {
         return new Job("Asking AI to document: " + selectedJavaElement ) {
             @Override
@@ -105,6 +134,31 @@ public class JobFactory
             }
         };  
     }
-    
+    public Job createJUnitJob(String documentText, String selectedJavaElement, String selectedJavaType)
+    {
+        return new Job("Asking AI to generate JUnit for: " + selectedJavaElement ) {
+            @Override
+            protected IStatus run(IProgressMonitor arg0) {
+                Activator.getDefault().getLog().info( this.getName() );
+                OpenAIStreamJavaHttpClient openAIClient = clientProvider.get();
+                openAIClient.subscribe(subscriber);
+                openAIClient.subscribe(debugSubscriber);
+
+                try 
+                {
+                    String prompt = createPromptText("testcase-prompt.txt", 
+                                                     "${documentText}", documentText,
+                                                     "${javaType}", selectedJavaType,
+                                                     "${name}", selectedJavaElement);
+                    openAIClient.run(prompt);
+                } 
+                catch (Exception e)
+                {
+                    return Status.error("Unable to run the task: " + e.getMessage(), e);
+                }
+                return Status.OK_STATUS;
+            }
+        };  
+    }
     
 }

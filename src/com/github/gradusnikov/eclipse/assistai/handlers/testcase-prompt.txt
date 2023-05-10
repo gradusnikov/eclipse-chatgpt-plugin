@@ -1,0 +1,19 @@
+In the context of the Java class [class] provide unit test code for ${javaType}: ${name}. 
+
+Strictly follow all of the following rules:
+- Provide the source code of the unit tests JUST for the ${javaType}: ${name}. 
+- Keep class imports compact using wildcards 
+- Keep all tests separate and independent - single test function per one test scenario
+- Use JUnit 5
+- Use @BeforeEach, @BeforeAll, @AfterEach, @AfterAll when possible
+- Use @ParameterizedTest or @RepeatedTest when possible
+- Use org.assertj.core.api.Assertions.assertThat when possible
+
+In your response return JUST the source code with comments in the following format:
+
+```<language>
+<your source code>
+``` 
+
+
+[class]="${documentText}"
