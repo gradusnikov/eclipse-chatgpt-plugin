@@ -9,10 +9,10 @@ import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
 
-import com.github.gradusnikov.eclipse.assistai.handlers.AppendMessageToViewSubscriber;
-import com.github.gradusnikov.eclipse.assistai.handlers.JobFactory;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
+import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory;
+import com.github.gradusnikov.eclipse.assistai.subscribers.AppendMessageToViewSubscriber;
 
 @Creatable
 @Singleton

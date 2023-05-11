@@ -1,6 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.handlers;
 
-import com.github.gradusnikov.eclipse.assistai.handlers.JobFactory.JobType;
+import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory.JobType;
 
 public class AssistAIJavaDocHandler extends AssistAIHandlerTemplate
 {

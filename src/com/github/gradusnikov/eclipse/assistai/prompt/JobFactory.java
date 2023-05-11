@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.handlers;
+package com.github.gradusnikov.eclipse.assistai.prompt;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -19,12 +19,13 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.services.OpenAIStreamJavaHttpClient;
+import com.github.gradusnikov.eclipse.assistai.subscribers.OpenAIHttpClientProvider;
 
 @Creatable
 @Singleton
 public class JobFactory
 {
-    enum JobType
+    public enum JobType
     {
         REFACTOR,
         UNIT_TEST,

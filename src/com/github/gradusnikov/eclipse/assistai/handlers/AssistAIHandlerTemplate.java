@@ -18,7 +18,8 @@ import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
-import com.github.gradusnikov.eclipse.assistai.handlers.JobFactory.JobType;
+import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory;
+import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory.JobType;
 
 public class AssistAIHandlerTemplate 
 {

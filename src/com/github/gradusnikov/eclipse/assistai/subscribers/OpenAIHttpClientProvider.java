@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.handlers;
+package com.github.gradusnikov.eclipse.assistai.subscribers;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
