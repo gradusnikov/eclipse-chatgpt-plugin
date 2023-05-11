@@ -4,6 +4,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Supplier;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -45,52 +46,48 @@ public class JobFactory
                           String selectedJavaElement, 
                           String selectedJavaType )
     {
-        
+        Supplier<String> propmtSupplier;
         switch ( type )
         {
             case DOCUMENT:
-                return createJavaDocJob( context, selectedJavaElement, selectedJavaType );
+                propmtSupplier = javaDocPromptSupplier( context, selectedJavaElement, selectedJavaType );
+                break;
             case UNIT_TEST:
-                return createJUnitJob( context, selectedJavaElement, selectedJavaType );
+                propmtSupplier = unitTestSupplier( context, selectedJavaElement, selectedJavaType );
+                break;
             case REFACTOR:
-                return createRefactorJob( context, selectedSnippet, selectedJavaType );
+                propmtSupplier = refactorPromptSupplier( context, selectedSnippet, selectedJavaType );
+                break;
             default:
                 throw new IllegalArgumentException();
         }
-        
+        return new SendMessageJob( propmtSupplier );        
     }
     
-    public Job createRefactorJob( String documentText, String selectedText, String fileName )
+    private Supplier<String> javaDocPromptSupplier( String documentText, String selectedJavaElement, String selectedJavaType )
     {
-        return new Job("Asking AI for help") {
-            @Override
-            protected IStatus run(IProgressMonitor arg0) {
-                OpenAIStreamJavaHttpClient openAIClient = clientProvider.get(  );
-
-                try 
-                {
-                    String prompt = createPromptText("refactor-prompt.txt", 
-                                                     "${documentText}", documentText,
-                                                     "${selectedText}", selectedText,
-                                                     "${fileName}", fileName);
-                    synchronized ( conversation )
-                    {
-                        ChatMessage message = conversation.newMessage( "user" );
-                        message.setMessage( prompt );
-                        conversation.add( message );
-                    }
-                    openAIClient.run(conversation);
-                } 
-                catch (Exception e)
-                {
-                    return Status.error("Unable to run the task: " + e.getMessage(), e);
-                }
-                return Status.OK_STATUS;
-            }
-        };        
+        return () -> createPromptText("document-prompt.txt", 
+                    "${documentText}", documentText,
+                    "${javaType}", selectedJavaType,
+                    "${name}", selectedJavaElement);
     }
+    private Supplier<String> refactorPromptSupplier( String documentText, String selectedJavaElement, String selectedJavaType )
+    {
+        return () -> createPromptText("refactor-prompt.txt", 
+                "${documentText}", documentText,
+                "${selectedText}", selectedJavaElement,
+                "${fileName}", "");
+    }
+    private Supplier<String> unitTestSupplier( String documentText, String selectedJavaElement, String selectedJavaType )
+    {
+        return () -> createPromptText("testcase-prompt.txt", 
+                "${documentText}", documentText,
+                "${javaType}", selectedJavaType,
+                "${name}", selectedJavaElement);
+    }
+
     
-    private String createPromptText(String resourceFile, String... substitutions) throws IOException
+    private String createPromptText(String resourceFile, String... substitutions) 
     {
         try (InputStream in = getClass().getResourceAsStream(resourceFile);
              DataInputStream dis = new DataInputStream(in);)
@@ -109,100 +106,48 @@ public class JobFactory
             }
             return prompt.toString();
         }
+        catch ( IOException e )
+        {
+            throw new RuntimeException( e );
+        }
 
-    }
-
-    public Job createJavaDocJob( String documentText, String selectedJavaElement, String selectedJavaType)
-    {
-        return new Job("Asking AI to document: " + selectedJavaElement ) {
-            @Override
-            protected IStatus run(IProgressMonitor arg0) {
-                logger.info( this.getName() );
-                OpenAIStreamJavaHttpClient openAIClient = clientProvider.get(  );
-
-                try 
-                {
-                    String prompt = createPromptText("document-prompt.txt", 
-                                                     "${documentText}", documentText,
-                                                     "${javaType}", selectedJavaType,
-                                                     "${name}", selectedJavaElement);
-                    synchronized ( conversation )
-                    {
-                        ChatMessage message = conversation.newMessage( "user" );
-                        message.setMessage( prompt );
-                        conversation.add( message );
-                    }
-                    openAIClient.run(conversation);
-
-                } 
-                catch (Exception e)
-                {
-                    return Status.error("Unable to run the task: " + e.getMessage(), e);
-                }
-                return Status.OK_STATUS;
-            }
-        };  
-    }
-    
-
-    
-    public Job createJUnitJob(String documentText, String selectedJavaElement, String selectedJavaType)
-    {
-        return new Job("Asking AI to generate JUnit for: " + selectedJavaElement ) {
-            @Override
-            protected IStatus run(IProgressMonitor arg0) {
-                logger.info( this.getName() );
-                OpenAIStreamJavaHttpClient openAIClient = clientProvider.get(  );
-
-                try 
-                {
-                    String prompt = createPromptText("testcase-prompt.txt", 
-                                                     "${documentText}", documentText,
-                                                     "${javaType}", selectedJavaType,
-                                                     "${name}", selectedJavaElement);
-                    
-                    synchronized ( conversation )
-                    {
-                        ChatMessage message = conversation.newMessage( "user" );
-                        message.setMessage( prompt );
-                        conversation.add( message );
-                    }
-                    openAIClient.run(conversation);
-
-                } 
-                catch (Exception e)
-                {
-                    return Status.error("Unable to run the task: " + e.getMessage(), e);
-                }
-                return Status.OK_STATUS;
-            }
-        };  
     }
 
     public Job createSendUserMessageJob( String prompt )
     {
-        return new Job("Asking ChatGPT with the user prompt" ) {
-            @Override
-            protected IStatus run(IProgressMonitor arg0) {
-                logger.info( this.getName() );
-                OpenAIStreamJavaHttpClient openAIClient = clientProvider.get(  );
-                try 
-                {
-                    synchronized ( conversation )
-                    {
-                        ChatMessage message = conversation.newMessage( "user" );
-                        message.setMessage( prompt );
-                        conversation.add( message );
-                    }
-                    openAIClient.run(conversation);
-                } 
-                catch (Exception e)
-                {
-                    return Status.error("Unable to run the task: " + e.getMessage(), e);
-                }
-                return Status.OK_STATUS;
-            }
-        };  
+        return new SendMessageJob( () -> prompt );
     }
+    
+    private class SendMessageJob extends Job
+    {
+        private final Supplier<String> promptSupplier;
+        public SendMessageJob( Supplier<String> promptSupplier )
+        {
+            super("Asking ChatGPT for help.");
+            this.promptSupplier = promptSupplier;
+        }
+        @Override
+        protected IStatus run(IProgressMonitor arg0) {
+            logger.info( this.getName() );
+            OpenAIStreamJavaHttpClient openAIClient = clientProvider.get(  );
+            try 
+            {
+                synchronized ( conversation )
+                {
+                    ChatMessage message = conversation.newMessage( "user" );
+                    message.setMessage( promptSupplier.get() );
+                    conversation.add( message );
+                }
+                openAIClient.run(conversation);
+            } 
+            catch (Exception e)
+            {
+                return Status.error("Unable to run the task: " + e.getMessage(), e);
+            }
+            return Status.OK_STATUS;
+        }
+        
+    }
+    
 
 }
