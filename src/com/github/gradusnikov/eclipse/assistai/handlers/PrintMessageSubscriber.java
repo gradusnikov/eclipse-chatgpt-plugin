@@ -3,7 +3,9 @@ package com.github.gradusnikov.eclipse.assistai.handlers;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 
+import org.eclipse.e4.core.di.annotations.Creatable;
 
+@Creatable
 public class PrintMessageSubscriber implements Flow.Subscriber<String>
 {
     private Flow.Subscription subscription;

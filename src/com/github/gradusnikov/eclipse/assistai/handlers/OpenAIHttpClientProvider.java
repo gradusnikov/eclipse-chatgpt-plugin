@@ -1,7 +1,5 @@
 package com.github.gradusnikov.eclipse.assistai.handlers;
 
-import java.util.Objects;
-
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -16,15 +14,15 @@ public class OpenAIHttpClientProvider
 {
     @Inject
     private Provider<OpenAIStreamJavaHttpClient> clientProvider;
-    
     @Inject
     private AppendMessageToViewSubscriber appendMessageToViewSubscriber;
-    
+    @Inject
+    private PrintMessageSubscriber printMessageSubscriber;
     
     public OpenAIStreamJavaHttpClient get( )
     {
         OpenAIStreamJavaHttpClient client = clientProvider.get();
-        client.subscribe( new PrintMessageSubscriber() );
+        client.subscribe( printMessageSubscriber );
         client.subscribe( appendMessageToViewSubscriber );
         return client;
     }

@@ -61,7 +61,7 @@ public class ChatGPTPresenter
         partAccessor.findMessageView().ifPresent( part -> { 
             part.clearUserInput(); 
             part.appendMessage( message.getId());
-            part.setMessageHtml( message.getId(), message.getMessage() );
+            part.setMessageHtml( message.getId(), message.getContent() );
         });
         Job job = jobFactory.createSendUserMessageJob( text );
         job.schedule();
@@ -89,7 +89,7 @@ public class ChatGPTPresenter
 
     public void updateMessageFromAssistant( ChatMessage message )
     {
-        partAccessor.findMessageView().ifPresent(messageView -> messageView.setMessageHtml( message.getId(), message.getMessage() ));
+        partAccessor.findMessageView().ifPresent(messageView -> messageView.setMessageHtml( message.getId(), message.getContent() ));
     }
 
 

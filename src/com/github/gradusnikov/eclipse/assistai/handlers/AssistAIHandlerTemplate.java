@@ -19,7 +19,6 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import com.github.gradusnikov.eclipse.assistai.handlers.JobFactory.JobType;
-import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 
 public class AssistAIHandlerTemplate 
 {

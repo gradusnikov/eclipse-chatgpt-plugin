@@ -32,4 +32,9 @@ public class Conversation
     {
         return new ChatMessage( conversation.size(), role );
     }
+    
+    public Iterable<ChatMessage> messages()
+    {
+        return conversation;
+    }
 }

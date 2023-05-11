@@ -16,20 +16,25 @@ import java.util.Map;
 import java.util.concurrent.Flow;
 import java.util.concurrent.SubmissionPublisher;
 
-import javax.inject.Singleton;
+import javax.inject.Inject;
+import javax.management.RuntimeErrorException;
 
+import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.gradusnikov.eclipse.assistai.Activator;
+import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
+import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 
 /**
  * A Java HTTP client for streaming requests to OpenAI API.
  * This class allows subscribing to responses received from the OpenAI API and processes the chat completions.
  */
+@Creatable
 public class OpenAIStreamJavaHttpClient
 {
 
@@ -39,6 +44,9 @@ public class OpenAIStreamJavaHttpClient
 
     private SubmissionPublisher<String> publisher;
 
+    @Inject
+    private ILog logger;
+    
     public OpenAIStreamJavaHttpClient()
     {
         publisher = new SubmissionPublisher<>();
@@ -57,26 +65,34 @@ public class OpenAIStreamJavaHttpClient
      * @param prompt the user input to be included in the request body
      * @return the JSON request body as a String
      */
-    private String getRequestBody(String prompt)
+    private String getRequestBody(Conversation prompt)
     {
 
         API_KEY = Activator.getDefault().getPreferenceStore().getString(PreferenceConstants.OPENAI_API_KEY);
         MODEL = Activator.getDefault().getPreferenceStore().getString(PreferenceConstants.OPENAI_MODEL_NAME);
 
 
-        Map<String, Object> requestBody = new LinkedHashMap<>();
+        Map<String, Object>       requestBody = new LinkedHashMap<>();
         List<Map<String, Object>> messages = new ArrayList<>();
 
         Map<String, Object> systemMessage = new LinkedHashMap<>();
         systemMessage.put("role", "system");
         systemMessage.put("content",
-                "You are an expert in sofware engineering, java and python. Just write code, do not explain it, unless you put explanations as code comments. Always use Markdown code blocks when providing code examples. Do not use code blocks when writing in-line code.");
+                "You are an expert in sofware engineering AI plugin to an IDE. "
+                + "Your objective is to assist User in writing and analyzing a soruce code. Flollow these guidelines:\n"
+                + "1. Just write the code. Do not explain the code unless asked explicitly.\n "
+                + "2. Keep explanation consice and accurate\n"
+                + "3. Always use Markdown code blocks when providing code examples.\n"
+                + "4. Let's work this out in a step by step way to be sure we have the right answer" );
         messages.add(systemMessage);
 
-        Map<String, Object> userMessage = new LinkedHashMap<>();
-        userMessage.put("role", "user");
-        userMessage.put("content", prompt);
-        messages.add(userMessage);
+        for ( ChatMessage message : prompt.messages() )
+        {
+            Map<String, Object> userMessage = new LinkedHashMap<>();
+            userMessage.put("role", message.getRole());
+            userMessage.put("content", message.getContent() );
+            messages.add(userMessage);
+        }
 
         requestBody.put("model", MODEL);
         requestBody.put("messages", messages);
@@ -84,16 +100,17 @@ public class OpenAIStreamJavaHttpClient
         requestBody.put("stream", true);
 
         ObjectMapper objectMapper = new ObjectMapper();
+        String jsonString;
         try
         {
-            return objectMapper.writeValueAsString(requestBody);
+            jsonString = objectMapper.writeValueAsString(requestBody);
         }
         catch (JsonProcessingException e)
         {
-            Activator.getDefault().getLog().error( e.getMessage(), e );
+            throw new RuntimeException( e );
         }
 
-        return null;
+        return jsonString;
     }
 
 	/**
@@ -102,7 +119,7 @@ public class OpenAIStreamJavaHttpClient
 	 * @throws IOException if an I/O error occurs when sending or receiving
 	 * @throws InterruptedException if the operation is interrupted
 	 */
-    public void run(String prompt) throws IOException, InterruptedException
+    public void run( Conversation prompt ) throws IOException, InterruptedException
     {
 
         HttpClient client = HttpClient.newHttpClient();
@@ -114,7 +131,7 @@ public class OpenAIStreamJavaHttpClient
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
         
-        Activator.getDefault().getLog().info("Sending request to ChatGPT.");
+        logger.info("Sending request to ChatGPT.");
         
         try
         {

@@ -15,6 +15,8 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
+import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
+import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.services.OpenAIStreamJavaHttpClient;
 
 @Creatable
@@ -33,6 +35,9 @@ public class JobFactory
     
     @Inject
     private OpenAIHttpClientProvider clientProvider;
+    
+    @Inject
+    private Conversation conversation;
     
     public Job createJob( JobType type, 
                           String context, 
@@ -68,7 +73,13 @@ public class JobFactory
                                                      "${documentText}", documentText,
                                                      "${selectedText}", selectedText,
                                                      "${fileName}", fileName);
-                    openAIClient.run(prompt);
+                    synchronized ( conversation )
+                    {
+                        ChatMessage message = conversation.newMessage( "user" );
+                        message.setMessage( prompt );
+                        conversation.add( message );
+                    }
+                    openAIClient.run(conversation);
                 } 
                 catch (Exception e)
                 {
@@ -115,7 +126,14 @@ public class JobFactory
                                                      "${documentText}", documentText,
                                                      "${javaType}", selectedJavaType,
                                                      "${name}", selectedJavaElement);
-                    openAIClient.run(prompt);
+                    synchronized ( conversation )
+                    {
+                        ChatMessage message = conversation.newMessage( "user" );
+                        message.setMessage( prompt );
+                        conversation.add( message );
+                    }
+                    openAIClient.run(conversation);
+
                 } 
                 catch (Exception e)
                 {
@@ -142,7 +160,15 @@ public class JobFactory
                                                      "${documentText}", documentText,
                                                      "${javaType}", selectedJavaType,
                                                      "${name}", selectedJavaElement);
-                    openAIClient.run(prompt);
+                    
+                    synchronized ( conversation )
+                    {
+                        ChatMessage message = conversation.newMessage( "user" );
+                        message.setMessage( prompt );
+                        conversation.add( message );
+                    }
+                    openAIClient.run(conversation);
+
                 } 
                 catch (Exception e)
                 {
@@ -153,7 +179,7 @@ public class JobFactory
         };  
     }
 
-    public Job createSendUserMessageJob( String text )
+    public Job createSendUserMessageJob( String prompt )
     {
         return new Job("Asking ChatGPT with the user prompt" ) {
             @Override
@@ -162,7 +188,13 @@ public class JobFactory
                 OpenAIStreamJavaHttpClient openAIClient = clientProvider.get(  );
                 try 
                 {
-                    openAIClient.run(text);
+                    synchronized ( conversation )
+                    {
+                        ChatMessage message = conversation.newMessage( "user" );
+                        message.setMessage( prompt );
+                        conversation.add( message );
+                    }
+                    openAIClient.run(conversation);
                 } 
                 catch (Exception e)
                 {

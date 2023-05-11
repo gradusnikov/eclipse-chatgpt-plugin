@@ -36,7 +36,7 @@ public class ChatMessage {
 	 * Retrieves the message content.
 	 * @return The message content
 	 */
-	public String getMessage() {
+	public String getContent() {
 		return message;
 	}
 
