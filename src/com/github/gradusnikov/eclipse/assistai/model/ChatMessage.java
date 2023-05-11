@@ -9,7 +9,8 @@ public class ChatMessage {
 	public final int id;
 	public final String role;
 	public int tokens;
-	public String message;
+	public String content;
+	public String userInput;
 	
 	/**
 	 * Constructs a ChatMessage with the given ID and role.
@@ -20,7 +21,7 @@ public class ChatMessage {
 	{
 		this.id = id;
 		this.role = role;
-		this.message = "";
+		this.content = "";
 	}
 	
 	/**
@@ -29,7 +30,7 @@ public class ChatMessage {
 	 */
 	public void append( String msg )
 	{
-		this.message += msg;
+		this.content += msg;
 	}
 
 	/**
@@ -37,7 +38,7 @@ public class ChatMessage {
 	 * @return The message content
 	 */
 	public String getContent() {
-		return message;
+		return content;
 	}
 
 	/**
@@ -45,7 +46,7 @@ public class ChatMessage {
 	 * @param message The new message content
 	 */
 	public void setMessage(String message) {
-		this.message = message;
+		this.content = message;
 	}
 
 	/**

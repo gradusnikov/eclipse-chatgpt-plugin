@@ -2,6 +2,7 @@ package com.github.gradusnikov.eclipse.assistai.model;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 
 import javax.inject.Singleton;
 
@@ -36,5 +37,12 @@ public class Conversation
     public Iterable<ChatMessage> messages()
     {
         return conversation;
+    }
+
+    public Optional<ChatMessage> removeLastMessage()
+    {
+        ChatMessage removed = !conversation.isEmpty() ? conversation.remove( conversation.size() - 1 ) : null;
+        return Optional.ofNullable( removed );
+        
     }
 }

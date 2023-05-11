@@ -13,11 +13,12 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.Flow;
 import java.util.concurrent.SubmissionPublisher;
+import java.util.function.Supplier;
 
 import javax.inject.Inject;
-import javax.management.RuntimeErrorException;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
@@ -43,7 +44,8 @@ public class OpenAIStreamJavaHttpClient
     private String MODEL;// = "gpt-4";
 
     private SubmissionPublisher<String> publisher;
-
+    private Supplier<Boolean> isCancelled = () -> false;
+    
     @Inject
     private ILog logger;
     
@@ -52,6 +54,12 @@ public class OpenAIStreamJavaHttpClient
         publisher = new SubmissionPublisher<>();
 
     }
+    
+    public void setCancelPrivider( Supplier<Boolean> isCancelled )
+    {
+        this.isCancelled = isCancelled;
+    }
+    
     /**
      * Subscribes a given Flow.Subscriber to receive String data from OpenAI API responses.
      * @param subscriber the Flow.Subscriber to be subscribed to the publisher
@@ -115,6 +123,9 @@ public class OpenAIStreamJavaHttpClient
 
 	/**
 	 * Executes the HTTP request to OpenAI API with the given prompt and processes the responses.
+	 * <p>
+	 * Note: this method will block the whole response is returned.
+	 *  
 	 * @param prompt the user input to be sent to the OpenAI API
 	 * @throws IOException if an I/O error occurs when sending or receiving
 	 * @throws InterruptedException if the operation is interrupted
@@ -146,7 +157,7 @@ public class OpenAIStreamJavaHttpClient
             BufferedReader reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8));
 
             String line;
-            while ((line = reader.readLine()) != null)
+            while ((line = reader.readLine()) != null && !isCancelled.get() )
             {
                 if (line.startsWith("data:"))
                 {
@@ -166,6 +177,11 @@ public class OpenAIStreamJavaHttpClient
                         }
                     }
                 }
+            }
+            
+            if ( isCancelled.get() )
+            {
+                publisher.closeExceptionally( new CancellationException() );
             }
         }
         catch (Exception e)

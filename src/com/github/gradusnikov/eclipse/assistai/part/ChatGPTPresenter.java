@@ -1,10 +1,13 @@
 package com.github.gradusnikov.eclipse.assistai.part;
 
+import java.util.Arrays;
+
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.eclipse.core.runtime.ILog;
+import org.eclipse.core.runtime.jobs.IJobManager;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
@@ -34,7 +37,12 @@ public class ChatGPTPresenter
     private JobFactory jobFactory;        
 
     @Inject
+    private IJobManager jobManager;
+    
+    @Inject
     private AppendMessageToViewSubscriber appendMessageToViewSubscriber;
+    
+    
     
     @PostConstruct
     public void init()
@@ -60,7 +68,7 @@ public class ChatGPTPresenter
         }
         partAccessor.findMessageView().ifPresent( part -> { 
             part.clearUserInput(); 
-            part.appendMessage( message.getId());
+            part.appendMessage( message.getId(), message.getRole() );
             part.setMessageHtml( message.getId(), message.getContent() );
         });
         Job job = jobFactory.createSendUserMessageJob( text );
@@ -82,7 +90,7 @@ public class ChatGPTPresenter
             message = conversation.newMessage( "assistant" );
             conversation.add(message);
         }
-        partAccessor.findMessageView().ifPresent(messageView -> messageView.appendMessage(message.id));
+        partAccessor.findMessageView().ifPresent(messageView -> messageView.appendMessage(message.getId(), message.getRole()));
         return message;
     }
 
@@ -96,5 +104,13 @@ public class ChatGPTPresenter
     public void endMessageFromAssistant()
     {
         
+    }
+
+    public void onStop()
+    {
+        Job[] jobs = jobManager.find( null );
+        Arrays.stream( jobs )
+              .filter( job -> job.getName().startsWith( JobFactory.JOB_PREFIX ) )
+              .forEach( Job::cancel );
     }
 }

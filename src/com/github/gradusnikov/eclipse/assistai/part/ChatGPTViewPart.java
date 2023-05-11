@@ -2,32 +2,30 @@ package com.github.gradusnikov.eclipse.assistai.part;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 
-import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.ui.di.Focus;
 import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.browser.Browser;
 import org.eclipse.swt.browser.BrowserFunction;
+import org.eclipse.swt.custom.SashForm;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.TraverseEvent;
 import org.eclipse.swt.events.TraverseListener;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.FillLayout;
-import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Text;
-import org.eclipse.swt.custom.SashForm;
+import org.eclipse.ui.PlatformUI;
 
 
 public class ChatGPTViewPart
@@ -43,7 +41,7 @@ public class ChatGPTViewPart
     
     @Inject
     private ChatGPTPresenter presenter;
-
+    
     private Text inputArea;
 
     public ChatGPTViewPart()
@@ -81,17 +79,21 @@ public class ChatGPTViewPart
         // Create the JavaScript-to-Java callback
         new CopyCodeFunction(browser, "eclipseFunc");
 
-        // Add controls for the Clear button and the text input area
+        // Add controls for the Clear button and the Stop button
         Composite controls = new Composite(sashForm, SWT.NONE);
-        controls.setLayout(new GridLayout(1, false));
+        controls.setLayout(new GridLayout(2, false)); // Change GridLayout to have 2 columns
 
-        inputArea = createUserInput( controls );
-        inputArea.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        inputArea = createUserInput(controls);
+        inputArea.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 2, 1)); // colspan = 2
 
-        Button clearButton = createClearChatButton( parent, controls );
+        Button clearButton = createClearChatButton(parent, controls);
         clearButton.setLayoutData(new GridData(SWT.FILL, SWT.RIGHT, true, false));
 
-        sashForm.setWeights(new int[]{85, 15}); // Sets the initial weight ratio: 75% browser, 25% controls
+        Button stopButton = createStopButton(parent, controls);
+        stopButton.setLayoutData(new GridData(SWT.FILL, SWT.RIGHT, true, false));
+
+        // Sets the initial weight ratio: 75% browser, 25% controls
+        sashForm.setWeights(new int[]{85, 15}); 
     }
 
     private Button createClearChatButton( Composite parent, Composite controls )
@@ -100,9 +102,11 @@ public class ChatGPTViewPart
         clearButton.setText("Clear");
         try
         {
-            URL imageUrl = new URL("platform:/plugin/AssistAI/icons/Sample.png");
-            URL fileUrl = FileLocator.toFileURL(imageUrl);
-            clearButton.setImage(new Image( parent.getDisplay(), fileUrl.getPath()));
+//            URL imageUrl = new URL("platform:/plugin/AssistAI/icons/Sample.png");
+//            URL fileUrl = FileLocator.toFileURL(imageUrl);
+//            clearButton.setImage(new Image( parent.getDisplay(), fileUrl.getPath()));
+            Image clearIcon = PlatformUI.getWorkbench().getSharedImages().getImage(org.eclipse.ui.ISharedImages.IMG_ELCL_REMOVE);
+            clearButton.setImage( clearIcon );
         }
         catch ( Exception e )
         {
@@ -116,14 +120,29 @@ public class ChatGPTViewPart
         });
         return clearButton;
     }
+    private Button createStopButton(Composite parent, Composite controls)
+    {
+        Button stopButton = new Button(controls, SWT.PUSH);
+        stopButton.setText("Stop");
 
+        // Use the built-in 'IMG_ELCL_STOP' icon
+        Image stopIcon = PlatformUI.getWorkbench().getSharedImages().getImage(org.eclipse.ui.ISharedImages.IMG_ELCL_STOP);
+        stopButton.setImage(stopIcon);
+
+        stopButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                presenter.onStop();
+            }
+        });
+        return stopButton;
+    }
     private Text createUserInput( Composite controls )
     {
         Text inputArea = new Text(controls, SWT.BORDER | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL);
         inputArea.addTraverseListener(new TraverseListener() {
             public void keyTraversed(TraverseEvent e) {
                 if (e.detail == SWT.TRAVERSE_RETURN && (e.stateMask & SWT.MODIFIER_MASK) == 0) {
-                    // Your action here when Enter key is pressed without any modifier (Shift or Ctrl)
                     presenter.onSendUserMessage( inputArea.getText() );
                 }
             }
@@ -271,18 +290,28 @@ public class ChatGPTViewPart
         // SourceViewer, JFace Text, etc.)
     }
 
-    public void appendMessage(int id)
+    public void appendMessage(int message, String role)
     {
+        // 
+        String cssClass = "user".equals( role ) ? "chat-bubble me" : "chat-bubble you";
         uiSync.asyncExec(() -> {
             browser.execute("""
                     node = document.createElement("div");
                     node.setAttribute("id", "message-${id}");
-                    node.setAttribute("class", "chat-bubble you");
+                    node.setAttribute("class", "${cssClass}");
                     document.getElementById("content").appendChild(node);
-                    	""".replace("${id}", Integer.toString(id)));
+                    	""".replace("${id}", Integer.toString( message ))
+                    	   .replace( "${cssClass}", cssClass )
+                    	);
             browser.execute(
                     // Scroll down
                     "window.scrollTo(0, document.body.scrollHeight);");
         });
+    }
+
+    public Object removeMessage( int id )
+    {
+        // TODO Auto-generated method stub
+        return null;
     }
 }

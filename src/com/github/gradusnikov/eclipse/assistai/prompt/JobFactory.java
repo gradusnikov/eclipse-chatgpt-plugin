@@ -25,6 +25,8 @@ import com.github.gradusnikov.eclipse.assistai.subscribers.OpenAIHttpClientProvi
 @Singleton
 public class JobFactory
 {
+    public static final String JOB_PREFIX = "AssistAI: ";
+    
     public enum JobType
     {
         REFACTOR,
@@ -124,13 +126,15 @@ public class JobFactory
         private final Supplier<String> promptSupplier;
         public SendMessageJob( Supplier<String> promptSupplier )
         {
-            super("Asking ChatGPT for help.");
+            super( JOB_PREFIX + "asking ChatGPT for help");
             this.promptSupplier = promptSupplier;
+            
         }
         @Override
-        protected IStatus run(IProgressMonitor arg0) {
+        protected IStatus run(IProgressMonitor progressMonitor) {
             logger.info( this.getName() );
-            OpenAIStreamJavaHttpClient openAIClient = clientProvider.get(  );
+            OpenAIStreamJavaHttpClient openAIClient = clientProvider.get();
+            openAIClient.setCancelPrivider( () -> progressMonitor.isCanceled()   ); 
             try 
             {
                 synchronized ( conversation )
