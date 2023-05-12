@@ -11,9 +11,6 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
-	<classpathentry kind="lib" path="lib/jackson-annotations-2.15.0-rc1.jar"/>
-	<classpathentry kind="lib" path="lib/jackson-core-2.15.0-rc1.jar"/>
-	<classpathentry kind="lib" path="lib/jackson-databind-2.15.0-rc1.jar"/>
 	<classpathentry kind="lib" path="lib-test/assertj-core-3.24.2.jar"/>
 	<classpathentry kind="lib" path="lib-test/byte-buddy-1.12.21.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/5"/>
