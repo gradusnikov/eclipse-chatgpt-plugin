@@ -3,12 +3,14 @@ package com.github.gradusnikov.eclipse.assistai.prompt;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -92,7 +94,7 @@ public class JobFactory
     
     private String createPromptText(String resourceFile, String... substitutions) 
     {
-        try (InputStream in = getClass().getResourceAsStream(resourceFile);
+        try (InputStream in = FileLocator.toFileURL( new URL("platform:/plugin/AssistAI/prompts/" + resourceFile) ).openStream();
              DataInputStream dis = new DataInputStream(in);)
         {
 
