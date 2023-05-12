@@ -20,12 +20,14 @@ Require-Bundle: javax.inject,
  AssistAIDependencies;bundle-version="1.0.0",
  org.eclipse.jdt.core,
  org.eclipse.jdt.ui,
- org.eclipse.swt
+ org.eclipse.swt,
+ org.apache.commons.lang3;bundle-version="3.1.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-17
 Automatic-Module-Name: AssitAI
 Bundle-Classpath: .,
  ./lib/jackson-annotations-2.15.0-rc1.jar,
  ./lib/jackson-core-2.15.0-rc1.jar,
  ./lib/jackson-databind-2.15.0-rc1.jar
+ ./lib/commons-text-1.10.0.jar
 Import-Package: javax.annotation;version="1.2.0"
 Bundle-ActivationPolicy: lazy

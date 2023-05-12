@@ -29,6 +29,8 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.PlatformUI;
 
+import com.github.gradusnikov.eclipse.assistai.prompt.PromptParser;
+
 
 public class ChatGPTViewPart
 {
@@ -104,9 +106,6 @@ public class ChatGPTViewPart
         clearButton.setText("Clear");
         try
         {
-//            URL imageUrl = new URL("platform:/plugin/AssistAI/icons/Sample.png");
-//            URL fileUrl = FileLocator.toFileURL(imageUrl);
-//            clearButton.setImage(new Image( parent.getDisplay(), fileUrl.getPath()));
             Image clearIcon = PlatformUI.getWorkbench().getSharedImages().getImage(org.eclipse.ui.ISharedImages.IMG_ELCL_REMOVE);
             clearButton.setImage( clearIcon );
         }
@@ -210,7 +209,7 @@ public class ChatGPTViewPart
      */
     private String loadJavaScripts()
     {
-        String[] jsFiles = {"showdownjs.min.js", "highlight.min.js", "markdown.js"};
+        String[] jsFiles = {"highlight.min.js"};
         StringBuilder js = new StringBuilder();
         for ( String file : jsFiles )
         {
@@ -230,15 +229,13 @@ public class ChatGPTViewPart
     public void setMessageHtml(int messageId, String messageBody)
     {
         uiSync.asyncExec(() -> {
-
-            String fixedHtml = escapeHtmlQuotes(messageBody);
-            fixedHtml = fixLineBreaks(fixedHtml);
-
-            browser.execute("converter = new showdown.Converter();\n" 
-                    + "document.getElementById(\"message-" + messageId + "\").innerHTML = replaceCodeBlocks('" + fixedHtml + "');hljs.highlightAll();");
-            browser.execute(
-                    // Scroll down
-                    "window.scrollTo(0, document.body.scrollHeight);");
+            PromptParser parser = new PromptParser( messageBody );
+            
+            String fixedHtml = fixLineBreaks( escapeHtmlQuotes( parser.parseToHtml() ) );
+            // inject and highlight html message
+            browser.execute( "document.getElementById(\"message-" + messageId + "\").innerHTML = '" + fixedHtml + "';hljs.highlightAll();");
+            // Scroll down
+            browser.execute("window.scrollTo(0, document.body.scrollHeight);");
         });
     }
     /**
@@ -261,7 +258,6 @@ public class ChatGPTViewPart
     {
         return html.replace("\"", "\\\"").replace("'", "\\'");
     }
-
     // A class for JavaScript-to-Java callback
     private class CopyCodeFunction extends BrowserFunction
     {
