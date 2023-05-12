@@ -123,6 +123,9 @@ public class JobFactory
         return new SendMessageJob( () -> prompt );
     }
     
+    /**
+     * 
+     */
     private class SendMessageJob extends Job
     {
         private final Supplier<String> promptSupplier;

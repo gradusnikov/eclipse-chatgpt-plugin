@@ -2,11 +2,13 @@ package com.github.gradusnikov.eclipse.assistai.part;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 
+import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.ui.di.Focus;
 import org.eclipse.e4.ui.di.UISynchronize;
@@ -189,7 +191,7 @@ public class ChatGPTViewPart
         String[] cssFiles = {"textview.css", "dark.min.css"};
         for ( String file : cssFiles )
         {
-            try (InputStream in = this.getClass().getResourceAsStream( file ) )
+            try ( InputStream in = FileLocator.toFileURL( new URL("platform:/plugin/AssistAI/css/" + file) ).openStream() )
             {
                 css.append( new String(in.readAllBytes(), StandardCharsets.UTF_8) );
                 css.append("\n");
@@ -212,7 +214,7 @@ public class ChatGPTViewPart
         StringBuilder js = new StringBuilder();
         for ( String file : jsFiles )
         {
-            try ( InputStream in = this.getClass().getResourceAsStream( file ) )
+            try ( InputStream in = FileLocator.toFileURL( new URL("platform:/plugin/AssistAI/js/" + file) ).openStream() )
             {
                 js.append( new String(in.readAllBytes(), StandardCharsets.UTF_8) );
                 js.append("\n");
