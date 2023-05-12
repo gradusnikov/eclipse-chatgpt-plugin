@@ -54,10 +54,11 @@ public class AssistAIHandlerTemplate
             
             String documentText = document.get();
             String fileName     = activeEditor.getEditorInput().getName();
+            String ext          = fileName.substring( fileName.lastIndexOf( "." )+1 );
             
             // get java elements
             String selectedJavaElement = "";
-            String selectedJavaType = "";
+            String selectedJavaType = "code snippet";
             
             if (compilationUnit instanceof ICompilationUnit)
             {
@@ -88,7 +89,13 @@ public class AssistAIHandlerTemplate
                     throw new RuntimeException(e);
                 }
             }
-            Job job = jobFactory.createJob(type, documentText, selectedText, selectedJavaElement, selectedJavaType);
+            Context context = new Context( fileName, 
+                                           documentText, 
+                                           selectedText, 
+                                           selectedJavaElement, 
+                                           selectedJavaType,
+                                           ext);
+            Job job = jobFactory.createJob(type, context);
             job.schedule();
         }
     }

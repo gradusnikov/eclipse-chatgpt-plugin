@@ -6,6 +6,9 @@ import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringEscapeUtils;
 
+/**
+ * A utility class for parsing and converting a text prompt to an HTML formatted string.
+ */
 public class PromptParser
 {
     
@@ -21,7 +24,11 @@ public class PromptParser
     {
         this.prompt = prompt;
     }
-    
+    /**
+     * Converts the prompt text to an HTML formatted string.
+     *
+     * @return An HTML formatted string representation of the prompt text.
+     */
     public String parseToHtml()
     {
         StringBuilder out = new StringBuilder();

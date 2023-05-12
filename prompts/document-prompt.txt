@@ -1,5 +1,9 @@
-In the context of the Java class [class] provide the javadoc documentation of the ${javaType}: ${name}. 
+In the context of the Java class file [class] provide the javadoc documentation of the ${javaType} "${name}". 
 In your response return JUST the javadoc comment. 
 Keep the documentation concise and compact.
 
-[class]="${documentText}"
+[class]="
+```${lang}
+${documentText}
+```
+"

@@ -76,12 +76,6 @@ public class ChatGPTPresenter
     }
 
 
-    public void hello()
-    {
-        logger.info( "hello!" );
-    }
-
-
     public ChatMessage beginMessageFromAssitant()
     {   
         ChatMessage message;

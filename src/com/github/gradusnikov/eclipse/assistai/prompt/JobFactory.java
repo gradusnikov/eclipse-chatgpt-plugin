@@ -18,6 +18,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
+import com.github.gradusnikov.eclipse.assistai.handlers.Context;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.services.OpenAIStreamJavaHttpClient;
@@ -34,7 +35,7 @@ public class JobFactory
         REFACTOR,
         UNIT_TEST,
         DOCUMENT,
-        EXPLAIN
+        EXPLAIN, DISCUSS_CODE
     }
     @Inject
     private ILog logger;
@@ -45,23 +46,22 @@ public class JobFactory
     @Inject
     private Conversation conversation;
     
-    public Job createJob( JobType type, 
-                          String context, 
-                          String selectedSnippet,
-                          String selectedJavaElement, 
-                          String selectedJavaType )
+    public Job createJob( JobType type, Context context )
     {
         Supplier<String> propmtSupplier;
         switch ( type )
         {
             case DOCUMENT:
-                propmtSupplier = javaDocPromptSupplier( context, selectedJavaElement, selectedJavaType );
+                propmtSupplier = javaDocPromptSupplier( context );
                 break;
             case UNIT_TEST:
-                propmtSupplier = unitTestSupplier( context, selectedJavaElement, selectedJavaType );
+                propmtSupplier = unitTestSupplier( context );
                 break;
             case REFACTOR:
-                propmtSupplier = refactorPromptSupplier( context, selectedSnippet, selectedJavaType );
+                propmtSupplier = refactorPromptSupplier( context );
+                break;
+            case DISCUSS_CODE:
+                propmtSupplier = discussCodePromptSupplier( context );
                 break;
             default:
                 throw new IllegalArgumentException();
@@ -69,26 +69,41 @@ public class JobFactory
         return new SendMessageJob( propmtSupplier );        
     }
     
-    private Supplier<String> javaDocPromptSupplier( String documentText, String selectedJavaElement, String selectedJavaType )
+    private Supplier<String> discussCodePromptSupplier( Context context )
+    {
+        return () -> createPromptText("discuss-prompt.txt", 
+                "${documentText}", context.fileContents(),
+                "${fileName}", context.fileName(),
+                "${lang}", context.lang()
+                );
+    }
+
+    private Supplier<String> javaDocPromptSupplier( Context context )
     {
         return () -> createPromptText("document-prompt.txt", 
-                    "${documentText}", documentText,
-                    "${javaType}", selectedJavaType,
-                    "${name}", selectedJavaElement);
+                    "${documentText}", context.fileContents(),
+                    "${javaType}", context.selectedItemType(),
+                    "${name}", context.selectedItem(),
+                    "${lang}", context.lang()
+                    );
     }
-    private Supplier<String> refactorPromptSupplier( String documentText, String selectedJavaElement, String selectedJavaType )
+    private Supplier<String> refactorPromptSupplier( Context context )
     {
         return () -> createPromptText("refactor-prompt.txt", 
-                "${documentText}", documentText,
-                "${selectedText}", selectedJavaElement,
-                "${fileName}", "");
+                "${documentText}", context.fileContents(),
+                "${selectedText}", context.selectedText(),
+                "${fileName}", context.fileName(),
+                "${lang}", context.lang()
+                );
     }
-    private Supplier<String> unitTestSupplier( String documentText, String selectedJavaElement, String selectedJavaType )
+    private Supplier<String> unitTestSupplier( Context context )
     {
         return () -> createPromptText("testcase-prompt.txt", 
-                "${documentText}", documentText,
-                "${javaType}", selectedJavaType,
-                "${name}", selectedJavaElement);
+                "${documentText}", context.fileContents(),
+                "${javaType}", context.selectedItemType(),
+                "${name}", context.selectedItem(),
+                "${lang}", context.lang()
+                );
     }
 
     
