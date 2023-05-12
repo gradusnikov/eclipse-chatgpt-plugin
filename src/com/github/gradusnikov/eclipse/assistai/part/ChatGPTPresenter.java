@@ -11,17 +11,15 @@ import org.eclipse.core.runtime.jobs.IJobManager;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
-import org.eclipse.e4.ui.workbench.IWorkbench;
+import org.eclipse.swt.dnd.Clipboard;
+import org.eclipse.swt.dnd.TextTransfer;
+import org.eclipse.swt.dnd.Transfer;
+import org.eclipse.ui.PlatformUI;
 
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory;
 import com.github.gradusnikov.eclipse.assistai.subscribers.AppendMessageToViewSubscriber;
-
-import org.eclipse.swt.dnd.Clipboard;
-import org.eclipse.swt.dnd.TextTransfer;
-import org.eclipse.swt.dnd.Transfer;
-import org.eclipse.ui.PlatformUI;
 
 @Creatable
 @Singleton
@@ -104,7 +102,9 @@ public class ChatGPTPresenter
     {
         
     }
-
+    /**
+     * Cancels all running ChatGPT jobs
+     */
     public void onStop()
     {
         Job[] jobs = jobManager.find( null );
@@ -112,7 +112,11 @@ public class ChatGPTPresenter
               .filter( job -> job.getName().startsWith( JobFactory.JOB_PREFIX ) )
               .forEach( Job::cancel );
     }
-
+    /**
+     * Copies the given code block to the system clipboard.
+     *
+     * @param codeBlock The code block to be copied to the clipboard.
+     */
     public void onCopyCode( String codeBlock )
     {
         PlatformUI.getWorkbench().getDisplay();

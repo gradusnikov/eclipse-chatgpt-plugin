@@ -21,7 +21,8 @@ Require-Bundle: javax.inject,
  org.eclipse.jdt.core,
  org.eclipse.jdt.ui,
  org.eclipse.swt,
- org.apache.commons.lang3;bundle-version="3.1.0"
+ org.apache.commons.lang3;bundle-version="3.1.0",
+ org.eclipse.core.resources
 Bundle-RequiredExecutionEnvironment: JavaSE-17
 Automatic-Module-Name: AssitAI
 Bundle-Classpath: .,

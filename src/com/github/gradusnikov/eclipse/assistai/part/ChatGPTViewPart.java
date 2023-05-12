@@ -55,7 +55,7 @@ public class ChatGPTViewPart
     @Focus
     public void setFocus()
     {
-        browser.setFocus();
+        inputArea.setFocus();
     }
     
     public void clearChatView()
@@ -264,7 +264,10 @@ public class ChatGPTViewPart
     {
         return html.replace("\"", "\\\"").replace("'", "\\'");
     }
-    // A class for JavaScript-to-Java callback
+    /**
+     * This function establishes a JavaScript-to-Java callback for the browser, allowing the IDE to copy code.
+     * It is invoked from JavaScript when the user interacts with the chat view to copy a code block.
+     */    
     private class CopyCodeFunction extends BrowserFunction
     {
         public CopyCodeFunction(Browser browser, String name)

@@ -7,6 +7,7 @@
     <elements xsi:type="commands:Command" xmi:id="_TgvO8N9eEe2hsMR7OZZDNw" elementId="assistai.command.javadoc" commandName="Document" description="Asks ChatGPT to document class or method with JavaDoc"/>
     <elements xsi:type="commands:Command" xmi:id="_zB4hIOtJEe2Z7LAQxNqxLg" elementId="assistai.command.testcase" commandName="JUnit Test" description="Asks ChatGPT to generate a  JUnit test case for a given mehtod"/>
     <elements xsi:type="commands:Command" xmi:id="_eYD8MPDVEe26l_NIXSJcoA" elementId="assistai.command.discuss" commandName="Discuss" description="Ask ChatGPT do discuss the code"/>
+    <elements xsi:type="commands:Command" xmi:id="_tMtMsPELEe2go8AypQomeQ" elementId="assistai.command.fixerrors" commandName="Fix Errors" description="Asks ChatGPT  to fix errors"/>
   </fragments>
   <fragments xsi:type="fragment:StringModelFragment" xmi:id="_fW12kIrOEeW7h_qdP9N9fw" featurename="handlers" parentElementId="xpath:/">
     <elements xsi:type="commands:Handler" xmi:id="_k2L0IIrOEeW7h_qdP9N9fw" elementId="assistai.handler.0" contributionURI="bundleclass://AssistAI/com.github.gradusnikov.eclipse.assistai.handlers.AssistAICodeRefactorHandler" command="_UCYfwIrOEeW7h_qdP9N9fw">
@@ -19,6 +20,7 @@
       <persistedState key="persistState" value="false"/>
     </elements>
     <elements xsi:type="commands:Handler" xmi:id="_l4PJEPDVEe26l_NIXSJcoA" elementId="assistai.handler.3" contributionURI="bundleclass://AssistAI/com.github.gradusnikov.eclipse.assistai.handlers.AssistAIDiscussCodeHandler" command="_eYD8MPDVEe26l_NIXSJcoA"/>
+    <elements xsi:type="commands:Handler" xmi:id="_x-SFUPELEe2go8AypQomeQ" elementId="assistai.handler.4" contributionURI="bundleclass://AssistAI/com.github.gradusnikov.eclipse.assistai.handlers.AssistAIFixErrorsHandler" command="_tMtMsPELEe2go8AypQomeQ"/>
   </fragments>
   <fragments xsi:type="fragment:StringModelFragment" xmi:id="_pVgfIIrOEeW7h_qdP9N9fw" featurename="menuContributions" parentElementId="xpath:/">
     <elements xsi:type="menu:MenuContribution" xmi:id="_BducUIrPEeW7h_qdP9N9fw" elementId="assistai.menucontribution.1" positionInParent="after=additions" parentId="popup">
@@ -28,6 +30,7 @@
         <children xsi:type="menu:HandledMenuItem" xmi:id="_Dtii0YrPEeW7h_qdP9N9fw" elementId="assistai.handledmenuitem.refactor" label="Refactor" iconURI="" tooltip="Asks ChatGPT to refactor the selected code" command="_UCYfwIrOEeW7h_qdP9N9fw"/>
         <children xsi:type="menu:HandledMenuItem" xmi:id="_weYC8N9eEe2hsMR7OZZDNw" elementId="assistai.handledmenuitem.document" label="Document" tooltip="Asks ChatGPT to document class or method with JavaDoc" command="_TgvO8N9eEe2hsMR7OZZDNw"/>
         <children xsi:type="menu:HandledMenuItem" xmi:id="_HlM0MOtKEe2Z7LAQxNqxLg" elementId="assistai.handledmenuitem.junittestcase" label="JUnit test case" tooltip="Asks ChatGPT to generate a JUnit Test Case" command="_zB4hIOtJEe2Z7LAQxNqxLg"/>
+        <children xsi:type="menu:HandledMenuItem" xmi:id="_1bS-wPELEe2go8AypQomeQ" elementId="assistai.handledmenuitem.fixerrors" label="Fix errors" tooltip="Asks ChatGPT to fix errors" command="_tMtMsPELEe2go8AypQomeQ"/>
       </children>
     </elements>
   </fragments>

@@ -35,7 +35,9 @@ public class JobFactory
         REFACTOR,
         UNIT_TEST,
         DOCUMENT,
-        EXPLAIN, DISCUSS_CODE
+        EXPLAIN,
+        DISCUSS_CODE,
+        FIX_ERRORS
     }
     @Inject
     private ILog logger;
@@ -63,12 +65,25 @@ public class JobFactory
             case DISCUSS_CODE:
                 propmtSupplier = discussCodePromptSupplier( context );
                 break;
+            case FIX_ERRORS:
+                propmtSupplier = fixErrorsPromptSupplier( context );
+                break;
             default:
                 throw new IllegalArgumentException();
         }
         return new SendMessageJob( propmtSupplier );        
     }
     
+    private Supplier<String> fixErrorsPromptSupplier( Context context )
+    {
+        return () -> createPromptText("fix-errors-prompt.txt", 
+                "${documentText}", context.fileContents(),
+                "${fileName}", context.fileName(),
+                "${lang}", context.lang(),
+                "${errors}", context.selectedContent()
+                );
+    }
+
     private Supplier<String> discussCodePromptSupplier( Context context )
     {
         return () -> createPromptText("discuss-prompt.txt", 
@@ -91,7 +106,7 @@ public class JobFactory
     {
         return () -> createPromptText("refactor-prompt.txt", 
                 "${documentText}", context.fileContents(),
-                "${selectedText}", context.selectedText(),
+                "${selectedText}", context.selectedContent(),
                 "${fileName}", context.fileName(),
                 "${lang}", context.lang()
                 );
@@ -160,7 +175,9 @@ public class JobFactory
                 synchronized ( conversation )
                 {
                     ChatMessage message = conversation.newMessage( "user" );
-                    message.setMessage( promptSupplier.get() );
+                    String prompt = promptSupplier.get();
+System.out.println( prompt );
+                    message.setMessage( prompt );
                     conversation.add( message );
                 }
                 openAIClient.run(conversation);
