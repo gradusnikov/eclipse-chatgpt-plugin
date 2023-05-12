@@ -46,52 +46,61 @@ public class PromptParser
                 
                 if ( codeBlockMatcher.find() )
                 {
-                    if( (state & CODE_BLOCK_STATE) != CODE_BLOCK_STATE )
-                    {
-                        String codeBlockId = UUID.randomUUID().toString();
-                        out.append( String.format("<input type=\"button\" onClick=\"eclipseCopyCode(document.getElementById('%s').innerText)\" value=\"Copy Code\"\"/>", codeBlockId) );
-                        out.append( String.format( "<pre><code lang=\"%s\" id=\"%s\">",  codeBlockMatcher.group(1), codeBlockId ) );
-                        state ^= CODE_BLOCK_STATE;
-                    }
-                    else
-                    {
-                        out.append( "</code></pre>\n" );
-                        state ^= CODE_BLOCK_STATE;
-                    }
+                    String lang = codeBlockMatcher.group(1);
+                    handleCodeBlock( out, lang );
                 }
                 else
                 {
-                    if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  )
-                    {
-                        
-                        out.append(  StringEscapeUtils.escapeHtml4(escapeBackSlashes(line)) );
-                    }
-                    else
-                    {
-                        out.append( markdown( StringEscapeUtils.escapeHtml4(line) ) );
-                    }
-                    
-                    // handle new lines
-                    if ( scanner.hasNext() )
-                    {
-                        if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  )
-                        {
-                            out.append( "\n" );
-                        }
-                        else
-                        {
-                            out.append( "<br/>" );
-                        }
-                        
-                    }
-                    else if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  ) // close opened code blocks
-                    {
-                        out.append( "</code></pre>\n" );
-                    }
+                    handleNonCodeBlock( out, line, !scanner.hasNext() );
                 }
             }
         }
         return out.toString();
+    }
+
+    private void handleNonCodeBlock( StringBuilder out,  String line, boolean lastLine )
+    {
+        if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  )
+        {
+            
+            out.append(  StringEscapeUtils.escapeHtml4(escapeBackSlashes(line)) );
+        }
+        else
+        {
+            out.append( markdown( StringEscapeUtils.escapeHtml4(line) ) );
+        }
+        
+        if ( lastLine ) // close opened code blocks
+        {
+            out.append( "</code></pre>\n" );
+        }
+        else if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  )         // handle new lines
+        {
+            if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  )
+            {
+                out.append( "\n" );
+            }
+            else
+            {
+                out.append( "<br/>" );
+            }
+        }
+    }
+
+    private void handleCodeBlock( StringBuilder out, String lang )
+    {
+        if( (state & CODE_BLOCK_STATE) != CODE_BLOCK_STATE )
+        {
+            String codeBlockId = UUID.randomUUID().toString();
+            out.append( String.format("<input type=\"button\" onClick=\"eclipseCopyCode(document.getElementById('%s').innerText)\" value=\"Copy Code\"\"/>", codeBlockId) );
+            out.append( String.format( "<pre><code lang=\"%s\" id=\"%s\">",  lang, codeBlockId ) );
+            state ^= CODE_BLOCK_STATE;
+        }
+        else
+        {
+            out.append( "</code></pre>\n" );
+            state ^= CODE_BLOCK_STATE;
+        }
     }
     
     public static String escapeBackSlashes( String input )
