@@ -11,11 +11,17 @@ import org.eclipse.core.runtime.jobs.IJobManager;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
+import org.eclipse.e4.ui.workbench.IWorkbench;
 
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory;
 import com.github.gradusnikov.eclipse.assistai.subscribers.AppendMessageToViewSubscriber;
+
+import org.eclipse.swt.dnd.Clipboard;
+import org.eclipse.swt.dnd.TextTransfer;
+import org.eclipse.swt.dnd.Transfer;
+import org.eclipse.ui.PlatformUI;
 
 @Creatable
 @Singleton
@@ -41,7 +47,6 @@ public class ChatGPTPresenter
     
     @Inject
     private AppendMessageToViewSubscriber appendMessageToViewSubscriber;
-    
     
     
     @PostConstruct
@@ -106,5 +111,14 @@ public class ChatGPTPresenter
         Arrays.stream( jobs )
               .filter( job -> job.getName().startsWith( JobFactory.JOB_PREFIX ) )
               .forEach( Job::cancel );
+    }
+
+    public void onCopyCode( String codeBlock )
+    {
+        PlatformUI.getWorkbench().getDisplay();
+        Clipboard clipboard = new Clipboard(PlatformUI.getWorkbench().getDisplay());
+        TextTransfer textTransfer = TextTransfer.getInstance();
+        clipboard.setContents(new Object[] { codeBlock }, new Transfer[] { textTransfer });
+        clipboard.dispose();
     }
 }

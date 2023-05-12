@@ -1,6 +1,7 @@
 package com.github.gradusnikov.eclipse.assistai.prompt;
 
 import java.util.Scanner;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -47,7 +48,9 @@ public class PromptParser
                 {
                     if( (state & CODE_BLOCK_STATE) != CODE_BLOCK_STATE )
                     {
-                        out.append( String.format( "<pre><code lang=\"%s\">\n",  codeBlockMatcher.group(1) ) );
+                        String codeBlockId = UUID.randomUUID().toString();
+                        out.append( String.format("<input type=\"button\" onClick=\"eclipseCopyCode(document.getElementById('%s').innerText)\" value=\"Copy Code\"\"/>", codeBlockId) );
+                        out.append( String.format( "<pre><code lang=\"%s\" id=\"%s\">",  codeBlockMatcher.group(1), codeBlockId ) );
                         state ^= CODE_BLOCK_STATE;
                     }
                     else

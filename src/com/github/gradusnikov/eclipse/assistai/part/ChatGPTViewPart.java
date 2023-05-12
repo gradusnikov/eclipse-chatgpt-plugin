@@ -155,7 +155,13 @@ public class ChatGPTViewPart
     {
         Browser browser = new Browser( parent, SWT.EDGE);
         initializeChatView( browser );
+        initializeFunctions( browser );
         return browser;
+    }
+
+    private void initializeFunctions( Browser browser )
+    {
+        new CopyCodeFunction( browser, "eclipseCopyCode" );
     }
 
     private void initializeChatView( Browser browser )
@@ -272,20 +278,10 @@ public class ChatGPTViewPart
             if (arguments.length > 0 && arguments[0] instanceof String)
             {
                 String codeBlock = (String) arguments[0];
-                copyCodeToEditor(codeBlock);
+                presenter.onCopyCode(codeBlock);
             }
             return null;
         }
-    }
-
-    private void copyCodeToEditor(String codeBlock)
-    {
-        System.out.println("Code Block: " + codeBlock);
-
-        // Add your logic to inject the code block to the document at the given caret
-        // position
-        // The implementation will vary depending on the editor you're using (e.g.
-        // SourceViewer, JFace Text, etc.)
     }
 
     public void appendMessage(int message, String role)
@@ -312,4 +308,6 @@ public class ChatGPTViewPart
         // TODO Auto-generated method stub
         return null;
     }
+    
+
 }
