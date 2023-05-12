@@ -24,6 +24,7 @@ public class PromptParser
     {
         this.prompt = prompt;
     }
+    
     /**
      * Converts the prompt text to an HTML formatted string.
      *
@@ -57,12 +58,28 @@ public class PromptParser
                 }
                 else
                 {
-                    out.append( StringEscapeUtils.escapeHtml4(line));
+                    if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  )
+                    {
+                        
+                        out.append(  StringEscapeUtils.escapeHtml4(escapeBackSlashes(line)) );
+                    }
+                    else
+                    {
+                        out.append( markdown( StringEscapeUtils.escapeHtml4(line) ) );
+                    }
                     
                     // handle new lines
                     if ( scanner.hasNext() )
                     {
-                        out.append( "\n" );
+                        if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  )
+                        {
+                            out.append( "\n" );
+                        }
+                        else
+                        {
+                            out.append( "<br/>" );
+                        }
+                        
                     }
                     else if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  ) // close opened code blocks
                     {
@@ -72,5 +89,28 @@ public class PromptParser
             }
         }
         return out.toString();
+    }
+    
+    public static String escapeBackSlashes( String input )
+    {
+        input = input.replace( "\\", "\\\\" );
+        return input;
+    }
+    
+    public static String markdown(String input) {
+        // Replace **text** with <strong>text</strong>
+        input = input.replaceAll("\\*\\*(.*?)\\*\\*", "<strong>$1</strong>");
+
+        // Replace *text* with <em>text</em>
+        input = input.replaceAll("\\*(.*?)\\*", "<em>$1</em>");
+
+        // Replace `text` with <i>text</i>
+        input = input.replaceAll("`(.*?)`", "<i>$1</i>");
+
+        
+        // Replace [text](url) with <a href="url">text</a>
+        input = input.replaceAll("\\[(.*?)\\]\\((.*?)\\)", "<a href=\"$2\">$1</a>");
+
+        return input;
     }
 }

@@ -231,7 +231,7 @@ public class ChatGPTViewPart
         uiSync.asyncExec(() -> {
             PromptParser parser = new PromptParser( messageBody );
             
-            String fixedHtml = fixLineBreaks( escapeHtmlQuotes( parser.parseToHtml() ) );
+            String fixedHtml = escapeHtmlQuotes(fixLineBreaks(parser.parseToHtml()));
             // inject and highlight html message
             browser.execute( "document.getElementById(\"message-" + messageId + "\").innerHTML = '" + fixedHtml + "';hljs.highlightAll();");
             // Scroll down
