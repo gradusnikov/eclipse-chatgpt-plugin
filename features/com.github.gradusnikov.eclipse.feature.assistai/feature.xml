@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <feature
-      id="AssistAIFeature"
-      label="AssistAIFeature"
+      id="com.github.gradusnikov.eclipse.assistai"
+      label="Assist AI"
       version="1.0.0.qualifier"
       provider-name="WojciechGradkowski">
 
@@ -18,16 +18,16 @@
    </license>
 
    <plugin
-         id="AssistAI"
+         id="com.github.gradusnikov.eclipse.plugin.assistai.dependencies"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"/>
+
+   <plugin
+         id="com.github.gradusnikov.eclipse.plugin.assistai.main"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
-
-   <plugin
-         id="AssistAIDependencies"
-         download-size="0"
-         install-size="0"
-         version="0.0.0"/>
 
 </feature>

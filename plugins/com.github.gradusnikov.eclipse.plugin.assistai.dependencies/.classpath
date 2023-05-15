@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
+	<classpathentry exported="true" kind="lib" path="commons-text-1.10.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="jackson-annotations-2.15.0-rc1.jar"/>
+	<classpathentry exported="true" kind="lib" path="jackson-core-2.15.0-rc1.jar"/>
+	<classpathentry exported="true" kind="lib" path="jackson-databind-2.15.0-rc1.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

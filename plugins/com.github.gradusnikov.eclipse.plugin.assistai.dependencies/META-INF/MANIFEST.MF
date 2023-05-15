@@ -1,12 +1,13 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: AssistAIDependencies
-Bundle-SymbolicName: AssistAIDependencies
+Bundle-Name: assistai-dependencies
+Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.dependencies
 Bundle-Version: 1.0.0
 Bundle-ClassPath: commons-text-1.10.0.jar,
  jackson-annotations-2.15.0-rc1.jar,
  jackson-core-2.15.0-rc1.jar,
  jackson-databind-2.15.0-rc1.jar
+Bundle-Vendor: Wojciech Gradkowski
 Export-Package: com.fasterxml.jackson.annotation,
  com.fasterxml.jackson.core,
  com.fasterxml.jackson.core.async,
@@ -53,7 +54,4 @@ Export-Package: com.fasterxml.jackson.annotation,
  org.apache.commons.text.numbers,
  org.apache.commons.text.similarity,
  org.apache.commons.text.translate
-Require-Bundle: javax.xml,
- org.apache.commons.lang3,
- org.eclipse.core.runtime
-Automatic-Module-Name: AssistAIDependencies2
+Automatic-Module-Name: assistai.dependencies

@@ -1,0 +1,12 @@
+The file [fileName], which contains the following code [content], has the following problems [errors]. 
+
+Please provide a solution.
+
+
+[errors] = "${errors}"
+[fileName] = "${fileName}" 
+[content] = "
+```${lang}
+${documentText}
+```
+"

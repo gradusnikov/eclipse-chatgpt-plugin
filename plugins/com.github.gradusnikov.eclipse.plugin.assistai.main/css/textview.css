@@ -1,0 +1,51 @@
+/* Chat bubble styles */
+.chat-bubble {
+	flex-direction: column;
+	margin: 0.5rem;
+	padding: 1rem;
+	border-radius: 1rem;
+	box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+	background-color: #222;
+	font-family: 'Roboto', sans-serif;
+	color: #fff;
+	line-height: 150%;
+}
+
+
+/* User-specific styles */
+.chat-bubble.me {
+	align-self: flex-end;
+	background-color: #823c3c;
+}
+
+
+.chat-bubble.me:last-child {
+	margin-bottom: 1.5rem;
+}
+
+.chat-bubble.you {
+	align-self: flex-start;
+	background-color: #444;
+}
+
+.chat-bubble.you pre {
+	background-color: #666;
+}
+
+.chat-bubble.you:last-child {
+	margin-bottom: 1.5rem;
+}
+
+/* Hide scrollbar for code snippets */
+.chat-bubble pre::-webkit-scrollbar {
+	display: none;
+}
+
+/* Dark body color */
+body {
+	background-color: #111;
+}
+
+code {
+	font-family: 'Roboto Mono', monospace;
+}
