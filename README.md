@@ -29,19 +29,19 @@ Use the "Clear" button to reset the conversation context. To stop ChatGPT from g
 
 1. To discuss the class you're working on, select "Discuss" from the "Code Assist AI" context menu and ask any question about the code.
 
-![Discuss with ChatGPT](site/how-it-works-discuss.gif)
+![Discuss with ChatGPT](src/website/how-it-works-discuss.gif)
 
 2. To refactor a code snippet, select it and choose "Refactor" from the "Code Assist AI" context menu.
 
-![Refactor with ChatGPT](site/how-it-works-refactor.gif)
+![Refactor with ChatGPT](src/website/how-it-works-refactor.gif)
 
 3. You can also ask ChatGPT to document a selected class or method using the "Document" command:
 
-![Document with ChatGPT](site/how-it-works-document.gif)
+![Document with ChatGPT](src/website/how-it-works-document.gif)
 
 4. Finally, you can ask ChatGPT to generate a JUnit test:
 
-![JUnit Test Generation](site/how-it-works-junit.gif)
+![JUnit Test Generation](src/website/how-it-works-junit.gif)
 
 ## Installation
 
