@@ -2,7 +2,7 @@
 <feature
       id="com.github.gradusnikov.eclipse.assistai"
       label="Assist AI"
-      version="1.0.0.qualifier"
+      version="1.0.1.qualifier"
       provider-name="WojciechGradkowski">
 
    <description>
@@ -27,13 +27,13 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
          id="com.github.gradusnikov.eclipse.plugin.assistai.dependencies"
          download-size="0"
          install-size="0"
-         version="0.0.0"/>
+         version="1.0.0"/>
 
    <plugin
          id="com.github.gradusnikov.eclipse.plugin.assistai.main"
          download-size="0"
          install-size="0"
-         version="0.0.0"
+         version="1.0.1.qualifier"
          unpack="false"/>
 
 </feature>
