@@ -196,7 +196,7 @@ public class ChatGPTViewPart
         String[] cssFiles = {"textview.css", "dark.min.css"};
         for ( String file : cssFiles )
         {
-            try ( InputStream in = FileLocator.toFileURL( new URL("platform:/plugin/AssistAI/css/" + file) ).openStream() )
+            try ( InputStream in = FileLocator.toFileURL( new URL("platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/css/" + file) ).openStream() )
             {
                 css.append( new String(in.readAllBytes(), StandardCharsets.UTF_8) );
                 css.append("\n");
@@ -219,7 +219,7 @@ public class ChatGPTViewPart
         StringBuilder js = new StringBuilder();
         for ( String file : jsFiles )
         {
-            try ( InputStream in = FileLocator.toFileURL( new URL("platform:/plugin/AssistAI/js/" + file) ).openStream() )
+            try ( InputStream in = FileLocator.toFileURL( new URL("platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/js/" + file) ).openStream() )
             {
                 js.append( new String(in.readAllBytes(), StandardCharsets.UTF_8) );
                 js.append("\n");

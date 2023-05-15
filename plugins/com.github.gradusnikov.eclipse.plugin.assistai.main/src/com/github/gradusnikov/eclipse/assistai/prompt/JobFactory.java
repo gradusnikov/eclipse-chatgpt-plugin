@@ -124,7 +124,7 @@ public class JobFactory
     
     private String createPromptText(String resourceFile, String... substitutions) 
     {
-        try (InputStream in = FileLocator.toFileURL( new URL("platform:/plugin/AssistAI/prompts/" + resourceFile) ).openStream();
+        try (InputStream in = FileLocator.toFileURL( new URL("platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/prompts/" + resourceFile) ).openStream();
              DataInputStream dis = new DataInputStream(in);)
         {
 
