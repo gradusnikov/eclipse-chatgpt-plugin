@@ -11,6 +11,10 @@ import javax.inject.Singleton;
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
+/**
+ * A singleton class responsible for loading prompt text from resource files and applying substitutions.
+ * The resource files are located in the "prompts" folder of the plugin.
+ */
 @Creatable
 @Singleton
 public class PromptLoader 
