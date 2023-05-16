@@ -2,6 +2,7 @@ The file [fileName], which contains the following code [content], has the follow
 
 Please provide a solution.
 
+Return your answer as a patch in a code block. Use full paths.
 
 [errors] = "${errors}"
 [fileName] = "${fileName}" 
