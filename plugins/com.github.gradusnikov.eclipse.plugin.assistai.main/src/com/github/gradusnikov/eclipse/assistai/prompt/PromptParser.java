@@ -70,20 +70,17 @@ public class PromptParser
             out.append( markdown( StringEscapeUtils.escapeHtml4(line) ) );
         }
         
-        if ( lastLine ) // close opened code blocks
+        if ( lastLine && (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  ) // close opened code blocks
         {
-            out.append( "</code></pre>\n" );
+        	out.append( "</code></pre>\n" );
         }
-        else if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  )         // handle new lines
+        else if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  )
         {
-            if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  )
-            {
                 out.append( "\n" );
-            }
-            else
-            {
-                out.append( "<br/>" );
-            }
+        }
+        else
+        {
+            out.append( "<br/>" );
         }
     }
 
