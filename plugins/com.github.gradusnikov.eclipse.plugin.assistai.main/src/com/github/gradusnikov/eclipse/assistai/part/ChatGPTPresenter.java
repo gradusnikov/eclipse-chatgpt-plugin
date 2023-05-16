@@ -74,8 +74,7 @@ public class ChatGPTPresenter
             part.appendMessage( message.getId(), message.getRole() );
             part.setMessageHtml( message.getId(), message.getContent() );
         });
-        Job job = jobFactory.createSendUserMessageJob( text );
-        job.schedule();
+        jobFactory.createSendUserMessageJob( text ).schedule();
     }
 
 
@@ -107,7 +106,7 @@ public class ChatGPTPresenter
      */
     public void onStop()
     {
-        Job[] jobs = jobManager.find( null );
+        var jobs = jobManager.find( null );
         Arrays.stream( jobs )
               .filter( job -> job.getName().startsWith( JobFactory.JOB_PREFIX ) )
               .forEach( Job::cancel );
@@ -119,9 +118,8 @@ public class ChatGPTPresenter
      */
     public void onCopyCode( String codeBlock )
     {
-        PlatformUI.getWorkbench().getDisplay();
-        Clipboard clipboard = new Clipboard(PlatformUI.getWorkbench().getDisplay());
-        TextTransfer textTransfer = TextTransfer.getInstance();
+        var clipboard    = new Clipboard(PlatformUI.getWorkbench().getDisplay());
+        var textTransfer = TextTransfer.getInstance();
         clipboard.setContents(new Object[] { codeBlock }, new Transfer[] { textTransfer });
         clipboard.dispose();
     }
