@@ -1,20 +1,21 @@
 package com.github.gradusnikov.eclipse.assistai.handlers;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+
 import javax.inject.Inject;
 import javax.inject.Named;
 
-import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.core.resources.IFile;
 import org.eclipse.e4.core.di.annotations.Execute;
 import org.eclipse.e4.ui.services.IServiceConstants;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.ui.JavaUI;
-import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.ITextSelection;
 import org.eclipse.swt.widgets.Shell;
-import org.eclipse.ui.IEditorPart;
-import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
@@ -37,8 +38,8 @@ public class AssistAIHandlerTemplate
     public void execute(@Named(IServiceConstants.ACTIVE_SHELL) Shell s)
     {
         // Get the active editor
-        IWorkbenchPage activePage = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
-        IEditorPart activeEditor = activePage.getActiveEditor();
+        var activePage = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+        var activeEditor = activePage.getActiveEditor();
 
         // Check if it is a text editor
         if (activeEditor instanceof ITextEditor)
@@ -47,18 +48,28 @@ public class AssistAIHandlerTemplate
 
             // Retrieve the document and text selection
             ITextSelection textSelection = (ITextSelection) textEditor.getSelectionProvider().getSelection();
-            IDocument      document  = textEditor.getDocumentProvider().getDocument(textEditor.getEditorInput());
-            IJavaElement   compilationUnit = JavaUI.getEditorInputJavaElement(textEditor.getEditorInput());
+            var   compilationUnit = JavaUI.getEditorInputJavaElement(textEditor.getEditorInput());
             
-            String selectedText = textSelection.getText();
+            var selectedText = textSelection.getText();
             
-            String documentText = document.get();
-            String fileName     = activeEditor.getEditorInput().getName();
-            String ext          = fileName.substring( fileName.lastIndexOf( "." )+1 );
+            // Read the content from the file
+            // this fixes skipped empty lines issue
+            var file = textEditor.getEditorInput().getAdapter(IFile.class);
+            var documentText = "";
+            try  
+            {
+                documentText = new String( Files.readAllBytes( file.getLocation().toFile().toPath() ), StandardCharsets.UTF_8 );
+            } 
+            catch (IOException e) 
+            {
+                throw new RuntimeException(e);
+            }
+            var fileName     = file.getProjectRelativePath().toString(); // use project relative path
+            var ext          = fileName.substring( fileName.lastIndexOf( "." )+1 );
             
             // get java elements
-            String selectedJavaElement = "";
-            String selectedJavaType = "code snippet";
+            var selectedJavaElement = "";
+            var selectedJavaType = "code snippet";
             
             if (compilationUnit instanceof ICompilationUnit)
             {
@@ -89,14 +100,13 @@ public class AssistAIHandlerTemplate
                     throw new RuntimeException(e);
                 }
             }
-            Context context = new Context( fileName, 
-                                           documentText, 
-                                           selectedText, 
-                                           selectedJavaElement, 
-                                           selectedJavaType,
-                                           ext);
-            Job job = jobFactory.createJob(type, context);
-            job.schedule();
+            var context = new Context( fileName, 
+                                       documentText, 
+                                       selectedText, 
+                                       selectedJavaElement, 
+                                       selectedJavaType,
+                                       ext);
+            jobFactory.createJob(type, context).schedule();
         }
     }
     
