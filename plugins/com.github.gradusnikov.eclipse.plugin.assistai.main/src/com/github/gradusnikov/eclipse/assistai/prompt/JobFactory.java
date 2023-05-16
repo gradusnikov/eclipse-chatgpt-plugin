@@ -1,18 +1,11 @@
 package com.github.gradusnikov.eclipse.assistai.prompt;
 
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -21,9 +14,7 @@ import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.handlers.Context;
-import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
-import com.github.gradusnikov.eclipse.assistai.services.OpenAIStreamJavaHttpClient;
 import com.github.gradusnikov.eclipse.assistai.subscribers.OpenAIHttpClientProvider;
 
 @Creatable
@@ -133,6 +124,12 @@ public class JobFactory
         return new SendMessageJob( () -> prompt );
     }
     
+    public Job createGenerateGitCommitCommentJob( String patch )
+    {
+        Supplier<String> promptSupplier  =  () -> promptLoader.createPromptText("gitcomment-prompt.txt", "${content}", patch );
+        return new SendMessageJob( promptSupplier );
+    }
+
     /**
      * 
      */
@@ -148,12 +145,12 @@ public class JobFactory
         @Override
         protected IStatus run(IProgressMonitor progressMonitor) {
             logger.info( this.getName() );
-            OpenAIStreamJavaHttpClient openAIClient = clientProvider.get();
+            var openAIClient = clientProvider.get();
             openAIClient.setCancelPrivider( () -> progressMonitor.isCanceled()   ); 
-                synchronized ( conversation )
-                {
-                    ChatMessage message = conversation.newMessage( "user" );
-                    String prompt = promptSupplier.get();
+            synchronized ( conversation )
+            {
+                var message = conversation.newMessage( "user" );
+                var prompt = promptSupplier.get();
 System.out.println( prompt );
                     message.setMessage( prompt );
                     conversation.add( message );
@@ -161,19 +158,15 @@ System.out.println( prompt );
                 
                 try 
                 {
-	                CompletableFuture<IStatus> future = CompletableFuture.runAsync( openAIClient.run(conversation) )
+	                var future = CompletableFuture.runAsync( openAIClient.run(conversation) )
 	        				.thenApply( v -> Status.OK_STATUS )
 	        				.exceptionally( e -> Status.error("Unable to run the task: " + e.getMessage(), e) );
-					return future.get();
-				} 
-                catch ( Exception e ) 
-                {
-                	return Status.error( e.getMessage(), e );
-				}
-//                Status status = openAIClient.run(conversation)
-//                				.thenApply( v -> Status.OK_STATUS )
-//                				.exceptionally( e -> Status.error("Unable to run the task: " + e.getMessage(), e) );
-                
+				return future.get();
+			} 
+            catch ( Exception e ) 
+            {
+            	return Status.error( e.getMessage(), e );
+			}
         }
         
     }

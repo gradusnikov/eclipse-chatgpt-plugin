@@ -3,7 +3,6 @@ package com.github.gradusnikov.eclipse.assistai.handlers;
 import javax.inject.Inject;
 import javax.inject.Named;
 
-import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IMarker;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
