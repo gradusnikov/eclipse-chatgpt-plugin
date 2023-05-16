@@ -27,6 +27,7 @@ import org.eclipse.ui.PlatformUI;
 
 import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory;
 
+@SuppressWarnings( "restriction" )
 public class AssistAiGenerateGitCommentHandler
 {
     @Inject
@@ -59,21 +60,18 @@ public class AssistAiGenerateGitCommentHandler
                     System.out.println( "Initial commit: No previous commits found." );
                     logger.info( "Initial commit: No previous commits found." );
                 }
-                var headTree  = prepareTreeParser( repository, head );
-                var indexTree = prepareIndexTreeParser( repository );
-                var stagedChanges = git.diff().setOldTree( headTree ).setNewTree( indexTree ).call();
-                
-                var patch = printChanges( git.getRepository(), stagedChanges );
-                System.out.println( patch );
-                
-                var job = jobFactory.createGenerateGitCommitCommentJob( patch );
-                job.schedule();
-                
-//                // Print the file paths of staged changes
-//                for ( var diffEntry : stagedChanges )
-//                {
-//                    System.out.println( "Staged file: " + diffEntry.getNewPath() );
-//                }
+                else
+                {
+                    var headTree  = prepareTreeParser( repository, head );
+                    var indexTree = prepareIndexTreeParser( repository );
+                    var stagedChanges = git.diff().setOldTree( headTree ).setNewTree( indexTree ).call();
+                    
+                    var patch = printChanges( git.getRepository(), stagedChanges );
+                    
+                    var job = jobFactory.createGenerateGitCommitCommentJob( patch );
+                    job.schedule();
+                }
+                    
             }
         }
         catch ( Exception e )
@@ -110,27 +108,21 @@ public class AssistAiGenerateGitCommentHandler
 
     private String printChanges( Repository repository, List<DiffEntry> stagedChanges ) throws IOException
     {
-        var stringBuilder = new StringBuilder();
-        // Configure the DiffFormatter
+        
         try (var out = new ByteArrayOutputStream(); 
              var formatter = new DiffFormatter( out ))
         {
             formatter.setRepository( repository );
             formatter.setDiffComparator( RawTextComparator.DEFAULT );
             formatter.setDetectRenames( true );
-
-            // Get the list of differences
-            // List<DiffEntry> diffs = formatter.scan(oldTree, newTree);
-
+            
             for ( DiffEntry diff : stagedChanges )
             {
-                // Print the patch to the console
+                // Print the patch to the output stream
                 formatter.format( diff );
-                var patch = out.toString( "UTF-8" );
-                stringBuilder.append( patch );
             }
+            var patch = out.toString( "UTF-8" );
+            return patch;
         }
-
-        return stringBuilder.toString();
     }
 }
