@@ -22,7 +22,9 @@ Require-Bundle: javax.inject,
  org.eclipse.swt,
  org.apache.commons.lang3;bundle-version="3.1.0",
  org.eclipse.core.resources,
- com.github.gradusnikov.eclipse.plugin.assistai.dependencies;bundle-version="1.0.0"
+ com.github.gradusnikov.eclipse.plugin.assistai.dependencies;bundle-version="1.0.0",
+ org.eclipse.jgit,
+ org.eclipse.egit.core
 Bundle-RequiredExecutionEnvironment: JavaSE-17
 Automatic-Module-Name: assistai.main
 Bundle-Classpath: .
