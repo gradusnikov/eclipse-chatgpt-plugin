@@ -1,36 +1,39 @@
 <?xml version="1.0" encoding="ASCII"?>
 <fragment:ModelFragments xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:basic="http://www.eclipse.org/ui/2010/UIModel/application/descriptor/basic" xmlns:commands="http://www.eclipse.org/ui/2010/UIModel/application/commands" xmlns:fragment="http://www.eclipse.org/ui/2010/UIModel/fragment" xmlns:menu="http://www.eclipse.org/ui/2010/UIModel/application/ui/menu" xmi:id="_BxaXACerEeWxCPrV0pAZQQ">
   <fragments xsi:type="fragment:StringModelFragment" xmi:id="_QqSikIrOEeW7h_qdP9N9fw" featurename="commands" parentElementId="xpath:/">
-    <elements xsi:type="commands:Command" xmi:id="_UCYfwIrOEeW7h_qdP9N9fw" elementId="assistai.command.refactor" commandName="Refactor" description="Asks ChatGPT to refactor the selected code">
+    <elements xsi:type="commands:Command" xmi:id="_UCYfwIrOEeW7h_qdP9N9fw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.command.0" commandName="Refactor" description="Asks ChatGPT to refactor the selected code">
       <persistedState key="persistState" value="false"/>
     </elements>
-    <elements xsi:type="commands:Command" xmi:id="_TgvO8N9eEe2hsMR7OZZDNw" elementId="assistai.command.javadoc" commandName="Document" description="Asks ChatGPT to document class or method with JavaDoc"/>
-    <elements xsi:type="commands:Command" xmi:id="_zB4hIOtJEe2Z7LAQxNqxLg" elementId="assistai.command.testcase" commandName="JUnit Test" description="Asks ChatGPT to generate a  JUnit test case for a given mehtod"/>
-    <elements xsi:type="commands:Command" xmi:id="_eYD8MPDVEe26l_NIXSJcoA" elementId="assistai.command.discuss" commandName="Discuss" description="Ask ChatGPT do discuss the code"/>
-    <elements xsi:type="commands:Command" xmi:id="_tMtMsPELEe2go8AypQomeQ" elementId="assistai.command.fixerrors" commandName="Fix Errors" description="Asks ChatGPT  to fix errors"/>
+    <elements xsi:type="commands:Command" xmi:id="_TgvO8N9eEe2hsMR7OZZDNw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.command.1" commandName="Document" description="Asks ChatGPT to document class or method with JavaDoc"/>
+    <elements xsi:type="commands:Command" xmi:id="_zB4hIOtJEe2Z7LAQxNqxLg" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.command.2" commandName="JUnit Test" description="Asks ChatGPT to generate a  JUnit test case for a given mehtod"/>
+    <elements xsi:type="commands:Command" xmi:id="_eYD8MPDVEe26l_NIXSJcoA" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.command.3" commandName="Discuss" description="Ask ChatGPT do discuss the code"/>
+    <elements xsi:type="commands:Command" xmi:id="_tMtMsPELEe2go8AypQomeQ" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.command.4" commandName="Fix Errors" description="Asks ChatGPT  to fix errors"/>
+    <elements xsi:type="commands:Command" xmi:id="_Y1hcQPPsEe2JjYfRC0o-vw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.command.5" commandName="Git Comment" description="Asks ChatGPT to generate a meaningful git commit comment "/>
   </fragments>
   <fragments xsi:type="fragment:StringModelFragment" xmi:id="_fW12kIrOEeW7h_qdP9N9fw" featurename="handlers" parentElementId="xpath:/">
-    <elements xsi:type="commands:Handler" xmi:id="_k2L0IIrOEeW7h_qdP9N9fw" elementId="assistai.handler.0" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAICodeRefactorHandler" command="_UCYfwIrOEeW7h_qdP9N9fw">
+    <elements xsi:type="commands:Handler" xmi:id="_k2L0IIrOEeW7h_qdP9N9fw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handler.0" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAICodeRefactorHandler" command="_UCYfwIrOEeW7h_qdP9N9fw">
       <persistedState key="persistState" value="false"/>
     </elements>
-    <elements xsi:type="commands:Handler" xmi:id="_e4OroN9eEe2hsMR7OZZDNw" elementId="assistai.handler.1" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAIJavaDocHandler" command="_TgvO8N9eEe2hsMR7OZZDNw">
+    <elements xsi:type="commands:Handler" xmi:id="_e4OroN9eEe2hsMR7OZZDNw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handler.1" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAIJavaDocHandler" command="_TgvO8N9eEe2hsMR7OZZDNw">
       <persistedState key="persistState" value="false"/>
     </elements>
-    <elements xsi:type="commands:Handler" xmi:id="_8bZ1QOtJEe2Z7LAQxNqxLg" elementId="assistai.handler.2" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAIUnitTestHandler" command="_zB4hIOtJEe2Z7LAQxNqxLg">
+    <elements xsi:type="commands:Handler" xmi:id="_8bZ1QOtJEe2Z7LAQxNqxLg" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handler.2" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAIUnitTestHandler" command="_zB4hIOtJEe2Z7LAQxNqxLg">
       <persistedState key="persistState" value="false"/>
     </elements>
-    <elements xsi:type="commands:Handler" xmi:id="_l4PJEPDVEe26l_NIXSJcoA" elementId="assistai.handler.3" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAIDiscussCodeHandler" command="_eYD8MPDVEe26l_NIXSJcoA"/>
-    <elements xsi:type="commands:Handler" xmi:id="_x-SFUPELEe2go8AypQomeQ" elementId="assistai.handler.4" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAIFixErrorsHandler" command="_tMtMsPELEe2go8AypQomeQ"/>
+    <elements xsi:type="commands:Handler" xmi:id="_l4PJEPDVEe26l_NIXSJcoA" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handler.3" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAIDiscussCodeHandler" command="_eYD8MPDVEe26l_NIXSJcoA"/>
+    <elements xsi:type="commands:Handler" xmi:id="_x-SFUPELEe2go8AypQomeQ" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handler.4" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAIFixErrorsHandler" command="_tMtMsPELEe2go8AypQomeQ"/>
+    <elements xsi:type="commands:Handler" xmi:id="_naVwkPPsEe2JjYfRC0o-vw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handler.5" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAiGenerateGitCommentHandler" command="_Y1hcQPPsEe2JjYfRC0o-vw"/>
   </fragments>
   <fragments xsi:type="fragment:StringModelFragment" xmi:id="_pVgfIIrOEeW7h_qdP9N9fw" featurename="menuContributions" parentElementId="xpath:/">
-    <elements xsi:type="menu:MenuContribution" xmi:id="_BducUIrPEeW7h_qdP9N9fw" elementId="assistai.menucontribution.1" positionInParent="after=additions" parentId="popup">
+    <elements xsi:type="menu:MenuContribution" xmi:id="_BducUIrPEeW7h_qdP9N9fw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.menucontribution.1" positionInParent="after=additions" parentId="popup">
       <persistedState key="persistState" value="false"/>
       <children xsi:type="menu:Menu" xmi:id="_Dtii0IrPEeW7h_qdP9N9fw" elementId="org.eclipse.pde.ui.templates.menu.e4handlers" label="Assit AI" iconURI="platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/icons/Sample.png" tooltip="" mnemonics=" CTRL + I">
-        <children xsi:type="menu:HandledMenuItem" xmi:id="_s6Bw0PDVEe26l_NIXSJcoA" elementId="assistai.handledmenuitem.discuss" label="Discuss" tooltip="Discuss with ChatGPT about the opened file" command="_eYD8MPDVEe26l_NIXSJcoA"/>
-        <children xsi:type="menu:HandledMenuItem" xmi:id="_Dtii0YrPEeW7h_qdP9N9fw" elementId="assistai.handledmenuitem.refactor" label="Refactor" iconURI="" tooltip="Asks ChatGPT to refactor the selected code" command="_UCYfwIrOEeW7h_qdP9N9fw"/>
-        <children xsi:type="menu:HandledMenuItem" xmi:id="_weYC8N9eEe2hsMR7OZZDNw" elementId="assistai.handledmenuitem.document" label="Document" tooltip="Asks ChatGPT to document class or method with JavaDoc" command="_TgvO8N9eEe2hsMR7OZZDNw"/>
-        <children xsi:type="menu:HandledMenuItem" xmi:id="_HlM0MOtKEe2Z7LAQxNqxLg" elementId="assistai.handledmenuitem.junittestcase" label="JUnit test case" tooltip="Asks ChatGPT to generate a JUnit Test Case" command="_zB4hIOtJEe2Z7LAQxNqxLg"/>
-        <children xsi:type="menu:HandledMenuItem" xmi:id="_1bS-wPELEe2go8AypQomeQ" elementId="assistai.handledmenuitem.fixerrors" label="Fix errors" tooltip="Asks ChatGPT to fix errors" command="_tMtMsPELEe2go8AypQomeQ"/>
+        <children xsi:type="menu:HandledMenuItem" xmi:id="_s6Bw0PDVEe26l_NIXSJcoA" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handledmenuitem.0" label="Discuss" tooltip="Discuss with ChatGPT about the opened file" command="_eYD8MPDVEe26l_NIXSJcoA"/>
+        <children xsi:type="menu:HandledMenuItem" xmi:id="_Dtii0YrPEeW7h_qdP9N9fw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handledmenuitem.1" label="Refactor" iconURI="" tooltip="Asks ChatGPT to refactor the selected code" command="_UCYfwIrOEeW7h_qdP9N9fw"/>
+        <children xsi:type="menu:HandledMenuItem" xmi:id="_weYC8N9eEe2hsMR7OZZDNw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handledmenuitem.2" label="Document" tooltip="Asks ChatGPT to document class or method with JavaDoc" command="_TgvO8N9eEe2hsMR7OZZDNw"/>
+        <children xsi:type="menu:HandledMenuItem" xmi:id="_HlM0MOtKEe2Z7LAQxNqxLg" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handledmenuitem.3" label="JUnit test case" tooltip="Asks ChatGPT to generate a JUnit Test Case" command="_zB4hIOtJEe2Z7LAQxNqxLg"/>
+        <children xsi:type="menu:HandledMenuItem" xmi:id="_1bS-wPELEe2go8AypQomeQ" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handledmenuitem.4" label="Fix errors" tooltip="Asks ChatGPT to fix errors" command="_tMtMsPELEe2go8AypQomeQ"/>
+        <children xsi:type="menu:HandledMenuItem" xmi:id="_6yXVMPPsEe2JjYfRC0o-vw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handledmenuitem.5" label="Git Comment" tooltip="Asks ChatGPT to generate a meaningful git commit comment" command="_Y1hcQPPsEe2JjYfRC0o-vw"/>
       </children>
     </elements>
   </fragments>
