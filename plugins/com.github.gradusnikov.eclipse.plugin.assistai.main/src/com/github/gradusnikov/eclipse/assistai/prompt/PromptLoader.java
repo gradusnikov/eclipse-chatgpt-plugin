@@ -2,7 +2,6 @@ package com.github.gradusnikov.eclipse.assistai.prompt;
 
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
@@ -27,11 +26,11 @@ public class PromptLoader
 	
     public String createPromptText(String resourceFile, String... substitutions) 
     {
-        try (InputStream in = FileLocator.toFileURL( new URL( new URL(BASE_URL) + resourceFile )  ).openStream();
-             DataInputStream dis = new DataInputStream(in);)
+        try (var in = FileLocator.toFileURL( new URL( new URL(BASE_URL), resourceFile )  ).openStream();
+             var dis = new DataInputStream(in);)
         {
 
-            String prompt = new String(dis.readAllBytes(), StandardCharsets.UTF_8);
+            var prompt = new String(dis.readAllBytes(), StandardCharsets.UTF_8);
 
             if (substitutions.length % 2 != 0)
             {
@@ -42,7 +41,7 @@ public class PromptLoader
             {
                 prompt = prompt.replace(substitutions[i], substitutions[i + 1]);
             }
-            return prompt.toString();
+            return prompt;
         }
         catch ( IOException e )
         {
