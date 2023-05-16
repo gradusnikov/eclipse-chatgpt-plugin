@@ -252,7 +252,7 @@ public class ChatGPTViewPart
      */
     private String fixLineBreaks(String html)
     {
-        return html.replace("\n", "\\n");
+        return html.replace("\n", "\\n").replace("\r", "");
     }
     /**
      * Escapes HTML quotation marks in the given string.
