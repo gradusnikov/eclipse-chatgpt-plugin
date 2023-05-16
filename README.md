@@ -1,6 +1,6 @@
 # AssistAI - A ChatGPT Plugin for Eclipse IDE
 
-AssistAI is an Eclipse IDE plugin that integrates ChatGPT functionality. The plugin is experimental and currently works with Java editors only.
+AssistAI is an Eclipse IDE plugin that integrates ChatGPT functionality. The plugin is experimental and was mainly tested with Eclipse 2023/03.
 
 ## Features
 
