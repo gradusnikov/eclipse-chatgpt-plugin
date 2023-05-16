@@ -10,6 +10,7 @@ AssistAI is an Eclipse IDE plugin that integrates ChatGPT functionality. The plu
 4. Discuss the content of the currently opened file with ChatGPT
 5. Fix compile errors with ChatGPT
 6. Copy code blocks from ChatGPT to the clipboard
+7. Generate Git commit comments based on the staged files' changes
 
 You can also ask general questions, like with a regular ChatGPT.
 
