@@ -11,20 +11,22 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Flow;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.function.Supplier;
 
+import javax.annotation.PostConstruct;
 import javax.inject.Inject;
+import javax.inject.Named;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.e4.ui.services.IServiceConstants;
+import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
@@ -40,9 +42,9 @@ import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
 public class OpenAIStreamJavaHttpClient
 {
 
-    private String API_KEY;
-    private String API_URL = "https://api.openai.com/v1/chat/completions";
-    private String MODEL;// = "gpt-4";
+    private final String API_URL = "https://api.openai.com/v1/chat/completions";
+    private String apiKey;
+    private String modelName;// = "gpt-4";
 
     private SubmissionPublisher<String> publisher;
     private Supplier<Boolean> isCancelled = () -> false;
@@ -53,6 +55,14 @@ public class OpenAIStreamJavaHttpClient
     
     @Inject
     private PromptLoader promptLoader;
+    
+    @PostConstruct
+    public void init()
+    {
+        IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
+        apiKey    = prefernceStore.getString(PreferenceConstants.OPENAI_API_KEY);
+        modelName = prefernceStore.getString(PreferenceConstants.OPENAI_MODEL_NAME);
+    }
     
     public OpenAIStreamJavaHttpClient()
     {
@@ -80,32 +90,27 @@ public class OpenAIStreamJavaHttpClient
      */
     private String getRequestBody(Conversation prompt)
     {
+        var requestBody = new LinkedHashMap<String, Object>();
+        var messages = new ArrayList<Map<String, Object>>();
 
-        API_KEY = Activator.getDefault().getPreferenceStore().getString(PreferenceConstants.OPENAI_API_KEY);
-        MODEL = Activator.getDefault().getPreferenceStore().getString(PreferenceConstants.OPENAI_MODEL_NAME);
-
-
-        Map<String, Object>       requestBody = new LinkedHashMap<>();
-        List<Map<String, Object>> messages = new ArrayList<>();
-
-        Map<String, Object> systemMessage = new LinkedHashMap<>();
+        var systemMessage = new LinkedHashMap<String, Object> ();
         systemMessage.put("role", "system");
         systemMessage.put("content", promptLoader.createPromptText("system-prompt.txt") );
         messages.add(systemMessage);
 
         for ( ChatMessage message : prompt.messages() )
         {
-            Map<String, Object> userMessage = new LinkedHashMap<>();
+            var userMessage = new LinkedHashMap<String,Object>();
             userMessage.put("role", message.getRole());
             userMessage.put("content", message.getContent() );
             messages.add(userMessage);
         }
-        requestBody.put("model", MODEL);
+        requestBody.put("model", modelName);
         requestBody.put("messages", messages);
         requestBody.put("temperature", 0.7);
         requestBody.put("stream", true);
 
-        ObjectMapper objectMapper = new ObjectMapper();
+        var objectMapper = new ObjectMapper();
         String jsonString;
         try
         {
@@ -135,7 +140,7 @@ public class OpenAIStreamJavaHttpClient
     		HttpClient client = HttpClient.newHttpClient();
     		String requestBody = getRequestBody(prompt);
     		HttpRequest request = HttpRequest.newBuilder().uri(URI.create(API_URL))
-    				.header("Authorization", "Bearer " + API_KEY)
+    				.header("Authorization", "Bearer " + apiKey)
     				.header("Accept", "text/event-stream")
     				.header("Content-Type", "application/json")
     				.POST(HttpRequest.BodyPublishers.ofString(requestBody))
@@ -149,29 +154,31 @@ public class OpenAIStreamJavaHttpClient
     			
     			if (response.statusCode() != 200)
     			{
-    				logger.error("Request failed: " + response);
-    				throw new IOException("Request failed: " + response);
+    			    logger.error("Request failed with status code: " + response.statusCode() + " and response body: " + response.body());
+                    throw new IOException("Request failed with status code: " + response.statusCode() + " and response body: " + response.body());
     			}
     			
-    			try( BufferedReader reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8)) )
+    			try (var inputStream = response.body();
+    			     var inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
+    			     var reader = new BufferedReader(inputStreamReader)) 
     			{
     				String line;
     				while ((line = reader.readLine()) != null && !isCancelled.get() )
     				{
     					if (line.startsWith("data:"))
     					{
-    						String data = line.substring(5).trim();
+    					    var data = line.substring(5).trim();
     						if ("[DONE]".equals(data))
     						{
     							break;
     						} 
     						else
     						{
-    							ObjectMapper mapper = new ObjectMapper();
-    							JsonNode node = mapper.readTree(data).get("choices").get(0).get("delta");
+    						    var mapper = new ObjectMapper();
+    						    var node = mapper.readTree(data).get("choices").get(0).get("delta");
     							if (node.has("content"))
     							{
-    								String content = node.get("content").asText();
+    							    var content = node.get("content").asText();
     								publisher.submit(content);
     							}
     						}
