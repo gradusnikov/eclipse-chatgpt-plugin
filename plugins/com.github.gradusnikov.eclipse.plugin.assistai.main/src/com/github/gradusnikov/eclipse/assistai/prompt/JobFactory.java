@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 
 import javax.inject.Inject;
@@ -28,6 +30,9 @@ import com.github.gradusnikov.eclipse.assistai.subscribers.OpenAIHttpClientProvi
 @Singleton
 public class JobFactory
 {
+	@Inject
+	private PromptLoader promptLoader;
+	
     public static final String JOB_PREFIX = "AssistAI: ";
     
     public enum JobType
@@ -76,7 +81,7 @@ public class JobFactory
     
     private Supplier<String> fixErrorsPromptSupplier( Context context )
     {
-        return () -> createPromptText("fix-errors-prompt.txt", 
+        return () -> promptLoader.createPromptText("fix-errors-prompt.txt", 
                 "${documentText}", context.fileContents(),
                 "${fileName}", context.fileName(),
                 "${lang}", context.lang(),
@@ -86,7 +91,7 @@ public class JobFactory
 
     private Supplier<String> discussCodePromptSupplier( Context context )
     {
-        return () -> createPromptText("discuss-prompt.txt", 
+        return () -> promptLoader.createPromptText("discuss-prompt.txt", 
                 "${documentText}", context.fileContents(),
                 "${fileName}", context.fileName(),
                 "${lang}", context.lang()
@@ -95,7 +100,7 @@ public class JobFactory
 
     private Supplier<String> javaDocPromptSupplier( Context context )
     {
-        return () -> createPromptText("document-prompt.txt", 
+        return () -> promptLoader.createPromptText("document-prompt.txt", 
                     "${documentText}", context.fileContents(),
                     "${javaType}", context.selectedItemType(),
                     "${name}", context.selectedItem(),
@@ -104,7 +109,7 @@ public class JobFactory
     }
     private Supplier<String> refactorPromptSupplier( Context context )
     {
-        return () -> createPromptText("refactor-prompt.txt", 
+        return () -> promptLoader.createPromptText("refactor-prompt.txt", 
                 "${documentText}", context.fileContents(),
                 "${selectedText}", context.selectedContent(),
                 "${fileName}", context.fileName(),
@@ -113,7 +118,7 @@ public class JobFactory
     }
     private Supplier<String> unitTestSupplier( Context context )
     {
-        return () -> createPromptText("testcase-prompt.txt", 
+        return () -> promptLoader.createPromptText("testcase-prompt.txt", 
                 "${documentText}", context.fileContents(),
                 "${javaType}", context.selectedItemType(),
                 "${name}", context.selectedItem(),
@@ -122,31 +127,6 @@ public class JobFactory
     }
 
     
-    private String createPromptText(String resourceFile, String... substitutions) 
-    {
-        try (InputStream in = FileLocator.toFileURL( new URL("platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/prompts/" + resourceFile) ).openStream();
-             DataInputStream dis = new DataInputStream(in);)
-        {
-
-            String prompt = new String(dis.readAllBytes(), StandardCharsets.UTF_8);
-
-            if (substitutions.length % 2 != 0)
-            {
-                throw new IllegalArgumentException("Expecting key, value pairs");
-
-            }
-            for (int i = 0; i < substitutions.length; i = i + 2)
-            {
-                prompt = prompt.replace(substitutions[i], substitutions[i + 1]);
-            }
-            return prompt.toString();
-        }
-        catch ( IOException e )
-        {
-            throw new RuntimeException( e );
-        }
-
-    }
 
     public Job createSendUserMessageJob( String prompt )
     {
@@ -170,8 +150,6 @@ public class JobFactory
             logger.info( this.getName() );
             OpenAIStreamJavaHttpClient openAIClient = clientProvider.get();
             openAIClient.setCancelPrivider( () -> progressMonitor.isCanceled()   ); 
-            try 
-            {
                 synchronized ( conversation )
                 {
                     ChatMessage message = conversation.newMessage( "user" );
@@ -180,13 +158,22 @@ System.out.println( prompt );
                     message.setMessage( prompt );
                     conversation.add( message );
                 }
-                openAIClient.run(conversation);
-            } 
-            catch (Exception e)
-            {
-                return Status.error("Unable to run the task: " + e.getMessage(), e);
-            }
-            return Status.OK_STATUS;
+                
+                try 
+                {
+	                CompletableFuture<IStatus> future = CompletableFuture.runAsync( openAIClient.run(conversation) )
+	        				.thenApply( v -> Status.OK_STATUS )
+	        				.exceptionally( e -> Status.error("Unable to run the task: " + e.getMessage(), e) );
+					return future.get();
+				} 
+                catch ( Exception e ) 
+                {
+                	return Status.error( e.getMessage(), e );
+				}
+//                Status status = openAIClient.run(conversation)
+//                				.thenApply( v -> Status.OK_STATUS )
+//                				.exceptionally( e -> Status.error("Unable to run the task: " + e.getMessage(), e) );
+                
         }
         
     }
