@@ -40,9 +40,14 @@ Use the "Clear" button to reset the conversation context. To stop ChatGPT from g
 
 ![Document with ChatGPT](src/website/how-it-works-document.gif)
 
-4. Finally, you can ask ChatGPT to generate a JUnit test:
+4. Also you can ask ChatGPT to generate a JUnit test:
 
 ![JUnit Test Generation](src/website/how-it-works-junit.gif)
+
+5. Finally, after staging all your modified files you can ask ChatGPT go generate a Git commit message:
+
+![JUnit Test Generation](src/website/how-it-works-gitcomment.gif)
+
 
 ## Installation
 
