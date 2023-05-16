@@ -1,6 +1,8 @@
-In the context of the Java class [class] provide the javadoc documentation of the ${javaType} "${name}". 
-In your response return JUST the javadoc comment. 
-Keep the documentation concise and compact.
+In the context of the Java class [class] provide the JavaDoc documentation of the ${javaType} "${name}".
+Follow these guidelines: 
+1. In your response return JUST the JavaDoc comment. 
+2. Keep the documentation concise and compact.
+3. If JavaDoc exists for [class], update it accordingly to the implementation
 
 [class]="
 ```${lang}
