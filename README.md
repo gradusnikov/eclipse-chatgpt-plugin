@@ -1,6 +1,5 @@
-<center>
-    <img src="src/website/logo_110_80.png">
-</center>
+<p align="center"><img src="src/website/logo_110_80.png"></p>
+
 
 # AssistAI - A ChatGPT Plugin for Eclipse IDE
 
