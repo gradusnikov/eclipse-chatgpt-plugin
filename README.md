@@ -1,4 +1,6 @@
-![logo](src/website/logo_110_80.png)
+<center>
+    <img src="src/website/logo_110_80.png">
+</center>
 
 # AssistAI - A ChatGPT Plugin for Eclipse IDE
 
