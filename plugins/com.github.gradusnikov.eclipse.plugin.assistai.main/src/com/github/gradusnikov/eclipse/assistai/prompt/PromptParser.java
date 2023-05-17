@@ -33,20 +33,20 @@ public class PromptParser
      */
     public String parseToHtml()
     {
-        StringBuilder out = new StringBuilder();
+        var out = new StringBuilder();
         
-        try( Scanner scanner = new Scanner(prompt) )
+        try( var scanner = new Scanner(prompt) )
         {
             scanner.useDelimiter( "\n" );
-            Pattern codeBlockPattern = Pattern.compile( "^```([a-z]*)$" );
+            var codeBlockPattern = Pattern.compile( "^```([a-z]*)$" );
             while ( scanner.hasNext() )
             {
-                String  line    = scanner.next();
-                Matcher codeBlockMatcher = codeBlockPattern.matcher( line );
+                var  line    = scanner.next();
+                var codeBlockMatcher = codeBlockPattern.matcher( line );
                 
                 if ( codeBlockMatcher.find() )
                 {
-                    String lang = codeBlockMatcher.group(1);
+                    var lang = codeBlockMatcher.group(1);
                     handleCodeBlock( out, lang );
                 }
                 else
