@@ -75,7 +75,7 @@ After installing the plugin, configure access to the **OpenAI API**:
 
 1. Open *Window > Preferences > Assist AI* preferences
 2. Input your **OpenAI API** key (you can find your keys at https://platform.openai.com/account/api-keys)
-3. Input the model name. By default, the plugin uses the *gpt-4* model, but you can also utilize *gpt-3.5-turbo* or any available ChatGPT model
+3. Input the model name. By default, the plugin uses the *gpt-4* model, but you can also utilize *gpt-3.5-turbo* or any available ChatGPT model. To check which models are available to you, go to https://platform.openai.com/playground?mode=chat and check the *Model* drop list.  
 
 ### Add ChatGPT View
 
