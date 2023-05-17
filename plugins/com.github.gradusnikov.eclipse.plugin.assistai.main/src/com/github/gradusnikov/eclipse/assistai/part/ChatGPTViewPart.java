@@ -60,7 +60,7 @@ public class ChatGPTViewPart
     
     public void clearChatView()
     {
-        uiSync.asyncExec(() -> initializeChatView( browser ) );
+        uiSync.asyncExec(() ->  initializeChatView( browser ) );
     }
     public void clearUserInput()
     {
@@ -310,6 +310,13 @@ public class ChatGPTViewPart
     {
         // TODO Auto-generated method stub
         return null;
+    }
+
+    public void setInputEnabled( boolean b )
+    {
+        uiSync.asyncExec(() -> {
+            inputArea.setEnabled( b );
+        });
     }
     
 

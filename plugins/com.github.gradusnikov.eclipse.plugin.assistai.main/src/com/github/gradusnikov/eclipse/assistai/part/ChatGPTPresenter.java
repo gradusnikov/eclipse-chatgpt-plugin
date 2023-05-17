@@ -35,9 +35,6 @@ public class ChatGPTPresenter
     private Conversation conversation;
     
     @Inject
-    private UISynchronize uiSync;
-    
-    @Inject
     private JobFactory jobFactory;        
 
     @Inject
@@ -55,8 +52,9 @@ public class ChatGPTPresenter
     
     public void onClear()
     {
+        onStop();
         conversation.clear();
-        uiSync.asyncExec( () ->  partAccessor.findMessageView().ifPresent( ChatGPTViewPart::clearChatView ) );
+        partAccessor.findMessageView().ifPresent( ChatGPTViewPart::clearChatView );
     }
 
     public void onSendUserMessage( String text )
@@ -86,20 +84,27 @@ public class ChatGPTPresenter
             message = conversation.newMessage( "assistant" );
             conversation.add(message);
         }
-        partAccessor.findMessageView().ifPresent(messageView -> messageView.appendMessage(message.getId(), message.getRole()));
+        partAccessor.findMessageView().ifPresent(messageView -> {
+                messageView.appendMessage(message.getId(), message.getRole());
+                messageView.setInputEnabled( false );
+            });
         return message;
     }
 
 
     public void updateMessageFromAssistant( ChatMessage message )
     {
-        partAccessor.findMessageView().ifPresent(messageView -> messageView.setMessageHtml( message.getId(), message.getContent() ));
+        partAccessor.findMessageView().ifPresent(messageView -> {
+            messageView.setMessageHtml( message.getId(), message.getContent() );   
+        });
     }
 
 
     public void endMessageFromAssistant()
     {
-        
+        partAccessor.findMessageView().ifPresent(messageView -> {
+            messageView.setInputEnabled( true );
+        });
     }
     /**
      * Cancels all running ChatGPT jobs
@@ -110,6 +115,10 @@ public class ChatGPTPresenter
         Arrays.stream( jobs )
               .filter( job -> job.getName().startsWith( JobFactory.JOB_PREFIX ) )
               .forEach( Job::cancel );
+        
+        partAccessor.findMessageView().ifPresent(messageView -> {
+            messageView.setInputEnabled( true );
+        });
     }
     /**
      * Copies the given code block to the system clipboard.
