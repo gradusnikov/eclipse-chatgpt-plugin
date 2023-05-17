@@ -2,6 +2,8 @@
 
 AssistAI is an Eclipse IDE plugin that brings ChatGPT functionality into your development environment. This experimental plugin has been primarily tested with Eclipse 2023/03.
 
+![logo](src/website/logo_110_80.png)
+
 ## Features
 
 1. Refactor selected code snippets by asking ChatGPT
@@ -58,12 +60,12 @@ Use the "Clear" button to reset the conversation context. Press the "Stop" butto
 
 Follow these steps to install the Assist AI plugin in your IDE:
 
-1. Download the latest release zip file: https://github.com/gradusnikov/eclipse-chatgpt-plugin/releases
-2. In Eclipse IDE, open *Help > Install new software*
-3. Click the *Add* button to open the "add repository" window, and set the location of the .zip file using the *Archive...* button
-4. Choose the .zip file as the "Repository Archive" and click *Add*
-5. Select "Assist AI" from the plugin list and proceed to the next step by clicking the *Next* button
-6. Accept any certificate warnings (note: this is a self-signed plugin, so you will be warned about potential security risks)
+1. In Eclipse IDE, open *Help > Install new software*
+2. Click the *Add* button to open the "add repository" window, and input `AssistAI` as *Name* and `https://eclipse-chatgpt-plugin.lm.r.appspot.com/` as *Location*
+3. Click *Add*
+4. Back in *Install* window, choose *AssistAI* from the  *Work with:* list
+4. Select "Assist AI" from the plugin list and proceed to the next step by clicking the *Next* button
+5. Accept any certificate warnings (note: this is a self-signed plugin, so you will be warned about potential security risks)
 
 ### Configuration
 
