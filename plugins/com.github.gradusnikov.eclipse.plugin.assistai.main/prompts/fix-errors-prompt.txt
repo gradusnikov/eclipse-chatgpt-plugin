@@ -4,10 +4,11 @@ Please provide a solution.
 
 Return your answer as a patch in a code block. Use full paths.
 
-[errors] = "${errors}"
-[fileName] = "${fileName}" 
-[content] = "
+[errors] = ${errors}
+
+[fileName] = ${fileName}
+ 
+[content] = 
 ```${lang}
 ${documentText}
 ```
-"

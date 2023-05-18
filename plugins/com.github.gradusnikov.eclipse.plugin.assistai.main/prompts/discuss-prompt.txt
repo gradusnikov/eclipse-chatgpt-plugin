@@ -1,6 +1,6 @@
-We will discuss about the source code the file [fileName] and its content [content]. 
+We will discuss the source code in the file [fileName] and its content [content].
 
-When ready reply "OK, ready to discuss the file `[fileName]`. What would you like to ask?"
+When ready, reply "OK, ready to discuss the file `[fileName]`. What would you like to ask?"
 
 
 

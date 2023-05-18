@@ -1,7 +1,7 @@
-In the context of the Java class [class] provide unit test code for ${javaType} "${name}". 
+In the context of the Java class [class] provide unit test code for [javaType] declared as [name]. 
 
 Strictly follow all of the following rules:
-- Provide the source code of the unit tests JUST for the ${javaType} "${name}". 
+- Provide the source code of the unit tests JUST for the [javaType] declared as [name]. 
 - Keep class imports compact using wildcards 
 - Keep all tests separate and independent - single test function per one test scenario
 - Use JUnit 5
@@ -15,9 +15,12 @@ In your response return JUST the source code with comments in the following form
 <your source code>
 ``` 
 
+[javaType]=${javaType}
 
-[class]="
+[name]=${name}
+
+[class]=
 ```${lang}
 ${documentText}
 ```
-"
+

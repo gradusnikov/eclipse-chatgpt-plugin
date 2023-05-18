@@ -16,16 +16,16 @@ Return the response in the following markdown format:
 
 Let's work this out in a step by step way to be sure we have the right answer.
 
-[snippet]="
+[snippet]=
 ```${lang}
 ${selectedText}
 ```
-"
 
-[class]="
+
+[class]=
 ```${lang}
 ${documentText}
 ```
-"
+
 
 
