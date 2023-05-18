@@ -43,6 +43,8 @@ public class ChatGPTPresenter
     @Inject
     private AppendMessageToViewSubscriber appendMessageToViewSubscriber;
     
+    @Inject
+    private ApplyPatchWizardHelper applyPatchWizzardHelper;
     
     @PostConstruct
     public void init()
@@ -135,8 +137,7 @@ public class ChatGPTPresenter
 
     public void onApplyPatch( String codeBlock )
     {
-        ApplyPatchWizzardHelper wizzardHelper = new ApplyPatchWizzardHelper();
-        wizzardHelper.showApplyPatchWizardDialog( codeBlock, null );
+        applyPatchWizzardHelper.showApplyPatchWizardDialog( codeBlock, null );
         
     }
 }

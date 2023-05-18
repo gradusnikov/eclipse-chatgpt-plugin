@@ -11,7 +11,6 @@ import org.eclipse.compare.CompareConfiguration;
 import org.eclipse.compare.patch.ApplyPatchOperation;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
-import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IStorage;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
@@ -27,7 +26,7 @@ import org.eclipse.ui.texteditor.ITextEditor;
  */
 @Creatable
 @Singleton
-public class ApplyPatchWizzardHelper
+public class ApplyPatchWizardHelper
 {
     @Inject
     private ILog logger;
@@ -63,11 +62,11 @@ public class ApplyPatchWizzardHelper
     
 
     /**
-     * Returns the {@link IResource} of the project associated with the currently opened file in the text editor.
+     * Returns the {@link IProject} of the project associated with the currently opened file in the text editor.
      *
-     * @return The {@link IResource} of the project, or null if the active editor is not a text editor.
+     * @return The {@link IProject} of the project, or null if the active editor is not a text editor.
      */
-    private IResource getProjectOfCurrentlyOpenedEditor() 
+    private IProject getProjectOfCurrentlyOpenedEditor() 
     {
         var window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
         var activePage = window.getActivePage();
