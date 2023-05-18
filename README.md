@@ -52,7 +52,9 @@ Use the "Clear" button to reset the conversation context. Press the "Stop" butto
 
 ![Git Commit Message Generation](src/website/how-it-works-gitcomment.gif)
 
-6. If you have errors in your code, ChatGPT can generate a patch to solve your issues. Select "Fix Errors" command, copy patch contents using the "Copy Code" button, and paste it to your project with CTRL+v
+6. If you have errors in your code, ChatGPT can generate a patch to solve your issues. Select "Fix Errors" command, copy patch contents using the "Copy Code" button, and paste it to your project with CTRL+v, or you can use "Apply Patch" button that will open the patch import window. 
+
+   The "Apply Patch" button is active whenever ChatGPT returns a *diff* code block. When interacting with ChatGPT (i.e. performing a code review) you can ask it to format its answers this way using a following prompt: "Return your answer in diff format using full paths".
 
 ![Git Commit Message Generation](src/website/how-it-works-fixerrors.gif)
 
