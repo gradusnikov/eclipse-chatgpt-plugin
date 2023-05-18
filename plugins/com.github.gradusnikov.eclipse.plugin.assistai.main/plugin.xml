@@ -12,11 +12,18 @@
    </extension>
    <extension
          point="org.eclipse.ui.preferencePages">
+      
       <page
-            class="com.github.gradusnikov.eclipse.assistai.preferences.SamplePreferencePage"
-            id="com.github.gradusnikov.eclipse.assistai.preferences.SamplePreferencePage"
-            name="Assit AI">
+            class="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
+            id="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
+            name="AssistAI">
       </page>
+        <page
+            id="com.github.gradusnikov.eclipse.assistai.preferences.PromptsPreferencePage"
+            name="Prompts"
+            category="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
+            class="com.github.gradusnikov.eclipse.assistai.preferences.PromptsPreferencePage">
+        </page>      
    </extension>
    <extension
          point="org.eclipse.core.runtime.preferences">
@@ -24,13 +31,5 @@
             class="com.github.gradusnikov.eclipse.assistai.preferences.PreferenceInitializer">
       </initializer>
    </extension>
-   <!-- extension
-         id="com.example.fragment1"
-         point="org.eclipse.e4.workbench.model">
-      <fragment
-            apply="notexists"
-            uri="fragment.e4xmi">
-      </fragment>
-   </extension-->
 
 </plugin>

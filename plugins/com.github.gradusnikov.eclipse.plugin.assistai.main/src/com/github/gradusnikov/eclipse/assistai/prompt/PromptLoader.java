@@ -24,30 +24,39 @@ public class PromptLoader
 	{
 	}
 	
+	public String updatePromptText( String promptText, String... substitutions )
+	{
+        if (substitutions.length % 2 != 0)
+        {
+            throw new IllegalArgumentException("Expecting key, value pairs");
+
+        }
+        for (int i = 0; i < substitutions.length; i = i + 2)
+        {
+            promptText = promptText.replace(substitutions[i], substitutions[i + 1]);
+        }
+        return promptText;
+	}
+	
     public String createPromptText(String resourceFile, String... substitutions) 
+    {
+        var prompt = getRawPrompt( resourceFile );
+        prompt = updatePromptText( prompt, substitutions );
+        return prompt;
+    }
+
+    public String getRawPrompt( String resourceFile )
     {
         try (var in = FileLocator.toFileURL( new URL( new URL(BASE_URL), resourceFile )  ).openStream();
              var dis = new DataInputStream(in);)
         {
-
             var prompt = new String(dis.readAllBytes(), StandardCharsets.UTF_8);
-
-            if (substitutions.length % 2 != 0)
-            {
-                throw new IllegalArgumentException("Expecting key, value pairs");
-
-            }
-            for (int i = 0; i < substitutions.length; i = i + 2)
-            {
-                prompt = prompt.replace(substitutions[i], substitutions[i + 1]);
-            }
             return prompt;
         }
         catch ( IOException e )
         {
             throw new RuntimeException( e );
-        }
-
+        }        
     }
 
 }
