@@ -89,8 +89,15 @@ public class PromptParser
         if( (state & CODE_BLOCK_STATE) != CODE_BLOCK_STATE )
         {
             String codeBlockId = UUID.randomUUID().toString();
-            out.append( String.format("<input type=\"button\" onClick=\"eclipseCopyCode(document.getElementById('%s').innerText)\" value=\"Copy Code\"\"/>", codeBlockId) );
-            out.append( String.format( "<pre><code lang=\"%s\" id=\"%s\">",  lang, codeBlockId ) );
+            out.append( """ 
+                    <input type="button" onClick="eclipseCopyCode(document.getElementById('${codeBlockId}').innerText)" value="Copy Code" />
+                    <input type="${showApplyPatch}" onClick="eclipseApplyPatch(document.getElementById('${codeBlockId}').innerText)" value="ApplyPatch"/>
+                    <pre><code lang="${lang}" id="${codeBlockId}">
+                    """
+                    .replace( "${lang}", lang )
+                    .replace( "${codeBlockId}", codeBlockId )
+                    .replace( "${showApplyPatch}", "diff".equals(lang) ? "button" : "hidden" ) // show "Apply Patch" button for diffs
+            );
             state ^= CODE_BLOCK_STATE;
         }
         else

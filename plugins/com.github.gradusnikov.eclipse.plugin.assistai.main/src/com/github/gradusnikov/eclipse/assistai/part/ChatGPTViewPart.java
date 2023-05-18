@@ -162,6 +162,7 @@ public class ChatGPTViewPart
     private void initializeFunctions( Browser browser )
     {
         new CopyCodeFunction( browser, "eclipseCopyCode" );
+        new ApplyPatchFunction( browser, "eclipseApplyPatch" );
     }
 
     private void initializeChatView( Browser browser )
@@ -264,28 +265,6 @@ public class ChatGPTViewPart
     {
         return html.replace("\"", "\\\"").replace("'", "\\'");
     }
-    /**
-     * This function establishes a JavaScript-to-Java callback for the browser, allowing the IDE to copy code.
-     * It is invoked from JavaScript when the user interacts with the chat view to copy a code block.
-     */    
-    private class CopyCodeFunction extends BrowserFunction
-    {
-        public CopyCodeFunction(Browser browser, String name)
-        {
-            super(browser, name);
-        }
-
-        @Override
-        public Object function(Object[] arguments)
-        {
-            if (arguments.length > 0 && arguments[0] instanceof String)
-            {
-                String codeBlock = (String) arguments[0];
-                presenter.onCopyCode(codeBlock);
-            }
-            return null;
-        }
-    }
 
     public void appendMessage(int message, String role)
     {
@@ -319,5 +298,50 @@ public class ChatGPTViewPart
         });
     }
     
+    /**
+     * This function establishes a JavaScript-to-Java callback for the browser, allowing the IDE to copy code.
+     * It is invoked from JavaScript when the user interacts with the chat view to copy a code block.
+     */    
+    private class CopyCodeFunction extends BrowserFunction
+    {
+        public CopyCodeFunction(Browser browser, String name)
+        {
+            super(browser, name);
+        }
+
+        @Override
+        public Object function(Object[] arguments)
+        {
+            if (arguments.length > 0 && arguments[0] instanceof String)
+            {
+                String codeBlock = (String) arguments[0];
+                presenter.onCopyCode(codeBlock);
+            }
+            return null;
+        }
+    }
+
+    /**
+     * This function establishes a JavaScript-to-Java callback for the browser, allowing the IDE to copy code.
+     * It is invoked from JavaScript when the user interacts with the chat view to copy a code block.
+     */    
+    private class ApplyPatchFunction extends BrowserFunction
+    {
+        public ApplyPatchFunction(Browser browser, String name)
+        {
+            super(browser, name);
+        }
+
+        @Override
+        public Object function(Object[] arguments)
+        {
+            if (arguments.length > 0 && arguments[0] instanceof String)
+            {
+                String codeBlock = (String) arguments[0];
+                presenter.onApplyPatch(codeBlock);
+            }
+            return null;
+        }
+    }
 
 }

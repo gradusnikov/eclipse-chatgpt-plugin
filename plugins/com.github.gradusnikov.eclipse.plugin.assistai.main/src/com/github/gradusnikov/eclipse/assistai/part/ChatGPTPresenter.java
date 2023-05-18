@@ -132,4 +132,11 @@ public class ChatGPTPresenter
         clipboard.setContents(new Object[] { codeBlock }, new Transfer[] { textTransfer });
         clipboard.dispose();
     }
+
+    public void onApplyPatch( String codeBlock )
+    {
+        ApplyPatchWizzardHelper wizzardHelper = new ApplyPatchWizzardHelper();
+        wizzardHelper.showApplyPatchWizardDialog( codeBlock, null );
+        
+    }
 }

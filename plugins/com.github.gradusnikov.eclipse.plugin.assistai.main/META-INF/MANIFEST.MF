@@ -24,7 +24,9 @@ Require-Bundle: javax.inject,
  org.eclipse.core.resources,
  com.github.gradusnikov.eclipse.plugin.assistai.dependencies;bundle-version="1.0.0",
  org.eclipse.jgit,
- org.eclipse.egit.core
+ org.eclipse.egit.core,
+ org.eclipse.compare,
+ org.eclipse.e4.ui.dialogs
 Bundle-RequiredExecutionEnvironment: JavaSE-17
 Automatic-Module-Name: assistai.main
 Bundle-Classpath: .
