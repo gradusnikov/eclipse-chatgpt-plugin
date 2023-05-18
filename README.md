@@ -56,7 +56,7 @@ Use the "Clear" button to reset the conversation context. Press the "Stop" butto
 
    The "Apply Patch" button is active whenever ChatGPT returns a *diff* code block. When interacting with ChatGPT (i.e. performing a code review) you can ask it to format its answers this way using a following prompt: "Return your answer in diff format using full paths".
 
-![Git Commit Message Generation](src/website/how-it-works-fixerrors.gif)
+![Git Commit Message Generation](src/website/how-it-works-fixerrors-1.gif)
 
 ## Installation
 
