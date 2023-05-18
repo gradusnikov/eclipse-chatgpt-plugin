@@ -23,7 +23,7 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory;
-import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory.JobType;
+import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 
 public class AssistAIFixErrorsHandler
 {
@@ -109,7 +109,7 @@ public class AssistAIFixErrorsHandler
         if ( !errorMessages.isEmpty() )
         {
             var context = new Context( filePath, fileContents, errorMessages, "", "", ext );
-            jobFactory.createJob( JobType.FIX_ERRORS,  context ).schedule();
+            jobFactory.createJob( Prompts.FIX_ERRORS,  context ).schedule();
         }
     }
 }

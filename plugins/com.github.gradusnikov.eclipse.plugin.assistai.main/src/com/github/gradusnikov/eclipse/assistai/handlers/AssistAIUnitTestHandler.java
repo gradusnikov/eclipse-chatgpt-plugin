@@ -1,12 +1,12 @@
 package com.github.gradusnikov.eclipse.assistai.handlers;
 
-import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory.JobType;
+import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 
 public class AssistAIUnitTestHandler extends AssistAIHandlerTemplate
 {
     
     public AssistAIUnitTestHandler()
     {
-        super( JobType.UNIT_TEST );
+        super( Prompts.TEST_CASE );
     }
 }

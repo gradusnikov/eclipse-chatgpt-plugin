@@ -32,15 +32,7 @@ public class JobFactory
     
     public static final String JOB_PREFIX = "AssistAI: ";
     
-    public enum JobType
-    {
-        REFACTOR,
-        UNIT_TEST,
-        DOCUMENT,
-        EXPLAIN,
-        DISCUSS_CODE,
-        FIX_ERRORS
-    }
+
     @Inject
     private ILog logger;
     
@@ -61,7 +53,7 @@ public class JobFactory
     }
 
     
-    public Job createJob( JobType type, Context context )
+    public Job createJob( Prompts type, Context context )
     {
         Supplier<String> propmtSupplier;
         switch ( type )
@@ -69,13 +61,13 @@ public class JobFactory
             case DOCUMENT:
                 propmtSupplier = javaDocPromptSupplier( context );
                 break;
-            case UNIT_TEST:
+            case TEST_CASE:
                 propmtSupplier = unitTestSupplier( context );
                 break;
             case REFACTOR:
                 propmtSupplier = refactorPromptSupplier( context );
                 break;
-            case DISCUSS_CODE:
+            case DISCUSS:
                 propmtSupplier = discussCodePromptSupplier( context );
                 break;
             case FIX_ERRORS:

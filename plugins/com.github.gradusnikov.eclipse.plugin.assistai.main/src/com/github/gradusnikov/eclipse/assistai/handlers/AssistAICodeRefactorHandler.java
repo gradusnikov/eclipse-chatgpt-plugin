@@ -1,11 +1,11 @@
 package com.github.gradusnikov.eclipse.assistai.handlers;
 
-import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory.JobType;
+import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 
 public class AssistAICodeRefactorHandler extends AssistAIHandlerTemplate
 {
     public AssistAICodeRefactorHandler()
     {
-        super(JobType.REFACTOR);
+        super(Prompts.REFACTOR);
     }
 }

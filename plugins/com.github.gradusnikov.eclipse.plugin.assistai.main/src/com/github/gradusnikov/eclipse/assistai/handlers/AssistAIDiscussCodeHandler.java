@@ -1,11 +1,11 @@
 package com.github.gradusnikov.eclipse.assistai.handlers;
 
-import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory.JobType;
+import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 
 public class AssistAIDiscussCodeHandler extends AssistAIHandlerTemplate
 {
     public AssistAIDiscussCodeHandler()
     {
-        super( JobType.DISCUSS_CODE );
+        super( Prompts.DISCUSS );
     }
 }

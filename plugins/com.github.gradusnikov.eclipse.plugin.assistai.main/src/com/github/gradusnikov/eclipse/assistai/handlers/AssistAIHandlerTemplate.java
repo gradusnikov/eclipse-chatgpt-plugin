@@ -20,16 +20,16 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory;
-import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory.JobType;
+import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 
 public class AssistAIHandlerTemplate 
 {
     @Inject
     protected JobFactory jobFactory;
     
-    protected final JobType type;
+    protected final Prompts type;
     
-    public AssistAIHandlerTemplate( JobType type )
+    public AssistAIHandlerTemplate( Prompts type )
     {
         this.type = type;
     }
