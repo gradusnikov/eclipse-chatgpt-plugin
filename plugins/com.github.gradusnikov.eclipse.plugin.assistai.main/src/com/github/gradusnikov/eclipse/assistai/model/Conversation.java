@@ -24,14 +24,9 @@ public class Conversation
         conversation.clear();
     }
     
-    public void add(ChatMessage message)
+    public synchronized void add(ChatMessage message)
     {
         conversation.add(message);
-    }
-    
-    public synchronized ChatMessage newMessage( String role )
-    {
-        return new ChatMessage( conversation.size(), role );
     }
     
     public Iterable<ChatMessage> messages()

@@ -19,13 +19,17 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
-import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory;
+import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
+import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
+import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 
 public class AssistAIHandlerTemplate 
 {
     @Inject
-    protected JobFactory jobFactory;
+    protected ChatMessageFactory chatMessageFactory;
+    @Inject
+    protected ChatGPTPresenter viewPresenter;
     
     protected final Prompts type;
     
@@ -94,6 +98,8 @@ public class AssistAIHandlerTemplate
                         }
                     }
                     selectedJavaElement = selectedJavaElement.replaceAll("\\[.*\\]", "");
+                    
+                    //TODO: get javadoc associated with compilation unit
                 }
                 catch (JavaModelException e)
                 {
@@ -106,7 +112,8 @@ public class AssistAIHandlerTemplate
                                        selectedJavaElement, 
                                        selectedJavaType,
                                        ext);
-            jobFactory.createJob(type, context).schedule();
+            var message = chatMessageFactory.createUserChatMessage( type, context );
+            viewPresenter.onSendPredefinedPrompt( type, message );
         }
     }
     

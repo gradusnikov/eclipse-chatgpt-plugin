@@ -25,16 +25,19 @@ import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.PlatformUI;
 
-import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory;
+import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
+import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
+import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 
 @SuppressWarnings( "restriction" )
 public class AssistAiGenerateGitCommentHandler
 {
     @Inject
-    private JobFactory jobFactory;
-
-    @Inject
     private ILog       logger;
+    @Inject
+    private ChatMessageFactory chatMessageFactory;
+    @Inject
+    private ChatGPTPresenter viewPresenter;
 
     @Execute
     public void execute( @Named( IServiceConstants.ACTIVE_SHELL ) Shell s )
@@ -56,8 +59,7 @@ public class AssistAiGenerateGitCommentHandler
                 var head = repository.resolve( "HEAD" );
                 if ( Objects.isNull( head ) )
                 {
-                    // Handle initial commit scenario
-                    System.out.println( "Initial commit: No previous commits found." );
+                    // TODO: Handle the initial commit scenario
                     logger.info( "Initial commit: No previous commits found." );
                 }
                 else
@@ -68,8 +70,8 @@ public class AssistAiGenerateGitCommentHandler
                     
                     var patch = printChanges( git.getRepository(), stagedChanges );
                     
-                    var job = jobFactory.createGenerateGitCommitCommentJob( patch );
-                    job.schedule();
+                    var message = chatMessageFactory.createGenerateGitCommitCommentJob( patch );
+                    viewPresenter.onSendPredefinedPrompt( Prompts.GIT_COMMENT, message );
                 }
                     
             }
@@ -101,7 +103,7 @@ public class AssistAiGenerateGitCommentHandler
         try ( var inserter = repository.newObjectInserter(); 
               var reader = repository.newObjectReader())
         {
-            var treeId = repository.readDirCache().writeTree( inserter );
+            var treeId = repository.readDirCache().writeTree(inserter);
             return new CanonicalTreeParser( null, reader, treeId );
         }
     }

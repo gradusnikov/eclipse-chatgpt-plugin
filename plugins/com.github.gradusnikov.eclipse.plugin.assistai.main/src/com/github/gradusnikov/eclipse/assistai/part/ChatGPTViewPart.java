@@ -233,7 +233,7 @@ public class ChatGPTViewPart
         return js.toString();
     }
 
-    public void setMessageHtml(int messageId, String messageBody)
+    public void setMessageHtml( String messageId, String messageBody)
     {
         uiSync.asyncExec(() -> {
             PromptParser parser = new PromptParser( messageBody );
@@ -266,7 +266,7 @@ public class ChatGPTViewPart
         return html.replace("\"", "\\\"").replace("'", "\\'");
     }
 
-    public void appendMessage(int message, String role)
+    public void appendMessage(String messageId, String role)
     {
         // 
         String cssClass = "user".equals( role ) ? "chat-bubble me" : "chat-bubble you";
@@ -276,7 +276,7 @@ public class ChatGPTViewPart
                     node.setAttribute("id", "message-${id}");
                     node.setAttribute("class", "${cssClass}");
                     document.getElementById("content").appendChild(node);
-                    	""".replace("${id}", Integer.toString( message ))
+                    	""".replace("${id}", messageId )
                     	   .replace( "${cssClass}", cssClass )
                     	);
             browser.execute(

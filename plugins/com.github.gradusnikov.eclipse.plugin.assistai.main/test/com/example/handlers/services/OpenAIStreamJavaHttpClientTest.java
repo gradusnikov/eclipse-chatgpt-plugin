@@ -1,7 +1,5 @@
 package com.example.handlers.services;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import java.io.IOException;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
@@ -22,7 +20,7 @@ class OpenAIStreamJavaHttpClientTest
         client.subscribe(createSubscriber());
         
         Conversation conversation = new Conversation();
-        ChatMessage message = conversation.newMessage( "user" );
+        ChatMessage message = new ChatMessage("123", "user" );
         message.setMessage( "Translate the following English text to Java code: Create an empty HashMap with keys of type String and values of type Integer" );
         conversation.add( message );
         client.run( conversation );

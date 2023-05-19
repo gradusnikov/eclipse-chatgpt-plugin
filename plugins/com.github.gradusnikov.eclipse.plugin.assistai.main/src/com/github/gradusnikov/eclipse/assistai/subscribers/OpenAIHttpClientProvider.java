@@ -19,7 +19,7 @@ public class OpenAIHttpClientProvider
     @Inject
     private PrintMessageSubscriber printMessageSubscriber;
     
-    public OpenAIStreamJavaHttpClient get( )
+    public OpenAIStreamJavaHttpClient get()
     {
         OpenAIStreamJavaHttpClient client = clientProvider.get();
         client.subscribe( printMessageSubscriber );

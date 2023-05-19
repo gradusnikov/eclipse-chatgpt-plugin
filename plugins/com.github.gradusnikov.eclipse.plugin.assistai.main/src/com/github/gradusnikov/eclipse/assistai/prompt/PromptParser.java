@@ -15,6 +15,7 @@ public class PromptParser
     
     private static final int DEFAULT_STATE = 0;
     private static final int CODE_BLOCK_STATE = 1;
+    private static final int COMMAND_BLOCK_STATE = 2;
     
     
     private int state = DEFAULT_STATE;

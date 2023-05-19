@@ -22,17 +22,19 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
-import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory;
+import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
+import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
+import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 
 public class AssistAIFixErrorsHandler
 {
-    
-    @Inject
-    private JobFactory jobFactory;
-    
     @Inject
     private ILog logger;
+    @Inject
+    private ChatMessageFactory chatMessageFactory;
+    @Inject
+    private ChatGPTPresenter viewPresenter;
     
     @Execute
     public void execute( @Named( IServiceConstants.ACTIVE_SHELL ) Shell s )
@@ -109,7 +111,8 @@ public class AssistAIFixErrorsHandler
         if ( !errorMessages.isEmpty() )
         {
             var context = new Context( filePath, fileContents, errorMessages, "", "", ext );
-            jobFactory.createJob( Prompts.FIX_ERRORS,  context ).schedule();
+            var message = chatMessageFactory.createUserChatMessage( Prompts.FIX_ERRORS, context );
+            viewPresenter.onSendPredefinedPrompt( Prompts.FIX_ERRORS, message );
         }
     }
 }

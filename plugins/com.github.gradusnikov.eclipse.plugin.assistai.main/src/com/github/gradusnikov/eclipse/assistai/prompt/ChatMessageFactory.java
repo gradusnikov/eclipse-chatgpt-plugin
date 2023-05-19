@@ -1,48 +1,29 @@
 package com.github.gradusnikov.eclipse.assistai.prompt;
 
-import java.util.concurrent.CompletableFuture;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-import org.eclipse.core.runtime.ILog;
-import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
-import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.handlers.Context;
-import com.github.gradusnikov.eclipse.assistai.model.Conversation;
-import com.github.gradusnikov.eclipse.assistai.subscribers.OpenAIHttpClientProvider;
+import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 
 @Creatable
 @Singleton
-public class JobFactory
+public class ChatMessageFactory
 {
 	private IPreferenceStore preferenceStore;
     
 	@Inject
     private PromptLoader promptLoader;
 
-    
-    public static final String JOB_PREFIX = "AssistAI: ";
-    
-
-    @Inject
-    private ILog logger;
-    
-    @Inject
-    private OpenAIHttpClientProvider clientProvider;
-    
-    @Inject
-    private Conversation conversation;
-    
-    public JobFactory()
+    public ChatMessageFactory()
     {
         
     }
@@ -52,31 +33,38 @@ public class JobFactory
         preferenceStore = Activator.getDefault().getPreferenceStore();
     }
 
-    
-    public Job createJob( Prompts type, Context context )
+    public ChatMessage createAssistantChatMessage( String text )
     {
-        Supplier<String> propmtSupplier;
+        ChatMessage message = new ChatMessage( UUID.randomUUID().toString(), "assistant" );
+        message.setMessage( text );
+        return message;
+
+    }
+    
+    public ChatMessage createUserChatMessage( Prompts type, Context context )
+    {
+        Supplier<String> promptSupplier;
         switch ( type )
         {
             case DOCUMENT:
-                propmtSupplier = javaDocPromptSupplier( context );
+                promptSupplier = javaDocPromptSupplier( context );
                 break;
             case TEST_CASE:
-                propmtSupplier = unitTestSupplier( context );
+                promptSupplier = unitTestSupplier( context );
                 break;
             case REFACTOR:
-                propmtSupplier = refactorPromptSupplier( context );
+                promptSupplier = refactorPromptSupplier( context );
                 break;
             case DISCUSS:
-                propmtSupplier = discussCodePromptSupplier( context );
+                promptSupplier = discussCodePromptSupplier( context );
                 break;
             case FIX_ERRORS:
-                propmtSupplier = fixErrorsPromptSupplier( context );
+                promptSupplier = fixErrorsPromptSupplier( context );
                 break;
             default:
                 throw new IllegalArgumentException();
         }
-        return new SendMessageJob( propmtSupplier );        
+        return createUserChatMessage( promptSupplier );
     }
     
     private Supplier<String> fixErrorsPromptSupplier( Context context )
@@ -127,60 +115,21 @@ public class JobFactory
     }
 
     
-
-    public Job createSendUserMessageJob( String prompt )
-    {
-        return new SendMessageJob( () -> prompt );
-    }
-    
-    public Job createGenerateGitCommitCommentJob( String patch )
+    public ChatMessage createGenerateGitCommitCommentJob( String patch )
     {
         Supplier<String> promptSupplier  =  () -> promptLoader.updatePromptText( preferenceStore.getString( Prompts.GIT_COMMENT.preferenceName() ), 
                 "${content}", patch );
-        return new SendMessageJob( promptSupplier );
-    }
-
-    /**
-     * 
-     */
-    private class SendMessageJob extends Job
-    {
-        private final Supplier<String> promptSupplier;
-        public SendMessageJob( Supplier<String> promptSupplier )
-        {
-            super( JOB_PREFIX + "asking ChatGPT for help");
-            this.promptSupplier = promptSupplier;
-            
-        }
-        @Override
-        protected IStatus run(IProgressMonitor progressMonitor) {
-            var openAIClient = clientProvider.get();
-            openAIClient.setCancelPrivider( () -> progressMonitor.isCanceled()   ); 
-            synchronized ( conversation )
-            {
-                var message = conversation.newMessage( "user" );
-                var prompt = promptSupplier.get();
-                
-                message.setMessage( prompt );
-                conversation.add( message );
-                
-                logger.info( this.getName() + "\n" + prompt );
-            }
-            
-            try 
-            {
-                var future = CompletableFuture.runAsync( openAIClient.run(conversation) )
-        				.thenApply( v -> Status.OK_STATUS )
-        				.exceptionally( e -> Status.error("Unable to run the task: " + e.getMessage(), e) );
-				return future.get();
-			} 
-            catch ( Exception e ) 
-            {
-            	return Status.error( e.getMessage(), e );
-			}
-        }
         
+        return createUserChatMessage( promptSupplier );
     }
     
+    public ChatMessage createUserChatMessage( Supplier<String> promptSupplier )
+    {
+        ChatMessage message = new ChatMessage( UUID.randomUUID().toString(), "user" );
+        message.setMessage( promptSupplier.get() );
+        return message;        
+    }
+
+
 
 }

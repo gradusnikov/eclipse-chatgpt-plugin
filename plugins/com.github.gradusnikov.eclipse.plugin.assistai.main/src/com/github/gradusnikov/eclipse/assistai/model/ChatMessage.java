@@ -6,7 +6,7 @@ package com.github.gradusnikov.eclipse.assistai.model;
  */
 public class ChatMessage {
 	
-	public final int id;
+	public final String id;
 	public final String role;
 	public int tokens;
 	public String content;
@@ -17,7 +17,7 @@ public class ChatMessage {
 	 * @param id The unique identifier for the chat message
 	 * @param role The role associated with the chat message (e.g., "user", "assistant")
 	 */
-	public ChatMessage( int id, String role )
+	public ChatMessage( String id, String role )
 	{
 		this.id = id;
 		this.role = role;
@@ -53,7 +53,7 @@ public class ChatMessage {
 	 * Retrieves the unique identifier.
 	 * @return The ID of the chat message
 	 */
-	public int getId() {
+	public String getId() {
 		return id;
 	}
 

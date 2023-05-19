@@ -4,21 +4,25 @@ import java.util.Arrays;
 
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.jobs.IJobManager;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
-import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.swt.dnd.Clipboard;
 import org.eclipse.swt.dnd.TextTransfer;
 import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.ui.PlatformUI;
 
+import com.github.gradusnikov.eclipse.assistai.handlers.Context;
+import com.github.gradusnikov.eclipse.assistai.jobs.AssistAIJobConstants;
+import com.github.gradusnikov.eclipse.assistai.jobs.SendConversationJob;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
-import com.github.gradusnikov.eclipse.assistai.prompt.JobFactory;
+import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
+import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.subscribers.AppendMessageToViewSubscriber;
 
 @Creatable
@@ -35,10 +39,13 @@ public class ChatGPTPresenter
     private Conversation conversation;
     
     @Inject
-    private JobFactory jobFactory;        
+    private ChatMessageFactory chatMessageFactory;        
 
     @Inject
     private IJobManager jobManager;
+    
+    @Inject
+    private Provider<SendConversationJob> sendConversationJobProvider;
     
     @Inject
     private AppendMessageToViewSubscriber appendMessageToViewSubscriber;
@@ -58,34 +65,29 @@ public class ChatGPTPresenter
         conversation.clear();
         partAccessor.findMessageView().ifPresent( ChatGPTViewPart::clearChatView );
     }
+    public void on( String text )
+    {
+        
+    }
 
     public void onSendUserMessage( String text )
     {
         logger.info( "Send user message" );
-        ChatMessage message;
-        synchronized( conversation )
-        {
-            message = conversation.newMessage( "user" );
-            message.setMessage( text );
-            conversation.add( message );
-        }
+        ChatMessage message = chatMessageFactory.createUserChatMessage( () -> text );
+        conversation.add( message );
         partAccessor.findMessageView().ifPresent( part -> { 
             part.clearUserInput(); 
             part.appendMessage( message.getId(), message.getRole() );
             part.setMessageHtml( message.getId(), message.getContent() );
         });
-        jobFactory.createSendUserMessageJob( text ).schedule();
+        sendConversationJobProvider.get().schedule();
     }
 
 
     public ChatMessage beginMessageFromAssitant()
     {   
-        ChatMessage message;
-        synchronized (conversation)
-        {
-            message = conversation.newMessage( "assistant" );
-            conversation.add(message);
-        }
+        ChatMessage message = chatMessageFactory.createAssistantChatMessage("");
+        conversation.add(message);
         partAccessor.findMessageView().ifPresent(messageView -> {
                 messageView.appendMessage(message.getId(), message.getRole());
                 messageView.setInputEnabled( false );
@@ -115,7 +117,7 @@ public class ChatGPTPresenter
     {
         var jobs = jobManager.find( null );
         Arrays.stream( jobs )
-              .filter( job -> job.getName().startsWith( JobFactory.JOB_PREFIX ) )
+              .filter( job -> job.getName().startsWith( AssistAIJobConstants.JOB_PREFIX ) )
               .forEach( Job::cancel );
         
         partAccessor.findMessageView().ifPresent(messageView -> {
@@ -139,5 +141,19 @@ public class ChatGPTPresenter
     {
         applyPatchWizzardHelper.showApplyPatchWizardDialog( codeBlock, null );
         
+    }
+
+    public void onSendPredefinedPrompt( Prompts type, ChatMessage message )
+    {
+        conversation.add( message );
+        
+        // update view
+        partAccessor.findMessageView().ifPresent(messageView -> {
+            messageView.appendMessage( message.getId(), message.getRole() );
+            messageView.setMessageHtml( message.getId(), type.getDescription() );
+        });        
+        
+        // schedule message
+        sendConversationJobProvider.get().schedule();
     }
 }
