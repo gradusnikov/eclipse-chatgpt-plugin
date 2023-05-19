@@ -42,7 +42,9 @@ import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
 public class OpenAIStreamJavaHttpClient
 {
 
-    private final String API_URL = "https://api.openai.com/v1/chat/completions";
+    private final String CHAT_URL = "/v1/chat/completions";
+    private String apiUrl;
+    private String apiBase;
     private String apiKey;
     private String modelName;// = "gpt-4";
 
@@ -60,8 +62,10 @@ public class OpenAIStreamJavaHttpClient
     public void init()
     {
         IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
+        apiBase = prefernceStore.getString(PreferenceConstants.OPENAI_API_BASE);
         apiKey    = prefernceStore.getString(PreferenceConstants.OPENAI_API_KEY);
         modelName = prefernceStore.getString(PreferenceConstants.OPENAI_MODEL_NAME);
+        apiUrl = apiBase + CHAT_URL;
     }
     
     public OpenAIStreamJavaHttpClient()
@@ -139,7 +143,7 @@ public class OpenAIStreamJavaHttpClient
     	return () ->  {
     		HttpClient client = HttpClient.newHttpClient();
     		String requestBody = getRequestBody(prompt);
-    		HttpRequest request = HttpRequest.newBuilder().uri(URI.create(API_URL))
+            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(apiUrl))
     				.header("Authorization", "Bearer " + apiKey)
     				.header("Accept", "text/event-stream")
     				.header("Content-Type", "application/json")

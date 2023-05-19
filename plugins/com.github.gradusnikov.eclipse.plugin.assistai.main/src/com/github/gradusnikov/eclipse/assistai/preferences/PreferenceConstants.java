@@ -5,9 +5,8 @@ package com.github.gradusnikov.eclipse.assistai.preferences;
  */
 public class PreferenceConstants
 {
-
+    public static final String OPENAI_API_BASE = "OpenAIAPIBase";
     public static final String OPENAI_API_KEY    = "OpenAIAPIKey";
     public static final String OPENAI_MODEL_NAME = "OpenAIModelName";
-    
     
 }
