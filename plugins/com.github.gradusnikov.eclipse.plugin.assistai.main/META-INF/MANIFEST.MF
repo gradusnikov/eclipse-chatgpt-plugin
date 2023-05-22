@@ -26,7 +26,8 @@ Require-Bundle: javax.inject,
  org.eclipse.jgit,
  org.eclipse.egit.core,
  org.eclipse.compare,
- org.eclipse.e4.ui.dialogs
+ org.eclipse.e4.ui.dialogs,
+ org.apache.commons.cli
 Bundle-RequiredExecutionEnvironment: JavaSE-17
 Automatic-Module-Name: assistai.main
 Bundle-Classpath: .

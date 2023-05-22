@@ -1,0 +1,13 @@
+Perform a code review of the source code [class].
+
+To better understand the logic of the source code you can use commands from the list below. Return all commands you want to use in a code block, each command in new line. Do not use commands if you can perform the task without them.
+
+Commands:
+- read_javadoc - ask a question about the content of a JavaDoc. Use: read_javadoc <fully qualified class name> "<your question about the javadoc>"
+
+
+
+[class]=
+```${lang}
+${content}
+```

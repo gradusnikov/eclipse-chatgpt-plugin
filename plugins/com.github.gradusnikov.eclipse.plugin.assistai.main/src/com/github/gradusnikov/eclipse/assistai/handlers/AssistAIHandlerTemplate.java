@@ -19,7 +19,6 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
-import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
@@ -98,8 +97,6 @@ public class AssistAIHandlerTemplate
                         }
                     }
                     selectedJavaElement = selectedJavaElement.replaceAll("\\[.*\\]", "");
-                    
-                    //TODO: get javadoc associated with compilation unit
                 }
                 catch (JavaModelException e)
                 {
@@ -116,7 +113,7 @@ public class AssistAIHandlerTemplate
             viewPresenter.onSendPredefinedPrompt( type, message );
         }
     }
-    
+
     public String javaElementTypeToString( IJavaElement element )
     {
         switch ( element.getElementType() )
