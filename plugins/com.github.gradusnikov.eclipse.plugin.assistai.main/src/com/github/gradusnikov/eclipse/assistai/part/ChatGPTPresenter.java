@@ -84,7 +84,7 @@ public class ChatGPTPresenter
     }
 
 
-    public ChatMessage beginMessageFromAssitant()
+    public ChatMessage beginMessageFromAssistant()
     {   
         ChatMessage message = chatMessageFactory.createAssistantChatMessage("");
         conversation.add(message);
