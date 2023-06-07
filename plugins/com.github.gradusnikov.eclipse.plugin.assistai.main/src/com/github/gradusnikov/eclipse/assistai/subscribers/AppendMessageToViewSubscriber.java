@@ -39,7 +39,7 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<String>
     {
         Objects.requireNonNull( presenter );
         this.subscription = subscription;
-        message = presenter.beginMessageFromAssitant();
+        message = presenter.beginMessageFromAssistant();
         subscription.request(1);
     }
 
