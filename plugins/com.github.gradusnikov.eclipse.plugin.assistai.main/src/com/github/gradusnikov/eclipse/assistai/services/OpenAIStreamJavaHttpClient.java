@@ -74,7 +74,7 @@ public class OpenAIStreamJavaHttpClient
 
     }
     
-    public void setCancelPrivider( Supplier<Boolean> isCancelled )
+    public void setCancelProvider( Supplier<Boolean> isCancelled )
     {
         this.isCancelled = isCancelled;
     }

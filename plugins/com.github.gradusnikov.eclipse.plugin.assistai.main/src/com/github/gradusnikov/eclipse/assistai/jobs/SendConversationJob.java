@@ -36,7 +36,7 @@ public class SendConversationJob extends Job
     protected IStatus run(IProgressMonitor progressMonitor) 
     {
         var openAIClient = clientProvider.get();
-        openAIClient.setCancelPrivider( () -> progressMonitor.isCanceled() ); 
+        openAIClient.setCancelProvider( () -> progressMonitor.isCanceled() ); 
         
         try 
         {
