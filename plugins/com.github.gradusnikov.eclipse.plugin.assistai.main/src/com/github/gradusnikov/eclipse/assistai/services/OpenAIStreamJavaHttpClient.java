@@ -47,6 +47,7 @@ public class OpenAIStreamJavaHttpClient
     private String apiBase;
     private String apiKey;
     private String modelName;// = "gpt-4";
+    private String azureIdentifier = "azure.com";
 
     private SubmissionPublisher<String> publisher;
     private Supplier<Boolean> isCancelled = () -> false;
@@ -65,7 +66,11 @@ public class OpenAIStreamJavaHttpClient
         apiBase = prefernceStore.getString(PreferenceConstants.OPENAI_API_BASE);
         apiKey    = prefernceStore.getString(PreferenceConstants.OPENAI_API_KEY);
         modelName = prefernceStore.getString(PreferenceConstants.OPENAI_MODEL_NAME);
+        if(apiBase.contains(azureIdentifier))
+        apiUrl = apiBase;
+        else
         apiUrl = apiBase + CHAT_URL;
+
     }
     
     public OpenAIStreamJavaHttpClient()
@@ -143,12 +148,26 @@ public class OpenAIStreamJavaHttpClient
     	return () ->  {
     		HttpClient client = HttpClient.newHttpClient();
     		String requestBody = getRequestBody(prompt);
-            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(apiUrl))
-    				.header("Authorization", "Bearer " + apiKey)
-    				.header("Accept", "text/event-stream")
-    				.header("Content-Type", "application/json")
-    				.POST(HttpRequest.BodyPublishers.ofString(requestBody))
-    				.build();
+    		HttpRequest request;
+    		if(apiUrl.contains(azureIdentifier))
+    		{
+    			request = HttpRequest.newBuilder().uri(URI.create(apiUrl))
+    					.header("api-key", apiKey.trim())
+    					.header("Accept", "text/event-stream")
+    					.header("Content-Type", "application/json")
+    					.POST(HttpRequest.BodyPublishers.ofString(requestBody))
+    					.build();
+    		}
+    		else
+    		{
+    			request = HttpRequest.newBuilder().uri(URI.create(apiUrl))
+        				.header("Authorization", "Bearer " + apiKey)
+        				.header("Accept", "text/event-stream")
+        				.header("Content-Type", "application/json")
+        				.POST(HttpRequest.BodyPublishers.ofString(requestBody))
+        				.build();
+    		}
+            
     		
     		logger.info("Sending request to ChatGPT.");
     		
