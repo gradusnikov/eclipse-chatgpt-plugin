@@ -14,7 +14,7 @@ public class OpenAIPreferencePage extends FieldEditorPreferencePage implements I
     {
         super( GRID );
         setPreferenceStore( Activator.getDefault().getPreferenceStore() );
-        setDescription( "OpenAI API settings" );
+        setDescription( "OpenAI API settings\nIn case If you are using Azure OpenAI Subscription, please make sure you enter your full Azure OpenAI deployment URL including the version.\ni.e.: https://your-endpoint-base.openai.azure.com/openai/deployments/your-azure-model-name/completions?api-version=2022-12-01" );
     }
 
     /**
@@ -24,7 +24,7 @@ public class OpenAIPreferencePage extends FieldEditorPreferencePage implements I
      */
     public void createFieldEditors()
     {
-        addField(new StringFieldEditor(PreferenceConstants.OPENAI_API_BASE, "&Open AI API Base:", getFieldEditorParent()));
+        addField(new StringFieldEditor(PreferenceConstants.OPENAI_API_BASE, "&Open AI API Base or Azure AI Endpoint:", getFieldEditorParent()));
         addField( new StringFieldEditor( PreferenceConstants.OPENAI_API_KEY, "&Open AI API Key:", getFieldEditorParent() ) );
         addField( new StringFieldEditor( PreferenceConstants.OPENAI_MODEL_NAME, "&Model Name", getFieldEditorParent() ) );
     }
