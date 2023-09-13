@@ -20,8 +20,15 @@ public class PromptLoader
 {
 	private final String BASE_URL = "platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/prompts/" ; 
 	
+	private String baseURL = BASE_URL;
+	
 	public PromptLoader()
 	{
+	}
+	
+	public void setBaseURL( String baseURL )
+	{
+	    this.baseURL = baseURL;
 	}
 	
 	public String updatePromptText( String promptText, String... substitutions )
@@ -47,7 +54,7 @@ public class PromptLoader
 
     public String getRawPrompt( String resourceFile )
     {
-        try (var in = FileLocator.toFileURL( new URL( new URL(BASE_URL), resourceFile )  ).openStream();
+        try (var in = FileLocator.toFileURL( new URL( new URL(baseURL), resourceFile )  ).openStream();
              var dis = new DataInputStream(in);)
         {
             var prompt = new String(dis.readAllBytes(), StandardCharsets.UTF_8);

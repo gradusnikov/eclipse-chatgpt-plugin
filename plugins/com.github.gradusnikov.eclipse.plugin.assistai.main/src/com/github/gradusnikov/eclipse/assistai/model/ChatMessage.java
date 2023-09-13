@@ -8,9 +8,9 @@ public class ChatMessage {
 	
 	public final String id;
 	public final String role;
-	public int tokens;
-	public String content;
-	public String userInput;
+	public final String name;
+	public StringBuffer content;
+    public FunctionCall functionCall;
 	
 	/**
 	 * Constructs a ChatMessage with the given ID and role.
@@ -19,18 +19,22 @@ public class ChatMessage {
 	 */
 	public ChatMessage( String id, String role )
 	{
-		this.id = id;
-		this.role = role;
-		this.content = "";
+	    this( id, null, role);
 	}
-	
+   public ChatMessage( String id, String name, String role )
+    {
+        this.id = id;
+        this.role = role;
+        this.name = name;
+        this.content = new StringBuffer();
+    }
 	/**
 	 * Appends the given message to the existing message.
 	 * @param msg The message to be appended
 	 */
 	public void append( String msg )
 	{
-		this.content += msg;
+		this.content.append( msg );
 	}
 
 	/**
@@ -38,15 +42,23 @@ public class ChatMessage {
 	 * @return The message content
 	 */
 	public String getContent() {
-		return content;
+		return content.toString();
 	}
-
+	public FunctionCall getFunctionCall()
+	{
+	    return functionCall;
+	}
+    public void setFunctionCall( FunctionCall functionCall )
+    {
+        this.functionCall = functionCall;
+    }
 	/**
 	 * Sets the message content.
 	 * @param message The new message content
 	 */
-	public void setMessage(String message) {
-		this.content = message;
+	public void setContent(String message) {
+		this.content.setLength( 0 );
+		this.content.append( message );
 	}
 
 	/**
@@ -64,4 +76,12 @@ public class ChatMessage {
 	public String getRole() {
 		return role;
 	}
+    public String getName()
+    {
+        return name;
+    }
+	
+	
+
+
 }

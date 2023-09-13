@@ -23,7 +23,7 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<String>
     private Flow.Subscription subscription;
     
     private ChatMessage message;
-    private  ChatGPTPresenter presenter;
+    private ChatGPTPresenter presenter;
     
     public AppendMessageToViewSubscriber( )
     {

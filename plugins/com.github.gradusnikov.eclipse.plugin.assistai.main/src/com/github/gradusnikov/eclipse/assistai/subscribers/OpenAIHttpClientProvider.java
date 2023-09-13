@@ -17,6 +17,8 @@ public class OpenAIHttpClientProvider
     @Inject
     private AppendMessageToViewSubscriber appendMessageToViewSubscriber;
     @Inject
+    private FunctionCallSubscriber functionCallSubscriber;
+    @Inject
     private PrintMessageSubscriber printMessageSubscriber;
     
     public OpenAIStreamJavaHttpClient get()
@@ -24,6 +26,7 @@ public class OpenAIHttpClientProvider
         OpenAIStreamJavaHttpClient client = clientProvider.get();
         client.subscribe( printMessageSubscriber );
         client.subscribe( appendMessageToViewSubscriber );
+        client.subscribe( functionCallSubscriber );
         return client;
     }
 }

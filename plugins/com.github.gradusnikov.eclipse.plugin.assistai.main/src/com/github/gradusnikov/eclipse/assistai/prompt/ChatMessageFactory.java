@@ -36,7 +36,7 @@ public class ChatMessageFactory
     public ChatMessage createAssistantChatMessage( String text )
     {
         ChatMessage message = new ChatMessage( UUID.randomUUID().toString(), "assistant" );
-        message.setMessage( text );
+        message.setContent( text );
         return message;
 
     }
@@ -126,7 +126,7 @@ public class ChatMessageFactory
     public ChatMessage createUserChatMessage( Supplier<String> promptSupplier )
     {
         ChatMessage message = new ChatMessage( UUID.randomUUID().toString(), "user" );
-        message.setMessage( promptSupplier.get() );
+        message.setContent( promptSupplier.get() );
         return message;        
     }
 
