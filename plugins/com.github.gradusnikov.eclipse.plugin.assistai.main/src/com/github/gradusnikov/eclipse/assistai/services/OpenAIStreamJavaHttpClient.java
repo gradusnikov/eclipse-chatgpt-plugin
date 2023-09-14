@@ -24,6 +24,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.gradusnikov.eclipse.assistai.commands.FunctionExecutorProvider;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
@@ -47,7 +48,7 @@ public class OpenAIStreamJavaHttpClient
     private PromptLoader promptLoader;
     
     @Inject
-    private OpenAIClientConfigurationPreferenceStore configuration;
+    private OpenAIClientConfiguration configuration;
     
     @Inject
     private FunctionExecutorProvider functionExecutor;
@@ -112,7 +113,7 @@ public class OpenAIStreamJavaHttpClient
                 messages.add(userMessage);
             }
             requestBody.put("model", configuration.getModelName() );
-            requestBody.put("functions", AnnotationToJsonConverter.convertToJson( functionExecutor.get().getFunctions().getClass() ) );
+            requestBody.put("functions", AnnotationToJsonConverter.convertDeclaredFunctionsToJson( functionExecutor.get().getFunctions() ) );
             requestBody.put("messages", messages);
             requestBody.put("temperature", 0.7);
             requestBody.put("stream", true);
@@ -149,7 +150,7 @@ public class OpenAIStreamJavaHttpClient
     				.POST(HttpRequest.BodyPublishers.ofString(requestBody))
     				.build();
     		
-    		logger.info("Sending request to ChatGPT.");
+    		logger.info("Sending request to ChatGPT.\n\n" + requestBody);
     		
     		try
     		{

@@ -2,22 +2,16 @@ package com.example.handlers.services;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.concurrent.CompletableFuture;
-
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.gradusnikov.eclipse.assistai.commands.Function;
+import com.github.gradusnikov.eclipse.assistai.commands.FunctionParam;
 import com.github.gradusnikov.eclipse.assistai.services.AnnotationToJsonConverter;
-import com.github.gradusnikov.eclipse.assistai.services.Function;
-import com.github.gradusnikov.eclipse.assistai.services.FunctionExecutor;
-import com.github.gradusnikov.eclipse.assistai.services.FunctionParam;
 
 class AnnotationToJsonConverterTest
 {
-
-
     public static class HelloFunction 
     {
         @Function(name="getCurrentWeather", description="Get the current weather in a given location", type="object")
@@ -50,47 +44,17 @@ class AnnotationToJsonConverterTest
         } ]  
             """;
     
-    String functionCall = """
-            "function_call" : {
-                "arguments" : {
-                    "location" : "San Francisco, CA",
-                    "unit" : "celsius" 
-                },
-                "name" : "getCurrentWeather"
-            }
-            """;
-    
     public record WeatherReport( String location, int temperature, String unit, String[] forecast  ) {};
     
-    
     @Test
-    void test() throws Exception
+    void testConvertDeclaredFunctionsToJson() throws Exception
     {
-        JsonNode actual = AnnotationToJsonConverter.convertToJson( HelloFunction.class );
+        JsonNode actual = AnnotationToJsonConverter.convertDeclaredFunctionsToJson( HelloFunction.class );
         ObjectMapper mapper = new ObjectMapper();
         System.out.println( mapper.writerWithDefaultPrettyPrinter().writeValueAsString( actual ) );        
         JsonNode expected = mapper.readTree( expectedJson );
         
-//        assertThat( actual ).isEqualTo( expected );
-        
-        
-        FunctionExecutor executor = new FunctionExecutor( new HelloFunction() );
-        String[] args = {"location", "San Francisco, CA", "unit", "celsius"}; 
-        CompletableFuture<Object> future = executor.call("getCurrentWeather", args);
-        future = future.thenApply( t -> {
-            try
-            {
-                String str = mapper.writerWithDefaultPrettyPrinter().writeValueAsString( t ); 
-                return str;
-            }
-            catch ( JsonProcessingException e )
-            {
-                throw new RuntimeException();
-            }
-        } );
-        System.out.println( future.get() );
-//        System.out.println( mapper.writerWithDefaultPrettyPrinter().writeValueAsString( result.get() ) );        
-        
+        assertThat( actual ).isEqualTo( expected );
     }
 
 }

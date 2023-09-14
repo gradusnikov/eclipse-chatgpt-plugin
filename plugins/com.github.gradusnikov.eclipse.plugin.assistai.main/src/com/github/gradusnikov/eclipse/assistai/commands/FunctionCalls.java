@@ -1,13 +1,9 @@
-package com.github.gradusnikov.eclipse.assistai.handlers.functions;
+package com.github.gradusnikov.eclipse.assistai.commands;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
-
-import com.github.gradusnikov.eclipse.assistai.commands.ReadJavaDocCommand;
-import com.github.gradusnikov.eclipse.assistai.services.Function;
-import com.github.gradusnikov.eclipse.assistai.services.FunctionParam;
 
 @Creatable
 @Singleton

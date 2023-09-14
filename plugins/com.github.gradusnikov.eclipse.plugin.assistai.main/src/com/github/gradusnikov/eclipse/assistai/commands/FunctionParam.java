@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.services;
+package com.github.gradusnikov.eclipse.assistai.commands;
 
 import static java.lang.annotation.ElementType.PARAMETER;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;

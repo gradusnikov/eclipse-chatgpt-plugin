@@ -1,5 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.subscribers;
 
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow;
@@ -10,16 +11,18 @@ import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.eclipse.core.runtime.ILog;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.gradusnikov.eclipse.assistai.commands.FunctionExecutor;
+import com.github.gradusnikov.eclipse.assistai.commands.FunctionExecutorProvider;
+import com.github.gradusnikov.eclipse.assistai.jobs.ExecuteFunctionCallJob;
 import com.github.gradusnikov.eclipse.assistai.jobs.SendConversationJob;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.model.FunctionCall;
-import com.github.gradusnikov.eclipse.assistai.services.FunctionExecutor;
-import com.github.gradusnikov.eclipse.assistai.services.FunctionExecutorProvider;
 
 @Creatable
 public class FunctionCallSubscriber implements Flow.Subscriber<String>
@@ -27,11 +30,7 @@ public class FunctionCallSubscriber implements Flow.Subscriber<String>
     @Inject
     private ILog logger;
     @Inject
-    private FunctionExecutorProvider functionExecutorProvider;
-    @Inject
-    private Conversation conversation;
-    @Inject
-    private Provider<SendConversationJob> sendConversationJobProvider;
+    private Provider<ExecuteFunctionCallJob> executeFunctionCallJobProvider;
     
     
     private Subscription subscription;
@@ -75,36 +74,16 @@ public class FunctionCallSubscriber implements Flow.Subscriber<String>
             subscription.request(1);
             return;
         }
-        
-        ObjectMapper mapper = new ObjectMapper();
         try
         {
+            // 1. append assistant request to call a function to the conversation
+            ObjectMapper mapper = new ObjectMapper();
+            // -- convert JSON to FuncationCall object
             var functionCall = mapper.readValue( json.replace( "\"function_call\" : ","" ), FunctionCall.class );
-            ChatMessage message =  new ChatMessage( UUID.randomUUID().toString(), "assistant");
-            message.setFunctionCall( functionCall );
-            conversation.add( message );
-
-            logger.info( "Executing function call: " + functionCall  );
-            FunctionExecutor functionExecutor = functionExecutorProvider.get();
-            CompletableFuture<Object> future = functionExecutor.call( functionCall.name(), functionCall.arguments() );
-            future.thenAccept( result -> {
-                logger.info( "Finished function call " + functionCall.name() );
-                ChatMessage resultMessage = new ChatMessage( UUID.randomUUID().toString(), functionCall.name(), "function" );
-                String resultJson;
-                try
-                {
-                    resultJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString( result );
-                    resultMessage.setContent( resultJson );
-                    conversation.add( resultMessage );
-                    SendConversationJob job = sendConversationJobProvider.get();
-                    job.schedule();
-                }
-                catch ( JsonProcessingException e )
-                {
-                    logger.error( e.getMessage(), e );
-                }
-            } );
             
+            ExecuteFunctionCallJob job = executeFunctionCallJobProvider.get();
+            job.setFunctionCall( functionCall );
+            job.schedule();
         }
         catch ( Exception e )
         {
@@ -112,6 +91,8 @@ public class FunctionCallSubscriber implements Flow.Subscriber<String>
         }
         subscription.request(1);
     }
+
+
     
 
 }
