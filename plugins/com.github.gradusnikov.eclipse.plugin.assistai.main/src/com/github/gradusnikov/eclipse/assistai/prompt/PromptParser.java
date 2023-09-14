@@ -15,7 +15,7 @@ public class PromptParser
     
     private static final int DEFAULT_STATE = 0;
     private static final int CODE_BLOCK_STATE = 1;
-    private static final int COMMAND_BLOCK_STATE = 2;
+    private static final int FUNCION_CALL_STATE = 2;
     
     
     private int state = DEFAULT_STATE;
@@ -40,15 +40,21 @@ public class PromptParser
         {
             scanner.useDelimiter( "\n" );
             var codeBlockPattern = Pattern.compile( "^```([aA-zZ]*)$" );
+            var functionCallPattern = Pattern.compile( "^\"function_call\".*" );
             while ( scanner.hasNext() )
             {
                 var  line    = scanner.next();
                 var codeBlockMatcher = codeBlockPattern.matcher( line );
+                var functionBlockMatcher = functionCallPattern.matcher( line );
                 
                 if ( codeBlockMatcher.find() )
                 {
                     var lang = codeBlockMatcher.group(1);
                     handleCodeBlock( out, lang );
+                }
+                else if ( functionBlockMatcher.find() )
+                {
+                    handleFunctionCall( out, line );
                 }
                 else
                 {
@@ -57,6 +63,22 @@ public class PromptParser
             }
         }
         return out.toString();
+    }
+
+    private void handleFunctionCall( StringBuilder out, String line )
+    {
+        if( (state & FUNCION_CALL_STATE) != FUNCION_CALL_STATE )
+        {
+            out.append( """
+                    <div class="function-call">
+                    <details><summary>Function call</summary>
+                    <pre>
+                    """ + line
+                    
+            );
+            state ^= FUNCION_CALL_STATE;
+            
+        }
     }
 
     private void handleNonCodeBlock( StringBuilder out,  String line, boolean lastLine )
@@ -74,6 +96,10 @@ public class PromptParser
         if ( lastLine && (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  ) // close opened code blocks
         {
         	out.append( "</code></pre>\n" );
+        }
+        if ( lastLine && (state & FUNCION_CALL_STATE) == FUNCION_CALL_STATE  ) // close opened code blocks
+        {
+            out.append( "</pre></div>\n" );
         }
         else if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  )
         {

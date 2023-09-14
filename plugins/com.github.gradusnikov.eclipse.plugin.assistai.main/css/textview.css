@@ -10,8 +10,10 @@
 	color: #fff;
 	line-height: 150%;
 }
-
-
+summary {
+    font-weight: bold;
+    color: #30e582;
+}
 /* User-specific styles */
 .chat-bubble.me {
 	align-self: flex-end;
