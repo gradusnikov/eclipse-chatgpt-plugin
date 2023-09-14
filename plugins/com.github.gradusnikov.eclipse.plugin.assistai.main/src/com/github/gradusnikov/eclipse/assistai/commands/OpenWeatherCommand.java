@@ -42,7 +42,7 @@ public class OpenWeatherCommand
                                                        .replace( "${unit}", unit )
                                                        .replace("${key}", appid));
             
-            logger.info( "Query OpenWeather: " + directURL );
+            logger.info( "Query OpenWeather: " + weatherURL );
             
             JsonNode weather = mapper.readTree( weatherURL );
             return mapper.writerWithDefaultPrettyPrinter().writeValueAsString( weather ); 
