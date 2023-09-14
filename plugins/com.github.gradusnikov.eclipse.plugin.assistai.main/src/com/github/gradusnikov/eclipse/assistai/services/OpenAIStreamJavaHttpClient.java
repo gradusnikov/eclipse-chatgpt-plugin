@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.gradusnikov.eclipse.assistai.commands.FunctionExecutorProvider;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
+import com.github.gradusnikov.eclipse.assistai.model.Incoming;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
 
 /**
@@ -36,7 +37,7 @@ import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
 @Creatable
 public class OpenAIStreamJavaHttpClient
 {
-    private SubmissionPublisher<String> publisher;
+    private SubmissionPublisher<Incoming> publisher;
     
     private Supplier<Boolean> isCancelled = () -> false;
     
@@ -68,7 +69,7 @@ public class OpenAIStreamJavaHttpClient
      * Subscribes a given Flow.Subscriber to receive String data from OpenAI API responses.
      * @param subscriber the Flow.Subscriber to be subscribed to the publisher
      */
-    public synchronized void subscribe(Flow.Subscriber<String> subscriber)
+    public synchronized void subscribe(Flow.Subscriber<Incoming> subscriber)
     {
         publisher.subscribe(subscriber);
     }
@@ -184,7 +185,7 @@ public class OpenAIStreamJavaHttpClient
     							    var content = node.get("content").asText();
     							    if ( !"null".equals( content ) )
     							    {
-    							        publisher.submit(content);
+    							        publisher.submit(new Incoming(Incoming.Type.CONTENT, content));
     							    }
     							}
     							if ( node.has( "function_call" ) )
@@ -192,11 +193,11 @@ public class OpenAIStreamJavaHttpClient
     							    var functionNode = node.get( "function_call" );
     							    if ( functionNode.has( "name" ) )
     							    {
-    							        publisher.submit( String.format( "\"function_call\" : { \n \"name\": \"%s\",\n \"arguments\" :", functionNode.get("name").asText() ) );
+    							        publisher.submit( new Incoming(Incoming.Type.FUNCTION_CALL, String.format( "\"function_call\" : { \n \"name\": \"%s\",\n \"arguments\" :", functionNode.get("name").asText() ) ) );
     							    }
     							    if ( functionNode.has( "arguments" ) )
     							    {
-    							        publisher.submit(node.get("function_call").get("arguments").asText());
+    							        publisher.submit( new Incoming(Incoming.Type.FUNCTION_CALL, node.get("function_call").get("arguments").asText()) );
     							    }
     							}
     						}

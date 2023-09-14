@@ -11,11 +11,12 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
+import com.github.gradusnikov.eclipse.assistai.model.Incoming;
 import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 
 @Creatable
 @Singleton
-public class AppendMessageToViewSubscriber implements Flow.Subscriber<String>
+public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
 {
     @Inject
     private ILog logger;
@@ -44,12 +45,12 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<String>
     }
 
     @Override
-    public void onNext(String item)
+    public void onNext(Incoming item)
     {
         Objects.requireNonNull( presenter );
         Objects.requireNonNull( message );
         Objects.requireNonNull( subscription );
-        message.append(item);
+        message.append(item.payload());
         presenter.updateMessageFromAssistant( message );
         subscription.request(1);
     }

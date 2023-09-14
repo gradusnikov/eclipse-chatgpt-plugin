@@ -1,37 +1,26 @@
 package com.github.gradusnikov.eclipse.assistai.subscribers;
 
-import java.util.Objects;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
-import javax.inject.Singleton;
 
 import org.eclipse.core.runtime.ILog;
-import org.eclipse.core.runtime.IStatus;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.gradusnikov.eclipse.assistai.commands.FunctionExecutor;
-import com.github.gradusnikov.eclipse.assistai.commands.FunctionExecutorProvider;
 import com.github.gradusnikov.eclipse.assistai.jobs.ExecuteFunctionCallJob;
-import com.github.gradusnikov.eclipse.assistai.jobs.SendConversationJob;
-import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
-import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.model.FunctionCall;
+import com.github.gradusnikov.eclipse.assistai.model.Incoming;
 
 @Creatable
-public class FunctionCallSubscriber implements Flow.Subscriber<String>
+public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
 {
     @Inject
     private ILog logger;
     @Inject
     private Provider<ExecuteFunctionCallJob> executeFunctionCallJobProvider;
-    
     
     private Subscription subscription;
     private final StringBuffer jsonBuffer;
@@ -51,10 +40,13 @@ public class FunctionCallSubscriber implements Flow.Subscriber<String>
     }
 
     @Override
-    public void onNext( String item )
+    public void onNext( Incoming item )
     {
-        jsonBuffer.append( item );
-        subscription.request(1);
+        if ( Incoming.Type.FUNCTION_CALL == item.type() )
+        {
+            jsonBuffer.append( item.payload() );
+            subscription.request(1);
+        }
     }
 
     @Override

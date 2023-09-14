@@ -5,8 +5,10 @@ import java.util.concurrent.Flow.Subscription;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 
+import com.github.gradusnikov.eclipse.assistai.model.Incoming;
+
 @Creatable
-public class PrintMessageSubscriber implements Flow.Subscriber<String>
+public class PrintMessageSubscriber implements Flow.Subscriber<Incoming>
 {
     private Flow.Subscription subscription;
 
@@ -18,9 +20,9 @@ public class PrintMessageSubscriber implements Flow.Subscriber<String>
     }
 
     @Override
-    public void onNext(String item)
+    public void onNext(Incoming item)
     {
-        System.out.print(item);
+        System.out.print(item.payload());
         subscription.request(1);
     }
 
