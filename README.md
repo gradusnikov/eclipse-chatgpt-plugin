@@ -68,7 +68,11 @@ Use the "Clear" button to reset the conversation context. Press the "Stop" butto
 
 ### Plugin Installation
 
-Follow these steps to install the Assist AI plugin in your IDE:
+The easiest way to install the plugin is to use the Eclipse Marketplace. Just drag the "Install" button below into your running Eclipse workspace.
+
+<p align="center"><a href="https://marketplace.eclipse.org/marketplace-client-intro?mpc_install=5602936" class="drag" title="Drag to your running Eclipse* workspace. *Requires Eclipse Marketplace Client"><img style="width:80px;" typeof="foaf:Image" class="img-responsive" src="https://marketplace.eclipse.org/sites/all/themes/solstice/public/images/marketplace/btn-install.svg" alt="Drag to your running Eclipse* workspace. *Requires Eclipse Marketplace Client" /></a></p>
+
+Alternatively you can configure an update site:
 
 1. In Eclipse IDE, open *Help > Install new software*
 2. Click the *Add* button to open the "add repository" window, and input `AssistAI` as *Name* and `https://eclipse-chatgpt-plugin.lm.r.appspot.com/` as *Location*
