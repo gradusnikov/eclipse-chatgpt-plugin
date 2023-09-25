@@ -211,8 +211,8 @@ public class OpenAIStreamJavaHttpClient
     		}
     		catch (Exception e)
     		{
+    		    logger.error( e.getMessage(), e );
     			publisher.closeExceptionally(e);
-    			throw new RuntimeException( e );
     		} 
     		finally
     		{
