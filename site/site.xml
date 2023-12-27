@@ -3,8 +3,8 @@
    <description name="AssistAI - a ChatGPT plugin for Eclipse IDE" url="https://eclipse-chatgpt-plugin.lm.r.appspot.com">
       
    </description>
-   <feature url="features/com.github.gradusnikov.eclipse.assistai_1.0.2.202309141604.jar" id="com.github.gradusnikov.eclipse.assistai" version="1.0.2.202309141604">
-      <category name="com.github.gradusnikov.eclipse.assistai"/>
+   <feature url="features/com.github.jukofyork.eclipse.assistai_1.0.2.202309141604.jar" id="com.github.jukofyork.eclipse.assistai" version="1.0.2.202309141604">
+      <category name="com.github.jukofyork.eclipse.assistai"/>
    </feature>
-   <category-def name="com.github.gradusnikov.eclipse.assistai" label="Assist AI"/>
+   <category-def name="com.github.jukofyork.eclipse.assistai" label="Assist AI"/>
 </site>

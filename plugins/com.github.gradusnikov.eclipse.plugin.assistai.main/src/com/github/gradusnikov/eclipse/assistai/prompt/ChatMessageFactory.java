@@ -3,9 +3,9 @@ package com.github.gradusnikov.eclipse.assistai.prompt;
 import java.util.UUID;
 import java.util.function.Supplier;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;

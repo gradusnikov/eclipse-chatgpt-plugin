@@ -5,8 +5,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import javax.inject.Inject;
-import javax.inject.Named;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.ILog;

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
+import com.github.gradusnikov.eclipse.assistai.model.Incoming;
 import com.github.gradusnikov.eclipse.assistai.services.OpenAIStreamJavaHttpClient;
 
 class OpenAIStreamJavaHttpClientTest
@@ -21,14 +22,14 @@ class OpenAIStreamJavaHttpClientTest
         
         Conversation conversation = new Conversation();
         ChatMessage message = new ChatMessage("123", "user" );
-        message.setMessage( "Translate the following English text to Java code: Create an empty HashMap with keys of type String and values of type Integer" );
+        message.setContent( "Translate the following English text to Java code: Create an empty HashMap with keys of type String and values of type Integer" );
         conversation.add( message );
         client.run( conversation );
     }
 
-    public Flow.Subscriber<String> createSubscriber()
+    public Flow.Subscriber<Incoming> createSubscriber()
     {
-        return new Flow.Subscriber<String>()
+        return new Flow.Subscriber<Incoming>()
         {
             private Flow.Subscription subscription;
 
@@ -40,7 +41,7 @@ class OpenAIStreamJavaHttpClientTest
             }
 
             @Override
-            public void onNext(String item)
+            public void onNext(Incoming item)
             {
                 System.out.print(item);
                 subscription.request(1);
