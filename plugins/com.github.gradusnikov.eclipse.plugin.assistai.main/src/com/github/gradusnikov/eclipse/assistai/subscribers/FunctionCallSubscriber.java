@@ -45,8 +45,8 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
         if ( Incoming.Type.FUNCTION_CALL == item.type() )
         {
             jsonBuffer.append( item.payload() );
-            subscription.request(1);
         }
+        subscription.request(1);
     }
 
     @Override
