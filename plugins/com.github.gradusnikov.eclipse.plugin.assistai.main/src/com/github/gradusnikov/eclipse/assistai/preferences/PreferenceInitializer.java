@@ -17,6 +17,7 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
     {
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.setDefault(PreferenceConstants.OPENAI_API_BASE, "https://api.openai.com");
+        store.setDefault(PreferenceConstants.OPENAI_API_END_POINT, "/v1/chat/completions");
         store.setDefault( PreferenceConstants.OPENAI_API_KEY, "" );
         store.setDefault( PreferenceConstants.OPENAI_MODEL_NAME, "gpt-4" );
         

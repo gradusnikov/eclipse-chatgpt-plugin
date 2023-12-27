@@ -5,10 +5,10 @@ Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.main;singlet
 Bundle-Vendor: Wojciech Gradkowski
 Bundle-Version: 1.0.2.qualifier
 Bundle-Activator: com.github.gradusnikov.eclipse.assistai.Activator
-Require-Bundle: javax.inject,
+Require-Bundle: jakarta.inject.jakarta.inject-api;bundle-version="2.0.1",
  org.eclipse.e4.ui.services,
  org.eclipse.core.runtime,
- javax.annotation,
+ jakarta.annotation-api;bundle-version="2.1.1",
  org.eclipse.ui,
  org.eclipse.jface.text,
  org.eclipse.ui.workbench.texteditor,
@@ -27,7 +27,6 @@ Require-Bundle: javax.inject,
  org.eclipse.egit.core,
  org.eclipse.compare,
  org.eclipse.e4.ui.dialogs,
- org.apache.commons.cli,
  org.eclipse.ui.editors
 Bundle-RequiredExecutionEnvironment: JavaSE-17
 Automatic-Module-Name: assistai.main

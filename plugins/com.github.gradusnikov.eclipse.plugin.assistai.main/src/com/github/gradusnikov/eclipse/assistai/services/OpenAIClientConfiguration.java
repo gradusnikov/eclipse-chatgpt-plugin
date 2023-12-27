@@ -12,12 +12,17 @@ import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 @Singleton
 public class OpenAIClientConfiguration 
 {
-    private final String CHAT_URL = "/v1/chat/completions";
 
     public String getApiBase()
     {
         IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
         return prefernceStore.getString(PreferenceConstants.OPENAI_API_BASE);
+    }
+    
+    public String getApiEndPoint()
+    {
+        IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
+        return prefernceStore.getString(PreferenceConstants.OPENAI_API_END_POINT);
     }
 
     public String getApiKey()
@@ -34,7 +39,14 @@ public class OpenAIClientConfiguration
 
     public String getApiUrl()
     {
-        return getApiBase() + CHAT_URL;
+    	if (getApiEndPoint().startsWith("/"))
+    	{
+    		return getApiBase() + getApiEndPoint();
+    	}
+    	else
+    	{
+    		return getApiBase() + "/" + getApiEndPoint();
+    	}
     }
 
 }
