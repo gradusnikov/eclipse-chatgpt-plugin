@@ -3,6 +3,7 @@ package com.github.gradusnikov.eclipse.assistai.commands;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import javax.inject.Inject;
@@ -14,8 +15,12 @@ import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.jdt.core.IBuffer;
+import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
-import org.eclipse.jdt.core.IMethod;
+import org.eclipse.jdt.core.IMember;
+import org.eclipse.jdt.core.ISourceRange;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
@@ -29,26 +34,6 @@ public class ReadJavaDocCommand
     @Inject
     private ILog logger;
     
-//    public String getMethodAttachedJavadoc(String fullyQualifiedClassName, String methodName, IJavaProject javaProject) {
-//        try {
-//            // Find the type for the fully qualified class name
-//            IType type = javaProject.findType(fullyQualifiedClassName);
-//            if (type == null) {
-//                return null;
-//            }
-//            // Find the specific method
-//            IMethod method = type.getMethod(methodName);
-//            if (method == null) {
-//                return null;
-//            }
-//            // Get the attached Javadoc for the method
-//            String javadoc = method.getAttachedJavadoc(null);
-//            return javadoc;
-//        } catch (JavaModelException e) {
-//            logger.error(e.getMessage(), e);
-//            return null;
-//        }
-//    }
     
     public String getClassAttachedJavadoc( String fullyQualifiedClassName )
     {
@@ -98,24 +83,54 @@ public class ReadJavaDocCommand
 
     public String getAttachedJavadoc( String fullyQualifiedClassName, IJavaProject javaProject )
     {
+        String javaDoc = "";
         try
         {
-            // Find the type for the fully qualified class name
-            IType type = javaProject.findType( fullyQualifiedClassName );
-            if ( type == null )
+            IType type = javaProject.findType(fullyQualifiedClassName);
+            if ( Objects.nonNull( type ) )
             {
-                return null;      
+                javaDoc += getMemberJavaDoc( (IMember) type );
+                
+                for ( IJavaElement child : type.getChildren() )
+                {
+                    javaDoc += getMemberJavaDoc( (IMember) child );
+                }
             }
-            // Get the attached Javadoc
-            String javadoc = type.getAttachedJavadoc( null );
-            return javadoc;
         }
         catch ( JavaModelException e )
         {
-            logger.error( e.getMessage(), e );
-            return null;
+          logger.error( e.getMessage(), e );
         }
+        return javaDoc;
     }
+    
+    
+    
+    private String getMemberJavaDoc(  IMember member ) throws JavaModelException
+    {
+        String javaDoc = "";
+        String attachedJavaDoc = member.getAttachedJavadoc( null );
+        if ( attachedJavaDoc != null )
+        {
+            javaDoc += attachedJavaDoc;
+        }
+        else
+        {
+            ISourceRange range = member.getJavadocRange();
+            if ( range != null )
+            {
+                ICompilationUnit unit = member.getCompilationUnit();
+                if ( unit != null )
+                {
+                    IBuffer buffer = unit.getBuffer();
+                    javaDoc += buffer.getText( range.getOffset(), range.getLength() ) + "\n";
+                }
+            }
+        }
+        javaDoc += member.toString() + "\n";
+        return javaDoc;
+    }
+       
     
     public String getAttachedSource( String fullyQualifiedClassName, IJavaProject javaProject )
     {
@@ -137,8 +152,6 @@ public class ReadJavaDocCommand
             {
                 resource = type.getUnderlyingResource();
             }
-                
-            
             // Check if the resource is a file
             if (resource instanceof IFile) 
             {
