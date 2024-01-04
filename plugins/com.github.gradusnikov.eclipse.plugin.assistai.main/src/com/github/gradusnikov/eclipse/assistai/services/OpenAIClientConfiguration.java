@@ -1,6 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.services;
 
-import jakarta.inject.Singleton;
+import javax.inject.Singleton;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;

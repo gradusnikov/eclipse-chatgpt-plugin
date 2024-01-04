@@ -10,10 +10,8 @@ Export-Package: com.github.gradusnikov.eclipse.assistai.commands,
  com.github.gradusnikov.eclipse.assistai.services,
  com.github.gradusnikov.eclipse.assistai.subscribers
 Bundle-Activator: com.github.gradusnikov.eclipse.assistai.Activator
-Require-Bundle: jakarta.inject.jakarta.inject-api;bundle-version="2.0.1",
- org.eclipse.e4.ui.services,
+Require-Bundle: org.eclipse.e4.ui.services,
  org.eclipse.core.runtime,
- jakarta.annotation-api;bundle-version="2.1.1",
  org.eclipse.ui,
  org.eclipse.jface.text,
  org.eclipse.ui.workbench.texteditor,
@@ -32,7 +30,9 @@ Require-Bundle: jakarta.inject.jakarta.inject-api;bundle-version="2.0.1",
  org.eclipse.egit.core,
  org.eclipse.compare,
  org.eclipse.e4.ui.dialogs,
- org.eclipse.ui.editors
+ org.eclipse.ui.editors,
+ javax.annotation;bundle-version="1.3.5",
+ javax.inject;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-17
 Automatic-Module-Name: assistai.main
 Bundle-Classpath: .

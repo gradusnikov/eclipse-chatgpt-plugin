@@ -3,8 +3,8 @@ package com.github.gradusnikov.eclipse.assistai.subscribers;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 
-import jakarta.inject.Inject;
-import jakarta.inject.Provider;
+import javax.inject.Inject;
+import javax.inject.Provider;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;

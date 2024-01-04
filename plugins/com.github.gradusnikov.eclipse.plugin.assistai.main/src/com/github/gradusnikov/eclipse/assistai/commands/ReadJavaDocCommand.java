@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-import jakarta.inject.Inject;
+import javax.inject.Inject;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;

@@ -5,8 +5,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
-import jakarta.inject.Inject;
-import jakarta.inject.Provider;
+import javax.inject.Inject;
+import javax.inject.Provider;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;

@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
-import jakarta.inject.Singleton;
+import javax.inject.Singleton;
 
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.e4.core.di.annotations.Creatable;
