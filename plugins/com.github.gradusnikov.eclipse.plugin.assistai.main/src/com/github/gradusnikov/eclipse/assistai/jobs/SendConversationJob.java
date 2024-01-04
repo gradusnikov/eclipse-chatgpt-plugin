@@ -2,7 +2,7 @@ package com.github.gradusnikov.eclipse.assistai.jobs;
 
 import java.util.concurrent.CompletableFuture;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;

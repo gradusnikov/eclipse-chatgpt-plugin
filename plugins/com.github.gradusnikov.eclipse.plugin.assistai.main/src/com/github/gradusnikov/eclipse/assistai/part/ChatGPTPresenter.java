@@ -2,10 +2,10 @@ package com.github.gradusnikov.eclipse.assistai.part;
 
 import java.util.Arrays;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Inject;
-import javax.inject.Provider;
-import javax.inject.Singleton;
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
+import jakarta.inject.Provider;
+import jakarta.inject.Singleton;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.jobs.IJobManager;

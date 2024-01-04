@@ -3,8 +3,8 @@ package com.github.gradusnikov.eclipse.assistai.subscribers;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 
-import javax.inject.Inject;
-import javax.inject.Provider;
+import jakarta.inject.Inject;
+import jakarta.inject.Provider;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
@@ -45,8 +45,8 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
         if ( Incoming.Type.FUNCTION_CALL == item.type() )
         {
             jsonBuffer.append( item.payload() );
-            subscription.request(1);
         }
+        subscription.request(1);
     }
 
     @Override
