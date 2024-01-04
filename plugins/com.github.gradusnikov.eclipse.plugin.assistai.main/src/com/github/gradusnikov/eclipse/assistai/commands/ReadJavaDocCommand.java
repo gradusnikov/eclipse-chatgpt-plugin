@@ -15,6 +15,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
@@ -27,6 +28,27 @@ public class ReadJavaDocCommand
 {
     @Inject
     private ILog logger;
+    
+//    public String getMethodAttachedJavadoc(String fullyQualifiedClassName, String methodName, IJavaProject javaProject) {
+//        try {
+//            // Find the type for the fully qualified class name
+//            IType type = javaProject.findType(fullyQualifiedClassName);
+//            if (type == null) {
+//                return null;
+//            }
+//            // Find the specific method
+//            IMethod method = type.getMethod(methodName);
+//            if (method == null) {
+//                return null;
+//            }
+//            // Get the attached Javadoc for the method
+//            String javadoc = method.getAttachedJavadoc(null);
+//            return javadoc;
+//        } catch (JavaModelException e) {
+//            logger.error(e.getMessage(), e);
+//            return null;
+//        }
+//    }
     
     public String getClassAttachedJavadoc( String fullyQualifiedClassName )
     {

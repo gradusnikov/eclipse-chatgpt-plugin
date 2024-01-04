@@ -1,9 +1,14 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Assist AI
-Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.main;singleton:=true
+Bundle-SymbolicName: om.github.gradusnikov.eclipse.plugin.assistai.main;singleton:=true
 Bundle-Vendor: Wojciech Gradkowski
 Bundle-Version: 1.0.2.qualifier
+Export-Package: com.github.gradusnikov.eclipse.assistai.commands,
+ com.github.gradusnikov.eclipse.assistai.model,
+ com.github.gradusnikov.eclipse.assistai.prompt,
+ com.github.gradusnikov.eclipse.assistai.services,
+ com.github.gradusnikov.eclipse.assistai.subscribers
 Bundle-Activator: com.github.gradusnikov.eclipse.assistai.Activator
 Require-Bundle: jakarta.inject.jakarta.inject-api;bundle-version="2.0.1",
  org.eclipse.e4.ui.services,

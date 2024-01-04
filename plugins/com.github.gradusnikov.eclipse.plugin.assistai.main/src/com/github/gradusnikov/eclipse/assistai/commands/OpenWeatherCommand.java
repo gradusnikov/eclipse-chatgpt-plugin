@@ -11,12 +11,20 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+/**
+ * Class responsible for getting weather information from OpenWeather API
+ */
 @Creatable
 public class OpenWeatherCommand
 {
     @Inject
     private ILog logger;
-    
+    /**
+     * Get the current weather for the provided location and unit.
+     * @param location The location to get the weather for.
+     * @param unit The unit of the weather data.
+     * @return The weather data.
+     */
     public String getCurrentWeather( String location, String unit )
     {
         String appid = "bd5e378503939ddaee76f12ad7a97608";// FOR TESTING ONLY!
