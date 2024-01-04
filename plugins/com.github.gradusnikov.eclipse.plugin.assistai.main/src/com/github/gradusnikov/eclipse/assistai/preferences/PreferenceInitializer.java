@@ -20,6 +20,8 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
         store.setDefault(PreferenceConstants.OPENAI_API_END_POINT, "/v1/chat/completions");
         store.setDefault( PreferenceConstants.OPENAI_API_KEY, "" );
         store.setDefault( PreferenceConstants.OPENAI_MODEL_NAME, "gpt-4" );
+        store.setDefault( PreferenceConstants.OPENAI_CONNECTION_TIMEOUT_SECONDS, 10 );
+        store.setDefault( PreferenceConstants.OPENAI_REQUEST_TIMEOUT_SECONDS, 30 );
         
         PromptLoader promptLoader = new PromptLoader();
         for ( Prompts prompt : Prompts.values() )
@@ -27,5 +29,8 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
             store.setDefault( prompt.preferenceName(), promptLoader.getRawPrompt( prompt.getFileName() ) );
         }
     }
+    
+    
+    
 
 }

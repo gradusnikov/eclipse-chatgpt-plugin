@@ -48,5 +48,19 @@ public class OpenAIClientConfiguration
     		return getApiBase() + "/" + getApiEndPoint();
     	}
     }
-
+    
+    public int getConnectionTimoutSeconds()
+    {
+        IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
+        return Integer.parseInt( prefernceStore.getString(PreferenceConstants.OPENAI_CONNECTION_TIMEOUT_SECONDS) );
+        
+    }
+    
+    public int getRequestTimoutSeconds()
+    {
+        IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
+        return Integer.parseInt( prefernceStore.getString(PreferenceConstants.OPENAI_REQUEST_TIMEOUT_SECONDS) );
+        
+    }
+    
 }
