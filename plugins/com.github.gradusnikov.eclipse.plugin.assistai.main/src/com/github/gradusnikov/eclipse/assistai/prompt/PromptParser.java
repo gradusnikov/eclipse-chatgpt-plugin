@@ -140,7 +140,16 @@ public class PromptParser
         return input;
     }
     
-    public static String markdown(String input) {
+    public static String markdown(String input) 
+    {
+        // Replace headers
+        input = input.replaceAll("^# (.*?)$", "<h1>$1</h1>");
+        input = input.replaceAll("^## (.*?)$", "<h2>$1</h2>");
+        input = input.replaceAll("^### (.*?)$", "<h3>$1</h3>");
+        input = input.replaceAll("^#### (.*?)$", "<h4>$1</h4>");
+        input = input.replaceAll("^##### (.*?)$", "<h5>$1</h5>");
+        input = input.replaceAll("^###### (.*?)$", "<h6>$1</h6>");
+        
         // Replace **text** with <strong>text</strong>
         input = input.replaceAll("\\*\\*(.*?)\\*\\*", "<strong>$1</strong>");
 
@@ -149,11 +158,30 @@ public class PromptParser
 
         // Replace `text` with <i>text</i>
         input = input.replaceAll("`(.*?)`", "<i>$1</i>");
-
         
         // Replace [text](url) with <a href="url">text</a>
         input = input.replaceAll("\\[(.*?)\\]\\((.*?)\\)", "<a href=\"$2\">$1</a>");
 
+        // Inline code
+        input = input.replaceAll("`([^`]+)`", "<code>$1</code>");
+        
+        // Links
+        input = input.replaceAll("\\[(.*?)\\]\\((.*?)\\)", "<a href=\"$2\">$1</a>");
+        
+        // Blockquotes
+        input = input.replaceAll("^> (.*?)$", "<blockquote>$1</blockquote>");
+        
+        // Unordered lists
+        input = input.replaceAll("^\\* (.*?)$", "<li>$1</li>");
+        input = input.replaceAll("^- (.*?)$", "<li>$1</li>");
+        input = input.replaceAll("^\\+ (.*?)$", "<li>$1</li>");
+        
+        // Ordered lists
+//        input = input.replaceAll("^\\d+\\. (.*?)$", "<li>$1</li>");
+        
+        // Horizontal Rule
+        input = input.replaceAll("^(\\*\\*\\*|---)$", "<hr>");
+        
         return input;
     }
 }
