@@ -1,11 +1,24 @@
-In the context of the given Java class denoted as [class], generate the JavaDoc documentation for the [javaType] identified as [name]. 
-Adhere to the following guidelines:
-1. Your response should consist solely of the JavaDoc comment, do not output method or type declarations
-2. Ensure the documentation is succinct and concise.
-3. If existing JavaDoc documentation for [name] is present, please update it in line with the current implementation.
+In the context of the provided Java class [class], generate or update the JavaDoc documentation for the [javaType] named [name]. Follow these guidelines:
+
+1. Output only the JavaDoc comment; avoid including method or type declarations.
+2. Ensure the documentation is concise, clear, and adheres to JavaDoc standards.
+3. If JavaDoc for [name] already exists, update it to reflect the current implementation and any changes.
+
+Example format for JavaDoc:
+
+```${lang}
+/**
+ * Brief description of [name].
+ * <p>
+ * More detailed description on [name].
+ *
+ * @param paramName Description
+ * @return Description
+ * @throws ExceptionType Description
+ */
+```
 
 [javaType]=${javaType}
-
 [name]=${name}
 
 [class]=
