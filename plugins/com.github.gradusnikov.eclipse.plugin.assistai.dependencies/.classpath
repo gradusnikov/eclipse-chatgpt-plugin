@@ -1,5 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="annotations-24.0.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-ext-emoji-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-ext-gfm-strikethrough-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-ext-ins-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-ext-superscript-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-ext-tables-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-ext-wikilink-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-html2md-converter-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-jira-converter-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-util-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-util-ast-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-util-builder-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-util-collection-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-util-data-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-util-dependency-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-util-format-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-util-html-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-util-misc-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-util-options-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-util-sequence-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="flexmark-util-visitor-0.64.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="jsoup-1.15.4.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
 	<classpathentry exported="true" kind="lib" path="commons-text-1.10.0.jar"/>
