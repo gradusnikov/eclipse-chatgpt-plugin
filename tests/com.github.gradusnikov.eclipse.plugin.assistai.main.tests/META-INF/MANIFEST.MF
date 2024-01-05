@@ -10,4 +10,5 @@ Require-Bundle: junit-jupiter-api,
  org.eclipse.jdt.launching
 Automatic-Module-Name: com.github.gradusnikov.eclipse.plugin.assistai.main.tests
 Bundle-RequiredExecutionEnvironment: JavaSE-17
-Import-Package: org.eclipse.core.runtime
+Import-Package: org.eclipse.core.runtime,
+ org.hamcrest;version="2.2.0"
