@@ -27,6 +27,8 @@ import org.eclipse.jface.text.Document;
 
 import org.eclipse.ui.editors.text.TextFileDocumentProvider;
 
+import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
+
 /**
  * This class serves as a command within the Eclipse IDE to read Java documentation and source code.
  * It provides methods to retrieve JavaDoc and source code for classes in all Java projects available
@@ -135,7 +137,10 @@ public class ReadJavaDocCommand
         {
           logger.error( e.getMessage(), e );
         }
-        return javaDoc;
+        
+        var converter = FlexmarkHtmlConverter.builder().build();
+        String markdown = converter.convert( javaDoc );
+        return markdown;
     }
     
     

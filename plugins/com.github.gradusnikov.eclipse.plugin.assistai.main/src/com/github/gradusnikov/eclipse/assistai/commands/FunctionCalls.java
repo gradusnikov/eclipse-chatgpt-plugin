@@ -11,7 +11,6 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 @Singleton
 public class FunctionCalls
 {
-    
     @Inject
     private OpenWeatherCommand openWeatherCommand;
     @Inject
