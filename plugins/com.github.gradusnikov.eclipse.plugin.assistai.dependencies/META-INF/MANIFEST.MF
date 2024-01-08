@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: assistai-dependencies
 Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.dependencies
-Bundle-Version: 1.0.0
+Bundle-Version: 1.0.1
 Bundle-ClassPath: commons-text-1.10.0.jar,
  jackson-annotations-2.15.0-rc1.jar,
  jackson-core-2.15.0-rc1.jar,
