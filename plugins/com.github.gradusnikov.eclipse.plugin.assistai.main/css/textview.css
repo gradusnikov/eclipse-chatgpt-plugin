@@ -51,3 +51,7 @@ body {
 code {
 	font-family: 'Roboto Mono', monospace;
 }
+
+a {
+	color: #fff;
+}
