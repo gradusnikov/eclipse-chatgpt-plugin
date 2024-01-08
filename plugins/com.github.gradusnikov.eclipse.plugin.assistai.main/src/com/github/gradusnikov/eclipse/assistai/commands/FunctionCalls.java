@@ -15,6 +15,10 @@ public class FunctionCalls
     private OpenWeatherCommand openWeatherCommand;
     @Inject
     private ReadJavaDocCommand readJavaDocCommand;
+    @Inject
+    private WebSearchCommand   webSearchCommand;
+    @Inject
+    private ReadWebPageCommand readWebPageCommand;
     
     @Function(name="getCurrentWeather", description="Get the current weather in a given location", type="object")
     public String getCurrentWeather( 
@@ -45,5 +49,21 @@ public class FunctionCalls
     {
         return readJavaDocCommand.getClassAttachedSource( fullyQualifiedClassName );
     }
+
+    @Function(name="webSearch", description="Performs a search using a Duck Duck Go search engine and returns the search result json.", type="object")
+    public String webSearch(
+            @FunctionParam(name="query", description="A search query", required=true) String query)
+    {
+        return webSearchCommand.search( query );
+    }
+
+    @Function(name="readWebPage", description="Reads the content of the given web site and returns its content as a markdown text.", type="object")
+    public String readWebPage(
+            @FunctionParam(name="url", description="A web site URL", required=true) String url)
+    {
+        return readWebPageCommand.readWebPage( url );
+    }
+    
+    
 
 }
