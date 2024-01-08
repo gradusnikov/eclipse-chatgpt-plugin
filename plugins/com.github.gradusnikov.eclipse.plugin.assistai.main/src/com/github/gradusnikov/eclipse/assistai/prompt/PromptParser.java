@@ -166,7 +166,8 @@ public class PromptParser
         input = input.replaceAll("`([^`]+)`", "<code>$1</code>");
         
         // Links
-        input = input.replaceAll("\\[(.*?)\\]\\((.*?)\\)", "<a href=\"$2\">$1</a>");
+        input = input.replaceAll("\\[(.*?)\\]\\((.*?)\\)", "<a href=\"$2\" target=\"_blank\">$1</a>");
+
         
         // Blockquotes
         input = input.replaceAll("^> (.*?)$", "<blockquote>$1</blockquote>");
