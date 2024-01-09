@@ -19,48 +19,56 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 @Creatable
-public class WebSearchCommand {
+public class WebSearchCommand
+{
     @Inject
     private ILog logger;
 
-    public String search(String query) {
-        try {
+    public String search( String query )
+    {
+        try
+        {
             ObjectMapper mapper = new ObjectMapper();
             ArrayNode resultsArray = mapper.createArrayNode();
 
-            String encodedQuery = URLEncoder.encode(query, "UTF-8");
+            String encodedQuery = URLEncoder.encode( query, "UTF-8" );
             String url = "https://html.duckduckgo.com/html/?q=" + encodedQuery;
 
-            logger.info("Performing web search: " + url);
-            
-            Document document = Jsoup.parse(new URL(url), 0);
-            Elements results = document.select(".results_links");
+            logger.info( "Performing web search: " + url );
 
-            for (Element result : results) {
-                Element titleElement = result.select(".result__title").select("a").first();
-                Element snippetElement = result.select(".result__snippet").first();
-                if (titleElement != null && snippetElement != null) {
+            Document document = Jsoup.parse( new URL( url ), 0 );
+            Elements results = document.select( ".results_links" );
+
+            for ( Element result : results )
+            {
+                Element titleElement = result.select( ".result__title" ).select( "a" ).first();
+                Element snippetElement = result.select( ".result__snippet" ).first();
+                if ( titleElement != null && snippetElement != null )
+                {
                     String title = titleElement.text();
-                    String resultUrl = titleElement.attr("href");
-                    if (resultUrl.startsWith("//")) {
+                    String resultUrl = titleElement.attr( "href" );
+                    if ( resultUrl.startsWith( "//" ) )
+                    {
                         resultUrl = "https:" + resultUrl;
                     }
                     String snippetText = snippetElement.text();
 
                     ObjectNode resultNode = mapper.createObjectNode();
-                    resultNode.put("title", title);
-                    resultNode.put("url", resultUrl);
-                    resultNode.put("snippet", snippetText);
+                    resultNode.put( "title", title );
+                    resultNode.put( "url", resultUrl );
+                    resultNode.put( "snippet", snippetText );
 
-                    resultsArray.add(resultNode);
+                    resultsArray.add( resultNode );
                 }
             }
 
-            String jsonResults = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(resultsArray);
-            logger.info("Search results for query \"" + query + "\":\n" + jsonResults);
+            String jsonResults = mapper.writerWithDefaultPrettyPrinter().writeValueAsString( resultsArray );
+            logger.info( "Search results for query \"" + query + "\":\n" + jsonResults );
             return jsonResults;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        }
+        catch ( IOException e )
+        {
+            throw new RuntimeException( e );
         }
     }
 }

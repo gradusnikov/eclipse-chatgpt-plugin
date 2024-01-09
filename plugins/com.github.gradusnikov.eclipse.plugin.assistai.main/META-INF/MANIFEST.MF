@@ -20,7 +20,7 @@ Require-Bundle: org.eclipse.e4.ui.services,
  org.eclipse.swt,
  org.apache.commons.lang3;bundle-version="3.1.0",
  org.eclipse.core.resources,
- com.github.gradusnikov.eclipse.plugin.assistai.dependencies;bundle-version="1.0.1",
+ com.github.gradusnikov.eclipse.plugin.assistai.dependencies;bundle-version="1.0.2",
  org.eclipse.jgit,
  org.eclipse.egit.core,
  org.eclipse.compare,
@@ -31,6 +31,5 @@ Require-Bundle: org.eclipse.e4.ui.services,
 Bundle-RequiredExecutionEnvironment: JavaSE-17
 Automatic-Module-Name: assistai.main
 Bundle-Classpath: .
-Import-Package: javax.annotation;version="1.2.0"
 Bundle-ActivationPolicy: lazy
 
