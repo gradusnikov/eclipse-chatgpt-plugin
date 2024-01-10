@@ -18,7 +18,7 @@ AssistAI is an Eclipse IDE plugin that brings ChatGPT functionality into your de
 - Customize pre-defined prompts
 - Using the OpenAI function call feature AssistAI can:
   - use JavaDoc or related source code to better understand the context
-  - perform a web search using Duck Duck GO
+  - perform a web search using [DuckDuckGo](https://duckduckgo.com/)
   - read a content of a web page
 
 
@@ -91,7 +91,7 @@ After installing the plugin, configure access to the **OpenAI API**:
 
 1. Open *Window > Preferences > Assist AI* preferences
 2. Input your **OpenAI API** key (you can find your keys at https://platform.openai.com/account/api-keys)
-3. Input the model name. By default, the plugin uses the *gpt-4* model, but you can also utilize *gpt-3.5-turbo* or any available ChatGPT model. To check which models are available to you, go to https://platform.openai.com/playground?mode=chat and check the *Model* drop list.  
+3. Input the model name. By default, the plugin uses the *gpt-4* model, but you can also utilize *gpt-3.5-turbo* or any available ChatGPT model. To check which models are available to you, go to https://platform.openai.com/playground?mode=chat and check the *Model* drop list.  **I highly recommend using one of the [GPT-4 turbo](https://help.openai.com/en/articles/8555510-gpt-4-turbo) models, e.g. *gpt-4-1106-preview***.  The GPT-4 turbo has an extended context window (128k tokens) which is essential for handling large source files. If you encounter 400 errors, the most probable cause is exceeding the context window limit. The LLM model has a maximum capacity that, when surpassed, results in these errors. 
 
 ### Add ChatGPT View
 
