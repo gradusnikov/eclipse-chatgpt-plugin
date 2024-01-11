@@ -2,10 +2,12 @@ package com.github.gradusnikov.eclipse.assistai.commands;
 
 import java.util.Arrays;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
+
 
 import org.eclipse.e4.core.di.annotations.Creatable;
+
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
 @Creatable
 @Singleton

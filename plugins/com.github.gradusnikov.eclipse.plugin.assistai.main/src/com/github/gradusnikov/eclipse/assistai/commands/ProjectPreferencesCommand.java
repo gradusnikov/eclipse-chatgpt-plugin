@@ -44,10 +44,9 @@ public class ProjectPreferencesCommand
         }
         catch ( Exception e )
         {
-            e.printStackTrace();
+            throw new RuntimeException( e );
         }
     }
-
 
     public static void printProjectLayout( IProject project )
     {
@@ -57,7 +56,7 @@ public class ProjectPreferencesCommand
         }
         catch ( CoreException e )
         {
-            e.printStackTrace();
+            throw new RuntimeException( e );
         }
     }
 
@@ -65,25 +64,43 @@ public class ProjectPreferencesCommand
     {
         // Symbols for tree branches
         String branch = depth > 0 ? "├── " : "";
-        String indent = depth > 0 ? String.join( "", Collections.nCopies( depth - 1, "│   " ) ) : "";
+        String lastBranch = depth > 0 ? "└── " : "";
+        boolean isLast = isLastResource( resource );
 
-        // Print the resource name with the tree branch symbols
-        System.out.println( indent + branch + resource.getName() );
+        // Choose the appropriate prefix for non-root elements
+        String linePrefix = depth > 0 ? ( isLast ? lastBranch : branch ) : "";
 
-        // If the resource is a container, it can have children
+        // Print the current resource
+        System.out.println( prefix + linePrefix + resource.getName() );
+
+        // If the resource is a container, list its children
         if ( resource instanceof IContainer )
         {
             IContainer container = (IContainer) resource;
             IResource[] members = container.members();
             for ( int i = 0; i < members.length; i++ )
             {
-                // Check if this is the last member in the list
-                boolean isLastMember = i == members.length - 1;
-                String newPrefix = isLastMember ? "    " : "│   ";
+                // Prepare the new prefix for children, adding spacing if it's
+                // the last resource
+                String newPrefix = prefix + ( isLast ? "    " : "│   " );
                 // Recursively list the members of this container
-                listResources( members[i], depth + 1, indent + newPrefix );
+                listResources( members[i], depth + 1, newPrefix );
             }
         }
+    }
+
+    private static boolean isLastResource( IResource resource ) throws CoreException
+    {
+        // Check if the resource is the last in its container
+        IContainer container = resource.getParent();
+        if ( container != null )
+        {
+            IResource[] siblings = container.members();
+            return siblings[siblings.length - 1].equals( resource );
+        }
+        // The root element doesn't have a parent container, so it's not the
+        // last resource
+        return false;
     }
 
 }
