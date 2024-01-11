@@ -3,8 +3,7 @@ Bundle-ManifestVersion: 2
 Bundle-Name: assistai-dependencies
 Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.dependencies
 Bundle-Version: 1.0.2
-Bundle-ClassPath: commons-text-1.10.0.jar,
- selenium/auto-service-annotations-1.1.1.jar,
+Bundle-ClassPath: selenium/auto-service-annotations-1.1.1.jar,
  selenium/byte-buddy-1.14.5.jar,
  selenium/checker-qual-3.33.0.jar,
  selenium/commons-exec-1.3.jar,
@@ -71,7 +70,8 @@ Bundle-ClassPath: commons-text-1.10.0.jar,
  flexmark/jsoup-1.15.4.jar,
  fasterxml/jackson-annotations-2.15.0-rc1.jar,
  fasterxml/jackson-core-2.15.0-rc1.jar,
- fasterxml/jackson-databind-2.15.0-rc1.jar
+ fasterxml/jackson-databind-2.15.0-rc1.jar,
+ commons/commons-text-1.10.0.jar
 Bundle-Vendor: Wojciech Gradkowski
 Export-Package: .,
  com.fasterxml.jackson.annotation,
@@ -247,9 +247,6 @@ Export-Package: .,
  io.opentelemetry.semconv,
  io.opentelemetry.semconv.resource.attributes,
  io.opentelemetry.semconv.trace.attributes,
- javax.annotation,
- javax.annotation.concurrent,
- javax.annotation.meta,
  net.bytebuddy,
  net.bytebuddy.agent.builder,
  net.bytebuddy.asm,
