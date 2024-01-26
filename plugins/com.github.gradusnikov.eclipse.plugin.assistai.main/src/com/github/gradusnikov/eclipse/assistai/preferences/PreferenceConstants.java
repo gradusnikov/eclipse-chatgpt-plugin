@@ -11,5 +11,7 @@ public class PreferenceConstants
     public static final String OPENAI_MODEL_NAME    = "OpenAIModelName";
     public static final String OPENAI_CONNECTION_TIMEOUT_SECONDS = "OpenAIConnectionTimeoutSeconds";
     public static final String OPENAI_REQUEST_TIMEOUT_SECONDS = "OpenAIRequestTimeoutSeconds";
+    public static final String OPENAI_MODEL_TEMPERATURE = "OpenAIModelTemperature";
+    
     
 }

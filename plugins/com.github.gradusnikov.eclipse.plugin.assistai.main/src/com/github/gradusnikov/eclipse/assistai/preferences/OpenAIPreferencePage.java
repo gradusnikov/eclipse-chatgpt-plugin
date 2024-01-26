@@ -1,7 +1,15 @@
 package com.github.gradusnikov.eclipse.assistai.preferences;
 
 import org.eclipse.jface.preference.FieldEditorPreferencePage;
+import org.eclipse.jface.preference.IntegerFieldEditor;
+import org.eclipse.jface.preference.ScaleFieldEditor;
 import org.eclipse.jface.preference.StringFieldEditor;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 
@@ -28,6 +36,19 @@ public class OpenAIPreferencePage extends FieldEditorPreferencePage implements I
         addField(new StringFieldEditor(PreferenceConstants.OPENAI_API_END_POINT, "&Open AI API End Point:", getFieldEditorParent()));
         addField( new StringFieldEditor( PreferenceConstants.OPENAI_API_KEY, "&Open AI API Key:", getFieldEditorParent() ) );
         addField( new StringFieldEditor( PreferenceConstants.OPENAI_MODEL_NAME, "&Model Name", getFieldEditorParent() ) );
+    
+
+         // Temperature Scale Field Editor
+         ScaleFieldEditor temperatureEditor = new ScaleFieldEditor(
+             PreferenceConstants.OPENAI_MODEL_TEMPERATURE, // Preference key
+             "&Model Temperature:", // Label
+             getFieldEditorParent(), 
+             0,  // Minimum value
+             10, // Maximum value (scaled for 0-1 range with 0.1 increments)
+             1,  // Increment value
+             1   // Page increment (irrelevant for a scale)
+         );
+         addField(temperatureEditor);
     }
 
     /*
@@ -39,5 +60,6 @@ public class OpenAIPreferencePage extends FieldEditorPreferencePage implements I
     public void init( IWorkbench workbench )
     {
     }
+    
 
 }

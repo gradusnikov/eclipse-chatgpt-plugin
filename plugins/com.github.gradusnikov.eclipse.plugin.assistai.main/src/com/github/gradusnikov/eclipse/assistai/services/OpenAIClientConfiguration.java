@@ -63,4 +63,12 @@ public class OpenAIClientConfiguration
         
     }
     
+    public double getModelTemperature()
+    {
+        IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
+        double temperatureInt = Integer.parseInt( prefernceStore.getString(PreferenceConstants.OPENAI_MODEL_TEMPERATURE) );
+        return temperatureInt/10.0;
+        
+    }
+    
 }

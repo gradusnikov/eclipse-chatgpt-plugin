@@ -22,6 +22,7 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
         store.setDefault( PreferenceConstants.OPENAI_MODEL_NAME, "gpt-4" );
         store.setDefault( PreferenceConstants.OPENAI_CONNECTION_TIMEOUT_SECONDS, 10 );
         store.setDefault( PreferenceConstants.OPENAI_REQUEST_TIMEOUT_SECONDS, 30 );
+        store.setDefault( PreferenceConstants.OPENAI_MODEL_TEMPERATURE, 7 );
         
         PromptLoader promptLoader = new PromptLoader();
         for ( Prompts prompt : Prompts.values() )

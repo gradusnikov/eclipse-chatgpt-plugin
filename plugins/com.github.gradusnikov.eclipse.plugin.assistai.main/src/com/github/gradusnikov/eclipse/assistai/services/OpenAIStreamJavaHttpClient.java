@@ -118,7 +118,7 @@ public class OpenAIStreamJavaHttpClient
             requestBody.put("model", configuration.getModelName() );
             requestBody.put("functions", AnnotationToJsonConverter.convertDeclaredFunctionsToJson( functionExecutor.get().getFunctions() ) );
             requestBody.put("messages", messages);
-            requestBody.put("temperature", 0.7);
+            requestBody.put("temperature", configuration.getModelTemperature());
             requestBody.put("stream", true);
     
             String jsonString;
