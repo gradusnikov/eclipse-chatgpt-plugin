@@ -4,9 +4,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-
-import jakarta.annotation.PostConstruct;
-import jakarta.inject.Inject;
+import java.util.Collections;
+import java.util.List;
 
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.ILog;
@@ -16,20 +15,39 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.browser.Browser;
 import org.eclipse.swt.browser.BrowserFunction;
 import org.eclipse.swt.custom.SashForm;
+import org.eclipse.swt.custom.ScrolledComposite;
+import org.eclipse.swt.dnd.Clipboard;
+import org.eclipse.swt.dnd.ImageTransfer;
+import org.eclipse.swt.dnd.TextTransfer;
+import org.eclipse.swt.events.MenuAdapter;
+import org.eclipse.swt.events.MenuEvent;
+import org.eclipse.swt.events.MouseAdapter;
+import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.TraverseEvent;
 import org.eclipse.swt.events.TraverseListener;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.GC;
 import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.layout.RowLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.PlatformUI;
 
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptParser;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
 
 
 public class ChatGPTViewPart
@@ -48,6 +66,10 @@ public class ChatGPTViewPart
     
     private Text inputArea;
 
+    private ScrolledComposite scrolledComposite;
+
+    private Composite imagesContainer;
+    
     public ChatGPTViewPart()
     {
     }
@@ -82,65 +104,94 @@ public class ChatGPTViewPart
 
         // Create the JavaScript-to-Java callback
         new CopyCodeFunction(browser, "eclipseFunc");
-
-        // Add controls for the Clear button and the Stop button
+        
         Composite controls = new Composite(sashForm, SWT.NONE);
-        controls.setLayout(new GridLayout(2, false)); // Change GridLayout to have 2 columns
-
+        
+        Composite attachmentsPanel = createAttachmentsPanel( controls );
         inputArea = createUserInput(controls);
-        inputArea.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 2, 1)); // colspan = 2
-
-        Button clearButton = createClearChatButton(parent, controls);
-        clearButton.setLayoutData(new GridData(SWT.FILL, SWT.RIGHT, true, false));
-
-        Button stopButton = createStopButton(parent, controls);
-        stopButton.setLayoutData(new GridData(SWT.FILL, SWT.RIGHT, true, false));
+        // create components
+        Button[] buttons = {
+                createClearChatButton(controls),
+                createStopButton(controls)
+        };
+        
+        // layout components
+        controls.setLayout(new GridLayout( buttons.length, false)); 
+        attachmentsPanel.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false, buttons.length, 1)); // Full width
+        inputArea.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, buttons.length, 1)); // colspan = num of buttons
+        for ( var button : buttons )
+        {
+            button.setLayoutData(new GridData(SWT.FILL, SWT.RIGHT, true, false));
+        }
 
         // Sets the initial weight ratio: 75% browser, 25% controls
-        sashForm.setWeights(new int[]{85, 15}); 
+        sashForm.setWeights(new int[]{70, 30}); 
+        
+        clearAttachments();
     }
 
-    private Button createClearChatButton( Composite parent, Composite controls )
+
+    private Composite createAttachmentsPanel(Composite parent) 
     {
-        Button clearButton = new Button(controls, SWT.PUSH);
-        clearButton.setText("Clear");
+        Composite attachmentsPanel = new Composite(parent, SWT.NONE);
+        attachmentsPanel.setLayout(new GridLayout(1, false)); // One column
+
+        scrolledComposite = new ScrolledComposite(attachmentsPanel, SWT.H_SCROLL );
+        scrolledComposite.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
+        scrolledComposite.setExpandHorizontal(true);
+        scrolledComposite.setExpandVertical(true);
+
+        imagesContainer = new Composite(scrolledComposite, SWT.NONE);
+        imagesContainer.setLayout(new RowLayout(SWT.HORIZONTAL));
+
+        scrolledComposite.setContent(imagesContainer);
+        scrolledComposite.setMinSize(imagesContainer.computeSize(SWT.DEFAULT, SWT.DEFAULT));
+
+        return attachmentsPanel;
+    }
+
+
+    private Button createClearChatButton( Composite parent )
+    {
+        Button button = new Button(parent, SWT.PUSH);
+        button.setText("Clear");
         try
         {
             Image clearIcon = PlatformUI.getWorkbench().getSharedImages().getImage(org.eclipse.ui.ISharedImages.IMG_ELCL_REMOVE);
-            clearButton.setImage( clearIcon );
+            button.setImage( clearIcon );
         }
         catch ( Exception e )
         {
             logger.error( e.getMessage(), e );
         }
-        clearButton.addSelectionListener(new SelectionAdapter() {
+        button.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
                 presenter.onClear();
             }
         });
-        return clearButton;
+        return button;
     }
-    private Button createStopButton(Composite parent, Composite controls)
+    private Button createStopButton(Composite parent)
     {
-        Button stopButton = new Button(controls, SWT.PUSH);
-        stopButton.setText("Stop");
+        Button button = new Button(parent, SWT.PUSH);
+        button.setText("Stop");
 
         // Use the built-in 'IMG_ELCL_STOP' icon
         Image stopIcon = PlatformUI.getWorkbench().getSharedImages().getImage(org.eclipse.ui.ISharedImages.IMG_ELCL_STOP);
-        stopButton.setImage(stopIcon);
+        button.setImage(stopIcon);
 
-        stopButton.addSelectionListener(new SelectionAdapter() {
+        button.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
                 presenter.onStop();
             }
         });
-        return stopButton;
+        return button;
     }
-    private Text createUserInput( Composite controls )
+    private Text createUserInput( Composite parent )
     {
-        Text inputArea = new Text(controls, SWT.BORDER | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL);
+        Text inputArea = new Text(parent, SWT.BORDER | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL);
         inputArea.addTraverseListener(new TraverseListener() {
             public void keyTraversed(TraverseEvent e) {
                 if (e.detail == SWT.TRAVERSE_RETURN && (e.stateMask & SWT.MODIFIER_MASK) == 0) {
@@ -148,9 +199,73 @@ public class ChatGPTViewPart
                 }
             }
         });
+        createCustomMenu( inputArea );
         return inputArea;
     }
 
+    /**
+     * Dynamically creates and assigns a custom context menu to the input area.
+     * <p>
+     * This method constructs a context menu with "Cut", "Copy", and "Paste" actions for the text input area. 
+     * The "Paste" action is conditionally enabled based on the current content of the clipboard: it's enabled
+     * if the clipboard contains either text or image data. When triggered, the "Paste" action checks the clipboard
+     * content type and handles it accordingly - pasting text directly into the input area or invoking a custom
+     * handler for image data.
+     *
+     * @param inputArea The Text widget to which the custom context menu will be attached.
+     */
+    private void createCustomMenu( Text inputArea )
+    {
+        Menu menu = new Menu(inputArea);
+        inputArea.setMenu(menu);
+        menu.addMenuListener(new MenuAdapter() {
+            @Override
+            public void menuShown(MenuEvent e) {
+                // Dynamically adjust the context menu
+                MenuItem[] items = menu.getItems();
+                for (MenuItem item : items) 
+                {
+                    item.dispose();
+                }
+                // Add Cut, Copy, Paste items
+                addMenuItem(menu, "Cut", () -> inputArea.cut());
+                addMenuItem(menu, "Copy", () -> inputArea.copy());
+                MenuItem pasteItem = addMenuItem(menu, "Paste", () -> handlePasteOperation());
+                // Enable or disable paste based on clipboard content
+                Clipboard clipboard = new Clipboard(Display.getCurrent());
+                boolean enablePaste = clipboard.getContents(TextTransfer.getInstance()) != null ||
+                                      clipboard.getContents(ImageTransfer.getInstance()) != null;
+                pasteItem.setEnabled(enablePaste);
+                clipboard.dispose();
+            }
+        });
+    }
+    
+    private MenuItem addMenuItem(Menu parent, String text, Runnable action) {
+        MenuItem item = new MenuItem(parent, SWT.NONE);
+        item.setText(text);
+        item.addListener(SWT.Selection, e -> action.run());
+        return item;
+    }
+    private void handlePasteOperation() {
+        Clipboard clipboard = new Clipboard(Display.getCurrent());
+        
+        if ( clipboard.getContents( ImageTransfer.getInstance() ) != null  )
+        {
+            ImageData imageData = (ImageData) clipboard.getContents( ImageTransfer.getInstance() );
+            presenter.onAttachmentAdded( imageData );
+        }
+        else
+        {
+            String textData = (String) clipboard.getContents(TextTransfer.getInstance());
+            if (textData != null) 
+            {
+                inputArea.insert(textData); // Manually insert text at the current caret position
+            }
+            
+        }
+    }
+    
     private Browser createChatView( Composite parent )
     {
         Browser browser = new Browser( parent, SWT.EDGE);
@@ -289,6 +404,125 @@ public class ChatGPTViewPart
     {
         // TODO Auto-generated method stub
         return null;
+    }
+    
+    public void clearAttachments()
+    {
+        setAttachments( Collections.emptyList() );
+    }
+
+
+    public void setAttachments( List<ImageData> images )
+    {
+        uiSync.asyncExec( () -> {
+            // Dispose of existing children to avoid memory leaks and remove old
+            // images
+            for ( var child : imagesContainer.getChildren() )
+            {
+                child.dispose();
+            }
+
+            imagesContainer.setLayout( new RowLayout( SWT.HORIZONTAL ) );
+
+            if ( images.isEmpty() )
+            {
+                scrolledComposite.setVisible( false );
+                ( (GridData) scrolledComposite.getLayoutData() ).heightHint = 0;
+            }
+            else
+            {
+                // There are images to display, add them to the imagesContainer
+                for ( var imageData : images )
+                {
+                    Image image = new Image( Display.getCurrent(), imageData );
+                    
+                    Label imageLabel = new Label( imagesContainer, SWT.NONE );
+                    // initially nothing is selected
+                    imageLabel.setData( "selected", false ); 
+                    Image scaledImage = createScaledImage( image );
+                    imageLabel.setImage( scaledImage );
+                    imageLabel.addDisposeListener( l -> scaledImage.dispose() );
+
+                    // Add mouse listener to handle selection
+                    imageLabel.addMouseListener( new MouseAdapter()
+                    {
+                        @Override
+                        public void mouseUp( MouseEvent e )
+                        {
+                            boolean isSelected = (boolean) imageLabel.getData( "selected" );
+                            imageLabel.setData( "selected", !isSelected ); 
+
+                            if ( isSelected )
+                            {
+                                imageLabel.setImage( scaledImage );
+                            }
+                            else
+                            {
+                                // If it was not selected, apply an overlay
+                                Image selectedImage = createSelectedImage( scaledImage );
+                                imageLabel.setImage( selectedImage );
+                                // Dispose the tinted image when the label is
+                                // disposed
+                                imageLabel.addDisposeListener( l -> selectedImage.dispose() );
+                            }
+                            imagesContainer.layout(); 
+                        }
+                    } );
+                }
+                scrolledComposite.setVisible( true );
+                imagesContainer.setSize( imagesContainer.computeSize( SWT.DEFAULT, SWT.DEFAULT ) );
+                ( (GridData) scrolledComposite.getLayoutData() ).heightHint = SWT.DEFAULT;
+            }
+            // Refresh the layout
+            updateLayout( imagesContainer );
+        } );
+    }
+
+    private Image createScaledImage( Image image )
+    {
+        double width  = image.getBounds().width;
+        double height = image.getBounds().height;
+        double aspectRatio = width/height;
+        int scaledHeight = 96;
+        int scaledWidth = (int) ( aspectRatio * (double) scaledHeight );
+        
+        Image scaledImage = new Image( Display.getCurrent(), image.getImageData().scaledTo( scaledWidth, scaledHeight ) );
+        return scaledImage;
+    }
+
+
+    private Image createSelectedImage(Image originalImage) {
+        // Create a new image that is a copy of the original
+        Image tintedImage = new Image(Display.getCurrent(), originalImage.getBounds());
+    
+        // Create a GC to draw on the tintedImage
+        GC gc = new GC(tintedImage);
+    
+        // Draw the original image onto the new image
+        gc.drawImage(originalImage, 0, 0);
+    
+        // Set alpha value for the overlay (128 is half-transparent)
+        gc.setAlpha(128);
+    
+        // Get the system selection color
+        Color selectionColor = Display.getCurrent().getSystemColor(SWT.COLOR_LIST_SELECTION);
+    
+        // Fill the image with the selection color overlay
+        gc.setBackground(selectionColor);
+        gc.fillRectangle(tintedImage.getBounds());
+    
+        // Dispose the GC to free up system resources
+        gc.dispose();
+    
+        return tintedImage;
+    }
+    public void updateLayout( Composite composite )
+    {
+        if ( composite != null )
+        {
+            composite.layout();
+            updateLayout( composite.getParent() );
+        }
     }
 
     public void setInputEnabled( boolean b )

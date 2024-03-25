@@ -43,6 +43,13 @@ summary {
 	display: none;
 }
 
+.chat-bubble img {
+	display:block;
+	width:50%;
+	padding: 1rem;
+	margin:auto;
+}
+
 /* Dark body color */
 body {
 	background-color: #111;

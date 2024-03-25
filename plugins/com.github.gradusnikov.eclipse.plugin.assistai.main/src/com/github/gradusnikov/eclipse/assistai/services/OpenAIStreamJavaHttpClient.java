@@ -18,8 +18,6 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.function.Supplier;
 
-import jakarta.inject.Inject;
-
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
@@ -30,6 +28,9 @@ import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.model.Incoming;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
+import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
+
+import jakarta.inject.Inject;
 
 /**
  * A Java HTTP client for streaming requests to OpenAI API.
@@ -92,31 +93,55 @@ public class OpenAIStreamJavaHttpClient
             systemMessage.put("role", "system");
             systemMessage.put("content", promptLoader.createPromptText("system-prompt.txt") );
             messages.add(systemMessage);
-    
+            
+            boolean useVision = false;
             for ( ChatMessage message : prompt.messages() )
             {
                 var userMessage = new LinkedHashMap<String,Object>();
                 userMessage.put("role", message.getRole());
-                if ( Objects.nonNull( message.getContent() ) )
+                if ( message.getImages().isEmpty() )
                 {
-                    userMessage.put("content", message.getContent() );
+                    if ( Objects.nonNull( message.getContent() ) && message.getImages().isEmpty() )
+                    {
+                        userMessage.put("content", message.getContent());
+                    }
+                    if ( Objects.nonNull( message.getName() ) )
+                    {
+                        userMessage.put( "name", message.getName() );
+                    }
+                    if ( Objects.nonNull( message.getFunctionCall() ) )
+                    {
+                        var functionCall = new LinkedHashMap<String, String> ();
+                        functionCall.put( "name", message.getFunctionCall().name() );
+                        functionCall.put( "arguments", objectMapper.writeValueAsString(  message.getFunctionCall().arguments() ) );
+                        
+                        userMessage.put( "function_call", functionCall );
+                    }
                 }
-                if ( Objects.nonNull( message.getFunctionCall() ) )
+                else
                 {
-                    var functionCall = new LinkedHashMap<String, Object> ();
-                    functionCall.put( "name", message.getFunctionCall().name() );
-                    functionCall.put( "arguments", objectMapper.writeValueAsString(  message.getFunctionCall().arguments() ) );
+                    useVision = true;
+                    var content = new ArrayList<>();
+                    var contentObject = new LinkedHashMap<String, String> ();
+                    contentObject.put( "type", "text" );
+                    contentObject.put( "text", message.getContent() );
+                    content.add( contentObject );
                     
-                    userMessage.put( "function_call", functionCall );
-                }
-                if ( Objects.nonNull( message.getName() ) )
-                {
-                    userMessage.put( "name", message.getName() );
+                    message.getImages()
+                           .stream()
+                           .map( ImageUtilities::toBase64Jpeg )
+                           .map( this::toImageUrl )
+                           .forEachOrdered( content::add );
+                    userMessage.put( "content", content );
                 }
                 messages.add(userMessage);
             }
-            requestBody.put("model", configuration.getModelName() );
-            requestBody.put("functions", AnnotationToJsonConverter.convertDeclaredFunctionsToJson( functionExecutor.get().getFunctions() ) );
+            requestBody.put("model", useVision ? configuration.getVisionModelName() : configuration.getChatModelName() );
+            // disable function calls for the vision model (not supported)
+            if ( !useVision )
+            {
+                requestBody.put("functions", AnnotationToJsonConverter.convertDeclaredFunctionsToJson( functionExecutor.get().getFunctions() ) );
+            }
             requestBody.put("messages", messages);
             requestBody.put("temperature", configuration.getModelTemperature());
             requestBody.put("stream", true);
@@ -129,6 +154,14 @@ public class OpenAIStreamJavaHttpClient
         {
             throw new RuntimeException( e );
         }
+    }
+
+    private LinkedHashMap<String, String> toImageUrl( String data )
+    {
+        var imageObject = new LinkedHashMap<String, String> ();
+        imageObject.put("type", "image_url");
+        imageObject.put("image_url", "data:image/jpeg;base64," + data );
+        return imageObject;
     }
     
     /**

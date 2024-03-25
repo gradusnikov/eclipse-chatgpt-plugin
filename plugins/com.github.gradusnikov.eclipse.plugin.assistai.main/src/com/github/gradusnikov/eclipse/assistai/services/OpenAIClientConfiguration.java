@@ -31,10 +31,15 @@ public class OpenAIClientConfiguration
         return prefernceStore.getString(PreferenceConstants.OPENAI_API_KEY);
     }
 
-    public String getModelName()
+    public String getChatModelName()
     {
         IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
-        return prefernceStore.getString(PreferenceConstants.OPENAI_MODEL_NAME);
+        return prefernceStore.getString(PreferenceConstants.OPENAI_CHAT_MODEL_NAME);
+    }
+    public String getVisionModelName()
+    {
+        IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
+        return prefernceStore.getString(PreferenceConstants.OPENAI_VISION_MODEL_NAME);
     }
 
     public String getApiUrl()

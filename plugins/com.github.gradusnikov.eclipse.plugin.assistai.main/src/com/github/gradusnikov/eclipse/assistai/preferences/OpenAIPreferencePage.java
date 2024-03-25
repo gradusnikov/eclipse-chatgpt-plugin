@@ -35,7 +35,8 @@ public class OpenAIPreferencePage extends FieldEditorPreferencePage implements I
         addField(new StringFieldEditor(PreferenceConstants.OPENAI_API_BASE, "&Open AI API Base:", getFieldEditorParent()));
         addField(new StringFieldEditor(PreferenceConstants.OPENAI_API_END_POINT, "&Open AI API End Point:", getFieldEditorParent()));
         addField( new StringFieldEditor( PreferenceConstants.OPENAI_API_KEY, "&Open AI API Key:", getFieldEditorParent() ) );
-        addField( new StringFieldEditor( PreferenceConstants.OPENAI_MODEL_NAME, "&Model Name", getFieldEditorParent() ) );
+        addField( new StringFieldEditor( PreferenceConstants.OPENAI_CHAT_MODEL_NAME, "&Chat Model Name", getFieldEditorParent() ) );
+        addField( new StringFieldEditor( PreferenceConstants.OPENAI_VISION_MODEL_NAME, "&Vision Model Name", getFieldEditorParent() ) );
     
 
          // Temperature Scale Field Editor

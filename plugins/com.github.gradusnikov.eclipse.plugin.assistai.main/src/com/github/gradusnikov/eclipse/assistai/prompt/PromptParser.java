@@ -2,7 +2,6 @@ package com.github.gradusnikov.eclipse.assistai.prompt;
 
 import java.util.Scanner;
 import java.util.UUID;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringEscapeUtils;
@@ -158,7 +157,10 @@ public class PromptParser
 
         // Replace `text` with <i>text</i>
         input = input.replaceAll("`(.*?)`", "<i>$1</i>");
-        
+
+        // Replace ![alt text](url) with <img src="url" alt="alt text">
+        input = input.replaceAll("!\\[(.*?)\\]\\((.*?)\\)", "<img src=\"$2\" alt=\"$1\" />");
+
         // Replace [text](url) with <a href="url">text</a>
         input = input.replaceAll("\\[(.*?)\\]\\((.*?)\\)", "<a href=\"$2\" target=\"_blank\">$1</a>");
 
@@ -168,7 +170,6 @@ public class PromptParser
         // Links
         input = input.replaceAll("\\[(.*?)\\]\\((.*?)\\)", "<a href=\"$2\" target=\"_blank\">$1</a>");
 
-        
         // Blockquotes
         input = input.replaceAll("^> (.*?)$", "<blockquote>$1</blockquote>");
         
@@ -176,6 +177,8 @@ public class PromptParser
         input = input.replaceAll("^\\* (.*?)$", "<li>$1</li>");
         input = input.replaceAll("^- (.*?)$", "<li>$1</li>");
         input = input.replaceAll("^\\+ (.*?)$", "<li>$1</li>");
+
+        
         
         // Ordered lists
 //        input = input.replaceAll("^\\d+\\. (.*?)$", "<li>$1</li>");

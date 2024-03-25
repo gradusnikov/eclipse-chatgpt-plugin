@@ -43,27 +43,17 @@ public class ChatMessageFactory
     
     public ChatMessage createUserChatMessage( Prompts type, Context context )
     {
-        Supplier<String> promptSupplier;
-        switch ( type )
-        {
-            case DOCUMENT:
-                promptSupplier = javaDocPromptSupplier( context );
-                break;
-            case TEST_CASE:
-                promptSupplier = unitTestSupplier( context );
-                break;
-            case REFACTOR:
-                promptSupplier = refactorPromptSupplier( context );
-                break;
-            case DISCUSS:
-                promptSupplier = discussCodePromptSupplier( context );
-                break;
-            case FIX_ERRORS:
-                promptSupplier = fixErrorsPromptSupplier( context );
-                break;
-            default:
-                throw new IllegalArgumentException();
-        }
+        Supplier<String> promptSupplier =
+            switch ( type )
+            {
+                case DOCUMENT   -> javaDocPromptSupplier( context );
+                case TEST_CASE  -> unitTestSupplier( context );
+                case REFACTOR   -> refactorPromptSupplier( context );
+                case DISCUSS    -> discussCodePromptSupplier( context );
+                case FIX_ERRORS -> fixErrorsPromptSupplier( context );
+                default ->
+                    throw new IllegalArgumentException();
+            };
         return createUserChatMessage( promptSupplier );
     }
     
