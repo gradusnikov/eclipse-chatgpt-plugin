@@ -20,6 +20,7 @@ AssistAI is an Eclipse IDE plugin that brings ChatGPT functionality into your de
   - use JavaDoc or related source code to better understand the context
   - perform a web search using [DuckDuckGo](https://duckduckgo.com/)
   - read a content of a web page
+- Use the OpenAI vision model to discuss a image content
 
 
 You can also pose general questions to ChatGPT, just like with the regular ChatGPT interface.
@@ -67,6 +68,10 @@ Use the "Clear" button to reset the conversation context. Press the "Stop" butto
 7. AssistAI can use function calls to get the related source code or JavaDoc to better understand the problem and provide you with a more accurate solution.
 
 ![Function calling](src/website/how-it-works-function-calls.gif)
+
+8. Using the context menu Paste an image from a Cliboard to discuss it with the ChatGPT. Note, due to constrains of the vision model function calling is not enabled when you use images in your conversation.
+
+![Vision](src/website/how-it-works-vision.png)
 
 ## Installation
 
