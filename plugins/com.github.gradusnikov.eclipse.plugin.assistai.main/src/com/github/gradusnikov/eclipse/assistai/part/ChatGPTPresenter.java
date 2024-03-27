@@ -1,15 +1,12 @@
 package com.github.gradusnikov.eclipse.assistai.part;
 
+import static com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities.createPreview;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-
-import jakarta.annotation.PostConstruct;
-import jakarta.inject.Inject;
-import jakarta.inject.Provider;
-import jakarta.inject.Singleton;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.jobs.IJobManager;
@@ -33,11 +30,16 @@ import com.github.gradusnikov.eclipse.assistai.jobs.AssistAIJobConstants;
 import com.github.gradusnikov.eclipse.assistai.jobs.SendConversationJob;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
+import com.github.gradusnikov.eclipse.assistai.part.Attachment.FileContentAttachment;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageUtilities;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.subscribers.AppendMessageToViewSubscriber;
-import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
+import jakarta.inject.Provider;
+import jakarta.inject.Singleton;
 
 @Creatable
 @Singleton
@@ -72,13 +74,12 @@ public class ChatGPTPresenter
     // Preference node for your plugin
     private Preferences preferences = InstanceScope.INSTANCE.getNode("com.github.gradusnikov.eclipse.assistai");
     
-    private ArrayList<ImageData> images;
+    private final List<Attachment> attachments = new ArrayList<>();
     
     
     @PostConstruct
     public void init()
     {
-        images = new ArrayList<>();
         appendMessageToViewSubscriber.setPresenter( this );
     }
     
@@ -86,7 +87,7 @@ public class ChatGPTPresenter
     {
         onStop();
         conversation.clear();
-        images.clear();
+        attachments.clear();
         partAccessor.findMessageView().ifPresent( view -> {
             view.clearChatView();
             view.clearUserInput();
@@ -97,8 +98,7 @@ public class ChatGPTPresenter
     public void onSendUserMessage( String text )
     {
         logger.info( "Send user message" );
-        ChatMessage message = chatMessageFactory.createUserChatMessage( () -> text );
-        message.setImages( images );
+        ChatMessage message = createUserMessage( text );
         conversation.add( message );
         partAccessor.findMessageView().ifPresent( part -> { 
             part.clearUserInput(); 
@@ -106,11 +106,17 @@ public class ChatGPTPresenter
             part.appendMessage( message.getId(), message.getRole() );
             String content = ChatMessageUtilities.toMarkdownContent( message );
             part.setMessageHtml( message.getId(), content  );
-            images.clear();
+            attachments.clear();
         });
         sendConversationJobProvider.get().schedule();
     }
 
+    private ChatMessage createUserMessage( String userMessage )
+    {
+        ChatMessage message = chatMessageFactory.createUserChatMessage( () -> userMessage );
+        message.setAttachments( attachments );
+        return message;
+    }
 
     public ChatMessage beginMessageFromAssistant()
     {   
@@ -220,9 +226,10 @@ public class ChatGPTPresenter
                 ImageData[] imageDataArray = new ImageLoader().load( selectedFilePath );
                 if ( imageDataArray.length > 0 )
                 {
-                    images.add( imageDataArray[0] );
+                    attachments.add(
+                            new Attachment.ImageAttachment( imageDataArray[0], createPreview( imageDataArray[0] ) ) );
                     applyToView( messageView -> {
-                        messageView.setAttachments( images );
+                        messageView.setAttachments( attachments );
                     } );
                 }
             }
@@ -241,11 +248,17 @@ public class ChatGPTPresenter
 
     public void onAttachmentAdded( ImageData imageData )
     {
-        images.add( imageData );
+        attachments.add( new Attachment.ImageAttachment( imageData, createPreview( imageData ) ) );
         applyToView( messageView -> {
-            messageView.setAttachments( images );
+            messageView.setAttachments( attachments );
         } );
-
     }
-    
+
+    public void onAttachmentAdded( FileContentAttachment attachment )
+    {
+        attachments.add( attachment );
+        applyToView( messageView -> {
+            messageView.setAttachments( attachments );
+        } );
+    }
 }

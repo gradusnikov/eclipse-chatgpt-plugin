@@ -3,7 +3,7 @@ package com.github.gradusnikov.eclipse.assistai.model;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.eclipse.swt.graphics.ImageData;
+import com.github.gradusnikov.eclipse.assistai.part.Attachment;
 
 /**
  * Represents a chat message with an ID, role, number of tokens, and the message
@@ -22,8 +22,8 @@ public class ChatMessage
 
     public FunctionCall      functionCall;
 
-    public final List<ImageData> images;
-
+    private final List<Attachment> attachments;
+    
     /**
      * Constructs a ChatMessage with the given ID and role.
      * 
@@ -44,7 +44,7 @@ public class ChatMessage
         this.role = role;
         this.name = name;
         this.content = new StringBuffer();
-        this.images = new ArrayList<>();
+        this.attachments = new ArrayList<>();
     }
 
     /**
@@ -90,14 +90,15 @@ public class ChatMessage
         this.content.append( message );
     }
     
-    public void setImages( List<ImageData> images )
+    public void setAttachments( List<Attachment> attachments )
     {
-        this.images.clear();
-        this.images.addAll( images );
+        this.attachments.clear();
+        this.attachments.addAll( attachments );
     }
-    public List<ImageData> getImages()
+
+    public List<Attachment> getAttachments()
     {
-        return images;
+        return attachments;
     }
     
     /**

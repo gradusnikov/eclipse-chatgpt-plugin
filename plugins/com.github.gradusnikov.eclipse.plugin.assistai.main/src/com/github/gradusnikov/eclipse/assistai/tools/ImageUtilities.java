@@ -29,4 +29,16 @@ public class ImageUtilities
         String base64 = Base64.getEncoder().encodeToString(outputStream.toByteArray());
         return base64;
     }
+
+    public static ImageData createPreview( ImageData imageData )
+    {
+        double width = imageData.width;
+        double height = imageData.height;
+        double aspectRatio = width / height;
+        int scaledHeight = 96;
+        int scaledWidth = (int) (aspectRatio * (double) scaledHeight);
+
+        ImageData scaled = imageData.scaledTo( scaledWidth, scaledHeight );
+        return scaled;
+    }
 }

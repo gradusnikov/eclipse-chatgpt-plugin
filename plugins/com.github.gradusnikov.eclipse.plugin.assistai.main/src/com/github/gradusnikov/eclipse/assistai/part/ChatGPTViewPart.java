@@ -2,15 +2,20 @@ package com.github.gradusnikov.eclipse.assistai.part;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.ui.di.Focus;
 import org.eclipse.e4.ui.di.UISynchronize;
+import org.eclipse.jface.resource.ImageDescriptor;
+import org.eclipse.jface.resource.JFaceResources;
+import org.eclipse.jface.resource.LocalResourceManager;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.browser.Browser;
 import org.eclipse.swt.browser.BrowserFunction;
@@ -44,6 +49,7 @@ import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.PlatformUI;
 
+import com.github.gradusnikov.eclipse.assistai.part.Attachment.UiVisitor;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptParser;
 
 import jakarta.annotation.PostConstruct;
@@ -63,6 +69,8 @@ public class ChatGPTViewPart
     
     @Inject
     private ChatGPTPresenter presenter;
+
+    private LocalResourceManager resourceManager;
     
     private Text inputArea;
 
@@ -94,6 +102,8 @@ public class ChatGPTViewPart
     @PostConstruct
     public void createControls(Composite parent)
     {
+        resourceManager = new LocalResourceManager( JFaceResources.getResources() );
+
         SashForm sashForm = new SashForm(parent, SWT.VERTICAL);
         sashForm.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         
@@ -126,10 +136,11 @@ public class ChatGPTViewPart
 
         // Sets the initial weight ratio: 75% browser, 25% controls
         sashForm.setWeights(new int[]{70, 30}); 
+
+        new ChatGPTViewDropHandler( presenter, controls, logger );
         
         clearAttachments();
     }
-
 
     private Composite createAttachmentsPanel(Composite parent) 
     {
@@ -411,85 +422,100 @@ public class ChatGPTViewPart
         setAttachments( Collections.emptyList() );
     }
 
-
-    public void setAttachments( List<ImageData> images )
+    public void setAttachments( List<Attachment> attachments )
     {
         uiSync.asyncExec( () -> {
             // Dispose of existing children to avoid memory leaks and remove old
             // images
-            for ( var child : imagesContainer.getChildren() )
+            for (var child : imagesContainer.getChildren())
             {
                 child.dispose();
             }
 
             imagesContainer.setLayout( new RowLayout( SWT.HORIZONTAL ) );
 
-            if ( images.isEmpty() )
+            if (attachments.isEmpty())
             {
                 scrolledComposite.setVisible( false );
-                ( (GridData) scrolledComposite.getLayoutData() ).heightHint = 0;
-            }
-            else
+                ((GridData) scrolledComposite.getLayoutData()).heightHint = 0;
+            } else
             {
+                AttachmentVisitor attachmentVisitor = new AttachmentVisitor();
+
                 // There are images to display, add them to the imagesContainer
-                for ( var imageData : images )
+                for (var attachment : attachments)
                 {
-                    Image image = new Image( Display.getCurrent(), imageData );
-                    
-                    Label imageLabel = new Label( imagesContainer, SWT.NONE );
-                    // initially nothing is selected
-                    imageLabel.setData( "selected", false ); 
-                    Image scaledImage = createScaledImage( image );
-                    imageLabel.setImage( scaledImage );
-                    imageLabel.addDisposeListener( l -> scaledImage.dispose() );
-
-                    // Add mouse listener to handle selection
-                    imageLabel.addMouseListener( new MouseAdapter()
-                    {
-                        @Override
-                        public void mouseUp( MouseEvent e )
-                        {
-                            boolean isSelected = (boolean) imageLabel.getData( "selected" );
-                            imageLabel.setData( "selected", !isSelected ); 
-
-                            if ( isSelected )
-                            {
-                                imageLabel.setImage( scaledImage );
-                            }
-                            else
-                            {
-                                // If it was not selected, apply an overlay
-                                Image selectedImage = createSelectedImage( scaledImage );
-                                imageLabel.setImage( selectedImage );
-                                // Dispose the tinted image when the label is
-                                // disposed
-                                imageLabel.addDisposeListener( l -> selectedImage.dispose() );
-                            }
-                            imagesContainer.layout(); 
-                        }
-                    } );
+                    attachment.accept( attachmentVisitor );
                 }
                 scrolledComposite.setVisible( true );
                 imagesContainer.setSize( imagesContainer.computeSize( SWT.DEFAULT, SWT.DEFAULT ) );
-                ( (GridData) scrolledComposite.getLayoutData() ).heightHint = SWT.DEFAULT;
+                ((GridData) scrolledComposite.getLayoutData()).heightHint = SWT.DEFAULT;
             }
             // Refresh the layout
             updateLayout( imagesContainer );
         } );
     }
 
-    private Image createScaledImage( Image image )
+    private class AttachmentVisitor implements UiVisitor
     {
-        double width  = image.getBounds().width;
-        double height = image.getBounds().height;
-        double aspectRatio = width/height;
-        int scaledHeight = 96;
-        int scaledWidth = (int) ( aspectRatio * (double) scaledHeight );
-        
-        Image scaledImage = new Image( Display.getCurrent(), image.getImageData().scaledTo( scaledWidth, scaledHeight ) );
-        return scaledImage;
-    }
+        private Label imageLabel;
 
+        @Override
+        public void add( ImageData preview, String caption )
+        {
+            imageLabel = new Label( imagesContainer, SWT.NONE );
+            // initially nothing is selected
+            imageLabel.setData( "selected", false );
+            imageLabel.setToolTipText( caption );
+
+            ImageDescriptor imageDescriptor;
+            try
+            {
+                imageDescriptor = Optional.ofNullable( preview )
+                        .map( id -> ImageDescriptor.createFromImageDataProvider( zoom -> id ) )
+                        .orElse( ImageDescriptor.createFromURL( new URL(
+                                "platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/icons/folder.png" ) ) );
+            } catch (MalformedURLException e)
+            {
+                throw new IllegalStateException( e );
+            }
+
+            Image scaledImage = resourceManager.createImageWithDefault( imageDescriptor );
+            Image selectedImage = createSelectedImage( scaledImage );
+
+            imageLabel.setImage( scaledImage );
+
+            imageLabel.addDisposeListener( l -> {
+                resourceManager.destroy( imageDescriptor );
+                selectedImage.dispose();
+            } );
+
+            // Add mouse listener to handle selection
+            imageLabel.addMouseListener( new MouseAdapter()
+            {
+                @Override
+                public void mouseUp( MouseEvent e )
+                {
+                    boolean isSelected = (boolean) imageLabel.getData( "selected" );
+                    imageLabel.setData( "selected", !isSelected );
+
+                    if (isSelected)
+                    {
+                        imageLabel.setImage( scaledImage );
+                    } else
+                    {
+                        // If it was not selected, apply an overlay
+                        Image selectedImage = createSelectedImage( scaledImage );
+                        imageLabel.setImage( selectedImage );
+                        // Dispose the tinted image when the label is
+                        // disposed
+                        imageLabel.addDisposeListener( l -> selectedImage.dispose() );
+                    }
+                    imagesContainer.layout();
+                }
+            } );
+        }
+    }
 
     private Image createSelectedImage(Image originalImage) {
         // Create a new image that is a copy of the original

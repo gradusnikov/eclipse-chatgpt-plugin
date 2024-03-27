@@ -11,15 +11,18 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Flow;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.swt.graphics.ImageData;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,6 +30,7 @@ import com.github.gradusnikov.eclipse.assistai.commands.FunctionExecutorProvider
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.model.Incoming;
+import com.github.gradusnikov.eclipse.assistai.part.Attachment;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
@@ -99,11 +103,26 @@ public class OpenAIStreamJavaHttpClient
             {
                 var userMessage = new LinkedHashMap<String,Object>();
                 userMessage.put("role", message.getRole());
-                if ( message.getImages().isEmpty() )
+
+                List<ImageData> images = message.getAttachments()
+                        .stream()
+                        .map( Attachment::getImageData )
+                        .filter( Objects::nonNull )
+                        .collect( Collectors.toList() );
+
+                List<String> textParts = message.getAttachments()
+                        .stream()
+                        .map( Attachment::toChatMessageContent )
+                        .filter( Objects::nonNull )
+                        .collect( Collectors.toList() );
+
+                String textContent = String.join( "\n", textParts ) + "\n\n" + message.getContent();
+
+                if (images.isEmpty())
                 {
-                    if ( Objects.nonNull( message.getContent() ) && message.getImages().isEmpty() )
+                    if (Objects.nonNull( textContent ))
                     {
-                        userMessage.put("content", message.getContent());
+                        userMessage.put("content", textContent);
                     }
                     if ( Objects.nonNull( message.getName() ) )
                     {
@@ -124,14 +143,13 @@ public class OpenAIStreamJavaHttpClient
                     var content = new ArrayList<>();
                     var contentObject = new LinkedHashMap<String, String> ();
                     contentObject.put( "type", "text" );
-                    contentObject.put( "text", message.getContent() );
+                    contentObject.put( "text", textContent );
                     content.add( contentObject );
                     
-                    message.getImages()
-                           .stream()
-                           .map( ImageUtilities::toBase64Jpeg )
-                           .map( this::toImageUrl )
-                           .forEachOrdered( content::add );
+                    images.stream()
+                            .map( ImageUtilities::toBase64Jpeg )
+                            .map( this::toImageUrl )
+                            .forEachOrdered( content::add );
                     userMessage.put( "content", content );
                 }
                 messages.add(userMessage);
@@ -198,7 +216,7 @@ public class OpenAIStreamJavaHttpClient
     			
     			if (response.statusCode() != 200)
     			{
-    			    logger.error("Request failed with status code: " + response.statusCode() + " and response body: " + response.body());
+    			    logger.error("Request failed with status code: " + response.statusCode() + " and response body: " + new String(response.body().readAllBytes()));
     			}
     			try (var inputStream = response.body();
     			     var inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
@@ -259,4 +277,5 @@ public class OpenAIStreamJavaHttpClient
     		}
     	};
     }
+
 }

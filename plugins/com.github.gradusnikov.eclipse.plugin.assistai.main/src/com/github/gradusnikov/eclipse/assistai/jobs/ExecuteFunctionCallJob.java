@@ -98,7 +98,7 @@ public class ExecuteFunctionCallJob extends Job
             catch ( JsonProcessingException e )
             {
                 logger.error( e.getMessage(), e );
-                return Status.error( e.getMessage(), e ); 
+                return Status.error( e.getMessage(), e );
             }
         } );
     }
