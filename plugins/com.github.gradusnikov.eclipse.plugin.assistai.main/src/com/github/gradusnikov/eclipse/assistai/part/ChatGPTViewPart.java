@@ -50,6 +50,7 @@ import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.PlatformUI;
 
 import com.github.gradusnikov.eclipse.assistai.part.Attachment.UiVisitor;
+import com.github.gradusnikov.eclipse.assistai.part.dnd.DropManager;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptParser;
 
 import jakarta.annotation.PostConstruct;
@@ -68,6 +69,9 @@ public class ChatGPTViewPart
 
     @Inject
     private ChatGPTPresenter     presenter;
+
+    @Inject
+    DropManager       dropHandler;
 
     private LocalResourceManager resourceManager;
 
@@ -139,7 +143,8 @@ public class ChatGPTViewPart
         // Sets the initial weight ratio: 75% browser, 25% controls
         sashForm.setWeights( new int[] { 70, 30 } );
 
-        new ChatGPTViewDropHandler( presenter, controls, logger );
+        // Enable DnD for the controls below the chat view
+        dropHandler.registerDropTarget( controls );
 
         clearAttachments();
     }
