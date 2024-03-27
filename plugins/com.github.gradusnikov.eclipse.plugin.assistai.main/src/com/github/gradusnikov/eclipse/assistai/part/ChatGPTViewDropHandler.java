@@ -68,6 +68,31 @@ public class ChatGPTViewDropHandler
 
         dropTarget.addDropListener( new DropTargetAdapter()
         {
+
+            @Override
+            public void dragEnter( DropTargetEvent event )
+            {
+                // Always indicate a copy operation.
+                event.detail = DND.DROP_COPY;
+                event.feedback = DND.FEEDBACK_NONE;
+            }
+
+            @Override
+            public void dragOperationChanged( DropTargetEvent event )
+            {
+                // Always indicate a copy operation.
+                event.detail = DND.DROP_COPY;
+                event.feedback = DND.FEEDBACK_NONE;
+            }
+
+            @Override
+            public void dragOver( DropTargetEvent event )
+            {
+                // Always indicate a copy operation.
+                event.detail = DND.DROP_COPY;
+                event.feedback = DND.FEEDBACK_NONE;
+            }
+
             @Override
             public void drop( DropTargetEvent event )
             {
@@ -147,7 +172,7 @@ public class ChatGPTViewDropHandler
                         {
                             try (InputStream in = new BufferedInputStream( new FileInputStream( file ) ))
                             {
-                                handleImage( presenter, file.toURI().toURL() );
+                                handleImage( event, presenter, file.toURI().toURL() );
                             }
                             catch (IOException e)
                             {
@@ -158,7 +183,7 @@ public class ChatGPTViewDropHandler
                         {
                             try (InputStream in = new BufferedInputStream( new FileInputStream( file ) ))
                             {
-                                handleText( presenter, file.getName(), in );
+                                handleText( event, presenter, file.getName(), in );
                             }
                             catch (IOException e)
                             {
@@ -187,11 +212,11 @@ public class ChatGPTViewDropHandler
 
                         if (contentType.startsWith( "image" ))
                         {
-                            handleImage( presenter, url );
+                            handleImage( event, presenter, url );
                         }
                         else if (contentType.startsWith( "text" ))
                         {
-                            handleText( presenter, guessFile( url ), url.openStream() );
+                            handleText( event, presenter, guessFile( url ), url.openStream() );
                         }
                     }
                     catch (URISyntaxException | IOException e)
@@ -209,7 +234,8 @@ public class ChatGPTViewDropHandler
                 }
             }
 
-            private void handleText( ChatGPTPresenter presenter, String fileName, InputStream in )
+            private void handleText( DropTargetEvent event, ChatGPTPresenter presenter, String fileName,
+                    InputStream in )
                     throws IOException, UnsupportedEncodingException
             {
                 // Load file content into string, guessing the file encoding
@@ -224,7 +250,7 @@ public class ChatGPTViewDropHandler
                         new FileContentAttachment( fileName, 1, document.getNumberOfLines(), textContent ) );
             }
 
-            private void handleImage( ChatGPTPresenter presenter, URL url )
+            private void handleImage( DropTargetEvent event, ChatGPTPresenter presenter, URL url )
             {
                 ImageDescriptor imageDescriptor = ImageDescriptor.createFromURL( url );
                 ImageData imageData = imageDescriptor.getImageData( 100 );
