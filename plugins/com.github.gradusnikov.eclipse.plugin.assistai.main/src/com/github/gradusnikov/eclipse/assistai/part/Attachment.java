@@ -1,5 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.part;
 
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.resource.LocalResourceManager;
@@ -113,13 +114,78 @@ public interface Attachment
         public String toMarkdownContent()
         {
             String fileName = getFileName( filePath );
-            return String.format( "File %s, Lines %d-%d", fileName, lineNumberStart, lineNumberEnd );
+            return String.format( """
+                    <|ContextStart|>
+                    File: %s
+                    Lines: %d-%d
+                    <|ContentStart|>
+                    %s
+                    <|ContentEnd|>
+                    <|ContextEnd|>
+                    """, fileName, lineNumberStart, lineNumberEnd, selectedContent );
         }
 
         @Override
         public void accept( UiVisitor visitor )
         {
-            visitor.add( icon, String.format( "File: %s, Line: %d-%d", getFileName( filePath ), lineNumberStart, lineNumberEnd ) );
+            visitor.add( icon, String.format( "File: %s, Line: %d-%d\n\n%s", getFileName( filePath ), lineNumberStart, lineNumberEnd, trimmedContent() ) );
+        }
+
+        private String trimmedContent()
+        {
+            int previewMaxLength = 500;
+            String previewContent = StringUtils.stripToEmpty( this.selectedContent )
+                    .replaceAll( "\\s*\n\r?", "\n" );
+            int maxLength = Math.min( previewMaxLength, previewContent.length() );
+            int completeLength = previewContent.length();
+            previewContent = previewContent.substring( 0, maxLength );
+
+            // Special case: if the content is a single line, return it as is
+            if ( previewContent.indexOf( "\n" ) == -1 )
+            {
+                return previewContent;
+            }
+
+            String res = "";
+
+            int lineNo = 1;
+            int offset = 0, lineLength;
+            String indent = "";
+            do
+            {
+                lineLength = previewContent.substring( offset ).indexOf( '\n' );
+
+                if ( lineLength < 0 )
+                {
+                    if ( offset < maxLength )
+                    {
+                        res += previewContent.substring( offset, maxLength ).replaceAll( "^" + indent, "" );
+                    }
+
+                    break;
+                }
+
+                String line = previewContent.substring( offset, offset + lineLength );
+                offset += line.length() + 1;
+
+                if ( lineNo == 2 )
+                {
+                    indent = line.replaceAll( "[^\\s].*$", "" );
+                }
+
+                res += StringUtils.stripEnd( line.replaceAll( "^" + indent, "" ), null ) + "\n";
+                lineNo++;
+            }
+            while ( offset < previewMaxLength );
+
+            if ( maxLength < completeLength )
+            {
+                res += "\n";
+                res += indent;
+                res += "...";
+            }
+
+            return res;
         }
 
         private String getFileName( String pathStr )

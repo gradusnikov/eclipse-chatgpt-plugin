@@ -38,7 +38,7 @@ public class ChatMessageUtilities
 
         if (!textParts.isEmpty())
         {
-            content += "\n## Attached context:\n" + textParts.stream().collect( Collectors.joining( "\n" ) ) + "\n";
+            content += "\n" + textParts.stream().collect( Collectors.joining( "\n" ) ) + "\n";
         }
 
         return content;
