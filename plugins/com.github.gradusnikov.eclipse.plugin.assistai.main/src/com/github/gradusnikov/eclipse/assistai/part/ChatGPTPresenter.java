@@ -1,5 +1,7 @@
 package com.github.gradusnikov.eclipse.assistai.part;
 
+import static com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities.createPreview;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -258,17 +260,5 @@ public class ChatGPTPresenter
         applyToView( messageView -> {
             messageView.setAttachments( attachments );
         } );
-    }
-
-    private ImageData createPreview( ImageData imageData )
-    {
-        double width = imageData.width;
-        double height = imageData.height;
-        double aspectRatio = width / height;
-        int scaledHeight = 96;
-        int scaledWidth = (int) (aspectRatio * (double) scaledHeight);
-
-        ImageData scaled = imageData.scaledTo( scaledWidth, scaledHeight );
-        return scaled;
     }
 }

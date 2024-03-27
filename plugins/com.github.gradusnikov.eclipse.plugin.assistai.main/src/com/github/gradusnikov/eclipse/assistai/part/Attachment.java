@@ -5,6 +5,10 @@ import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.resource.LocalResourceManager;
 import org.eclipse.swt.graphics.ImageData;
 
+/**
+ * Represents an attachment to a chat message, e.g. an image or content from a
+ * file.
+ */
 public interface Attachment
 {
     String toChatMessageContent();

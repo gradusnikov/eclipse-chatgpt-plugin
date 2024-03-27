@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="tika/tika-parser-text-module-2.9.1.jar" sourcepath="C:/Users/chabicht/java/source/tika-parser-text-module-2.9.1-sources.jar"/>
+	<classpathentry exported="true" kind="lib" path="tika/tika-core-2.9.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="commons/commons-text-1.10.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="fasterxml/jackson-annotations-2.15.0-rc1.jar"/>
 	<classpathentry exported="true" kind="lib" path="fasterxml/jackson-core-2.15.0-rc1.jar"/>

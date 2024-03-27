@@ -71,7 +71,9 @@ Bundle-ClassPath: selenium/auto-service-annotations-1.1.1.jar,
  fasterxml/jackson-annotations-2.15.0-rc1.jar,
  fasterxml/jackson-core-2.15.0-rc1.jar,
  fasterxml/jackson-databind-2.15.0-rc1.jar,
- commons/commons-text-1.10.0.jar
+ commons/commons-text-1.10.0.jar,
+ tika/tika-core-2.9.1.jar,
+ tika/tika-parser-text-module-2.9.1.jar
 Bundle-Vendor: Wojciech Gradkowski
 Export-Package: .,
  com.fasterxml.jackson.annotation,
@@ -297,6 +299,8 @@ Export-Package: .,
  org.apache.commons.text.numbers,
  org.apache.commons.text.similarity,
  org.apache.commons.text.translate,
+ org.apache.tika,
+ org.apache.tika.parser.txt,
  org.checkerframework.checker.builder.qual,
  org.checkerframework.checker.calledmethods.qual,
  org.checkerframework.checker.compilermsgs.qual,
@@ -779,4 +783,6 @@ Export-Package: .,
  org.openqa.selenium.support.pagefactory.internal;x-internal:=true,
  org.openqa.selenium.support.ui,
  org.openqa.selenium.virtualauthenticator
+Require-Bundle: org.apache.commons.commons-io;bundle-version="2.15.1",
+ slf4j.api;bundle-version="2.0.12"
 Automatic-Module-Name: assistai.dependencies
