@@ -50,20 +50,20 @@ import com.github.gradusnikov.eclipse.assistai.part.Attachment.FileContentAttach
 public class ChatGPTViewDropHandler
 {
     private final ChatGPTPresenter presenter;
-    private final Control targetControl;
 
-    private final Tika tika = new Tika();
+    private final Control          targetControl;
 
-    public ChatGPTViewDropHandler(ChatGPTPresenter presenter, Control targetControl, ILog logger)
+    private final Tika             tika = new Tika();
+
+    public ChatGPTViewDropHandler( ChatGPTPresenter presenter, Control targetControl, ILog logger )
     {
         this.presenter = presenter;
         this.targetControl = targetControl;
 
-        DropTarget dropTarget = new DropTarget( targetControl,
-                DND.DROP_MOVE | DND.DROP_COPY | DND.DROP_LINK | DND.DROP_DEFAULT );
+        DropTarget dropTarget = new DropTarget( targetControl, DND.DROP_MOVE | DND.DROP_COPY | DND.DROP_LINK | DND.DROP_DEFAULT );
 
-        Transfer[] types = new Transfer[] { LocalSelectionTransfer.getTransfer(), FileTransfer.getInstance(),
-                URLTransfer.getInstance(), TextTransfer.getInstance(), ImageTransfer.getInstance() };
+        Transfer[] types = new Transfer[] { LocalSelectionTransfer.getTransfer(), FileTransfer.getInstance(), URLTransfer.getInstance(),
+                TextTransfer.getInstance(), ImageTransfer.getInstance() };
         dropTarget.setTransfer( types );
 
         dropTarget.addDropListener( new DropTargetAdapter()
@@ -96,58 +96,52 @@ public class ChatGPTViewDropHandler
             @Override
             public void drop( DropTargetEvent event )
             {
-                // Prevent deleting stuff from the source when the user just moves content
+                // Prevent deleting stuff from the source when the user just
+                // moves content
                 // instead of using copy.
-                if (event.detail == DND.DROP_MOVE)
+                if ( event.detail == DND.DROP_MOVE )
                 {
                     event.detail = DND.DROP_COPY;
                 }
 
-                if (LocalSelectionTransfer.getTransfer().isSupportedType( event.currentDataType ))
+                if ( LocalSelectionTransfer.getTransfer().isSupportedType( event.currentDataType ) )
                 {
-                    Stream<Object> optSourceRefs = Optional.ofNullable( event.data )
-                            .filter( IStructuredSelection.class::isInstance )
-                            .map( IStructuredSelection.class::cast )
-                            .orElse( StructuredSelection.EMPTY )
-                            .stream();
-                    optSourceRefs.filter( IAdaptable.class::isInstance )
-                            .map( IAdaptable.class::cast )
-                            .map( adaptable -> adaptable.getAdapter( ISourceReference.class ) )
-                            .filter( source -> source != null )
+                    Stream<Object> optSourceRefs = Optional.ofNullable( event.data ).filter( IStructuredSelection.class::isInstance )
+                            .map( IStructuredSelection.class::cast ).orElse( StructuredSelection.EMPTY ).stream();
+                    optSourceRefs.filter( IAdaptable.class::isInstance ).map( IAdaptable.class::cast )
+                            .map( adaptable -> adaptable.getAdapter( ISourceReference.class ) ).filter( source -> source != null )
                             .forEach( ( ISourceReference source ) -> {
                                 try
                                 {
-                                    if (source instanceof IJavaElement)
+                                    if ( source instanceof IJavaElement )
                                     {
                                         IJavaElement javaElement = (IJavaElement) source;
-                                        ICompilationUnit cu = (ICompilationUnit) javaElement
-                                                .getAncestor( IJavaElement.COMPILATION_UNIT );
+                                        ICompilationUnit cu = (ICompilationUnit) javaElement.getAncestor( IJavaElement.COMPILATION_UNIT );
                                         int[] lineRange = toLineNumbers( cu, source );
-                                        presenter.onAttachmentAdded( new FileContentAttachment( cu.getPath().toString(),
-                                                lineRange[0], lineRange[1], source.getSource() ) );
+                                        presenter.onAttachmentAdded(
+                                                new FileContentAttachment( cu.getPath().toString(), lineRange[0], lineRange[1], source.getSource() ) );
                                     }
                                     else
                                     {
-                                        presenter.onAttachmentAdded(
-                                                new FileContentAttachment( "unknown", -1, -1, source.getSource() ) );
+                                        presenter.onAttachmentAdded( new FileContentAttachment( "unknown", -1, -1, source.getSource() ) );
                                     }
                                 }
-                                catch (JavaModelException e)
+                                catch ( JavaModelException e )
                                 {
                                     logger.error( e.getMessage(), e );
                                 }
                             } );
                 }
-                else if (ImageTransfer.getInstance().isSupportedType( event.currentDataType ))
+                else if ( ImageTransfer.getInstance().isSupportedType( event.currentDataType ) )
                 {
                     ImageData image = (ImageData) event.data;
                     presenter.onAttachmentAdded( image );
                 }
-                else if (FileTransfer.getInstance().isSupportedType( event.currentDataType ))
+                else if ( FileTransfer.getInstance().isSupportedType( event.currentDataType ) )
                 {
                     String[] files = (String[]) event.data;
 
-                    for (String fullFileName : files)
+                    for ( String fullFileName : files )
                     {
                         File file = new File( fullFileName );
 
@@ -158,34 +152,34 @@ public class ChatGPTViewDropHandler
                             contentType = Files.probeContentType( file.toPath() );
 
                             // Fallback to Apache Tika
-                            if (contentType == null)
+                            if ( contentType == null )
                             {
                                 contentType = tika.detect( file );
                             }
                         }
-                        catch (IOException e)
+                        catch ( IOException e )
                         {
                             contentType = "unknown";
                         }
 
-                        if (contentType.startsWith( "image" ))
+                        if ( contentType.startsWith( "image" ) )
                         {
                             try (InputStream in = new BufferedInputStream( new FileInputStream( file ) ))
                             {
                                 handleImage( event, presenter, file.toURI().toURL() );
                             }
-                            catch (IOException e)
+                            catch ( IOException e )
                             {
                                 logger.error( e.getMessage(), e );
                             }
                         }
-                        else if (contentType.startsWith( "text" ))
+                        else if ( contentType.startsWith( "text" ) )
                         {
                             try (InputStream in = new BufferedInputStream( new FileInputStream( file ) ))
                             {
                                 handleText( event, presenter, file.getName(), in );
                             }
-                            catch (IOException e)
+                            catch ( IOException e )
                             {
                                 logger.error( e.getMessage(), e );
                             }
@@ -196,7 +190,7 @@ public class ChatGPTViewDropHandler
                         }
                     }
                 }
-                else if (URLTransfer.getInstance().isSupportedType( event.currentDataType ))
+                else if ( URLTransfer.getInstance().isSupportedType( event.currentDataType ) )
                 {
                     String data = (String) event.data;
                     try
@@ -210,21 +204,21 @@ public class ChatGPTViewDropHandler
                             contentType = tika.detect( contentBytes );
                         }
 
-                        if (contentType.startsWith( "image" ))
+                        if ( contentType.startsWith( "image" ) )
                         {
                             handleImage( event, presenter, url );
                         }
-                        else if (contentType.startsWith( "text" ))
+                        else if ( contentType.startsWith( "text" ) )
                         {
                             handleText( event, presenter, guessFile( url ), url.openStream() );
                         }
                     }
-                    catch (URISyntaxException | IOException e)
+                    catch ( URISyntaxException | IOException e )
                     {
                         logger.error( e.getMessage(), e );
                     }
                 }
-                else if (TextTransfer.getInstance().isSupportedType( event.currentDataType ))
+                else if ( TextTransfer.getInstance().isSupportedType( event.currentDataType ) )
                 {
                     presenter.onAttachmentAdded( new FileContentAttachment( "unknown", -1, -1, (String) event.data ) );
                 }
@@ -234,20 +228,15 @@ public class ChatGPTViewDropHandler
                 }
             }
 
-            private void handleText( DropTargetEvent event, ChatGPTPresenter presenter, String fileName,
-                    InputStream in )
+            private void handleText( DropTargetEvent event, ChatGPTPresenter presenter, String fileName, InputStream in )
                     throws IOException, UnsupportedEncodingException
             {
                 // Load file content into string, guessing the file encoding
                 byte[] fileContent = IOUtils.toByteArray( in );
-                String charsetName = new CharsetDetector()
-                        .setText( Arrays.copyOf( fileContent, Math.min( fileContent.length, 4096 ) ) )
-                        .detect()
-                        .getName();
+                String charsetName = new CharsetDetector().setText( Arrays.copyOf( fileContent, Math.min( fileContent.length, 4096 ) ) ).detect().getName();
                 String textContent = new String( fileContent, charsetName );
                 Document document = new Document( textContent );
-                presenter.onAttachmentAdded(
-                        new FileContentAttachment( fileName, 1, document.getNumberOfLines(), textContent ) );
+                presenter.onAttachmentAdded( new FileContentAttachment( fileName, 1, document.getNumberOfLines(), textContent ) );
             }
 
             private void handleImage( DropTargetEvent event, ChatGPTPresenter presenter, URL url )
@@ -265,12 +254,11 @@ public class ChatGPTViewDropHandler
                     Document document = new Document( cu.getSource() );
 
                     int startLine = document.getLineOfOffset( source.getSourceRange().getOffset() ) + 1;
-                    int endLine = document.getLineOfOffset(
-                            source.getSourceRange().getOffset() + source.getSourceRange().getLength() ) + 1;
+                    int endLine = document.getLineOfOffset( source.getSourceRange().getOffset() + source.getSourceRange().getLength() ) + 1;
 
                     return new int[] { startLine, endLine };
                 }
-                catch (JavaModelException | BadLocationException e)
+                catch ( JavaModelException | BadLocationException e )
                 {
                     logger.error( e.getMessage(), e );
                 }
@@ -282,7 +270,7 @@ public class ChatGPTViewDropHandler
             {
                 String path = url.getPath();
                 String[] parts = path.split( "/" );
-                if (parts.length > 0)
+                if ( parts.length > 0 )
                 {
                     return parts[parts.length - 1];
                 }

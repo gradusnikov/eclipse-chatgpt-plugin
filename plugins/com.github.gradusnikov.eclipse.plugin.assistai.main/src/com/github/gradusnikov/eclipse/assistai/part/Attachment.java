@@ -46,28 +46,30 @@ public interface Attachment
     }
 
     /**
-     * Represents a context item with a file name, start and end line numbers, and
-     * selected content.
+     * Represents a context item with a file name, start and end line numbers,
+     * and selected content.
      */
     public class FileContentAttachment extends BaseAttachment
     {
-        private static final LocalResourceManager resourceManager = new LocalResourceManager(
-                JFaceResources.getResources() );
-        private static ImageData icon;
+        private static final LocalResourceManager resourceManager = new LocalResourceManager( JFaceResources.getResources() );
+
+        private static ImageData                  icon;
 
         static
         {
-            ImageDescriptor iconDescriptor = ImageDescriptor.createFromFile( FileContentAttachment.class,
-                    "/icons/folder.png" );
+            ImageDescriptor iconDescriptor = ImageDescriptor.createFromFile( FileContentAttachment.class, "/icons/folder.png" );
             icon = iconDescriptor.getImageData( 100 );
         }
 
         private final String filePath;
-        private final int lineNumberStart;
-        private final int lineNumberEnd;
+
+        private final int    lineNumberStart;
+
+        private final int    lineNumberEnd;
+
         private final String selectedContent;
 
-        public FileContentAttachment(String filePath, int lineNumberStart, int lineNumberEnd, String selectedContent)
+        public FileContentAttachment( String filePath, int lineNumberStart, int lineNumberEnd, String selectedContent )
         {
             this.filePath = filePath;
             this.lineNumberStart = lineNumberStart;
@@ -104,8 +106,7 @@ public interface Attachment
                     Lines: %s
                     %s
                     ===
-                    """, filePath, lineNumberStart > 0 ? lineNumberStart + "-" + lineNumberEnd : "unknown",
-                    selectedContent );
+                    """, filePath, lineNumberStart > 0 ? lineNumberStart + "-" + lineNumberEnd : "unknown", selectedContent );
         }
 
         @Override
@@ -118,14 +119,13 @@ public interface Attachment
         @Override
         public void accept( UiVisitor visitor )
         {
-            visitor.add( icon,
-                    String.format( "File: %s, Line: %d-%d", getFileName( filePath ), lineNumberStart, lineNumberEnd ) );
+            visitor.add( icon, String.format( "File: %s, Line: %d-%d", getFileName( filePath ), lineNumberStart, lineNumberEnd ) );
         }
 
         private String getFileName( String pathStr )
         {
             String[] path = pathStr.split( "/" );
-            if (path.length == 0)
+            if ( path.length == 0 )
             {
                 return pathStr;
             }
@@ -139,9 +139,10 @@ public interface Attachment
     public class ImageAttachment extends BaseAttachment
     {
         private final ImageData image;
+
         private final ImageData preview;
 
-        public ImageAttachment(ImageData image, ImageData preview)
+        public ImageAttachment( ImageData image, ImageData preview )
         {
             this.image = image;
             this.preview = preview;
