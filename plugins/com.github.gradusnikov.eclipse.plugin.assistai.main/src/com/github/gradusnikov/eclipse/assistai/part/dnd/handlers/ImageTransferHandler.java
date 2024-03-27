@@ -1,5 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.part.dnd.handlers;
 
+import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.swt.dnd.ImageTransfer;
 import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.graphics.ImageData;
@@ -7,7 +8,10 @@ import org.eclipse.swt.graphics.ImageData;
 import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 
 import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
+@Creatable
+@Singleton
 public class ImageTransferHandler implements ITransferHandler
 {
     private static final ImageTransfer TRANSFER = ImageTransfer.getInstance();

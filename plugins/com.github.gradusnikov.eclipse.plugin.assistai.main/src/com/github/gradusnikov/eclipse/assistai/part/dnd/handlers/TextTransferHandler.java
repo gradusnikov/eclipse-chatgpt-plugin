@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import org.eclipse.core.runtime.ILog;
+import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.swt.dnd.TextTransfer;
 import org.eclipse.swt.dnd.Transfer;
 
@@ -14,7 +15,10 @@ import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 import com.github.gradusnikov.eclipse.assistai.services.TikaSupport;
 
 import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
+@Creatable
+@Singleton
 public class TextTransferHandler implements ITransferHandler
 {
     private static final TextTransfer TRANSFER = TextTransfer.getInstance();

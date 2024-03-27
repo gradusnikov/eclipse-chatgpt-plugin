@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 
 import org.eclipse.core.runtime.ILog;
+import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.swt.dnd.FileTransfer;
 import org.eclipse.swt.dnd.Transfer;
 
@@ -18,7 +19,10 @@ import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 import com.github.gradusnikov.eclipse.assistai.services.TikaSupport;
 
 import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
+@Creatable
+@Singleton
 public class FileTransferHandler implements ITransferHandler
 {
     private static final FileTransfer TRANSFER = FileTransfer.getInstance();
