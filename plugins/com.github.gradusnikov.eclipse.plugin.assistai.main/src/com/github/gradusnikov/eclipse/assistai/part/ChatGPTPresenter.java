@@ -46,43 +46,42 @@ import jakarta.inject.Singleton;
 public class ChatGPTPresenter
 {
     @Inject
-    private ILog logger;
-    
-    @Inject
-    private PartAccessor partAccessor;
-    
-    @Inject
-    private Conversation conversation;
-    
-    @Inject
-    private ChatMessageFactory chatMessageFactory;        
+    private ILog                          logger;
 
     @Inject
-    private IJobManager jobManager;
-    
+    private PartAccessor                  partAccessor;
+
+    @Inject
+    private Conversation                  conversation;
+
+    @Inject
+    private ChatMessageFactory            chatMessageFactory;
+
+    @Inject
+    private IJobManager                   jobManager;
+
     @Inject
     private Provider<SendConversationJob> sendConversationJobProvider;
-    
+
     @Inject
     private AppendMessageToViewSubscriber appendMessageToViewSubscriber;
-    
+
     @Inject
-    private ApplyPatchWizardHelper applyPatchWizzardHelper;
-    
-    private static final String LAST_SELECTED_DIR_KEY = "lastSelectedDirectory";
+    private ApplyPatchWizardHelper        applyPatchWizzardHelper;
+
+    private static final String           LAST_SELECTED_DIR_KEY = "lastSelectedDirectory";
 
     // Preference node for your plugin
-    private Preferences preferences = InstanceScope.INSTANCE.getNode("com.github.gradusnikov.eclipse.assistai");
-    
-    private final List<Attachment> attachments = new ArrayList<>();
-    
-    
+    private Preferences                   preferences           = InstanceScope.INSTANCE.getNode( "com.github.gradusnikov.eclipse.assistai" );
+
+    private final List<Attachment>        attachments           = new ArrayList<>();
+
     @PostConstruct
     public void init()
     {
         appendMessageToViewSubscriber.setPresenter( this );
     }
-    
+
     public void onClear()
     {
         onStop();
@@ -100,14 +99,14 @@ public class ChatGPTPresenter
         logger.info( "Send user message" );
         ChatMessage message = createUserMessage( text );
         conversation.add( message );
-        partAccessor.findMessageView().ifPresent( part -> { 
-            part.clearUserInput(); 
+        partAccessor.findMessageView().ifPresent( part -> {
+            part.clearUserInput();
             part.clearAttachments();
             part.appendMessage( message.getId(), message.getRole() );
             String content = ChatMessageUtilities.toMarkdownContent( message );
-            part.setMessageHtml( message.getId(), content  );
+            part.setMessageHtml( message.getId(), content );
             attachments.clear();
-        });
+        } );
         sendConversationJobProvider.get().schedule();
     }
 
@@ -119,74 +118,73 @@ public class ChatGPTPresenter
     }
 
     public ChatMessage beginMessageFromAssistant()
-    {   
-        ChatMessage message = chatMessageFactory.createAssistantChatMessage("");
-        conversation.add(message);
-        partAccessor.findMessageView().ifPresent(messageView -> {
-                messageView.appendMessage(message.getId(), message.getRole());
-                messageView.setInputEnabled( false );
-            });
+    {
+        ChatMessage message = chatMessageFactory.createAssistantChatMessage( "" );
+        conversation.add( message );
+        partAccessor.findMessageView().ifPresent( messageView -> {
+            messageView.appendMessage( message.getId(), message.getRole() );
+            messageView.setInputEnabled( false );
+        } );
         return message;
     }
 
-
     public void updateMessageFromAssistant( ChatMessage message )
     {
-        partAccessor.findMessageView().ifPresent(messageView -> {
-            messageView.setMessageHtml( message.getId(), message.getContent() );   
-        });
+        partAccessor.findMessageView().ifPresent( messageView -> {
+            messageView.setMessageHtml( message.getId(), message.getContent() );
+        } );
     }
-
 
     public void endMessageFromAssistant()
     {
-        partAccessor.findMessageView().ifPresent(messageView -> {
+        partAccessor.findMessageView().ifPresent( messageView -> {
             messageView.setInputEnabled( true );
-        });
+        } );
     }
+
     /**
      * Cancels all running ChatGPT jobs
      */
     public void onStop()
     {
         var jobs = jobManager.find( null );
-        Arrays.stream( jobs )
-              .filter( job -> job.getName().startsWith( AssistAIJobConstants.JOB_PREFIX ) )
-              .forEach( Job::cancel );
-        
-        partAccessor.findMessageView().ifPresent(messageView -> {
+        Arrays.stream( jobs ).filter( job -> job.getName().startsWith( AssistAIJobConstants.JOB_PREFIX ) ).forEach( Job::cancel );
+
+        partAccessor.findMessageView().ifPresent( messageView -> {
             messageView.setInputEnabled( true );
-        });
+        } );
     }
+
     /**
      * Copies the given code block to the system clipboard.
      *
-     * @param codeBlock The code block to be copied to the clipboard.
+     * @param codeBlock
+     *            The code block to be copied to the clipboard.
      */
     public void onCopyCode( String codeBlock )
     {
-        var clipboard    = new Clipboard(PlatformUI.getWorkbench().getDisplay());
+        var clipboard = new Clipboard( PlatformUI.getWorkbench().getDisplay() );
         var textTransfer = TextTransfer.getInstance();
-        clipboard.setContents(new Object[] { codeBlock }, new Transfer[] { textTransfer });
+        clipboard.setContents( new Object[] { codeBlock }, new Transfer[] { textTransfer } );
         clipboard.dispose();
     }
 
     public void onApplyPatch( String codeBlock )
     {
         applyPatchWizzardHelper.showApplyPatchWizardDialog( codeBlock, null );
-        
+
     }
 
     public void onSendPredefinedPrompt( Prompts type, ChatMessage message )
     {
         conversation.add( message );
-        
+
         // update view
-        partAccessor.findMessageView().ifPresent(messageView -> {
+        partAccessor.findMessageView().ifPresent( messageView -> {
             messageView.appendMessage( message.getId(), message.getRole() );
             messageView.setMessageHtml( message.getId(), type.getDescription() );
-        });        
-        
+        } );
+
         // schedule message
         sendConversationJobProvider.get().schedule();
     }
@@ -226,8 +224,7 @@ public class ChatGPTPresenter
                 ImageData[] imageDataArray = new ImageLoader().load( selectedFilePath );
                 if ( imageDataArray.length > 0 )
                 {
-                    attachments.add(
-                            new Attachment.ImageAttachment( imageDataArray[0], createPreview( imageDataArray[0] ) ) );
+                    attachments.add( new Attachment.ImageAttachment( imageDataArray[0], createPreview( imageDataArray[0] ) ) );
                     applyToView( messageView -> {
                         messageView.setAttachments( attachments );
                     } );
@@ -235,7 +232,7 @@ public class ChatGPTPresenter
             }
         } );
     }
-    
+
     public void applyToView( Consumer<? super ChatGPTViewPart> consumer )
     {
         partAccessor.findMessageView().ifPresent( consumer );

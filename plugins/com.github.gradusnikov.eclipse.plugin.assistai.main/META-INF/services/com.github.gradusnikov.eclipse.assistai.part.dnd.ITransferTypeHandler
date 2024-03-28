@@ -1,0 +1,5 @@
+com.github.gradusnikov.eclipse.assistai.part.dnd.handlers.LocalSelectionTransferHandler
+com.github.gradusnikov.eclipse.assistai.part.dnd.handlers.ImageTransferHandler
+com.github.gradusnikov.eclipse.assistai.part.dnd.handlers.FileTransferHandler
+com.github.gradusnikov.eclipse.assistai.part.dnd.handlers.UrlTransferHandler
+com.github.gradusnikov.eclipse.assistai.part.dnd.handlers.TextTransferHandler

@@ -15,7 +15,15 @@ public class PromptParser
     private static final int DEFAULT_STATE = 0;
     private static final int CODE_BLOCK_STATE = 1;
     private static final int FUNCION_CALL_STATE = 2;
+    private static final int TEXT_ATTACHMENT_STATE = 4;
     
+    private static final String TATT_CONTEXTSTART = "<|ContextStart|>";
+    private static final String TATT_FILEPREFIX = "File: ";
+    private static final String TATT_LINESPREFIX = "Lines: ";
+    private static final String TATT_CONTENTSTART = "<|ContentStart|>";
+    private static final String TATT_CONTENTEND = "<|ContentEnd|>";
+    private static final String TATT_CONTEXTEND = "<|ContextEnd|>";
+
     
     private int state = DEFAULT_STATE;
     
@@ -55,6 +63,10 @@ public class PromptParser
                 {
                     handleFunctionCall( out, line );
                 }
+                else if ( line.startsWith( TATT_CONTEXTSTART ) )
+                {
+                    handleTextAttachmentStart( out, line );
+                }
                 else
                 {
                     handleNonCodeBlock( out, line, !scanner.hasNext() );
@@ -62,6 +74,19 @@ public class PromptParser
             }
         }
         return out.toString();
+    }
+
+    private void handleTextAttachmentStart( StringBuilder out, String line )
+    {
+        if ( ( state & TEXT_ATTACHMENT_STATE ) != TEXT_ATTACHMENT_STATE )
+        {
+            out.append( """
+
+                    <div class="function-call">
+                    <details><summary>""" );
+            state ^= TEXT_ATTACHMENT_STATE;
+        }
+
     }
 
     private void handleFunctionCall( StringBuilder out, String line )
@@ -87,6 +112,11 @@ public class PromptParser
             
             out.append(  StringEscapeUtils.escapeHtml4(escapeBackSlashes(line)) );
         }
+        else if ( ( state & TEXT_ATTACHMENT_STATE ) == TEXT_ATTACHMENT_STATE )
+        {
+            handleTextAttachmentLine( out, line );
+            return;
+        }
         else
         {
             out.append( markdown( StringEscapeUtils.escapeHtml4(line) ) );
@@ -107,6 +137,35 @@ public class PromptParser
         else
         {
             out.append( "<br/>" );
+        }
+    }
+
+    private void handleTextAttachmentLine( StringBuilder out, String line )
+    {
+        if ( line.startsWith( TATT_FILEPREFIX ) )
+        {
+            out.append( "Context: " + line.substring( TATT_FILEPREFIX.length() ) + ", " );
+        }
+        else if ( line.startsWith( TATT_LINESPREFIX ) )
+        {
+            out.append( line + "</summary>" );
+        }
+        else if ( line.startsWith( TATT_CONTENTSTART ) )
+        {
+            out.append( "<pre>\n" );
+        }
+        else if ( line.startsWith( TATT_CONTENTEND ) )
+        {
+            out.append( "\n</pre>" );
+        }
+        else if ( line.startsWith( TATT_CONTEXTEND ) )
+        {
+            out.append( "\n</details></div>\n" );
+            state ^= TEXT_ATTACHMENT_STATE;
+        }
+        else
+        {
+            out.append( StringEscapeUtils.escapeHtml4( line ) + "<br/>" );
         }
     }
 
