@@ -202,6 +202,7 @@ public class OpenAIStreamJavaHttpClient
     		String requestBody = getRequestBody(prompt);
             HttpRequest request = HttpRequest.newBuilder().uri(URI.create(configuration.getApiUrl()))
                     .timeout( Duration.ofSeconds( configuration.getRequestTimoutSeconds() ) )
+                    .version(HttpClient.Version.HTTP_1_1)
     				.header("Authorization", "Bearer " + configuration.getApiKey())
     				.header("Accept", "text/event-stream")
     				.header("Content-Type", "application/json")
