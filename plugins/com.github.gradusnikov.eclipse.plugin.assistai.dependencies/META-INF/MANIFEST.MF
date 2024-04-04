@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: assistai-dependencies
 Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.dependencies
-Bundle-Version: 1.0.2
+Bundle-Version: 1.0.3
 Bundle-ClassPath: selenium/auto-service-annotations-1.1.1.jar,
  selenium/byte-buddy-1.14.5.jar,
  selenium/checker-qual-3.33.0.jar,
