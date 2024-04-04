@@ -1,5 +1,6 @@
-package com.github.gradusnikov.eclipse.assistai.part.dnd;
+package com.github.gradusnikov.eclipse.assistai.part;
 
+import java.util.ArrayList;
 import java.util.Collection;
 
 import org.eclipse.core.runtime.ILog;
@@ -12,9 +13,7 @@ import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.widgets.Control;
 
 import com.github.gradusnikov.eclipse.assistai.part.dnd.handlers.TransferHandlerFactory;
-import com.google.common.collect.Lists;
 
-import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
@@ -32,23 +31,19 @@ public class DropManager
     @Inject
     private TransferHandlerFactory transferHandlerFactory;
 
-    private Collection<Transfer>   supportedTransferTypes;
+    private final DropTargetAdapter      dropTargetAdapter;
 
-    private DropTargetAdapter      dropTargetAdapter;
-
-    @PostConstruct
-    public void onInit()
+    public DropManager()
     {
-        supportedTransferTypes = Lists.newArrayList( transferHandlerFactory.createTransferHandlers().keySet() );
         dropTargetAdapter = new DropTargetAdapterImpl();
     }
-
-
+    
+    
     /** Add DnD capabilities to the given control. */
     public void registerDropTarget( Control targetControl )
     {
         DropTarget dropTarget = new DropTarget( targetControl, DND.DROP_MOVE | DND.DROP_COPY | DND.DROP_LINK | DND.DROP_DEFAULT );
-        dropTarget.setTransfer( supportedTransferTypes.toArray( Transfer[]::new ) );
+        dropTarget.setTransfer( transferHandlerFactory.getSupportedTransfers());
         dropTarget.addDropListener( dropTargetAdapter );
     }
     
@@ -89,13 +84,10 @@ public class DropManager
             {
                 event.detail = DND.DROP_COPY;
             }
-            
-            supportedTransferTypes.stream()
-                                  .filter( transferType -> transferType.isSupportedType( event.currentDataType ) )
-                                  .findFirst()
-                                  .map( transferHandlerFactory::createTransferHandlerForType )
+            transferHandlerFactory.getTransferHandler( event.currentDataType )
                                   .ifPresentOrElse( handler -> handler.handleTransfer( event.data ),
-                                          () -> logger.warn( "Unsupported data type: " + event.data.getClass().getName() ) );
+                                        () -> logger.warn( "Unsupported data type: " + event.data.getClass().getName() ) );
+
         }
     }
 }

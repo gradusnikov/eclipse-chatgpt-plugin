@@ -2,8 +2,6 @@ package com.github.gradusnikov.eclipse.assistai.part;
 
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jface.resource.ImageDescriptor;
-import org.eclipse.jface.resource.JFaceResources;
-import org.eclipse.jface.resource.LocalResourceManager;
 import org.eclipse.swt.graphics.ImageData;
 
 /**
@@ -52,8 +50,6 @@ public interface Attachment
      */
     public class FileContentAttachment extends BaseAttachment
     {
-        private static final LocalResourceManager resourceManager = new LocalResourceManager( JFaceResources.getResources() );
-
         private static ImageData                  icon;
 
         static

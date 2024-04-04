@@ -29,10 +29,9 @@ public class LocalSelectionTransferHandler implements ITransferHandler
     private static final Transfer TRANSFER = org.eclipse.jface.util.LocalSelectionTransfer.getTransfer();
 
     @Inject
-    private ChatGPTPresenter      presenter;
-
-    @Inject
     private ILog                  logger;
+    @Inject
+    private ChatGPTPresenter      presenter;
 
     @Override
     public Transfer getTransferType()

@@ -6,8 +6,8 @@ import java.util.Optional;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.swt.dnd.Transfer;
+import org.eclipse.swt.dnd.TransferData;
 
-import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
@@ -26,23 +26,13 @@ public class TransferHandlerFactory
     @Inject
     private TextTransferHandler textTransferHandler;
     
-    private Map<Transfer, ITransferHandler> supportedTransferHandlers;
     
-    
-    @PostConstruct
-    public void initialize()
+    public TransferHandlerFactory()
     {
-        supportedTransferHandlers = createTransferHandlers();
+        
     }
     
-    
-    public ITransferHandler createTransferHandlerForType( Transfer type )
-    {
-        return Optional.ofNullable( supportedTransferHandlers.get( type ) ).orElseThrow(() -> new IllegalArgumentException("Not supported for " + type ) );
-    }
-    
-    
-    public Map<Transfer, ITransferHandler> createTransferHandlers()
+    private Map<Transfer, ITransferHandler> mapSupportedTransferHandlers()
     {
         var map = new LinkedHashMap<Transfer, ITransferHandler>();
         map.put( localSelectionTransferHandler.getTransferType(), localSelectionTransferHandler );
@@ -51,8 +41,29 @@ public class TransferHandlerFactory
         map.put( urlTransferHandler.getTransferType(), urlTransferHandler );
         map.put( textTransferHandler.getTransferType(), textTransferHandler );
         return map;
-        
-        
+    }
+
+    public ITransferHandler createTransferHandlerForType( Transfer type )
+    {
+        var supportedTransferHandlers = mapSupportedTransferHandlers();
+        return Optional.ofNullable( supportedTransferHandlers.get( type ) ).orElseThrow(() -> new IllegalArgumentException("Not supported for " + type ) );
+    }
+    
+    
+
+    public Transfer[] getSupportedTransfers()
+    {
+        var supportedTransferHandlers = mapSupportedTransferHandlers();
+        return supportedTransferHandlers.keySet().toArray( Transfer[]::new );
+    }
+
+    public Optional<ITransferHandler> getTransferHandler( TransferData currentDataType )
+    {
+        var supportedTransferHandlers = mapSupportedTransferHandlers();
+        return supportedTransferHandlers.keySet().stream()
+        .filter( transferType -> transferType.isSupportedType( currentDataType ) )
+        .findFirst()
+        .map( this::createTransferHandlerForType );
     }
     
     

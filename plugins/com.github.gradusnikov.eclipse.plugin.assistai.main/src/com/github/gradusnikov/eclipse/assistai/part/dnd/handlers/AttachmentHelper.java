@@ -7,18 +7,30 @@ import java.net.URL;
 import java.util.Arrays;
 
 import org.apache.commons.io.IOUtils;
+import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.text.Document;
 import org.eclipse.swt.graphics.ImageData;
 
 import com.github.gradusnikov.eclipse.assistai.part.Attachment.FileContentAttachment;
 import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
-import com.github.gradusnikov.eclipse.assistai.services.TikaSupport;
+import com.github.gradusnikov.eclipse.assistai.services.ContentTypeDetector;
 
-public class CommonDataTypeUtil
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
+
+
+@Creatable
+@Singleton
+public class AttachmentHelper
 {
-    public static void handleText( ChatGPTPresenter presenter, TikaSupport tika, String fileName, InputStream in )
-            throws IOException, UnsupportedEncodingException
+    @Inject
+    private ChatGPTPresenter presenter;
+    @Inject
+    private ContentTypeDetector tika;
+    
+    
+    public void handleText( String fileName, InputStream in ) throws IOException, UnsupportedEncodingException
     {
         // Load file content into string, guessing the file encoding
         byte[] fileContent = IOUtils.toByteArray( in );
@@ -28,7 +40,7 @@ public class CommonDataTypeUtil
         presenter.onAttachmentAdded( new FileContentAttachment( fileName, 1, document.getNumberOfLines(), textContent ) );
     }
 
-    public static void handleImage( ChatGPTPresenter presenter, URL url )
+    public void handleImage( URL url )
     {
         ImageDescriptor imageDescriptor = ImageDescriptor.createFromURL( url );
         ImageData imageData = imageDescriptor.getImageData( 100 );

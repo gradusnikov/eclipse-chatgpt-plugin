@@ -50,7 +50,6 @@ import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.PlatformUI;
 
 import com.github.gradusnikov.eclipse.assistai.part.Attachment.UiVisitor;
-import com.github.gradusnikov.eclipse.assistai.part.dnd.DropManager;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptParser;
 
 import jakarta.annotation.PostConstruct;
@@ -71,7 +70,7 @@ public class ChatGPTViewPart
     private ChatGPTPresenter     presenter;
 
     @Inject
-    private DropManager       dropHandler;
+    private DropManager          dropManager;
 
     private LocalResourceManager resourceManager;
 
@@ -144,7 +143,7 @@ public class ChatGPTViewPart
         sashForm.setWeights( new int[] { 70, 30 } );
 
         // Enable DnD for the controls below the chat view
-        dropHandler.registerDropTarget( controls );
+        dropManager.registerDropTarget( controls );
 
         clearAttachments();
     }
