@@ -61,9 +61,9 @@ public class AssistAIHandlerTemplate
             var documentText = "";
             try  
             {
-                documentText = new String( Files.readAllBytes( file.getLocation().toFile().toPath() ), StandardCharsets.UTF_8 );
+                documentText = new String( Files.readAllBytes( file.getLocation().toFile().toPath() ), file.getCharset() );
             } 
-            catch (IOException e) 
+            catch ( Exception e) 
             {
                 throw new RuntimeException(e);
             }

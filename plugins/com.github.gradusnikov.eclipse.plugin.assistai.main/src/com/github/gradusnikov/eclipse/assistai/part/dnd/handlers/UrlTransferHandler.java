@@ -1,13 +1,11 @@
 package com.github.gradusnikov.eclipse.assistai.part.dnd.handlers;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Paths;
 
-import org.apache.commons.io.IOUtils;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.swt.dnd.Transfer;

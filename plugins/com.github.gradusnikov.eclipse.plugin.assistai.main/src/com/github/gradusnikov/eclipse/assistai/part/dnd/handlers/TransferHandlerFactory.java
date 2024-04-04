@@ -8,6 +8,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.dnd.TransferData;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
@@ -27,8 +28,16 @@ public class TransferHandlerFactory
     private TextTransferHandler textTransferHandler;
     
     
+    private  Map<Transfer, ITransferHandler> supportedTransferHandlers;
+    
     public TransferHandlerFactory()
     {
+    }
+    
+    @PostConstruct
+    private void initialize()
+    {
+        supportedTransferHandlers = mapSupportedTransferHandlers();
         
     }
     
@@ -45,22 +54,19 @@ public class TransferHandlerFactory
 
     public ITransferHandler createTransferHandlerForType( Transfer type )
     {
-        var supportedTransferHandlers = mapSupportedTransferHandlers();
-        return Optional.ofNullable( supportedTransferHandlers.get( type ) ).orElseThrow(() -> new IllegalArgumentException("Not supported for " + type ) );
+        return Optional.ofNullable(  supportedTransferHandlers.get( type ) ).orElseThrow(() -> new IllegalArgumentException("Not supported for " + type ) );
     }
     
     
 
     public Transfer[] getSupportedTransfers()
     {
-        var supportedTransferHandlers = mapSupportedTransferHandlers();
-        return supportedTransferHandlers.keySet().toArray( Transfer[]::new );
+        return  supportedTransferHandlers.keySet().toArray( Transfer[]::new );
     }
 
     public Optional<ITransferHandler> getTransferHandler( TransferData currentDataType )
     {
-        var supportedTransferHandlers = mapSupportedTransferHandlers();
-        return supportedTransferHandlers.keySet().stream()
+        return  supportedTransferHandlers.keySet().stream()
         .filter( transferType -> transferType.isSupportedType( currentDataType ) )
         .findFirst()
         .map( this::createTransferHandlerForType );
