@@ -71,7 +71,7 @@ public class ChatGPTViewPart
     private ChatGPTPresenter     presenter;
 
     @Inject
-    DropManager       dropHandler;
+    private DropManager       dropHandler;
 
     private LocalResourceManager resourceManager;
 

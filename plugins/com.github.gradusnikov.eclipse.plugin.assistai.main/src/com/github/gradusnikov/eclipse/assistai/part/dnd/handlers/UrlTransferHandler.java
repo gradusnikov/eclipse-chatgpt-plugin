@@ -11,6 +11,7 @@ import java.net.URL;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.runtime.ILog;
+import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.dnd.URLTransfer;
 
@@ -18,7 +19,10 @@ import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 import com.github.gradusnikov.eclipse.assistai.services.TikaSupport;
 
 import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
+@Creatable
+@Singleton
 public class UrlTransferHandler implements ITransferHandler
 {
     private static final URLTransfer TRANSFER = URLTransfer.getInstance();
