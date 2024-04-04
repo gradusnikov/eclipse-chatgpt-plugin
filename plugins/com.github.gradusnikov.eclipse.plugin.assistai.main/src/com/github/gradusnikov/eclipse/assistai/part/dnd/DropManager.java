@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.part;
+package com.github.gradusnikov.eclipse.assistai.part.dnd;
 
 import java.util.ArrayList;
 import java.util.Collection;

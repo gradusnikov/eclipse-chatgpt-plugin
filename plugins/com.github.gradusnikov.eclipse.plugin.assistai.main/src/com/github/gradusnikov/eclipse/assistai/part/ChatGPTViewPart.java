@@ -50,6 +50,7 @@ import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.PlatformUI;
 
 import com.github.gradusnikov.eclipse.assistai.part.Attachment.UiVisitor;
+import com.github.gradusnikov.eclipse.assistai.part.dnd.DropManager;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptParser;
 
 import jakarta.annotation.PostConstruct;
