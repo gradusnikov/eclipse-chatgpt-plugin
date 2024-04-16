@@ -29,7 +29,7 @@ public class Conversation
         conversation.add(message);
     }
     
-    public Iterable<ChatMessage> messages()
+    public List<ChatMessage> messages()
     {
         return conversation;
     }

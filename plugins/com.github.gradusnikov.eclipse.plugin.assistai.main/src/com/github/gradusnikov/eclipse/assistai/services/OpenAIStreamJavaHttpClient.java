@@ -61,6 +61,9 @@ public class OpenAIStreamJavaHttpClient
     @Inject
     private FunctionExecutorProvider functionExecutor;
     
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    
     public OpenAIStreamJavaHttpClient()
     {
         publisher = new SubmissionPublisher<>();
@@ -89,7 +92,6 @@ public class OpenAIStreamJavaHttpClient
     {
         try
         {
-            var objectMapper = new ObjectMapper();
             var requestBody = new LinkedHashMap<String, Object>();
             var messages = new ArrayList<Map<String, Object>>();
     
@@ -98,68 +100,11 @@ public class OpenAIStreamJavaHttpClient
             systemMessage.put("content", promptLoader.createPromptText("system-prompt.txt") );
             messages.add(systemMessage);
             
-            boolean useVision = false;
-            for ( ChatMessage message : prompt.messages() )
-            {
-                var userMessage = new LinkedHashMap<String,Object>();
-                userMessage.put("role", message.getRole());
-
-                List<ImageData> images = message.getAttachments()
-                        .stream()
-                        .map( Attachment::getImageData )
-                        .filter( Objects::nonNull )
-                        .collect( Collectors.toList() );
-
-                List<String> textParts = message.getAttachments()
-                        .stream()
-                        .map( Attachment::toChatMessageContent )
-                        .filter( Objects::nonNull )
-                        .collect( Collectors.toList() );
-
-                String textContent = String.join( "\n", textParts ) + "\n\n" + message.getContent();
-
-                if (images.isEmpty())
-                {
-                    if (Objects.nonNull( textContent ))
-                    {
-                        userMessage.put("content", textContent);
-                    }
-                    if ( Objects.nonNull( message.getName() ) )
-                    {
-                        userMessage.put( "name", message.getName() );
-                    }
-                    if ( Objects.nonNull( message.getFunctionCall() ) )
-                    {
-                        var functionCall = new LinkedHashMap<String, String> ();
-                        functionCall.put( "name", message.getFunctionCall().name() );
-                        functionCall.put( "arguments", objectMapper.writeValueAsString(  message.getFunctionCall().arguments() ) );
-                        
-                        userMessage.put( "function_call", functionCall );
-                    }
-                }
-                else
-                {
-                    useVision = true;
-                    var content = new ArrayList<>();
-                    var contentObject = new LinkedHashMap<String, String> ();
-                    contentObject.put( "type", "text" );
-                    contentObject.put( "text", textContent );
-                    content.add( contentObject );
-                    
-                    images.stream()
-                            .map( ImageUtilities::toBase64Jpeg )
-                            .map( this::toImageUrl )
-                            .forEachOrdered( content::add );
-                    userMessage.put( "content", content );
-                }
-                messages.add(userMessage);
-            }
-            requestBody.put("model", useVision ? configuration.getVisionModelName() : configuration.getChatModelName() );
-            // disable function calls for the vision model (not supported)
-            if ( !useVision )
-            {
-                requestBody.put("functions", AnnotationToJsonConverter.convertDeclaredFunctionsToJson( functionExecutor.get().getFunctions() ) );
-            }
+            
+            prompt.messages().stream().map( this::toJsonPayload ).forEach( messages::add );
+            
+            requestBody.put("model", isVisionEnabled() ? configuration.getVisionModelName() : configuration.getChatModelName() );
+            requestBody.put("functions", AnnotationToJsonConverter.convertDeclaredFunctionsToJson( functionExecutor.get().getFunctions() ) );
             requestBody.put("messages", messages);
             requestBody.put("temperature", configuration.getModelTemperature());
             requestBody.put("stream", true);
@@ -174,6 +119,64 @@ public class OpenAIStreamJavaHttpClient
         }
     }
 
+    private LinkedHashMap<String, Object> toJsonPayload( ChatMessage message )
+    {
+        try
+        {
+            var userMessage = new LinkedHashMap<String,Object>();
+            userMessage.put("role", message.getRole());
+            // function call results
+            if ( Objects.nonNull( message.getName() ) )
+            {
+                userMessage.put( "name", message.getName() );
+            }
+            if ( Objects.nonNull( message.getFunctionCall() ) )
+            {
+                var functionCallObject = new LinkedHashMap<String, String> ();
+                functionCallObject.put( "name", message.getFunctionCall().name() );
+                functionCallObject.put( "arguments", objectMapper.writeValueAsString(  message.getFunctionCall().arguments() ) );
+                userMessage.put( "function_call", functionCallObject );
+            }
+            
+            var content = new ArrayList<>();
+            
+            // add text content
+            List<String> textParts = message.getAttachments()
+                    .stream()
+                    .map( Attachment::toChatMessageContent )
+                    .filter( Objects::nonNull )
+                    .collect( Collectors.toList() );
+            String textContent = String.join( "\n", textParts ) + "\n\n" + message.getContent();
+            var textObject = new LinkedHashMap<String, String> ();
+            textObject.put( "type", "text" );
+            textObject.put( "text", textContent );
+            content.add( textObject );
+            
+            // add image content
+            if ( isVisionEnabled() )
+            {
+                message.getAttachments()
+                       .stream()
+                       .map( Attachment::getImageData )
+                       .filter( Objects::nonNull )
+                       .map( ImageUtilities::toBase64Jpeg )
+                       .map( this::toImageUrl )
+                       .forEachOrdered( content::add );
+            }
+            userMessage.put( "content", content );
+            return userMessage;
+        }
+        catch ( JsonProcessingException e )
+        {
+            throw new RuntimeException( e );
+        }
+    }
+
+    private boolean isVisionEnabled()
+    {
+        return !configuration.getVisionModelName().isBlank();            
+    }
+    
     private LinkedHashMap<String, String> toImageUrl( String data )
     {
         var imageObject = new LinkedHashMap<String, String> ();
