@@ -69,7 +69,7 @@ Use the "Clear" button to reset the conversation context. Press the "Stop" butto
 
 ![Function calling](src/website/how-it-works-function-calls.gif)
 
-8. Using the context menu Paste an image from a Cliboard to discuss it with the ChatGPT. Note, due to constrains of the vision model function calling is not enabled when you use images in your conversation.
+8. Using the context menu Paste an image from a Cliboard or drag-and-drop an image file to discuss it with the ChatGPT. 
 
 ![Vision](src/website/how-it-works-vision.png)
 
