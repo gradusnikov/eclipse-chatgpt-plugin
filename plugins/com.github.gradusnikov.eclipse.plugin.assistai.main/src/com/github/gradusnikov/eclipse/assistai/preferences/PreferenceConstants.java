@@ -5,14 +5,9 @@ package com.github.gradusnikov.eclipse.assistai.preferences;
  */
 public class PreferenceConstants
 {
-    public static final String OPENAI_API_BASE      = "OpenAIAPIBase";
-    public static final String OPENAI_API_END_POINT = "OpenAIAPIEndPoint";
-    public static final String OPENAI_API_KEY       = "OpenAIAPIKey";
-    public static final String OPENAI_CHAT_MODEL_NAME    = "OpenAIModelName";
-    public static final String OPENAI_VISION_MODEL_NAME    = "OpenAIVisionModelName";
-    public static final String OPENAI_CONNECTION_TIMEOUT_SECONDS = "OpenAIConnectionTimeoutSeconds";
-    public static final String OPENAI_REQUEST_TIMEOUT_SECONDS = "OpenAIRequestTimeoutSeconds";
-    public static final String OPENAI_MODEL_TEMPERATURE = "OpenAIModelTemperature";
-    
+    public static final String ASSISTAI_CONNECTION_TIMEOUT_SECONDS = "AssistAIConnectionTimeoutSeconds";
+    public static final String ASSISTAI_REQUEST_TIMEOUT_SECONDS = "AssistAIRequestTimeoutSeconds";
+    public static final String ASSISTAI_SELECTED_MODEL = "AssistaAISelectedModel";
+    public static final String ASSISTAI_DEFINED_MODELS = "AssistAIDefinedModels";
     
 }

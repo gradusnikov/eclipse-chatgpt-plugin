@@ -1,11 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.handlers;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.e4.core.di.annotations.Execute;
@@ -22,6 +17,9 @@ import org.eclipse.ui.texteditor.ITextEditor;
 import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
+
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 
 public class AssistAIHandlerTemplate 
 {
@@ -68,7 +66,7 @@ public class AssistAIHandlerTemplate
                 throw new RuntimeException(e);
             }
             var fileName     = file.getProjectRelativePath().toString(); // use project relative path
-            var ext          = fileName.substring( fileName.lastIndexOf( "." )+1 );
+            var ext          = file.getFileExtension().toString();
             
             // get java elements
             var selectedJavaElement = "";

@@ -4,6 +4,7 @@ import org.eclipse.core.runtime.preferences.AbstractPreferenceInitializer;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
+import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 
@@ -16,23 +17,19 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
     public void initializeDefaultPreferences()
     {
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-        store.setDefault(PreferenceConstants.OPENAI_API_BASE, "https://api.openai.com");
-        store.setDefault(PreferenceConstants.OPENAI_API_END_POINT, "/v1/chat/completions");
-        store.setDefault( PreferenceConstants.OPENAI_API_KEY, "" );
-        store.setDefault( PreferenceConstants.OPENAI_CHAT_MODEL_NAME, "gpt-4-turbo-preview" );
-        store.setDefault( PreferenceConstants.OPENAI_VISION_MODEL_NAME, "gpt-4-vision-preview" );
-        store.setDefault( PreferenceConstants.OPENAI_CONNECTION_TIMEOUT_SECONDS, 10 );
-        store.setDefault( PreferenceConstants.OPENAI_REQUEST_TIMEOUT_SECONDS, 30 );
-        store.setDefault( PreferenceConstants.OPENAI_MODEL_TEMPERATURE, 7 );
+        store.setDefault( PreferenceConstants.ASSISTAI_CONNECTION_TIMEOUT_SECONDS, 10 );
+        store.setDefault( PreferenceConstants.ASSISTAI_REQUEST_TIMEOUT_SECONDS, 30 );
         
+        ModelApiDescriptor gpt4 = new ModelApiDescriptor( "1", "openai", "https://api.openai.com/v1/chat/completions", "", "gpt-4-turbo", 7, true, true );
+        ModelApiDescriptor gpt35 = new ModelApiDescriptor( "2", "openai", "https://api.openai.com/v1/chat/completions", "", "gpt-3.5-turbo", 7, true, true );
+        String modelsJson = ModelApiDescriptorUtilities.toJson( gpt4, gpt35 );
+        store.setDefault( PreferenceConstants.ASSISTAI_SELECTED_MODEL, gpt4.uid() );
+        store.setDefault( PreferenceConstants.ASSISTAI_DEFINED_MODELS, modelsJson );
+
         PromptLoader promptLoader = new PromptLoader();
         for ( Prompts prompt : Prompts.values() )
         {
             store.setDefault( prompt.preferenceName(), promptLoader.getRawPrompt( prompt.getFileName() ) );
         }
     }
-    
-    
-    
-
 }

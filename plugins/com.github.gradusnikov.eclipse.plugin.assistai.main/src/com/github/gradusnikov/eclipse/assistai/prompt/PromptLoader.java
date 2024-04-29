@@ -63,7 +63,7 @@ public class PromptLoader
         catch ( IOException e )
         {
             throw new RuntimeException( e );
-        }        
+        }
     }
 
 }

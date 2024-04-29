@@ -2,10 +2,14 @@ package com.github.gradusnikov.eclipse.assistai.services;
 
 import jakarta.inject.Singleton;
 
+import java.util.Optional;
+
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
+import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.preferences.ModelApiDescriptorUtilities;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 
 @Creatable
@@ -13,66 +17,28 @@ import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 public class OpenAIClientConfiguration 
 {
 
-    public String getApiBase()
-    {
-        IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
-        return prefernceStore.getString(PreferenceConstants.OPENAI_API_BASE);
-    }
     
-    public String getApiEndPoint()
+    public Optional<ModelApiDescriptor> getSelectedModel()
     {
         IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
-        return prefernceStore.getString(PreferenceConstants.OPENAI_API_END_POINT);
-    }
-
-    public String getApiKey()
-    {
-        IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
-        return prefernceStore.getString(PreferenceConstants.OPENAI_API_KEY);
-    }
-
-    public String getChatModelName()
-    {
-        IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
-        return prefernceStore.getString(PreferenceConstants.OPENAI_CHAT_MODEL_NAME);
-    }
-    public String getVisionModelName()
-    {
-        IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
-        return prefernceStore.getString(PreferenceConstants.OPENAI_VISION_MODEL_NAME);
-    }
-
-    public String getApiUrl()
-    {
-    	if (getApiEndPoint().startsWith("/"))
-    	{
-    		return getApiBase() + getApiEndPoint();
-    	}
-    	else
-    	{
-    		return getApiBase() + "/" + getApiEndPoint();
-    	}
+        var selected = prefernceStore.getString( PreferenceConstants.ASSISTAI_SELECTED_MODEL );
+        var modelsJson = prefernceStore.getString( PreferenceConstants.ASSISTAI_DEFINED_MODELS );
+        var models =  ModelApiDescriptorUtilities.fromJson( modelsJson );
+        
+        return models.stream().filter( model -> model.uid().equals( selected ) ).findFirst();
     }
     
     public int getConnectionTimoutSeconds()
     {
         IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
-        return Integer.parseInt( prefernceStore.getString(PreferenceConstants.OPENAI_CONNECTION_TIMEOUT_SECONDS) );
+        return Integer.parseInt( prefernceStore.getString(PreferenceConstants.ASSISTAI_CONNECTION_TIMEOUT_SECONDS) );
         
     }
     
     public int getRequestTimoutSeconds()
     {
         IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
-        return Integer.parseInt( prefernceStore.getString(PreferenceConstants.OPENAI_REQUEST_TIMEOUT_SECONDS) );
-        
-    }
-    
-    public double getModelTemperature()
-    {
-        IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
-        double temperatureInt = Integer.parseInt( prefernceStore.getString(PreferenceConstants.OPENAI_MODEL_TEMPERATURE) );
-        return temperatureInt/10.0;
+        return Integer.parseInt( prefernceStore.getString(PreferenceConstants.ASSISTAI_REQUEST_TIMEOUT_SECONDS) );
         
     }
     

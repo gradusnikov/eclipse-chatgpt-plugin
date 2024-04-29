@@ -14,7 +14,7 @@
          point="org.eclipse.ui.preferencePages">
       
       <page
-            class="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
+            class="com.github.gradusnikov.eclipse.assistai.preferences.ModelPreferencePage"
             id="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
             name="AssistAI">
       </page>
@@ -24,6 +24,12 @@
             category="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
             class="com.github.gradusnikov.eclipse.assistai.preferences.PromptsPreferencePage">
         </page>      
+        <page
+            id="com.github.gradusnikov.eclipse.assistai.preferences.ModelListPreferencePage"
+            name="Models"
+            category="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
+            class="com.github.gradusnikov.eclipse.assistai.preferences.ModelListPreferencePage">
+        </page>
    </extension>
    <extension
          point="org.eclipse.core.runtime.preferences">

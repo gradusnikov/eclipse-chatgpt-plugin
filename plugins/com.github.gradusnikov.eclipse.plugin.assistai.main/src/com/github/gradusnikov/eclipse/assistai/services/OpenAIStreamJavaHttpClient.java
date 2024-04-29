@@ -22,7 +22,6 @@ import java.util.stream.Collectors;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
-import org.eclipse.swt.graphics.ImageData;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,6 +29,7 @@ import com.github.gradusnikov.eclipse.assistai.commands.FunctionExecutorProvider
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.model.Incoming;
+import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.part.Attachment;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
@@ -88,10 +88,12 @@ public class OpenAIStreamJavaHttpClient
      * @param prompt the user input to be included in the request body
      * @return the JSON request body as a String
      */
-    private String getRequestBody(Conversation prompt)
+    private String getRequestBody(Conversation prompt, ModelApiDescriptor model)
     {
         try
         {
+            
+            
             var requestBody = new LinkedHashMap<String, Object>();
             var messages = new ArrayList<Map<String, Object>>();
     
@@ -101,12 +103,15 @@ public class OpenAIStreamJavaHttpClient
             messages.add(systemMessage);
             
             
-            prompt.messages().stream().map( this::toJsonPayload ).forEach( messages::add );
+            prompt.messages().stream().map( message -> toJsonPayload(message, model) ).forEach( messages::add );
             
-            requestBody.put("model", isVisionEnabled() ? configuration.getVisionModelName() : configuration.getChatModelName() );
-            requestBody.put("functions", AnnotationToJsonConverter.convertDeclaredFunctionsToJson( functionExecutor.get().getFunctions() ) );
+            requestBody.put("model", model.modelName() );
+            if ( model.functionCalling() )
+            {
+                requestBody.put("functions", AnnotationToJsonConverter.convertDeclaredFunctionsToJson( functionExecutor.get().getFunctions() ) );
+            }
             requestBody.put("messages", messages);
-            requestBody.put("temperature", configuration.getModelTemperature());
+            requestBody.put("temperature", model.temperature()/10);
             requestBody.put("stream", true);
     
             String jsonString;
@@ -119,42 +124,44 @@ public class OpenAIStreamJavaHttpClient
         }
     }
 
-    private LinkedHashMap<String, Object> toJsonPayload( ChatMessage message )
+    private LinkedHashMap<String, Object> toJsonPayload( ChatMessage message, ModelApiDescriptor model )
     {
         try
         {
             var userMessage = new LinkedHashMap<String,Object>();
             userMessage.put("role", message.getRole());
-            // function call results
-            if ( Objects.nonNull( message.getName() ) )
+            if ( model.functionCalling() )
             {
-                userMessage.put( "name", message.getName() );
-            }
-            if ( Objects.nonNull( message.getFunctionCall() ) )
-            {
-                var functionCallObject = new LinkedHashMap<String, String> ();
-                functionCallObject.put( "name", message.getFunctionCall().name() );
-                functionCallObject.put( "arguments", objectMapper.writeValueAsString(  message.getFunctionCall().arguments() ) );
-                userMessage.put( "function_call", functionCallObject );
+                // function call results
+                if ( Objects.nonNull( message.getName() ) )
+                {
+                    userMessage.put( "name", message.getName() );
+                }
+                if ( Objects.nonNull( message.getFunctionCall() ) )
+                {
+                    var functionCallObject = new LinkedHashMap<String, String> ();
+                    functionCallObject.put( "name", message.getFunctionCall().name() );
+                    functionCallObject.put( "arguments", objectMapper.writeValueAsString(  message.getFunctionCall().arguments() ) );
+                    userMessage.put( "function_call", functionCallObject );
+                }
             }
             
-            var content = new ArrayList<>();
-            
-            // add text content
+            // assemble text content
             List<String> textParts = message.getAttachments()
                     .stream()
                     .map( Attachment::toChatMessageContent )
                     .filter( Objects::nonNull )
                     .collect( Collectors.toList() );
             String textContent = String.join( "\n", textParts ) + "\n\n" + message.getContent();
-            var textObject = new LinkedHashMap<String, String> ();
-            textObject.put( "type", "text" );
-            textObject.put( "text", textContent );
-            content.add( textObject );
-            
+           
             // add image content
-            if ( isVisionEnabled() )
+            if ( model.vision() )
             {
+                var content = new ArrayList<>();
+                var textObject = new LinkedHashMap<String, String> ();
+                textObject.put( "type", "text" );
+                textObject.put( "text", textContent );
+                content.add( textObject );
                 message.getAttachments()
                        .stream()
                        .map( Attachment::getImageData )
@@ -162,20 +169,20 @@ public class OpenAIStreamJavaHttpClient
                        .map( ImageUtilities::toBase64Jpeg )
                        .map( this::toImageUrl )
                        .forEachOrdered( content::add );
+                userMessage.put( "content", content );
             }
-            userMessage.put( "content", content );
+            else // legacy API - just put content as text
+            {
+                userMessage.put( "content", textContent );
+            }
             return userMessage;
         }
-        catch ( JsonProcessingException e )
+        catch ( Exception e )
         {
             throw new RuntimeException( e );
         }
     }
 
-    private boolean isVisionEnabled()
-    {
-        return !configuration.getVisionModelName().isBlank();            
-    }
     
     private LinkedHashMap<String, String> toImageUrl( String data )
     {
@@ -198,15 +205,18 @@ public class OpenAIStreamJavaHttpClient
     public Runnable run( Conversation prompt ) 
     {
     	return () ->  {
-    		HttpClient client = HttpClient.newBuilder()
+    		
+            var model = configuration.getSelectedModel().orElseThrow();
+    	    
+    	    HttpClient client = HttpClient.newBuilder()
     		                              .connectTimeout( Duration.ofSeconds(configuration.getConnectionTimoutSeconds()) )
     		                              .build();
     		
-    		String requestBody = getRequestBody(prompt);
-            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(configuration.getApiUrl()))
+    		String requestBody = getRequestBody(prompt, model);
+            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(model.apiUrl()))
                     .timeout( Duration.ofSeconds( configuration.getRequestTimoutSeconds() ) )
                     .version(HttpClient.Version.HTTP_1_1)
-    				.header("Authorization", "Bearer " + configuration.getApiKey())
+    				.header("Authorization", "Bearer " + model.apiKey())
     				.header("Accept", "text/event-stream")
     				.header("Content-Type", "application/json")
     				.POST(HttpRequest.BodyPublishers.ofString(requestBody))
