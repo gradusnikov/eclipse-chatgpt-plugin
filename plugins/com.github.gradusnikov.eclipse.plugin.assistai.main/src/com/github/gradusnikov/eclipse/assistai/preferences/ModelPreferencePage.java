@@ -26,7 +26,7 @@ public class ModelPreferencePage extends FieldEditorPreferencePage implements IW
     public void createFieldEditors()
     {
         var preferenceStore = getPreferenceStore(); 
-        String modelsJson = preferenceStore.getString( PreferenceConstants.ASSISTAI_DEFINED_MODELS );
+        var modelsJson = preferenceStore.getString( PreferenceConstants.ASSISTAI_DEFINED_MODELS );
         var models =  ModelApiDescriptorUtilities.fromJson( modelsJson );
  
         String[][] entries = new String[models.size()][2];

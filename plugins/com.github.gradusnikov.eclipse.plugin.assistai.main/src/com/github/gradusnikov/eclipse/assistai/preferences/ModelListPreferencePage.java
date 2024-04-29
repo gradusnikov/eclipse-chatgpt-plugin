@@ -156,7 +156,7 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
                 presenter.setSelectedModel( selectedIndex );
             }
         } );    
-        addButton.addListener( SWT.Selection, e -> presenter.addModel(null) );
+        addButton.addListener( SWT.Selection, e -> presenter.addModel() );
         removeButton.addListener( SWT.Selection, e -> presenter.removeModel( modelTable.getSelectionIndex() ) );
         
     }

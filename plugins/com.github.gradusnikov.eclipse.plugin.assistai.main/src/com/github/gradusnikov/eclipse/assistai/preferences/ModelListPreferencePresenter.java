@@ -13,12 +13,6 @@ import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
 public class ModelListPreferencePresenter
 {
 
-    public enum FORM_STATE {
-            IDLE,
-            ADDING_NEW,
-            EDIT
-    };
-    
     private final IPreferenceStore preferenceStore;
     private ModelListPreferencePage view;
     
@@ -40,7 +34,7 @@ public class ModelListPreferencePresenter
         return index >= 0 && index < models.size() ? Optional.of(models.get( index )) : Optional.empty();
     }
     
-    public void addModel( ModelApiDescriptor model )
+    public void addModel()
     {
         view.clearModelSelection();
         view.clearModelDetails();
@@ -121,7 +115,4 @@ public class ModelListPreferencePresenter
         view.showModels( getModels() );
         view.clearModelDetails();
     }
-    
-    
-    
 }
