@@ -184,14 +184,28 @@ public class OpenAIStreamJavaHttpClient
     }
 
     
-    private LinkedHashMap<String, String> toImageUrl( String data )
+
+    /**
+     * Converts a base64-encoded image data string into a structured JSON object suitable for API transmission.
+     * <p>
+     * This method constructs a JSON object that encapsulates the image data in a format expected by the API.
+     * The 'image_url' key is an object containing a 'url' key, which holds the base64-encoded image data prefixed
+     * with the appropriate data URI scheme.
+     *
+     * @param data the base64-encoded string of the image data
+     * @return a LinkedHashMap where the key 'type' is set to 'image_url', and 'image_url' is another LinkedHashMap
+     *         containing the 'url' key with the full data URI of the image.
+     */
+    private LinkedHashMap<String, Object> toImageUrl(String data)
     {
-        var imageObject = new LinkedHashMap<String, String> ();
+        var imageObject = new LinkedHashMap<String, Object>();
         imageObject.put("type", "image_url");
-        imageObject.put("image_url", "data:image/jpeg;base64," + data );
+        var urlObject = new LinkedHashMap<String, String>();
+        urlObject.put("url", "data:image/jpeg;base64," + data);
+        imageObject.put("image_url", urlObject);
         return imageObject;
     }
-    
+ 
     /**
      * Creates and returns a Runnable that will execute the HTTP request to OpenAI API
      * with the given conversation prompt and process the responses.
