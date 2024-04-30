@@ -2,11 +2,9 @@ package com.github.gradusnikov.eclipse.assistai.preferences;
 
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import org.eclipse.e4.core.contexts.IEclipseContext;
-import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jface.preference.PreferencePage;
 import org.eclipse.swt.SWT;
@@ -169,48 +167,48 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         FormLayout formLayout = new FormLayout();
         form.setLayout( formLayout );
 
-        Control lastControl = null;
-        lastControl = apiUrl = addTextField( form, "API Url:", lastControl );
-        lastControl = apiKey = addTextField( form, "API Key:", lastControl );
-        lastControl = modelName = addTextField( form, "Model Name:", lastControl );
-        lastControl = withVision = addCheckField( form, "With Vision:", lastControl );
-        lastControl = withFunctionCalls = addCheckField( form, "With Function Calls:", lastControl );
-        lastControl = withTemperature = addScaleField( form, "Temperature", lastControl );
+        apiUrl = addTextField( form, "API Url:");
+        apiKey = addTextField( form, "API Key:");
+        modelName = addTextField( form, "Model Name:");
+        withVision = addCheckField( form, "With Vision:");
+        withFunctionCalls = addCheckField( form, "With Function Calls:");
+        withTemperature = addScaleField( form, "Temperature");
 
         return form;
     }
 
-    private Scale addScaleField( Composite form, String labelText, Control lastControl )
+    private Scale addScaleField( Composite form, String labelText)
     {
         Scale scale = new Scale( form, SWT.NONE );
         scale.setMinimum( 0 );
         scale.setMaximum( 10 );
         scale.setIncrement( 1 );
         scale.setPageIncrement( 1 );
-        addFormControl( scale, form, labelText, lastControl );
+        addFormControl( scale, form, labelText);
         return scale;
     }
 
-    private Button addCheckField( Composite form, String labelText, Control lastControl )
+    private Button addCheckField( Composite form, String labelText)
     {
         Button button = new Button( form, SWT.CHECK );
-        addFormControl( button, form, labelText, lastControl );
+        addFormControl( button, form, labelText);
         return button;
     }
 
-    private Text addTextField( Composite form, String labelText, Control lastControl )
+    private Text addTextField( Composite form, String labelText)
     {
         Text text = new Text( form, SWT.BORDER );
-        addFormControl( text, form, labelText, lastControl );
+        addFormControl( text, form, labelText);
         return text;
     }
 
-    private Control addFormControl( Control control, Composite form, String labelText, Control lastControl )
+    private Control addFormControl( Control control, Composite form, String labelText)
     {
         Label label = new Label( form, SWT.NONE );
         label.setText( labelText );
         FormData labelData = new FormData();
-        if ( lastControl == null )
+        Control[] children = form.getChildren();
+        if ( children.length == 2 )
         {
             // First control, so attach it to the top of the form
             labelData.top = new FormAttachment( 0, 10 );
@@ -218,6 +216,7 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         else
         {
             // Attach it below the last control
+            Control lastControl = children[children.length-3];
             labelData.top = new FormAttachment( lastControl, 10 );
         }
         labelData.left = new FormAttachment( 0, 10 );
@@ -228,7 +227,6 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         textData.right = new FormAttachment( 100, -10 );
         textData.top = new FormAttachment( label, -2, SWT.TOP );
         control.setLayoutData( textData );
-
         return control;
     }
 
