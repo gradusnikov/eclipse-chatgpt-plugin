@@ -22,9 +22,12 @@ import java.util.stream.Collectors;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.jface.preference.IPreferenceStore;
+import org.eclipse.jface.preference.PreferenceStore;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.commands.FunctionExecutorProvider;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
@@ -32,6 +35,7 @@ import com.github.gradusnikov.eclipse.assistai.model.Incoming;
 import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.part.Attachment;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
+import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
 import jakarta.inject.Inject;
@@ -53,21 +57,21 @@ public class OpenAIStreamJavaHttpClient
     private ILog logger;
     
     @Inject
-    private PromptLoader promptLoader;
-    
-    @Inject
     private OpenAIClientConfiguration configuration;
     
     @Inject
     private FunctionExecutorProvider functionExecutor;
+    
+    private IPreferenceStore preferenceStore;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     
     public OpenAIStreamJavaHttpClient()
     {
+       
         publisher = new SubmissionPublisher<>();
-
+        preferenceStore = Activator.getDefault().getPreferenceStore();
     }
     
     public void setCancelProvider( Supplier<Boolean> isCancelled )
@@ -99,7 +103,7 @@ public class OpenAIStreamJavaHttpClient
     
             var systemMessage = new LinkedHashMap<String, Object> ();
             systemMessage.put("role", "system");
-            systemMessage.put("content", promptLoader.createPromptText("system-prompt.txt") );
+            systemMessage.put("content",  preferenceStore.getString( Prompts.SYSTEM.preferenceName() ));
             messages.add(systemMessage);
             
             

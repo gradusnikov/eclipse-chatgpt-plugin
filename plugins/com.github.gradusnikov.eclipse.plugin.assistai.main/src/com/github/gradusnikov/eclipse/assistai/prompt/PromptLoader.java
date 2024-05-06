@@ -26,10 +26,6 @@ public class PromptLoader
 	{
 	}
 	
-	public void setBaseURL( String baseURL )
-	{
-	    this.baseURL = baseURL;
-	}
 	
 	public String updatePromptText( String promptText, String... substitutions )
 	{
@@ -45,14 +41,8 @@ public class PromptLoader
         return promptText;
 	}
 	
-    public String createPromptText(String resourceFile, String... substitutions) 
-    {
-        var prompt = getRawPrompt( resourceFile );
-        prompt = updatePromptText( prompt, substitutions );
-        return prompt;
-    }
 
-    public String getRawPrompt( String resourceFile )
+    public String getDefaultPrompt( String resourceFile )
     {
         try (var in = FileLocator.toFileURL( new URL( new URL(baseURL), resourceFile )  ).openStream();
              var dis = new DataInputStream(in);)
