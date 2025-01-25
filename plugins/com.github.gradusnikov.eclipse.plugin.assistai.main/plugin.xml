@@ -3,7 +3,7 @@
 <plugin>
 
    <extension
-         id="com.github.gradusnikov.eclipse.assistai.fragment"
+         id="com.keg.eclipseaiassistant.fragment"
          point="org.eclipse.e4.workbench.model">
       <fragment
             apply="always"
@@ -14,27 +14,27 @@
          point="org.eclipse.ui.preferencePages">
       
       <page
-            class="com.github.gradusnikov.eclipse.assistai.preferences.ModelPreferencePage"
-            id="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
+            class="com.keg.eclipseaiassistant.preferences.ModelPreferencePage"
+            id="com.keg.eclipseaiassistant.preferences.OpenAIPreferencePage"
             name="AssistAI">
       </page>
         <page
-            id="com.github.gradusnikov.eclipse.assistai.preferences.PromptsPreferencePage"
+            id="com.keg.eclipseaiassistant.preferences.PromptsPreferencePage"
             name="Prompts"
-            category="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
-            class="com.github.gradusnikov.eclipse.assistai.preferences.PromptsPreferencePage">
+            category="com.keg.eclipseaiassistant.preferences.OpenAIPreferencePage"
+            class="com.keg.eclipseaiassistant.preferences.PromptsPreferencePage">
         </page>      
         <page
-            id="com.github.gradusnikov.eclipse.assistai.preferences.ModelListPreferencePage"
+            id="com.keg.eclipseaiassistant.preferences.ModelListPreferencePage"
             name="Models"
-            category="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
-            class="com.github.gradusnikov.eclipse.assistai.preferences.ModelListPreferencePage">
+            category="com.keg.eclipseaiassistant.preferences.OpenAIPreferencePage"
+            class="com.keg.eclipseaiassistant.preferences.ModelListPreferencePage">
         </page>
    </extension>
    <extension
          point="org.eclipse.core.runtime.preferences">
       <initializer
-            class="com.github.gradusnikov.eclipse.assistai.preferences.PreferenceInitializer">
+            class="com.keg.eclipseaiassistant.preferences.PreferenceInitializer">
       </initializer>
    </extension>
 

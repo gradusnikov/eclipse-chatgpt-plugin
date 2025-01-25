@@ -1,10 +1,9 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: Assist AI
-Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.main;singleton:=true
-Bundle-Vendor: Wojciech Gradkowski
+Bundle-Name: Eclipse AI Assistant
+Bundle-SymbolicName: com.keg.eclipseaiassistant.plugin.eclipseaiassistant.main;singleton:=true
 Bundle-Version: 1.0.2.qualifier
-Bundle-Activator: com.github.gradusnikov.eclipse.assistai.Activator
+Bundle-Activator: com.keg.eclipseaiassistant.Activator
 Require-Bundle: org.eclipse.e4.ui.services,
  org.eclipse.core.runtime,
  org.eclipse.ui,
@@ -20,7 +19,7 @@ Require-Bundle: org.eclipse.e4.ui.services,
  org.eclipse.swt,
  org.apache.commons.lang3;bundle-version="3.1.0",
  org.eclipse.core.resources,
- com.github.gradusnikov.eclipse.plugin.assistai.dependencies;bundle-version="1.0.3",
+ com.keg.eclipseaiassistant.plugin.eclipseaiassistant.dependencies;bundle-version="1.0.3",
  org.eclipse.jgit,
  org.eclipse.egit.core,
  org.eclipse.compare,
