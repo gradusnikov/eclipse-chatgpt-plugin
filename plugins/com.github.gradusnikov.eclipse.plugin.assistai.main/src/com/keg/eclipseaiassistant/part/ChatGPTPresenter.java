@@ -178,6 +178,7 @@ public class ChatGPTPresenter
     public void onReplaceCode( String codeBlock )
     {
     	onCopyCode( codeBlock );
+    	// TODO: add code to replace highlight text with clipboard text
     }
 
     public void onApplyPatch( String codeBlock )
