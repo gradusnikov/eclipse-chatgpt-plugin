@@ -13,6 +13,9 @@ import org.eclipse.core.runtime.jobs.IJobManager;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.jface.text.BadLocationException;
+import org.eclipse.jface.text.IDocument;
+import org.eclipse.jface.text.ITextSelection;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.dnd.Clipboard;
 import org.eclipse.swt.dnd.TextTransfer;
@@ -22,7 +25,10 @@ import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.swt.graphics.ImageLoader;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.texteditor.IDocumentProvider;
+import org.eclipse.ui.texteditor.ITextEditor;
 import org.osgi.service.prefs.BackingStoreException;
 import org.osgi.service.prefs.Preferences;
 
@@ -179,6 +185,21 @@ public class ChatGPTPresenter
     {
     	onCopyCode( codeBlock );
     	// TODO: add code to replace highlight text with clipboard text
+    	// Get the active editor
+    	IEditorPart activeEditor = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage().getActiveEditor();
+        if (activeEditor instanceof ITextEditor) {  
+        	final ITextEditor editor = (ITextEditor) activeEditor;
+        	IDocumentProvider prov = editor.getDocumentProvider();
+	        IDocument doc = prov.getDocument( editor.getEditorInput() );
+	    	ITextEditor textEditor = (ITextEditor) activeEditor;
+	    	ITextSelection textSelection = (ITextSelection) textEditor.getSelectionProvider().getSelection();
+	    	try {
+				doc.replace(textSelection.getOffset(), textSelection.getLength(), codeBlock);
+			} catch (BadLocationException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+        }
     }
 
     public void onApplyPatch( String codeBlock )

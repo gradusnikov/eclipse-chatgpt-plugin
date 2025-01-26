@@ -639,7 +639,7 @@ public class ChatGPTViewPart
             if ( arguments.length > 0 && arguments[0] instanceof String )
             {
                 String codeBlock = (String) arguments[0];
-                presenter.onCopyCode( codeBlock );
+                presenter.onReplaceCode(codeBlock);
             }
             return null;
         }
