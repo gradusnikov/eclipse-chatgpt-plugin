@@ -168,6 +168,17 @@ public class ChatGPTPresenter
         clipboard.setContents( new Object[] { codeBlock }, new Transfer[] { textTransfer } );
         clipboard.dispose();
     }
+    
+    /**
+     * Copies the given code block to the system clipboard.
+     *
+     * @param codeBlock
+     *            The code block to be copied to the clipboard.
+     */
+    public void onReplaceCode( String codeBlock )
+    {
+    	onCopyCode( codeBlock );
+    }
 
     public void onApplyPatch( String codeBlock )
     {

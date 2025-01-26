@@ -313,6 +313,7 @@ public class ChatGPTViewPart
     private void initializeFunctions( Browser browser )
     {
         new CopyCodeFunction( browser, "eclipseCopyCode" );
+        new ReplaceCodeFunction( browser, "eclipseReplaceCode" );
         new ApplyPatchFunction( browser, "eclipseApplyPatch" );
     }
 
@@ -604,6 +605,30 @@ public class ChatGPTViewPart
     private class CopyCodeFunction extends BrowserFunction
     {
         public CopyCodeFunction( Browser browser, String name )
+        {
+            super( browser, name );
+        }
+
+        @Override
+        public Object function( Object[] arguments )
+        {
+            if ( arguments.length > 0 && arguments[0] instanceof String )
+            {
+                String codeBlock = (String) arguments[0];
+                presenter.onCopyCode( codeBlock );
+            }
+            return null;
+        }
+    }
+    
+    /**
+     * This function establishes a JavaScript-to-Java callback for the browser,
+     * allowing the IDE to copy and replace highlighted code. It is invoked from JavaScript when the
+     * user interacts with the chat view to copy a code block.
+     */
+    private class ReplaceCodeFunction extends BrowserFunction
+    {
+        public ReplaceCodeFunction( Browser browser, String name )
         {
             super( browser, name );
         }

@@ -176,6 +176,7 @@ public class PromptParser
             String codeBlockId = UUID.randomUUID().toString();
             out.append( """ 
                     <input type="button" onClick="eclipseCopyCode(document.getElementById('${codeBlockId}').innerText)" value="Copy Code" />
+                    <input type="button" onClick="eclipseReplaceCode(document.getElementById('${codeBlockId}').innerText)" value="Replace Selected Code" />
                     <input type="${showApplyPatch}" onClick="eclipseApplyPatch(document.getElementById('${codeBlockId}').innerText)" value="ApplyPatch"/>
                     <pre><code lang="${lang}" id="${codeBlockId}">
                     """
