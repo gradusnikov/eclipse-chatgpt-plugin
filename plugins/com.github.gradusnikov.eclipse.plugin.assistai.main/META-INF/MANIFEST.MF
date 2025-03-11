@@ -3,7 +3,7 @@ Bundle-ManifestVersion: 2
 Bundle-Name: Assist AI
 Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.main;singleton:=true
 Bundle-Vendor: Wojciech Gradkowski
-Bundle-Version: 1.0.2.qualifier
+Bundle-Version: 1.0.4.qualifier
 Bundle-Activator: com.github.gradusnikov.eclipse.assistai.Activator
 Require-Bundle: org.eclipse.e4.ui.services,
  org.eclipse.core.runtime,
@@ -17,14 +17,12 @@ Require-Bundle: org.eclipse.e4.ui.services,
  org.eclipse.e4.core.contexts,
  org.eclipse.jdt.core,
  org.eclipse.jdt.ui,
- org.eclipse.swt,
  org.apache.commons.lang3;bundle-version="3.1.0",
  org.eclipse.core.resources,
- com.github.gradusnikov.eclipse.plugin.assistai.dependencies;bundle-version="1.0.3",
+ com.github.gradusnikov.eclipse.plugin.assistai.dependencies;bundle-version="1.0.4",
  org.eclipse.jgit,
  org.eclipse.egit.core,
  org.eclipse.compare,
- org.eclipse.e4.ui.dialogs,
  org.eclipse.ui.editors,
  jakarta.annotation-api;bundle-version="2.1.1",
  jakarta.inject.jakarta.inject-api;bundle-version="2.0.1",
@@ -33,4 +31,19 @@ Bundle-RequiredExecutionEnvironment: JavaSE-17
 Automatic-Module-Name: assistai.main
 Bundle-Classpath: .
 Bundle-ActivationPolicy: lazy
+Export-Package: com.github.gradusnikov.eclipse.assistai,
+ com.github.gradusnikov.eclipse.assistai.commands,
+ com.github.gradusnikov.eclipse.assistai.handlers,
+ com.github.gradusnikov.eclipse.assistai.jobs,
+ com.github.gradusnikov.eclipse.assistai.mcp,
+ com.github.gradusnikov.eclipse.assistai.mcp.servers,
+ com.github.gradusnikov.eclipse.assistai.model,
+ com.github.gradusnikov.eclipse.assistai.part,
+ com.github.gradusnikov.eclipse.assistai.part.dnd,
+ com.github.gradusnikov.eclipse.assistai.part.dnd.handlers,
+ com.github.gradusnikov.eclipse.assistai.preferences,
+ com.github.gradusnikov.eclipse.assistai.prompt,
+ com.github.gradusnikov.eclipse.assistai.services,
+ com.github.gradusnikov.eclipse.assistai.subscribers,
+ com.github.gradusnikov.eclipse.assistai.tools
 

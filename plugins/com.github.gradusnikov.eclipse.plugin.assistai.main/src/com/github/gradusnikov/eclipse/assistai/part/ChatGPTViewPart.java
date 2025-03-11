@@ -36,6 +36,8 @@ import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.GC;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.ImageData;
+import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -47,6 +49,7 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.swt.widgets.Text;
+import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.PlatformUI;
 
 import com.github.gradusnikov.eclipse.assistai.part.Attachment.UiVisitor;
@@ -124,7 +127,10 @@ public class ChatGPTViewPart
         Composite attachmentsPanel = createAttachmentsPanel( controls );
         inputArea = createUserInput( controls );
         // create components
-        Button[] buttons = { createClearChatButton( controls ), createStopButton( controls ) };
+        Button[] buttons = { 
+                createClearChatButton( controls ), 
+                createStopButton( controls ),
+                createArrowButton( controls )};
 
         // layout components
         controls.setLayout( new GridLayout( buttons.length, false ) );
@@ -211,6 +217,45 @@ public class ChatGPTViewPart
         } );
         return button;
     }
+
+
+    private Button createArrowButton(Composite parent) {
+        // Create an arrow button
+        Button arrowButton = new Button(parent, SWT.FLAT | SWT.ARROW | SWT.DOWN);
+
+//        // Create a menu for the button
+//        Menu menu = new Menu(parent.getShell(), SWT.POP_UP);
+//        arrowButton.addListener(SWT.Selection, event -> {
+//            if (!menu.isDisposed()) {
+//                Rectangle rect = arrowButton.getBounds();
+//                Point pt = new Point(rect.x, rect.y + rect.height);
+//                pt = parent.toDisplay(pt);
+//                menu.setLocation(pt.x, pt.y);
+//                menu.setVisible(true);
+//            }
+//        });
+//
+//        // Add items with checkboxes
+//        String[] items = {"Item 1", "Item 2", "Item 3"};
+//        boolean[] selections = {false, true, false}; // Initial selections
+//
+//        for (int i = 0; i < items.length; i++) {
+//            MenuItem menuItem = new MenuItem(menu, SWT.CHECK);
+//            menuItem.setText(items[i]);
+//            menuItem.setSelection(selections[i]);
+//            final int index = i;
+//            menuItem.addSelectionListener(new SelectionAdapter() {
+//                @Override
+//                public void widgetSelected(SelectionEvent e) {
+//                    selections[index] = !selections[index];
+//                    menuItem.setSelection(selections[index]);
+//                }
+//            });
+//        }
+//
+        return arrowButton;
+    }
+
 
     private Text createUserInput( Composite parent )
     {

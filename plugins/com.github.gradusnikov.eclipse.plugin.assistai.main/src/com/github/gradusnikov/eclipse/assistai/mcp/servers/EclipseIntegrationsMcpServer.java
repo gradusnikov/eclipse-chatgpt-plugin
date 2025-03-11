@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.commands;
+package com.github.gradusnikov.eclipse.assistai.mcp.servers;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,17 +27,28 @@ import org.eclipse.jface.text.Document;
 
 import org.eclipse.ui.editors.text.TextFileDocumentProvider;
 
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.ToolParam;
 import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
 
-/**
- * This class serves as a command within the Eclipse IDE to read Java documentation and source code.
- * It provides methods to retrieve JavaDoc and source code for classes in all Java projects available
- * in the workspace. It utilizes Eclipse APIs to access project resources and extract information about
- * Java elements, handling any potential errors during the process.
- */
 @Creatable
-public class ReadJavaDocCommand
+@McpServer(name = "eclipse-ide")
+public class EclipseIntegrationsMcpServer
 {
+    @Tool(name="getJavaDoc", description="Get the JavaDoc for the given compilation unit.  For example,a class B defined as a member type of a class A in package x.y should have athe fully qualified name \"x.y.A.B\".Note that in order to be found, a type name (or its top level enclosingtype name) must match its corresponding compilation unit name.", type="object")
+    public String getJavaDoc(
+            @ToolParam(name="fullyQualifiedName", description="A fully qualified name of the compilation unit", required=true) String fullyQualifiedClassName)
+    {
+        return getClassAttachedJavadoc( fullyQualifiedClassName );
+    }
+    @Tool(name="getSource", description="Get the source for the given class.", type="object")
+    public String getSource(
+            @ToolParam(name="fullyQualifiedClassName", description="A fully qualified class name of the Java class", required=true) String fullyQualifiedClassName)
+    {
+        return getClassAttachedSource( fullyQualifiedClassName );
+    }
+    
     @Inject
     private ILog logger;
     
@@ -227,5 +238,6 @@ public class ReadJavaDocCommand
             return null;
         }
         return null;
-    }
+    }    
+    
 }

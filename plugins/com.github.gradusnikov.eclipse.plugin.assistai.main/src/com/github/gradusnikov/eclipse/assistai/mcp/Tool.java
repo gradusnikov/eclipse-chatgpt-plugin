@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.commands;
+package com.github.gradusnikov.eclipse.assistai.mcp;
 
 import static java.lang.annotation.ElementType.METHOD;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 
 @Retention( RUNTIME )
 @Target( METHOD )
-public @interface Function
+public @interface Tool
 {
     public String name() default "";
     public String description();

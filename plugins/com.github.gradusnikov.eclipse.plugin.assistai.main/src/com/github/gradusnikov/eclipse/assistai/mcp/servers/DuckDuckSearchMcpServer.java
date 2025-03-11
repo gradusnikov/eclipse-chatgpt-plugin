@@ -1,5 +1,4 @@
-
-package com.github.gradusnikov.eclipse.assistai.commands;
+package com.github.gradusnikov.eclipse.assistai.mcp.servers;
 
 import java.io.IOException;
 import java.net.URL;
@@ -17,14 +16,20 @@ import org.jsoup.select.Elements;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.ToolParam;
 
 @Creatable
-public class WebSearchCommand
+@McpServer(name="duck-duck-search")
+public class DuckDuckSearchMcpServer
 {
     @Inject
-    private ILog logger;
+    ILog logger;
 
-    public String search( String query )
+    @Tool(name="webSearch", description="Performs a search using a Duck Duck Go search engine and returns the search result json.", type="object")
+    public String webSearch(
+            @ToolParam(name="query", description="A search query", required=true) String query)
     {
         try
         {

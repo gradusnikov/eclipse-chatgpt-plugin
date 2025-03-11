@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.commands;
+package com.github.gradusnikov.eclipse.assistai.mcp;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -11,39 +11,38 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 
-public class FunctionExecutor
+public class ToolExecutor
 {
     Object functions;
     
-    public FunctionExecutor( Object functions )
+    public ToolExecutor( Object functions )
     {
         this.functions = functions;
     }
     
     /**
      * Retrieves an array of {@link Method}s that are declared as a function_call
-     * callback with the {@link Function} annotation.
+     * callback with the {@link Tool} annotation.
      * 
      * @return
      */
     public Method[] getFunctions()
     {
         return Arrays.stream( functions.getClass().getDeclaredMethods() )
-                .filter( method -> Objects.nonNull( method.getAnnotation( com.github.gradusnikov.eclipse.assistai.commands.Function.class ) ) )
+                .filter( method -> Objects.nonNull( method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.Tool.class ) ) )
                 .toArray( Method[]::new );
     }
     
     
 
-    public CompletableFuture<Object> call( String name, Map<String, String> args )
+    public CompletableFuture<Object> call( String name, Map<String, Object> args )
     {
-        Method method = getFunctionCallbackByName( name ).orElseThrow( () -> new RuntimeException("Function " + name + " not found!" ) ); 
-        method.getAnnotationsByType( com.github.gradusnikov.eclipse.assistai.commands.FunctionParam.class );
+        Method method = getFunctionCallbackByName( name ).orElseThrow( () -> new RuntimeException("Tool " + name + " not found!" ) ); 
+        method.getAnnotationsByType( com.github.gradusnikov.eclipse.assistai.mcp.ToolParam.class );
         Object[] argValues = mapArguments( method, args );
         CompletableFuture<Object> future = CompletableFuture.supplyAsync( () -> invokeMethod( method, argValues ) );
         return future;
     }
-    
     private Object invokeMethod( Method method, Object[] args )
     {
         try
@@ -69,10 +68,10 @@ public class FunctionExecutor
      * @param argMap
      * @return
      */
-    public Object[] mapArguments( Method method, Map<String, String> argMap )
+    public Object[] mapArguments( Method method, Map<String, Object> argMap )
     {
         return Arrays.stream( method.getParameters() )
-                    .map( FunctionExecutor::toParamName )
+                    .map( ToolExecutor::toParamName )
                     .map( argMap::get )
                     .toArray();
         
@@ -85,13 +84,13 @@ public class FunctionExecutor
      * @return the Map representation of the key-value pairs
      * @throws IllegalArgumentException if the input array is not a key-value array
      */
-    public Map<String, String> toMap( String[] keyVal )
+    public Map<String, Object> toMap( String[] keyVal )
     {
         if ( keyVal.length % 2 != 0 )
         {
             throw new IllegalArgumentException("Not a key-val array");
         }
-        var map = new HashMap<String, String>();
+        var map = new HashMap<String, Object>();
         for (int i = 0; i < keyVal.length; i += 2) 
         {
             map.put(keyVal[i], keyVal[i + 1]);
@@ -119,8 +118,8 @@ public class FunctionExecutor
      */
     public static String toParamName( Parameter parameter )
     {
-        return Optional.ofNullable( parameter.getAnnotation( com.github.gradusnikov.eclipse.assistai.commands.FunctionParam.class ) )
-                    .map( FunctionParam::name )
+        return Optional.ofNullable( parameter.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.ToolParam.class ) )
+                    .map( ToolParam::name )
                     .filter( Predicate.not( String::isBlank ) )
                     .orElse( parameter.getName() );
     }
@@ -132,8 +131,8 @@ public class FunctionExecutor
      */
     public static String toFunctionName( Method method )
     {
-        return Optional.ofNullable( method.getAnnotation( com.github.gradusnikov.eclipse.assistai.commands.Function.class ) )
-                .map( Function::name )
+        return Optional.ofNullable( method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.Tool.class ) )
+                .map( Tool::name )
                 .filter( Predicate.not(String::isBlank))
                 .orElse( method.getName() );
     }

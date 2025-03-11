@@ -23,18 +23,17 @@ import java.util.stream.Collectors;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;
-import org.eclipse.jface.preference.PreferenceStore;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.github.gradusnikov.eclipse.assistai.Activator;
-import com.github.gradusnikov.eclipse.assistai.commands.FunctionExecutorProvider;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.model.Incoming;
 import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.part.Attachment;
-import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
@@ -51,8 +50,6 @@ public class OpenAIStreamJavaHttpClient
     
     private Supplier<Boolean> isCancelled = () -> false;
     
-    
-    
     @Inject
     private ILog logger;
     
@@ -60,7 +57,7 @@ public class OpenAIStreamJavaHttpClient
     private OpenAIClientConfiguration configuration;
     
     @Inject
-    private FunctionExecutorProvider functionExecutor;
+    private McpClientRetistry mcpClientRegistry;
     
     private IPreferenceStore preferenceStore;
     
@@ -97,12 +94,13 @@ public class OpenAIStreamJavaHttpClient
         try
         {
             
-            
             var requestBody = new LinkedHashMap<String, Object>();
             var messages = new ArrayList<Map<String, Object>>();
     
             var systemMessage = new LinkedHashMap<String, Object> ();
-            systemMessage.put("role", "system");
+//            systemMessage.put("role", "system");
+            systemMessage.put("role", "user");
+            
             systemMessage.put("content",  preferenceStore.getString( Prompts.SYSTEM.preferenceName() ));
             messages.add(systemMessage);
             
@@ -112,10 +110,22 @@ public class OpenAIStreamJavaHttpClient
             requestBody.put("model", model.modelName() );
             if ( model.functionCalling() )
             {
-                requestBody.put("functions", AnnotationToJsonConverter.convertDeclaredFunctionsToJson( functionExecutor.get().getFunctions() ) );
+                ArrayNode functions = objectMapper.createArrayNode();
+                for ( var client : mcpClientRegistry.listClients().entrySet() )
+                {
+                    functions.addAll( AnnotationToJsonConverter.clientToolsToJson( client.getKey(), client.getValue() ) );
+                }                
+                if ( !functions.isEmpty() )
+                {
+                    requestBody.put("functions", functions );
+                }
             }
             requestBody.put("messages", messages);
-            requestBody.put("temperature", model.temperature()/10);
+            // o1 and o1-mini models do not support temperature
+            if ( !model.modelName().matches( "^o\\d{1}(-.*)?" ) )
+            {
+                requestBody.put("temperature", model.temperature()/10);
+            }
             requestBody.put("stream", true);
     
             String jsonString;

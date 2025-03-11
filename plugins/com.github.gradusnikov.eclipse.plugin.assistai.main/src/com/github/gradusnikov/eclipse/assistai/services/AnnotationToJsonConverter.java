@@ -3,16 +3,19 @@ package com.github.gradusnikov.eclipse.assistai.services;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.gradusnikov.eclipse.assistai.commands.FunctionExecutor;
-import com.github.gradusnikov.eclipse.assistai.commands.FunctionParam;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.github.gradusnikov.eclipse.assistai.mcp.ToolExecutor;
+import com.github.gradusnikov.eclipse.assistai.mcp.ToolParam;
+
+import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.spec.McpSchema;
 
 public class AnnotationToJsonConverter
 {
@@ -22,7 +25,7 @@ public class AnnotationToJsonConverter
         
         for ( Method method : methods )
         {
-            var functionAnnotation = method.getAnnotation( com.github.gradusnikov.eclipse.assistai.commands.Function.class );
+            var functionAnnotation = method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.Tool.class );
             if ( functionAnnotation != null )
             {
                 var properties = new LinkedHashMap<String, Property>();
@@ -30,10 +33,10 @@ public class AnnotationToJsonConverter
                 
                 for ( var param : method.getParameters() )
                 {
-                    FunctionParam functionParamAnnotation = param.getAnnotation( FunctionParam.class );
+                    ToolParam functionParamAnnotation = param.getAnnotation( ToolParam.class );
                     if ( functionParamAnnotation != null )
                     {
-                        String name = FunctionExecutor.toParamName( param ); 
+                        String name = ToolExecutor.toParamName( param ); 
                         properties.put( name, 
                                         new Property( functionParamAnnotation.type(),
                                                       functionParamAnnotation.description() ) 
@@ -46,7 +49,7 @@ public class AnnotationToJsonConverter
                 }
                 
                 var parameters = new Parameters( functionAnnotation.type(), properties, required );
-                var name = FunctionExecutor.toFunctionName( method );
+                var name = ToolExecutor.toFunctionName( method );
                 functionDetailsList.add( new Function( name, 
                                                        functionAnnotation.description(), 
                                                        parameters ) );
@@ -79,5 +82,23 @@ public class AnnotationToJsonConverter
     public record Function( String name, String description,  Parameters parameters ) {}
     public record Parameters(String type, Map<String, Property> properties, List<String> required ) {}
     public record Property( String type, String description ) {}
+    
+    
+    public static ArrayNode clientToolsToJson( String clientName, McpSyncClient client )
+    {
+        List<Map<String, Object>> toolObject = new ArrayList<>();
+        for (McpSchema.Tool tool : client.listTools().tools() )
+        {
+            toolObject.add( Map.of( "name", clientName + "__" +  tool.name(), // tool name is a combination of client name and the tool name
+                    "type", tool.inputSchema().type(),
+                    "description", Optional.ofNullable( tool.description() ).orElse( "" ),
+                    "parameters", Map.of("type", tool.inputSchema().type(), "properties", tool.inputSchema().properties()), // in reference implementation this method is not visible!
+                    "required", Optional.ofNullable(tool.inputSchema().required()).orElse( List.of() ) 
+                    ));
+        }
+        var objectMapper = new ObjectMapper();
+        var functionsJsonNode= objectMapper.valueToTree( toolObject );
+        return (ArrayNode) functionsJsonNode; 
+    }
 
 }

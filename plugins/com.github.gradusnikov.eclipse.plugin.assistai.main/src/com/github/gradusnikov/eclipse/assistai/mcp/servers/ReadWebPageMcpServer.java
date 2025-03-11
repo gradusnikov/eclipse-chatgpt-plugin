@@ -1,5 +1,4 @@
-
-package com.github.gradusnikov.eclipse.assistai.commands;
+package com.github.gradusnikov.eclipse.assistai.mcp.servers;
 
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -10,15 +9,22 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.ToolParam;
 import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
 
 @Creatable
-public class ReadWebPageCommand
+@McpServer(name = "webpage-reader")
+public class ReadWebPageMcpServer
 {
     @Inject
     private ILog logger;
 
-    public String readWebPage( String url )
+    @Tool(name="readWebPage", description="Reads the content of the given web site and returns its content as a markdown text.", type="object")
+    public String readWebPage(
+            @ToolParam(name="url", description="A web site URL", required=true) String url)
     {
         String content = "";
         WebDriver driver = null;
