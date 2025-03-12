@@ -5,6 +5,7 @@ import org.osgi.framework.BundleContext;
 
 import com.github.gradusnikov.eclipse.assistai.preferences.ModelListPreferencePresenter;
 import com.github.gradusnikov.eclipse.assistai.preferences.PromptsPreferencePresenter;
+import com.github.gradusnikov.eclipse.assistai.preferences.McpServerPreferencePresenter;
 
 public class Activator extends AbstractUIPlugin 
 {
@@ -22,7 +23,6 @@ public class Activator extends AbstractUIPlugin
         return plugin;
     }
     
-    // rest of the class code goes here
     public PromptsPreferencePresenter getPromptsPreferncePresenter()
     {
         PromptsPreferencePresenter presenter = new PromptsPreferencePresenter( getDefault().getPreferenceStore() );
@@ -34,4 +34,11 @@ public class Activator extends AbstractUIPlugin
         ModelListPreferencePresenter presneter = new ModelListPreferencePresenter( getDefault().getPreferenceStore() );
         return presneter;
     }
+    
+
+    public McpServerPreferencePresenter getMCPServerPreferencePresenter() 
+    {
+        McpServerPreferencePresenter presneter = new McpServerPreferencePresenter(getPreferenceStore());
+        return presneter;
+    }    
 }

@@ -30,6 +30,12 @@
             category="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
             class="com.github.gradusnikov.eclipse.assistai.preferences.ModelListPreferencePage">
         </page>
+        <page
+            id="com.github.gradusnikov.eclipse.assistai.preferences.McpServerPreferencePage"
+            name="MCP Servers"
+            category="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
+            class="com.github.gradusnikov.eclipse.assistai.preferences.McpServerPreferencePage">
+        </page>
    </extension>
    <extension
          point="org.eclipse.core.runtime.preferences">

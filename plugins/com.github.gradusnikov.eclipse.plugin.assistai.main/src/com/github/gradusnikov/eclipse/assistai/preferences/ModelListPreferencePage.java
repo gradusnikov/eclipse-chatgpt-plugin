@@ -35,7 +35,6 @@ import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
 
 public class ModelListPreferencePage extends PreferencePage implements IWorkbenchPreferencePage
 {
-    // inject
     private UISynchronize uiSync;
     
     private ModelListPreferencePresenter presenter;

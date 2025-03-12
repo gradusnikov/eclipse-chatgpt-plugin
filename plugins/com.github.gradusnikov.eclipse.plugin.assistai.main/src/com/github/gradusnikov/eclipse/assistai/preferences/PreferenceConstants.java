@@ -10,4 +10,7 @@ public class PreferenceConstants
     public static final String ASSISTAI_SELECTED_MODEL = "AssistaAISelectedModel";
     public static final String ASSISTAI_DEFINED_MODELS = "AssistAIDefinedModels";
     
+    // MCP Server preferences
+    public static final String ASSISTAI_DEFINED_MCP_SERVERS = "AssistAIDefinedMCPServers";
+    public static final String ASSISTAI_SELECTED_MCP_SERVER = "AssistAISelectedMCPServer";
 }
