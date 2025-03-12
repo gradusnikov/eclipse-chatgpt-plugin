@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jface.dialogs.Dialog;
@@ -37,8 +38,10 @@ import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor;
 import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor.EnvironmentVariable;
+import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor.McpServerDescriptorWithStatus;
 import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor.Status;
 
 /**
@@ -158,13 +161,13 @@ public class McpServerPreferencePage extends PreferencePage implements IWorkbenc
         // Name column
         TableViewerColumn nameCol = new TableViewerColumn(checkboxTableViewer, SWT.NONE);
         nameCol.getColumn().setText("Name");
-        nameCol.getColumn().setWidth(150);
+        nameCol.getColumn().setWidth(200);
         nameCol.setLabelProvider(new ColumnLabelProvider() {
             @Override
             public String getText(Object element) {
-                var descriptor = (McpServerDescriptor) element;
-                var displayedName = descriptor.name();
-                if ( descriptor.builtIn() )
+                var descriptor = (McpServerDescriptorWithStatus) element;
+                var displayedName = descriptor.descriptor().name();
+                if ( descriptor.descriptor().builtIn() )
                 {
                     displayedName += " [built-in]";
                 }
@@ -172,16 +175,16 @@ public class McpServerPreferencePage extends PreferencePage implements IWorkbenc
             }
         });
 
-//        // Status column
-//        TableViewerColumn statusCol = new TableViewerColumn(checkboxTableViewer, SWT.NONE);
-//        statusCol.getColumn().setText("Status");
-//        statusCol.getColumn().setWidth(100);
-//        statusCol.setLabelProvider(new ColumnLabelProvider() {
-//            @Override
-//            public String getText(Object element) {
-//                return ((McpServerDescriptor) element).status().name();
-//            }
-//        });
+        // Status column
+        TableViewerColumn statusCol = new TableViewerColumn(checkboxTableViewer, SWT.NONE);
+        statusCol.getColumn().setText("Status");
+        statusCol.getColumn().setWidth(100);
+        statusCol.setLabelProvider(new ColumnLabelProvider() {
+            @Override
+            public String getText(Object element) {
+                return ((McpServerDescriptorWithStatus) element).status().name();
+            }
+        });
     }
 
     private void initializeListeners(CheckboxTableViewer checkboxTableViewer) {
@@ -201,7 +204,6 @@ public class McpServerPreferencePage extends PreferencePage implements IWorkbenc
 
         // Handle checkbox state changes
         checkboxTableViewer.addCheckStateListener(event -> {
-            McpServerDescriptor server = (McpServerDescriptor) event.getElement();
             boolean checked = event.getChecked();
             presenter.toggleServerEnabled(serverTable.getSelectionIndex(), checked);
         });
@@ -380,9 +382,7 @@ public class McpServerPreferencePage extends PreferencePage implements IWorkbenc
             int selectedIndex = envTable.getSelectionIndex();
             if ( selectedIndex >= 0 )
             {
-                currentEnvVars.remove( selectedIndex );
-                envTableViewer.setInput( currentEnvVars );
-                envTableViewer.refresh();
+                presenter.removeServer( selectedIndex );
             }
         } );
     }
@@ -454,15 +454,15 @@ public class McpServerPreferencePage extends PreferencePage implements IWorkbenc
      * @param servers
      *            the servers to show
      */
-    public void showServers(List<McpServerDescriptor> servers) 
+    public void showServers(List<McpServerDescriptorWithStatus> servers) 
     {
         uiSync.asyncExec(() -> {
             serverTableViewer.setInput(servers);
             serverTableViewer.refresh();
             
             // Set the checked state for each server based on its enabled status
-            for (McpServerDescriptor server : servers) {
-                serverTableViewer.setChecked(server, server.enabled());
+            for (McpServerDescriptorWithStatus server : servers) {
+                serverTableViewer.setChecked(server, server.descriptor().enabled());
             }
         });
     }

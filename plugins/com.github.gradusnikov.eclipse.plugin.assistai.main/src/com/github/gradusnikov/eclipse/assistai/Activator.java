@@ -1,10 +1,18 @@
 package com.github.gradusnikov.eclipse.assistai;
 
+import java.util.Objects;
+
+import org.eclipse.core.runtime.ILog;
+import org.eclipse.e4.core.contexts.ContextInjectionFactory;
+import org.eclipse.e4.core.contexts.IEclipseContext;
+import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 
 import com.github.gradusnikov.eclipse.assistai.preferences.ModelListPreferencePresenter;
+import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 import com.github.gradusnikov.eclipse.assistai.preferences.PromptsPreferencePresenter;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.preferences.McpServerPreferencePresenter;
 
 public class Activator extends AbstractUIPlugin 
@@ -16,6 +24,8 @@ public class Activator extends AbstractUIPlugin
     {
         super.start(context);
         plugin = this;
+
+
     }
     
     public static Activator getDefault() 
@@ -38,7 +48,14 @@ public class Activator extends AbstractUIPlugin
 
     public McpServerPreferencePresenter getMCPServerPreferencePresenter() 
     {
-        McpServerPreferencePresenter presneter = new McpServerPreferencePresenter(getPreferenceStore());
+        IEclipseContext eclipseContext = PlatformUI.getWorkbench().getService( IEclipseContext.class );
+        var registry = ContextInjectionFactory.make( McpClientRetistry.class, eclipseContext );
+        Objects.requireNonNull( registry, "No actual object of class " + McpClientRetistry.class + " found!" );
+        
+        McpServerPreferencePresenter presneter = new McpServerPreferencePresenter( 
+                getDefault().getPreferenceStore(), 
+                registry, 
+                getLog() );
         return presneter;
     }    
 }

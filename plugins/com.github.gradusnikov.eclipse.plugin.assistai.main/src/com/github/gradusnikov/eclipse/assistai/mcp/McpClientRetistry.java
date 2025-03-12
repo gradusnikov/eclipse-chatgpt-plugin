@@ -2,6 +2,10 @@
 package com.github.gradusnikov.eclipse.assistai.mcp;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -58,6 +62,7 @@ public class McpClientRetistry
     public void handleShutdown()
     {
         clients.values().forEach( McpSyncClient::closeGracefully );
+        servers.forEach( McpSyncServer::closeGracefully );
     }
 
     /**
@@ -67,7 +72,6 @@ public class McpClientRetistry
     @PostConstruct
     public void init()
     {
-        logger.info( "Initializing MCPs" );
         preferenceStore = Activator.getDefault().getPreferenceStore();
 
         var stored = getStoredServers();
@@ -76,10 +80,24 @@ public class McpClientRetistry
         initializeBuiltInServers( stored, builtin );
         initializeUserDefinedServers( stored );
 
-        clients.values().parallelStream().forEach( McpSyncClient::initialize );
-        logger.info( "Assist AI MCPs initialized" );
+        clients.entrySet().stream().forEach( this::gracefullyInitialize );
     }
-
+    
+    private void gracefullyInitialize( Map.Entry<String, McpSyncClient> client )
+    {
+        try
+        {
+            logger.info( "Initializing MCP client: " + client.getKey()  );
+            CompletableFuture.supplyAsync( () -> client.getValue().initialize() )
+                             .get( 3, TimeUnit.SECONDS );
+            logger.info( "Sucessfully initialized MCP client: " + client.getKey()  );
+        }
+        catch ( InterruptedException | ExecutionException | TimeoutException e )
+        {
+            logger.error( "Failed to initialize MCP client: " + client.getKey()  );
+        }
+    }
+    
     /**
      * Initializes built-in MCP servers.
      *
@@ -207,5 +225,13 @@ public class McpClientRetistry
     public Optional<McpSyncClient> findTool( String clientName, String name )
     {
         return Optional.ofNullable( clients.get( clientName ) );
+    }
+
+    public void restart()
+    {
+        handleShutdown();
+        clients.clear();
+        servers.clear();
+        init();
     }
 }
