@@ -1,11 +1,7 @@
+
 package com.github.gradusnikov.eclipse.assistai.mcp;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -17,14 +13,9 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.workbench.lifecycle.PostWorkbenchClose;
 import org.eclipse.jface.preference.IPreferenceStore;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpClientServerFactory.InMemorySyncClientServer;
-import com.github.gradusnikov.eclipse.assistai.mcp.servers.DuckDuckSearchMcpServer;
-import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseIntegrationsMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.McpServerBuiltins;
-import com.github.gradusnikov.eclipse.assistai.mcp.servers.ReadWebPageMcpServer;
-import com.github.gradusnikov.eclipse.assistai.mcp.servers.TimeMcpServer;
 import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor;
 import com.github.gradusnikov.eclipse.assistai.preferences.McpServerDescriptorUtilities;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
@@ -44,156 +35,177 @@ import jakarta.inject.Singleton;
 @Singleton
 public class McpClientRetistry
 {
-    private IPreferenceStore preferenceStore;
-    
+
+    private IPreferenceStore           preferenceStore;
+
     private Map<String, McpSyncClient> clients = new HashMap<>();
-    
-    @Inject
-    ILog logger;
-    
-    private  List<McpSyncServer> servers = new ArrayList<>();
-    
-    @Inject
-    McpClientServerFactory factory;
+
+    private List<McpSyncServer>        servers = new ArrayList<>();
 
     @Inject
-    IEclipseContext eclipseContext;
+    private ILog                       logger;
 
-    
-//    @Inject
-//    DuckDuckSearchMcpServer duckDuckSearchMcpServer;
-//    
-//    @Inject
-//    ReadWebPageMcpServer webPageMcpServer;
-//    
-//    @Inject
-//    EclipseIntegrationsMcpServer eclipseIntegrationsMcpServer;
-//    
-//    @Inject
-//    TimeMcpServer timeMcpServer;
-    
+    @Inject
+    private McpClientServerFactory     factory;
+
+    @Inject
+    private IEclipseContext            eclipseContext;
+
+    /**
+     * Handles the shutdown process by closing all MCP clients gracefully.
+     */
     @PostWorkbenchClose
     public void handleShutdown()
     {
-        clients.values().stream().forEach( McpSyncClient::closeGracefully );
+        clients.values().forEach( McpSyncClient::closeGracefully );
     }
-    
+
+    /**
+     * Initializes the MCP clients and servers. This method is called after the
+     * construction of the object.
+     */
     @PostConstruct
     public void init()
     {
         logger.info( "Initializing MCPs" );
         preferenceStore = Activator.getDefault().getPreferenceStore();
-        
-        
-        // user defined servers
-        var stored  = getStorredServers();
-        // built-in servers
+
+        var stored = getStoredServers();
         var builtin = McpServerBuiltins.listBuiltInImplementations();
-        
+
+        initializeBuiltInServers( stored, builtin );
+        initializeUserDefinedServers( stored );
+
+        clients.values().parallelStream().forEach( McpSyncClient::initialize );
+        logger.info( "Assist AI MCPs initialized" );
+    }
+
+    /**
+     * Initializes built-in MCP servers.
+     *
+     * @param stored
+     *            List of stored server descriptors.
+     * @param builtin
+     *            List of built-in server descriptors.
+     */
+    private void initializeBuiltInServers( List<McpServerDescriptor> stored, List<McpServerDescriptor> builtin )
+    {
         for ( McpServerDescriptor builtInServerDescriptor : builtin )
         {
-            var updated = stored.stream()
-                                .filter( other -> builtInServerDescriptor.uid().equals( other.uid() ) )
-                                .findAny()
-                                .orElse( builtInServerDescriptor );
-            
+            McpServerDescriptor updated = stored.stream()
+                                                .filter( other -> builtInServerDescriptor.uid().equals( other.uid() ) )
+                                                .findAny()
+                                                .orElse( builtInServerDescriptor );
+
             if ( updated.enabled() )
             {
-                Class<?> clazz = McpServerBuiltins.findImplementation( updated.name() );
-                System.out.println( ">> " + clazz );
-                // inject object
-                Object   implementation = ContextInjectionFactory.make(clazz, eclipseContext);
+                var clazz = McpServerBuiltins.findImplementation( updated.name() );
+                var implementation = ContextInjectionFactory.make( clazz, eclipseContext );
                 Objects.requireNonNull( implementation, "No actual object of class " + clazz + " found!" );
-                
-                InMemorySyncClientServer clientServerPair; 
-                clientServerPair = factory.creteInMemorySyncClientServer( implementation );
+
+                InMemorySyncClientServer  clientServerPair = factory.creteInMemorySyncClientServer( implementation );
                 addClient( updated.name(), clientServerPair.client() );
                 servers.add( clientServerPair.server() );
             }
         }
-        
+    }
+
+    /**
+     * Initializes user-defined MCP servers.
+     *
+     * @param stored
+     *            List of stored server descriptors.
+     */
+    private void initializeUserDefinedServers( List<McpServerDescriptor> stored )
+    {
         var userDefined = stored.stream()
                                 .filter( Predicates.not( McpServerDescriptor::builtIn ) )
                                 .filter( McpServerDescriptor::enabled )
                                 .collect( Collectors.toList() );
-        
-        for ( McpServerDescriptor userMcp : userDefined )
+
+        for ( var userMcp : userDefined )
         {
-            List<String> commandParts = new ArrayList<>();
-            Matcher matcher = Pattern.compile("([^\"]\\S*|\".+?\")\\s*").matcher(userMcp.command());
-            while (matcher.find()) {
-                commandParts.add(matcher.group(1).replace("\"", ""));
-            }
+            var commandParts = parseCommand( userMcp.command() );
 
-            String executable = commandParts.get(0);
-            String[] args = commandParts.subList(1, commandParts.size()).toArray(new String[0]);
+            String executable = commandParts.get( 0 );
+            String[] args = commandParts.subList( 1, commandParts.size() ).toArray( new String[0] );
 
-            ServerParameters stdioParameters = ServerParameters.builder(executable)
-                    .args(args)
-                    .env(userMcp.environmentVariables().stream()
-                        .collect(Collectors.toMap(
-                            McpServerDescriptor.EnvironmentVariable::name,
-                            McpServerDescriptor.EnvironmentVariable::value)))
+            ServerParameters stdioParameters = ServerParameters.builder( executable )
+                    .args( args )
+                    .env( userMcp.environmentVariables().stream()
+                            .collect( Collectors.toMap( McpServerDescriptor.EnvironmentVariable::name, 
+                                                        McpServerDescriptor.EnvironmentVariable::value ) ) )
                     .build();
+
             ClientMcpTransport mcpTransport = new StdioClientTransport( stdioParameters );
             McpSyncClient client = McpClient.sync( mcpTransport ).build();
             addClient( userMcp.name(), client );
         }
-
-        // initialize clients
-        clients.values().parallelStream().forEach( McpSyncClient::initialize );
-        
-        logger.info( "Assist AI MCPs initialized" );
     }
-    
+
     /**
-     * Get all defined MCP servers
-     * 
-     * @return list of MCP server descriptors
+     * Parses a command string into a list of command parts.
+     *
+     * @param command
+     *            The command string to parse.
+     * @return A list of command parts.
      */
-    public List<McpServerDescriptor> getStorredServers()
+    private List<String> parseCommand( String command )
+    {
+        List<String> commandParts = new ArrayList<>();
+        Matcher matcher = Pattern.compile( "([^\"]\\S*|\".+?\")\\s*" ).matcher( command );
+        while ( matcher.find() )
+        {
+            commandParts.add( matcher.group( 1 ).replace( "\"", "" ) );
+        }
+        return commandParts;
+    }
+
+    /**
+     * Retrieves all defined MCP servers from preferences.
+     *
+     * @return A list of MCP server descriptors.
+     */
+    public List<McpServerDescriptor> getStoredServers()
     {
         String serversJson = preferenceStore.getString( PreferenceConstants.ASSISTAI_DEFINED_MCP_SERVERS );
         return McpServerDescriptorUtilities.fromJson( serversJson );
     }
 
-    
-    
-//    private void initializeEverythingServer()
-//    {
-//        ServerParameters stdioParams = ServerParameters.builder("wsl.exe")
-//                .args("npx", "-y", "@modelcontextprotocol/server-everything", "dir")
-//                .build();
-//        ClientMcpTransport transport = new StdioClientTransport( stdioParams );
-//        McpSyncClient client = McpClient.sync( transport ).build();
-//        client.initialize();
-//        addClient( "everything", client );
-//    }
-//    private void initializeMemory()
-//    {
-//        ServerParameters stdioParams = ServerParameters.builder("wsl.exe")
-//                .args("npx", "-y", "@modelcontextprotocol/server-memory")
-//                .addEnvVar( "MEMORY_FILE_PATH", "/tmp/memory.json" )
-//                .build();
-//        ClientMcpTransport transport = new StdioClientTransport( stdioParams );
-//        McpSyncClient client = McpClient.sync( transport ).build();
-//        client.initialize();
-//        addClient( "memory", client );
-//    }
-    
+    /**
+     * Adds a client to the registry.
+     *
+     * @param name
+     *            The name of the client.
+     * @param client
+     *            The MCP sync client to add.
+     */
     public void addClient( String name, McpSyncClient client )
     {
         clients.put( name, client );
     }
-    
+
+    /**
+     * Lists all registered MCP clients.
+     *
+     * @return A map of client names to MCP sync clients.
+     */
     public Map<String, McpSyncClient> listClients()
     {
         return clients;
     }
-    public Optional<McpSyncClient> findTool(String clientName, String name)
+
+    /**
+     * Finds a tool by client name.
+     *
+     * @param clientName
+     *            The name of the client.
+     * @param name
+     *            The name of the tool.
+     * @return An optional containing the MCP sync client if found.
+     */
+    public Optional<McpSyncClient> findTool( String clientName, String name )
     {
         return Optional.ofNullable( clients.get( clientName ) );
     }
-    
-    
 }
