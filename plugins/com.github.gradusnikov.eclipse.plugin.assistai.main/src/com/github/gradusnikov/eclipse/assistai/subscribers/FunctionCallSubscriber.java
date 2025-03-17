@@ -59,7 +59,6 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
     public void onComplete()
     {
         String json = jsonBuffer.toString();
-        json += "}";
 
         if ( !json.startsWith( "\"function_call\"" ) )
         {
@@ -68,6 +67,11 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
         }
         try
         {
+            if ( json.endsWith( ":" ) ) 
+            {
+                json += "{}";
+            }
+            json += "}";
             // 1. append assistant request to call a function to the conversation
             ObjectMapper mapper = new ObjectMapper();
             // -- convert JSON to FuncationCall object

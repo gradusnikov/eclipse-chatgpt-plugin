@@ -44,7 +44,7 @@ import jakarta.inject.Inject;
  * This class allows subscribing to responses received from the OpenAI API and processes the chat completions.
  */
 @Creatable
-public class OpenAIStreamJavaHttpClient
+public class OpenAIStreamJavaHttpClient implements LanguageModelClient
 {
     private SubmissionPublisher<Incoming> publisher;
     
@@ -54,7 +54,7 @@ public class OpenAIStreamJavaHttpClient
     private ILog logger;
     
     @Inject
-    private OpenAIClientConfiguration configuration;
+    private LanguageModelClientConfiguration configuration;
     
     @Inject
     private McpClientRetistry mcpClientRegistry;
@@ -71,6 +71,7 @@ public class OpenAIStreamJavaHttpClient
         preferenceStore = Activator.getDefault().getPreferenceStore();
     }
     
+    @Override
     public void setCancelProvider( Supplier<Boolean> isCancelled )
     {
         this.isCancelled = isCancelled;
@@ -80,6 +81,7 @@ public class OpenAIStreamJavaHttpClient
      * Subscribes a given Flow.Subscriber to receive String data from OpenAI API responses.
      * @param subscriber the Flow.Subscriber to be subscribed to the publisher
      */
+    @Override
     public synchronized void subscribe(Flow.Subscriber<Incoming> subscriber)
     {
         publisher.subscribe(subscriber);
@@ -151,7 +153,7 @@ public class OpenAIStreamJavaHttpClient
                 {
                     userMessage.put( "name", message.getName() );
                 }
-                if ( Objects.nonNull( message.getFunctionCall() ) )
+                if ( "assistant".equals( message.getRole() ) &&  Objects.nonNull( message.getFunctionCall() ) )
                 {
                     var functionCallObject = new LinkedHashMap<String, String> ();
                     functionCallObject.put( "name", message.getFunctionCall().name() );
@@ -230,6 +232,7 @@ public class OpenAIStreamJavaHttpClient
      * @param prompt the conversation to be sent to the OpenAI API
      * @return a Runnable that performs the HTTP request and processes the responses
      */
+    @Override
     public Runnable run( Conversation prompt ) 
     {
     	return () ->  {

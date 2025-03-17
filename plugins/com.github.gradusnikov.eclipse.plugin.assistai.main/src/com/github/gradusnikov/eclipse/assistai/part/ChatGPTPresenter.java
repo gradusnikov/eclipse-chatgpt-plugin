@@ -65,7 +65,7 @@ public class ChatGPTPresenter
 
     @Inject
     private AppendMessageToViewSubscriber appendMessageToViewSubscriber;
-
+    
     @Inject
     private ApplyPatchWizardHelper        applyPatchWizzardHelper;
 

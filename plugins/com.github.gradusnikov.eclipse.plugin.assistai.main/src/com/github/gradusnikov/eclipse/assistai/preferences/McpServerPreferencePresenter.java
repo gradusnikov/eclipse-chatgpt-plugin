@@ -129,7 +129,7 @@ public class McpServerPreferencePresenter
                                                                    server.builtIn() );
             servers.set( serverIndex, updated );
             save( servers );
-            view.showServers( getServersWithStatus() );
+//            view.showServers( getServersWithStatus() );
         }
     }
 
@@ -167,6 +167,7 @@ public class McpServerPreferencePresenter
     {
         String json = McpServerDescriptorUtilities.toJson( servers );
         preferenceStore.setValue( PreferenceConstants.ASSISTAI_DEFINED_MCP_SERVERS, json );
+        logger.info( "updated" );
     }
 
     /**

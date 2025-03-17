@@ -14,7 +14,7 @@ import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 
 @Creatable
 @Singleton
-public class OpenAIClientConfiguration 
+public class LanguageModelClientConfiguration 
 {
 
     

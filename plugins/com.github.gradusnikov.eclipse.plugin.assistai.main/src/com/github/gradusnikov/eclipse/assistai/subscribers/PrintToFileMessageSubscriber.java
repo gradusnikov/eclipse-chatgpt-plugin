@@ -52,7 +52,7 @@ public class PrintToFileMessageSubscriber implements Flow.Subscriber<Incoming>
     @Override
     public void onNext(Incoming item)
     {
-        write( item.payload() );
+        write( item.payload().toString() );
         subscription.request(1);
     }
 

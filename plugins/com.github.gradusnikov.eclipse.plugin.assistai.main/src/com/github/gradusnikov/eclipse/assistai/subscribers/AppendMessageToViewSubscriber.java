@@ -25,6 +25,7 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
     
     private ChatMessage message;
     private ChatGPTPresenter presenter;
+    private Incoming.Type messageType;
     
     public AppendMessageToViewSubscriber( )
     {
@@ -40,17 +41,26 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
     {
         Objects.requireNonNull( presenter );
         this.subscription = subscription;
-        message = presenter.beginMessageFromAssistant();
         subscription.request(1);
     }
 
     @Override
-    public void onNext(Incoming item)
+    public synchronized void onNext(Incoming item)
     {
         Objects.requireNonNull( presenter );
-        Objects.requireNonNull( message );
         Objects.requireNonNull( subscription );
-        message.append(item.payload());
+        
+        if ( Objects.isNull( message ) ||  messageType != item.type() )
+        {
+            if ( Objects.nonNull( message ) )
+            {
+                presenter.endMessageFromAssistant();
+            }
+            messageType = item.type();
+            message = presenter.beginMessageFromAssistant();
+        }
+        
+        message.append(item.payload().toString());
         presenter.updateMessageFromAssistant( message );
         subscription.request(1);
     }
@@ -58,6 +68,7 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
     @Override
     public void onError(Throwable throwable)
     {
+        messageType = null;
         message = null;
         logger.error(throwable.getMessage(), throwable);
     }

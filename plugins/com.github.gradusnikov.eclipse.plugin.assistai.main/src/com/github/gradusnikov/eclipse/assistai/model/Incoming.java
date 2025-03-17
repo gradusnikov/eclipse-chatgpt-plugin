@@ -1,6 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.model;
 
-public record Incoming( Type type, String payload )
+public record Incoming( Type type, Object payload )
 {
     public enum Type
     {

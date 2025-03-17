@@ -13,8 +13,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
-import com.github.gradusnikov.eclipse.assistai.subscribers.OpenAIHttpClientProvider;
-import com.github.gradusnikov.eclipse.assistai.subscribers.OpenAIHttpClientProvider;
+import com.github.gradusnikov.eclipse.assistai.services.OpenAIHttpClientProvider;
 
 @Creatable
 public class SendConversationJob extends Job

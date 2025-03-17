@@ -1,4 +1,3 @@
-
 package com.github.gradusnikov.eclipse.assistai.services;
 
 import java.io.BufferedReader;
@@ -18,6 +17,7 @@ import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Flow;
 import java.util.concurrent.SubmissionPublisher;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -26,14 +26,16 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.github.gradusnikov.eclipse.assistai.Activator;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.model.Incoming;
 import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.part.Attachment;
-import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
@@ -44,7 +46,7 @@ import jakarta.inject.Inject;
  * This class allows subscribing to responses received from the Anthropic API and processes the chat completions.
  */
 @Creatable
-public class AnthropicStreamJavaHttpClient
+public class AnthropicStreamJavaHttpClient implements LanguageModelClient
 {
     private SubmissionPublisher<Incoming> publisher;
     
@@ -54,10 +56,10 @@ public class AnthropicStreamJavaHttpClient
     private ILog logger;
     
     @Inject
-    private OpenAIClientConfiguration configuration;
+    private LanguageModelClientConfiguration configuration;
     
     @Inject
-//    private FunctionExecutorProvider functionExecutor;
+    private McpClientRetistry mcpClientRegistry;
     
     private IPreferenceStore preferenceStore;
     
@@ -69,11 +71,12 @@ public class AnthropicStreamJavaHttpClient
         preferenceStore = Activator.getDefault().getPreferenceStore();
     }
     
+    @Override
     public void setCancelProvider(Supplier<Boolean> isCancelled)
     {
         this.isCancelled = isCancelled;
     }
-    
+    @Override
     public synchronized void subscribe(Flow.Subscriber<Incoming> subscriber)
     {
         publisher.subscribe(subscriber);
@@ -86,21 +89,35 @@ public class AnthropicStreamJavaHttpClient
             var requestBody = new LinkedHashMap<String, Object>();
             var messages = new ArrayList<Map<String, Object>>();
 
-            var systemMessage = new LinkedHashMap<String, Object>();
-            systemMessage.put("role", "system");
-            systemMessage.put("content", preferenceStore.getString(Prompts.SYSTEM.preferenceName()));
-            messages.add(systemMessage);
+            // System message should be placed in system key, not in messages array for Anthropic
+            String systemPrompt = preferenceStore.getString(Prompts.SYSTEM.preferenceName());
+            requestBody.put("system", systemPrompt);
 
-            prompt.messages().stream().map(message -> toJsonPayload(message, model)).forEach(messages::add);
+            // Add all messages from prompt
+            prompt.messages().stream()
+                             .filter( Predicate.not(ChatMessage::isEmpty) )
+                             .map(message -> toJsonPayload(message, model)).forEach(messages::add);
 
+            // Add required fields for Anthropic API
             requestBody.put("model", model.modelName());
+            requestBody.put("messages", messages);
+            requestBody.put("temperature", model.temperature() / 10.0);
+            requestBody.put("stream", true);
+            requestBody.put("max_tokens", 4096); // Configurable limit
+            
+            // Add tools if function calling is enabled
             if (model.functionCalling())
             {
-//                requestBody.put("tools", AnnotationToJsonConverter.convertDeclaredFunctionsToJson(functionExecutor.get().getFunctions()));
+                ArrayNode tools = objectMapper.createArrayNode();
+                for (var client : mcpClientRegistry.listClients().entrySet())
+                {
+                    tools.addAll(AnnotationToJsonConverter.clientToolsToJsonAnthropic(client.getKey(), client.getValue()));
+                }
+                if (!tools.isEmpty())
+                {
+                    requestBody.put("tools", tools);
+                }
             }
-            requestBody.put("messages", messages);
-            requestBody.put("temperature", model.temperature() / 10);
-            requestBody.put("stream", true);
 
             return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(requestBody);
         }
@@ -115,48 +132,76 @@ public class AnthropicStreamJavaHttpClient
         try
         {
             var userMessage = new LinkedHashMap<String, Object>();
-            userMessage.put("role", message.getRole());
-            if (model.functionCalling())
+            // Convert role from OpenAI format to Anthropic format if needed
+            String role = message.getRole();
+            // In Anthropic API, roles are limited to "user" and "assistant"
+            role = role.equals( "assistant" ) ? "assistant" : "user";
+            userMessage.put("role", role);
+            
+            // Handle function calls/tool use
+            if ( model.functionCalling() && Objects.nonNull( message.getFunctionCall() ) )
             {
-                if (Objects.nonNull(message.getName()))
+                if ( "function".equals( message.getRole() ) )
                 {
-                    userMessage.put("name", message.getName());
+                    var functionCall = message.getFunctionCall();
+                    var toolUseContent = new LinkedHashMap<String, Object>();
+                    toolUseContent.put("type", "tool_result");
+                    toolUseContent.put("tool_use_id", functionCall.id() );
+                    toolUseContent.put("content", List.of( Map.of(
+                                                         "type", "text", 
+                                                         "text", message.getContent() ) ) );
+                    toolUseContent.put( "is_error", false );
+                    userMessage.put("content", List.of(toolUseContent));
                 }
-                if (Objects.nonNull(message.getFunctionCall()))
+                else
                 {
-                    var functionCallObject = new LinkedHashMap<String, String>();
-                    functionCallObject.put("name", message.getFunctionCall().name());
-                    functionCallObject.put("arguments", objectMapper.writeValueAsString(message.getFunctionCall().arguments()));
-                    userMessage.put("function_call", functionCallObject);
+                    var functionCall = message.getFunctionCall();
+                    var toolUseContent = new LinkedHashMap<String, Object>();
+                    toolUseContent.put("type", "tool_use");
+                    toolUseContent.put("id", functionCall.id() );
+                    toolUseContent.put("name", functionCall.name() );
+                    // Parse arguments into a Map instead of a JSON string for Anthropic
+                    toolUseContent.put("input", functionCall.arguments() );
+                    
+                    userMessage.put("content", List.of(toolUseContent));
                 }
             }
-
-            List<String> textParts = message.getAttachments()
-                    .stream()
-                    .map(Attachment::toChatMessageContent)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-            String textContent = String.join("\n", textParts) + "\n\n" + message.getContent();
-
-            if (model.vision())
-            {
-                var content = new ArrayList<>();
-                var textObject = new LinkedHashMap<String, String>();
-                textObject.put("type", "text");
-                textObject.put("text", textContent);
-                content.add(textObject);
-                message.getAttachments()
-                        .stream()
-                        .map(Attachment::getImageData)
-                        .filter(Objects::nonNull)
-                        .map(ImageUtilities::toBase64Jpeg)
-                        .map(this::toImageUrl)
-                        .forEachOrdered(content::add);
-                userMessage.put("content", content);
-            }
+            // Handle text and attachments
             else
             {
-                userMessage.put("content", textContent);
+                List<String> textParts = message.getAttachments()
+                        .stream()
+                        .map(Attachment::toChatMessageContent)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+                String textContent = String.join("\n", textParts) + "\n\n" + message.getContent();
+
+                // Handle content format based on whether there are images (vision capability)
+                if (model.vision())
+                {
+                    var contentList = new ArrayList<>();
+                    
+                    // Add text content
+                    var textObject = new LinkedHashMap<String, String>();
+                    textObject.put("type", "text");
+                    textObject.put("text", textContent);
+                    contentList.add(textObject);
+                    
+                    // Add image content if available
+                    message.getAttachments()
+                            .stream()
+                            .map(Attachment::getImageData)
+                            .filter(Objects::nonNull)
+                            .map(ImageUtilities::toBase64Jpeg)
+                            .map(this::toImageContent)
+                            .forEachOrdered(contentList::add);
+                    
+                    userMessage.put("content", contentList);
+                }
+                else
+                {
+                    userMessage.put("content", textContent);
+                }
             }
             return userMessage;
         }
@@ -166,16 +211,20 @@ public class AnthropicStreamJavaHttpClient
         }
     }
 
-    private LinkedHashMap<String, Object> toImageUrl(String data)
+    private LinkedHashMap<String, Object> toImageContent(String data)
     {
         var imageObject = new LinkedHashMap<String, Object>();
-        imageObject.put("type", "image_url");
-        var urlObject = new LinkedHashMap<String, String>();
-        urlObject.put("url", "data:image/jpeg;base64," + data);
-        imageObject.put("image_url", urlObject);
+        imageObject.put("type", "image");
+        var imageSource = new LinkedHashMap<String, Object>();
+        
+        // Anthropic uses media_type instead of content type
+        imageSource.put("type", "base64");
+        imageSource.put("media_type", "image/jpeg");
+        imageSource.put("data", data);
+        
+        imageObject.put("source", imageSource);
         return imageObject;
     }
-
     public Runnable run(Conversation prompt)
     {
         return () -> {
@@ -190,9 +239,9 @@ public class AnthropicStreamJavaHttpClient
                     .timeout(Duration.ofSeconds(configuration.getRequestTimoutSeconds()))
                     .version(HttpClient.Version.HTTP_1_1)
                     .header("x-api-key", model.apiKey())
-                    .header("anthropic-version", "2023-06-01")
-                    .header("Accept", "text/event-stream")
+                    .header("anthropic-version", "2023-06-01") // Update to latest API version if needed
                     .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .build();
 
@@ -204,51 +253,91 @@ public class AnthropicStreamJavaHttpClient
 
                 if (response.statusCode() != 200)
                 {
-                    logger.error("Request failed with status code: " + response.statusCode() + " and response body: " + new String(response.body().readAllBytes()));
+                    String responseBody = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
+                    logger.error("Request failed with status code: " + response.statusCode() + " and response body: " + responseBody);
+                    return;
                 }
+                
                 try (var inputStream = response.body();
                      var inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
                      var reader = new BufferedReader(inputStreamReader))
                 {
                     String line;
+                    Incoming.Type incomingType = null;
+                    
                     while ((line = reader.readLine()) != null && !isCancelled.get())
                     {
-                        if (line.startsWith("data:"))
+                        // Skip empty lines and ping messages
+                        if (line.isEmpty()) 
                         {
-                            var data = line.substring(5).trim();
-                            if ("[DONE]".equals(data))
-                            {
-                                break;
+                            continue;
+                        }
+                        // Handle data: prefix (SSE format)
+                        if (line.startsWith("data:")) 
+                        {
+                            line = line.substring(5).trim();
+                            // Skip [DONE] marker
+                            if ("[DONE]".equals(line)) {
+                                continue;
                             }
-                            else
+                            try 
                             {
-                                var mapper = new ObjectMapper();
-                                var choice = mapper.readTree(data).get("choices").get(0);
-                                var node = choice.get("delta");
-                                if (node.has("content"))
+                                var node = objectMapper.readTree(line);
+                                var type = node.has("type") ? node.get("type").asText() : "";
+                                
+                                // ignore pings
+                                if ( "ping".equals( type ) )
                                 {
-                                    var content = node.get("content").asText();
-                                    if (!"".equals(content))
-                                    {
-                                        publisher.submit(new Incoming(Incoming.Type.CONTENT, content));
-                                    }
+                                    continue;
                                 }
-                                if (node.has("function_call"))
+                                
+                                if ( "content_block_start".equals( type ) )
                                 {
-                                    var functionNode = node.get("function_call");
-                                    if (functionNode.has("name"))
+                                    incomingType =  switch ( node.get( "content_block" ).get( "type" ).asText() )
                                     {
-                                        publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL, String.format("\"function_call\" : { \n \"name\": \"%s\",\n \"arguments\" :", functionNode.get("name").asText())));
-                                    }
-                                    if (functionNode.has("arguments"))
-                                    {
-                                        publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL, node.get("function_call").get("arguments").asText()));
-                                    }
+                                        case "text" -> Incoming.Type.CONTENT;
+                                        case "tool_use" -> Incoming.Type.FUNCTION_CALL;
+                                        default -> null;
+                                    };
                                 }
+                                // Handle tool use events (function calls)
+                                if ( "content_block_start".equals(type) && Incoming.Type.FUNCTION_CALL.equals(incomingType) ) 
+                                {
+                                    JsonNode toolUseNode = node.get("content_block");
+                                    String toolName = toolUseNode.get("name").asText();
+                                    String toolId = toolUseNode.get("id").asText();
+                                    
+                                    JsonNode inputNode = toolUseNode.get("input");
+                                    String arguments = inputNode.toString();
+                                    
+                                    publisher.submit( new Incoming(Incoming.Type.FUNCTION_CALL, 
+                                            String.format( "\"function_call\" : { \n \"name\": \"%s\",\n \"id\": \"%s\",\n \"arguments\" :", toolName, toolId ) ) );
+                                }
+                                // Handle content blocks
+                                if ("content_block_delta".equals(type) && Objects.nonNull( incomingType ) ) 
+                                {
+                                    var delta = node.get( "delta" );
+                                    if ( Objects.nonNull( delta ) )
+                                    {
+                                        if ( delta.has("text") )
+                                        {
+                                            publisher.submit( new Incoming( incomingType, delta.get("text").asText() ) );
+                                        }
+                                        else if ( delta.has("partial_json") )
+                                        {
+                                            publisher.submit( new Incoming( incomingType, delta.get("partial_json").asText() ) );
+                                        }
+                                    }
+                                } 
+
+                            } catch (Exception e) {
+                                // Handle parsing errors but continue processing
+                                logger.error("Error parsing response line: " + line, e);
                             }
                         }
                     }
                 }
+                
                 if (isCancelled.get())
                 {
                     publisher.closeExceptionally(new CancellationException());
@@ -265,4 +354,5 @@ public class AnthropicStreamJavaHttpClient
             }
         };
     }
+    
 }

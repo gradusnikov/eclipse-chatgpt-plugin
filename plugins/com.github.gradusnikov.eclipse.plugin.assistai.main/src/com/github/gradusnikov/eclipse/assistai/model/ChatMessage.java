@@ -2,6 +2,9 @@ package com.github.gradusnikov.eclipse.assistai.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+
+import org.apache.commons.lang3.StringUtils;
 
 import com.github.gradusnikov.eclipse.assistai.part.Attachment;
 
@@ -124,6 +127,11 @@ public class ChatMessage
     public String getName()
     {
         return name;
+    }
+    
+    public boolean isEmpty()
+    {
+        return StringUtils.isAllBlank(content) && attachments.isEmpty() && Objects.isNull( functionCall );
     }
 
 }

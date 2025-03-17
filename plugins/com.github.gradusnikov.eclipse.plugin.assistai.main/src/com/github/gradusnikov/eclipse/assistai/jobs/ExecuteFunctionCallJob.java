@@ -141,6 +141,7 @@ public class ExecuteFunctionCallJob extends Job
 
         String resultJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString( result );
         resultMessage.setContent( resultJson );
+        resultMessage.setFunctionCall( functionCall );
 
         return resultMessage;
     }
