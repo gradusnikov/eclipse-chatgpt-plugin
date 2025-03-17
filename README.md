@@ -23,7 +23,8 @@ AssistAI is an Eclipse IDE plugin that brings a Large Language Model (LLM) assis
 - Create contexts for the LLM that include source files or images 
 - Use the vision model to discuss a image content
 - Switch between defined LLMs
-- [NEW] Added support for interfacing with [Model Context Protocol (MPC)](https://modelcontextprotocol.io/introduction) servers
+- [NEW] Added support for interfacing with [Model Context Protocol (MPC)](https://modelcontextprotocol.io/introduction) servers - MCP servers can be used with both OpenAI compatible (gpt-4o, groq, LM studio) and Anthropic (Claude) LLMs
+- [NEW] Now supporting both OpenAI and Anthropic protocols - including function/tool calling.
 
 
 You can also pose general questions to LLM, just like with the regular ChatGPT interface.
