@@ -2,11 +2,12 @@
 <feature
       id="com.github.gradusnikov.eclipse.assistai"
       label="Assist AI"
-      version="1.0.2.qualifier"
+      version="1.0.4.qualifier"
       provider-name="WojciechGradkowski">
 
    <description>
-      AssistAI is an Eclipse IDE plugin that integrates ChatGPT functionality.
+      AssistAI is an Eclipse IDE plugin that integrates with Large
+Language Models (LLMs) and provides a helpful assistant.
    </description>
 
    <copyright>
@@ -25,15 +26,10 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
    <plugin
          id="com.github.gradusnikov.eclipse.plugin.assistai.dependencies"
-         download-size="0"
-         install-size="0"
          version="0.0.0"/>
 
    <plugin
          id="com.github.gradusnikov.eclipse.plugin.assistai.main"
-         download-size="0"
-         install-size="0"
-         version="0.0.0"
-         unpack="false"/>
+         version="0.0.0"/>
 
 </feature>
