@@ -36,8 +36,11 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
         store.setDefault( PreferenceConstants.ASSISTAI_REQUEST_TIMEOUT_SECONDS, 30 );
         
         ModelApiDescriptor gpt4 = new ModelApiDescriptor( "1", "openai", "https://api.openai.com/v1/chat/completions", "", "gpt-4o", 7, true, true );
-        ModelApiDescriptor gpt35 = new ModelApiDescriptor( "2", "openai", "https://api.openai.com/v1/chat/completions", "", "gpt-3.5-turbo", 7, true, true );
-        String modelsJson = ModelApiDescriptorUtilities.toJson( gpt4, gpt35 );
+        ModelApiDescriptor claude = new ModelApiDescriptor( "2", "openai", "https://api.anthropic.com/v1/chat/completions", "", "qwen-qwq-32b", 7, false, true );
+        ModelApiDescriptor groq = new ModelApiDescriptor( "2", "openai", "https://api.groq.com/openai/v1/chat/completions", "", "claude-3-7-sonnet-20250219", 7, true, true );
+        
+        
+        String modelsJson = ModelApiDescriptorUtilities.toJson( gpt4, claude, groq );
         store.setDefault( PreferenceConstants.ASSISTAI_SELECTED_MODEL, gpt4.uid() );
         store.setDefault( PreferenceConstants.ASSISTAI_DEFINED_MODELS, modelsJson );
 
@@ -47,12 +50,9 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
         // Initialize MCP server descriptors
         McpServerDescriptor exampleServer = new McpServerDescriptor(
                 UUID.randomUUID().toString(),
-                "server-everything",
-                "wsl.exe npx -y @modelcontextprotocol/server-everything dir",
-                Arrays.asList(
-                    new EnvironmentVariable("DEBUG", "true"),
-                    new EnvironmentVariable("PORT", "3000")
-                ),
+                "server-filesystem",
+                "wsl.exe npx -y @modelcontextprotocol/server-filesystem ${project_loc}",
+                Arrays.asList(),
                 true,
                 false
         );
