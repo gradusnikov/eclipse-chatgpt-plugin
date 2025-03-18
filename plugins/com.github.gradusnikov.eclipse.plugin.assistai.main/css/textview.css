@@ -8,7 +8,8 @@
 	background-color: #222;
 	font-family: 'Roboto', sans-serif;
 	color: #fff;
-	line-height: 150%;
+	line-height: 120%;
+    font-size: 14px;
 }
 summary {
     font-weight: bold;
