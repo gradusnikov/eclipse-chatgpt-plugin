@@ -130,7 +130,8 @@ public class ChatGPTViewPart
         Button[] buttons = { 
                 createClearChatButton( controls ), 
                 createStopButton( controls ),
-                createArrowButton( controls )};
+//                createArrowButton( controls )
+                };
 
         // layout components
         controls.setLayout( new GridLayout( buttons.length, false ) );
