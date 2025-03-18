@@ -105,12 +105,37 @@ After installing the plugin, configure access to the **OpenAI API**:
 2. Configure your models *Window > Preferences > Assist AI* preferences > Models:
    1. input the model URL (e.g. if you want to use OpenAI models, type https://api.openai.com/v1/chat/completions . You can use any other LLM endpoint, as long as it implements the OpenAI protocol - groq, LLM studio, etc.)
    2. input your API keys (e.g. if you want to use OpenAI models, you can find your keys at https://platform.openai.com/account/api-keys)
-   3. Input the model name. By default, the plugin uses the *gpt-4* model, but you can also utilize *gpt-3.5-turbo* or any available ChatGPT model. To check which models are available to you, go to https://platform.openai.com/playground?mode=chat and check the *Model* drop list.  **I highly recommend using one of the [GPT-4 turbo](https://help.openai.com/en/articles/8555510-gpt-4-turbo) models, e.g. *gpt-4-1106-preview***.  The GPT-4 turbo has an extended context window (128k tokens) which is essential for handling large source files. If you encounter 400 errors, the most probable cause is exceeding the context window limit. The LLM model has a maximum capacity that, when surpassed, results in these errors. 
+   3. Input the model name. By default, the plugin uses the *gpt-4*o model, but you can also utilize *gpt-3.5-turbo* or any available ChatGPT model. To check which models are available to you, go to https://platform.openai.com/playground?mode=chat and check the *Model* drop list.  **I highly recommend using one of the GPT-4o models*** as these have larger context window, which is essential for handling large source files. If you encounter 400 errors, the most probable cause is exceeding the context window limit. The LLM model has a maximum capacity that, when surpassed, results in these errors. 
    4. if the model supports vision (image analysis) check the "With Vision" checkbox
    5. if the model supports function calling (e.g. gpt-4) check the "With Function Calls" checkbox
    6. adjust the model Temperature parameter (if needed)
 
 3. Select the model you want to use from a dropdown list: *Window > Preferences > Assist AI* preferences. You can switch between the defined models here.
+
+### Configuring MCP Servers
+
+MCP servers provide LLMs with tools to interact with files, databases, and APIs. These tools can transform this plugin into an alternative to Cursor or MANUS. Several built-in MCP servers exist, such as DuckDuckGo search, web fetching, or Eclipse integrations, but you can easily add any MCP server that provides a stdio interface.
+
+#### Adding the Filesystem MCP Server
+To enable the filesystem MCP (e.g., [filesystem](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem)), which allows LLMs to read or modify files, follow these steps:
+
+1. **Open the Preferences**  
+   Navigate to *Window > Preferences > Assist AI > MCP Servers* and click **Add**.
+
+2. **Configure the Server**  
+   Fill in the configuration details:  
+   ```  
+   Name: server-filesystem  
+   Command: wsl.exe npx -y @modelcontextprotocol/server-filesystem ${workspace_loc}  
+   ```
+
+3. **Optional Environment Variables**  
+   Define environment variables if required (e.g., API keys).
+
+#### Notes
+- The `${workspace_loc}` variable specifies the workspace folder accessible to the MCP. When using WSL, this path is automatically converted to a Unix-style path for compatibility.  Other eclipse variables are available (`${project_loc}`, etc.)
+- **Security Warning:** Use MCP servers cautiously, as they grant LLMs access to read or modify sensitive data in your project directory, which could be accidentally altered or deleted by the LLM.
+
 
 ### Add ChatGPT View
 
