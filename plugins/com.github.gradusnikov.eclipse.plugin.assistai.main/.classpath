@@ -4,7 +4,7 @@
 	<classpathentry kind="src" path="prompts"/>
 	<classpathentry kind="src" path="css"/>
 	<classpathentry kind="src" path="js"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-17">
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-21">
 		<attributes>
 			<attribute name="module" value="true"/>
 		</attributes>

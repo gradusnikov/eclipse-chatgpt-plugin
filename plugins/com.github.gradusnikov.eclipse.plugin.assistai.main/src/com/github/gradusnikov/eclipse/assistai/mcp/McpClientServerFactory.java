@@ -1,3 +1,4 @@
+
 package com.github.gradusnikov.eclipse.assistai.mcp;
 
 import java.lang.reflect.Method;
@@ -12,78 +13,116 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.gradusnikov.eclipse.assistai.mcp.InMemoryTransport.TransportPair;
 
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures;
+import io.modelcontextprotocol.server.McpServerFeatures.SyncToolRegistration;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.ClientMcpTransport;
 import io.modelcontextprotocol.spec.McpSchema;
+import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
+import io.modelcontextprotocol.spec.McpSchema.Tool;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
-
+/**
+ * Factory for creating Model Context Protocol (MCP) client-server pairs that communicate
+ * through an in-memory transport mechanism. This class facilitates the integration of
+ * AI assistants with Eclipse IDE tools by providing a communication bridge between them.
+ * <p>
+ * The factory extracts tool definitions from annotated methods, configures the MCP server
+ * with these tools, and creates a client that can communicate with the server.
+ */
 @Creatable
 @Singleton
 public class McpClientServerFactory
 {
+    /** Eclipse logging service injected by the framework */
     @Inject
     ILog logger;
     
+    /** Jackson object mapper for JSON serialization and deserialization */
     ObjectMapper objectMapper = new ObjectMapper();
     
+    /**
+     * Record representing a synchronized MCP client-server pair that communicate
+     * through an in-memory transport.
+     */
     public record InMemorySyncClientServer( McpSyncClient client, McpSyncServer server ) {};
     
     /**
-     * Converts the given
-     * {@link com.github.gradusnikov.eclipse.assistai.mcp.McpServer}
-     * implementation into a {@link McpClient} and {@link McpServer} that share
-     * the common in-memory transport.
+     * Creates a synchronized MCP client-server pair that communicate through an
+     * in-memory transport. The server implementation must be annotated with
+     * {@link com.github.gradusnikov.eclipse.assistai.mcp.McpServer}.
      * 
-     * @param serverImplementation a {@link McpServer} annotated class
-     * @return
+     * @param serverImplementation An object whose class is annotated with {@link com.github.gradusnikov.eclipse.assistai.mcp.McpServer}
+     *                            and contains methods annotated with {@link com.github.gradusnikov.eclipse.assistai.mcp.Tool}
+     * @return A record containing the synchronized client and server
+     * @throws IllegalArgumentException If the serverImplementation is not annotated with {@link com.github.gradusnikov.eclipse.assistai.mcp.McpServer}
      */
     public InMemorySyncClientServer creteInMemorySyncClientServer( Object serverImplementation )
+    {
+        McpSchema.Implementation info = createImplementationInfo( serverImplementation );
+
+        // create built-in MCP client server
+        var transports =  InMemoryTransport.createTransportPair();
+
+        
+        ToolExecutor executor = new ToolExecutor( serverImplementation );
+        List<McpSchema.Tool> tools = extractAnnotatedTools( executor.getFunctions() );
+        
+        if ( tools.isEmpty() )
+        {
+            logger.warn( "No tools found in " + serverImplementation.getClass() );
+        }
+        
+        var toolRegistrations = createToolRegistrations( executor, tools );
+
+        McpSyncServer server = buildServer( info, transports, toolRegistrations );
+        
+        McpSyncClient client = buildClient( info, transports );
+        
+        return new InMemorySyncClientServer( client, server );
+        
+    }
+
+    private McpSchema.Implementation createImplementationInfo( Object serverImplementation )
     {
         var mcpServerAnnotation = Optional.ofNullable( serverImplementation.getClass().getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.McpServer.class ) )
                                           .orElseThrow( () -> new IllegalArgumentException( "Not MCP server" ) );
         
         var serverName = mcpServerAnnotation.name();
         McpSchema.Implementation info = new McpSchema.Implementation( serverName, "1.0.0" );
+        return info;
+    }
 
-        // create buil-in MCP client server
-        var transports =  InMemoryTransport.createTransportPair();
+    /**
+     * Builds an MCP client that communicates through the provided transport.
+     * 
+     * @param info Information about the client implementation
+     * @param transports The transport pair containing client and server transports
+     * @return A synchronized MCP client
+     */
+    private McpSyncClient buildClient( McpSchema.Implementation info, TransportPair transports )
+    {
+        ClientMcpTransport clientTransport = transports.getClientTransport();
+        McpSyncClient client = McpClient.sync( clientTransport ).clientInfo( info ).build();
+        return client;
+    }
 
-        
-        ToolExecutor executor = new ToolExecutor( serverImplementation );
-        List<McpSchema.Tool> tools = extractAnnotatedTools( executor.getFunctions() );
-        if ( tools.isEmpty() )
-        {
-            logger.warn( "No tools found in " + serverImplementation.getClass() );
-        }
-        
-        var toolRegistrations = tools.stream().map( tool -> {
-            return new McpServerFeatures.SyncToolRegistration( tool, args -> {
-                // call the tool 
-                try
-                {
-                    var result = executor.call( tool.name(), args ).get();
-                    // TODO: support other content types
-                    var content = new McpSchema.TextContent( 
-                            List.of( McpSchema.Role.ASSISTANT ), 
-                            0.0,
-                            Optional.ofNullable( result ).map( Object::toString ).orElse( "" ) );
-                    return new McpSchema.CallToolResult( List.of( content ), false );
-                }
-                catch ( Exception e )
-                {
-                    logger.error( e.getMessage() );
-                    return new McpSchema.CallToolResult( null, true );
-                }
-            } );
-        } ).collect( Collectors.toList() );
-
+    /**
+     * Builds an MCP server with the provided tool registrations.
+     * 
+     * @param info Information about the server implementation
+     * @param transports The transport pair containing client and server transports
+     * @param toolRegistrations List of tool registrations to be exposed by the server
+     * @return A synchronized MCP server
+     */
+    private McpSyncServer buildServer( McpSchema.Implementation info, TransportPair transports, List<SyncToolRegistration> toolRegistrations )
+    {
         McpSchema.ServerCapabilities capabilities = McpSchema.ServerCapabilities.builder()
                 .logging()
                 .prompts( false )
@@ -96,15 +135,75 @@ public class McpClientServerFactory
                                         .capabilities( capabilities )
                                         .tools( toolRegistrations )
                                         .build();
-        
-        ClientMcpTransport clientTransport = transports.getClientTransport();
-        McpSyncClient client = McpClient.sync( clientTransport ).clientInfo( info ).build();
-        
-        return new InMemorySyncClientServer( client, server );
-        
+        return server;
+    }
+
+    /**
+     * Creates tool registrations from the list of tools. Each registration
+     * links a tool definition with its executor.
+     * 
+     * @param executor The tool executor that will execute tool calls
+     * @param tools List of tool definitions
+     * @return List of tool registrations
+     */
+    private List<SyncToolRegistration> createToolRegistrations( ToolExecutor executor, List<McpSchema.Tool> tools )
+    {
+        var toolRegistrations = tools.stream().map( tool -> {
+            return new McpServerFeatures.SyncToolRegistration( tool, args -> {
+                return executeCallTool( executor, tool, args );
+            } );
+        } ).collect( Collectors.toList() );
+        return toolRegistrations;
+    }
+
+    /**
+     * Executes a tool call with the provided arguments.
+     * 
+     * @param executor The tool executor
+     * @param tool The tool definition
+     * @param args The arguments for the tool call
+     * @return The result of the tool call
+     */
+    private CallToolResult executeCallTool( ToolExecutor executor, Tool tool, Map<String, Object> args )
+    {
+        try
+        {
+            var result = executor.call( tool.name(), args ).get();
+            return createTextCallToolResult( result );
+        }
+        catch ( Exception e )
+        {
+            logger.error( e.getMessage() );
+            return new McpSchema.CallToolResult( null, true );
+        }
+    }
+
+    /**
+     * Creates a text-based tool call result from the provided object.
+     * 
+     * @param result The result object from tool execution
+     * @return A CallToolResult containing the text representation of the result
+     */
+    private CallToolResult createTextCallToolResult( Object result )
+    {
+        // TODO: support other content types
+        var content = new McpSchema.TextContent( 
+                List.of( McpSchema.Role.ASSISTANT ), 
+                0.0,
+                Optional.ofNullable( result ).map( Object::toString ).orElse( "" ) );
+        return new McpSchema.CallToolResult( List.of( content ), false );
     }
     
-    
+    /**
+     * Extracts tool definitions from methods annotated with
+     * {@link com.github.gradusnikov.eclipse.assistai.mcp.Tool}.
+     * <p>
+     * This method processes the annotations on methods and their parameters to
+     * create MCP tool definitions that can be registered with an MCP server.
+     * 
+     * @param methods The methods to extract tool definitions from
+     * @return List of tool definitions
+     */
     public static List<McpSchema.Tool> extractAnnotatedTools( Method ... methods )
     {
         var tools = new ArrayList<McpSchema.Tool>();
@@ -140,5 +239,4 @@ public class McpClientServerFactory
         }
         return tools;
     }
-    
 }

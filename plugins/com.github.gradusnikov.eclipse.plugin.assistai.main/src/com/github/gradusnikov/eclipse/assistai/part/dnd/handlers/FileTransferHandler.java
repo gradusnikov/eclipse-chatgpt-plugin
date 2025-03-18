@@ -12,7 +12,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.swt.dnd.FileTransfer;
 import org.eclipse.swt.dnd.Transfer;
 
-import com.github.gradusnikov.eclipse.assistai.services.ContentTypeDetector;
+import com.github.gradusnikov.eclipse.assistai.tools.ContentTypeDetector;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
