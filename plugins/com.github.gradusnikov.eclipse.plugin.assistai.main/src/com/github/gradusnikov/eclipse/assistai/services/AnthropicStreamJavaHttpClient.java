@@ -109,7 +109,7 @@ public class AnthropicStreamJavaHttpClient implements LanguageModelClient
             if (model.functionCalling())
             {
                 ArrayNode tools = objectMapper.createArrayNode();
-                for (var client : mcpClientRegistry.listClients().entrySet())
+                for (var client : mcpClientRegistry.listEnabledveClients().entrySet())
                 {
                     tools.addAll(AnnotationToJsonConverter.clientToolsToJsonAnthropic(client.getKey(), client.getValue()));
                 }

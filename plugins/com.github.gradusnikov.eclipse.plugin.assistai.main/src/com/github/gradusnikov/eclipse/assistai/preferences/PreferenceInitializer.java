@@ -1,24 +1,10 @@
 package com.github.gradusnikov.eclipse.assistai.preferences;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import org.eclipse.core.runtime.preferences.AbstractPreferenceInitializer;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
-import com.github.gradusnikov.eclipse.assistai.mcp.McpServer;
-import com.github.gradusnikov.eclipse.assistai.mcp.servers.DuckDuckSearchMcpServer;
-import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseIntegrationsMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.McpServerBuiltins;
-import com.github.gradusnikov.eclipse.assistai.mcp.servers.ReadWebPageMcpServer;
-import com.github.gradusnikov.eclipse.assistai.mcp.servers.TimeMcpServer;
-import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor;
-import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor.EnvironmentVariable;
 import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
@@ -48,21 +34,9 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
         
         var descriptors = McpServerBuiltins.listBuiltInImplementations();
         
-        // Initialize MCP server descriptors
-        McpServerDescriptor exampleServer = new McpServerDescriptor(
-                "2f8a6b7c-d9e0-4f1a-8b3c-5d2e9f7a6b4c",
-                "server-filesystem",
-                "wsl.exe npx -y @modelcontextprotocol/server-filesystem ${project_loc}",
-                Arrays.asList(),
-                true,
-                false
-        );
-        descriptors.add( exampleServer );
-        
         String mcpServersJson = McpServerDescriptorUtilities.toJson( descriptors );
         store.setDefault(PreferenceConstants.ASSISTAI_DEFINED_MCP_SERVERS, mcpServersJson);
 
-        
         PromptLoader promptLoader = new PromptLoader();
         for ( Prompts prompt : Prompts.values() )
         {

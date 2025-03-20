@@ -92,7 +92,7 @@ public class ExecuteFunctionCallJob extends Job
         CallToolRequest request = new CallToolRequest( toolName, functionCall.arguments() );
 
         // Find and execute the tool
-        Optional<CompletableFuture<Object>> functionExecutor = mcpClientRetistry.findTool( clientName, toolName )
+        Optional<CompletableFuture<Object>> functionExecutor = mcpClientRetistry.findClient( clientName )
                 .map( client -> CompletableFuture.supplyAsync( () -> client.callTool( request ) ) );
 
         if ( functionExecutor.isEmpty() )

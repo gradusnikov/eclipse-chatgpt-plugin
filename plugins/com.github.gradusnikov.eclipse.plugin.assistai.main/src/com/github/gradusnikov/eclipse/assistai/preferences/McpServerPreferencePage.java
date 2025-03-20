@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jface.dialogs.Dialog;
@@ -38,11 +37,9 @@ import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
-import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor;
 import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor.EnvironmentVariable;
 import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor.McpServerDescriptorWithStatus;
-import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor.Status;
 
 /**
  * Preference page for MCP Server settings
@@ -205,7 +202,11 @@ public class McpServerPreferencePage extends PreferencePage implements IWorkbenc
         // Handle checkbox state changes
         checkboxTableViewer.addCheckStateListener(event -> {
             boolean checked = event.getChecked();
-            presenter.toggleServerEnabled(serverTable.getSelectionIndex(), checked);
+            var element = event.getElement();
+            int index = ((List<?>) serverTableViewer.getInput()).indexOf(element);
+            if (index != -1) {
+                presenter.toggleServerEnabled(index, checked);
+            }
         });
     }
 

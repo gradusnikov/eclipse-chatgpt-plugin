@@ -113,7 +113,7 @@ public class OpenAIStreamJavaHttpClient implements LanguageModelClient
             if ( model.functionCalling() )
             {
                 ArrayNode functions = objectMapper.createArrayNode();
-                for ( var client : mcpClientRegistry.listClients().entrySet() )
+                for ( var client : mcpClientRegistry.listEnabledveClients().entrySet() )
                 {
                     functions.addAll( AnnotationToJsonConverter.clientToolsToJson( client.getKey(), client.getValue() ) );
                 }                

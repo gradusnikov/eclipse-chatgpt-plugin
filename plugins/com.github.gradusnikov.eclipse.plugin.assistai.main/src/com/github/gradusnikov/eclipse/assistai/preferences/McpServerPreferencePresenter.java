@@ -50,6 +50,7 @@ public class McpServerPreferencePresenter
     public List<McpServerDescriptor> getServers()
     {
         String serversJson = preferenceStore.getString( PreferenceConstants.ASSISTAI_DEFINED_MCP_SERVERS );
+        System.out.println(serversJson);
         return McpServerDescriptorUtilities.fromJson( serversJson );
     }
     
