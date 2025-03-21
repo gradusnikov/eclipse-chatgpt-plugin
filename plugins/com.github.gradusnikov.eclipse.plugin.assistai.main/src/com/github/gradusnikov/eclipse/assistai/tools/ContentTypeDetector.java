@@ -35,14 +35,11 @@ public class ContentTypeDetector
 
     public String detectContentType( URL content )
     {
-        try
+        try (InputStream in = content.openStream())
         {
-            try (InputStream in = content.openStream())
-            {
-                byte[] contentBytes = new byte[4096];
-                IOUtils.read( in, contentBytes );
-                return detectContentType( contentBytes );
-            }
+            byte[] contentBytes = new byte[4096];
+            IOUtils.read( in, contentBytes );
+            return detectContentType( contentBytes );
         }
         catch ( Exception e )
         {
@@ -59,15 +56,7 @@ public class ContentTypeDetector
     {
         try
         {
-            // First try cheaply the Java 7 way
-            String contentType = Files.probeContentType( file.toPath() );
-
-            // Fallback to Apache Tika
-            if ( contentType == null )
-            {
-                contentType = tika.detect( file );
-            }
-            
+            var contentType =  tika.detect( file );
             return contentType;
         }
         catch ( Exception e )

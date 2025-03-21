@@ -46,24 +46,44 @@ public class FileTransferHandler implements ITransferHandler
         for ( String fullFileName : files )
         {
             File file = new File( fullFileName );
-
+            
             String contentType = contentTypeDetector.detectContentType( file );
             
-            if ( contentType.startsWith( "image" ) )
-            {
-                handleImageFile( file );
-            }
-            else if ( contentType.startsWith( "text" ) )
-            {
-                handleTextFile( file );
-            }
-            else
-            {
-                logger.error( "Unsupported file type: " + contentType );
-            }
+
+             // More comprehensive approach
+             switch (contentType) {
+                 case String s when s.contains("image") -> handleImageFile(file);
+                 case String s when isTextContent(s) -> handleTextFile(file);
+                 default -> logger.error("Unsupported file type: " + contentType);
+             }
         }
     }
-
+    private boolean isTextContent( String contentType ) 
+    {
+        // Common text-based MIME types
+        if (contentType.contains("text") ) 
+        {
+            return true;
+        }
+        // Specific application types that are text-based
+        String[] textBasedTypes = {
+            "csv", "json", "xml", "javascript", "typescript", 
+            "html", "css", "markdown", "yaml", "yml", 
+            "properties", "java", "c", "cpp", "h", "py", "rb",
+            "php", "sql", "sh", "bat", "ps1", "ini", "conf",
+            "log", "gradle", "groovy", "kt", "scala", "md"
+        };
+        
+        for (String type : textBasedTypes) 
+        {
+            if (contentType.contains(type)) 
+            {
+                return true;
+            }
+        }
+        
+        return false;
+    }
     private void handleTextFile( File file )
     {
         try (InputStream in = new BufferedInputStream( new FileInputStream( file ) ))

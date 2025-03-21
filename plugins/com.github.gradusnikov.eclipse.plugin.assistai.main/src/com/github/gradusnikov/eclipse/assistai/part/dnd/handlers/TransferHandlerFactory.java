@@ -54,7 +54,8 @@ public class TransferHandlerFactory
 
     public ITransferHandler createTransferHandlerForType( Transfer type )
     {
-        return Optional.ofNullable(  supportedTransferHandlers.get( type ) ).orElseThrow(() -> new IllegalArgumentException("Not supported for " + type ) );
+        return Optional.ofNullable(  supportedTransferHandlers.get( type ) )
+                       .orElseThrow(() -> new IllegalArgumentException("Not supported for " + type ) );
     }
     
     

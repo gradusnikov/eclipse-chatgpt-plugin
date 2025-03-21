@@ -84,6 +84,7 @@ public class DropManager
             {
                 event.detail = DND.DROP_COPY;
             }
+            
             transferHandlerFactory.getTransferHandler( event.currentDataType )
                                   .ifPresentOrElse( handler -> handler.handleTransfer( event.data ),
                                         () -> logger.warn( "Unsupported data type: " + event.data.getClass().getName() ) );
