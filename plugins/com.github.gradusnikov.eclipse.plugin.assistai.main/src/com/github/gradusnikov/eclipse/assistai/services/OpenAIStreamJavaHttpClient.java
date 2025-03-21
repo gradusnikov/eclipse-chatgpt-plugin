@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Flow;
 import java.util.concurrent.SubmissionPublisher;
@@ -37,6 +38,7 @@ import com.github.gradusnikov.eclipse.assistai.part.Attachment;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
+import io.modelcontextprotocol.client.McpSyncClient;
 import jakarta.inject.Inject;
 
 /**
@@ -115,7 +117,7 @@ public class OpenAIStreamJavaHttpClient implements LanguageModelClient
                 ArrayNode functions = objectMapper.createArrayNode();
                 for ( var client : mcpClientRegistry.listEnabledveClients().entrySet() )
                 {
-                    functions.addAll( AnnotationToJsonConverter.clientToolsToJson( client.getKey(), client.getValue() ) );
+                    functions.addAll( clientToolsToJson( client.getKey(), client.getValue() ) );
                 }                
                 if ( !functions.isEmpty() )
                 {
@@ -139,7 +141,24 @@ public class OpenAIStreamJavaHttpClient implements LanguageModelClient
             throw new RuntimeException( e );
         }
     }
-
+    private static ArrayNode clientToolsToJson( String clientName, McpSyncClient client )
+    {
+        List<Map<String, Object>> toolObject = new ArrayList<>();
+        for (var tool : client.listTools().tools() )
+        {
+            toolObject.add( Map.of( "name", clientName + "__" +  tool.name(), // tool name is a combination of client name and the tool name
+                    "type", tool.inputSchema().type(),
+                    "description", Optional.ofNullable( tool.description() ).orElse( "" ),
+                    "parameters", Map.of(
+                                    "type", tool.inputSchema().type(), 
+                                    "properties", tool.inputSchema().properties()), // in reference implementation this method is not visible!
+                    "required", Optional.ofNullable(tool.inputSchema().required()).orElse( List.of() ) 
+                    ));
+        }
+        var objectMapper = new ObjectMapper();
+        var functionsJsonNode= objectMapper.valueToTree( toolObject );
+        return (ArrayNode) functionsJsonNode; 
+    }
     private LinkedHashMap<String, Object> toJsonPayload( ChatMessage message, ModelApiDescriptor model )
     {
         try

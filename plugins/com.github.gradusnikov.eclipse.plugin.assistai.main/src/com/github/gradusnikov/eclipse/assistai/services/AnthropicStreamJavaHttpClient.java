@@ -39,6 +39,7 @@ import com.github.gradusnikov.eclipse.assistai.part.Attachment;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
+import io.modelcontextprotocol.client.McpSyncClient;
 import jakarta.inject.Inject;
 
 /**
@@ -82,6 +83,41 @@ public class AnthropicStreamJavaHttpClient implements LanguageModelClient
         publisher.subscribe(subscriber);
     }
 
+    static ArrayNode clientToolsToJson(String clientName, McpSyncClient client) {
+        List<Map<String, Object>> tools = new ArrayList<>();
+        
+        for (var tool : client.listTools().tools()) {
+            // Create the main tool object
+            var toolObj = new LinkedHashMap<String, Object>();
+            
+            // Create the function definition
+            toolObj.put("name", clientName + "__" + tool.name());
+            toolObj.put("description", tool.description() != null ? tool.description() : "");
+            
+            // Create parameters object in the format Anthropic expects
+            var inputSchema = new LinkedHashMap<String, Object>();
+            inputSchema.put("type", tool.inputSchema().type() );
+            
+            // Add properties
+            if ( !tool.inputSchema().properties().isEmpty() )
+            {
+                inputSchema.put("properties", tool.inputSchema().properties());
+            }
+            
+            // Add required fields if present
+            if (tool.inputSchema().required() != null && !tool.inputSchema().required().isEmpty()) {
+                inputSchema.put("required", tool.inputSchema().required());
+            }
+            
+            toolObj.put("input_schema", inputSchema);
+            tools.add(toolObj);
+        }
+        
+        var objectMapper = new ObjectMapper();
+        var functionsJsonNode= objectMapper.valueToTree( tools );
+        return (ArrayNode) functionsJsonNode; 
+    }
+    
     private String getRequestBody(Conversation prompt, ModelApiDescriptor model)
     {
         try
@@ -111,7 +147,7 @@ public class AnthropicStreamJavaHttpClient implements LanguageModelClient
                 ArrayNode tools = objectMapper.createArrayNode();
                 for (var client : mcpClientRegistry.listEnabledveClients().entrySet())
                 {
-                    tools.addAll(AnnotationToJsonConverter.clientToolsToJsonAnthropic(client.getKey(), client.getValue()));
+                    tools.addAll(clientToolsToJson(client.getKey(), client.getValue()));
                 }
                 if (!tools.isEmpty())
                 {
@@ -229,7 +265,7 @@ public class AnthropicStreamJavaHttpClient implements LanguageModelClient
     {
         return () -> {
             var model = configuration.getSelectedModel().orElseThrow();
-
+            
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
                     .build();
@@ -245,7 +281,7 @@ public class AnthropicStreamJavaHttpClient implements LanguageModelClient
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .build();
 
-            logger.info("Sending request to Anthropic API.\n\n" + requestBody);
+            logger.info( "Sending request to Anthropic API.\n\n" +  requestBody);
 
             try
             {
