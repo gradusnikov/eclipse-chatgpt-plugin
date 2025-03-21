@@ -47,6 +47,7 @@ import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.diff.MyersDiff;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.diff.RawTextComparator;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
@@ -96,7 +97,7 @@ public class EclipseIntegrationsMcpServer
     
     
 
-    @Tool(name="generateCodeDiff", description="Generate a diff/patch between proposed code and an existing file in the project.", type="object")
+    @Tool(name="generateCodeDiff", description="Generate a diff/patch between proposed code and an existing file in the project. Returns a diff code block that should be presented to the User, and change summary.", type="object")
     public String generateCodeDiff(
             @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
             @ToolParam(name="filePath", description="The path to the file relative to the project root", required=true) String filePath,
@@ -214,10 +215,6 @@ public class EclipseIntegrationsMcpServer
                 response.append("- Added lines: ").append(addedLines).append("\n");
                 response.append("- Removed lines: ").append(removedLines).append("\n");
                 response.append("- Net change: ").append(addedLines - removedLines).append(" line(s)\n\n");
-                
-                response.append("## How to Apply\n");
-                response.append("You can apply this patch by updating the file with the changes shown above. ");
-                response.append("Lines starting with '+' should be added, and lines starting with '-' should be removed.\n");
                 
                 return response.toString();
                 
@@ -470,216 +467,231 @@ public class EclipseIntegrationsMcpServer
     }
 
 
+
     @Tool(name="getCurrentlyOpenedFile", description="Gets information about the currently active file in the Eclipse editor.", type="object")
     public String getCurrentlyOpenedFile() {
-        try {
-            // Get the workbench and active page
-            IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
-            if (window == null) {
-                return "No active workbench window found.";
-            }
-            
-            IWorkbenchPage page = window.getActivePage();
-            if (page == null) {
-                return "No active page found in the workbench.";
-            }
-            
-            // Get the active editor
-            IEditorPart editor = page.getActiveEditor();
-            if (editor == null) {
-                return "No active editor found. Please open a file.";
-            }
-            
-            // Get the editor input
-            IEditorInput editorInput = editor.getEditorInput();
-            if (editorInput == null) {
-                return "No editor input available for the active editor.";
-            }
-            
-            // Get file information
-            StringBuilder result = new StringBuilder();
-            result.append("# Currently Opened File\n\n");
-            
-            // Get the file name
-            String fileName = editorInput.getName();
-            result.append("File Name: ").append(fileName).append("\n");
-            
-            // Get the file path
-            IFile file = null;
-            if (editorInput instanceof IFileEditorInput) {
-                file = ((IFileEditorInput) editorInput).getFile();
-                result.append("File Path: ").append(file.getFullPath().toString()).append("\n");
-                
-                // Get project information
-                IProject project = file.getProject();
-                result.append("Project: ").append(project.getName()).append("\n");
-                
-                // Detect file type/language
-                String extension = file.getFileExtension();
-                if (extension != null) {
-                    result.append("File Type: ").append(extension).append("\n");
+        final StringBuilder result = new StringBuilder();
+        
+        Display.getDefault().syncExec(() -> {
+            try {
+                // Get the workbench and active page
+                IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+                if (window == null) {
+                    result.append("No active workbench window found.");
+                    return;
                 }
                 
-                // Get file content
-                result.append("\n## File Content\n\n");
-                result.append("```");
-                
-                // Add language hint for syntax highlighting based on extension
-                if ("java".equalsIgnoreCase(extension)) {
-                    result.append("java");
-                } else if ("py".equalsIgnoreCase(extension)) {
-                    result.append("python");
-                } else if ("js".equalsIgnoreCase(extension)) {
-                    result.append("javascript");
-                } else if ("html".equalsIgnoreCase(extension)) {
-                    result.append("html");
-                } else if ("xml".equalsIgnoreCase(extension)) {
-                    result.append("xml");
-                } else if ("json".equalsIgnoreCase(extension)) {
-                    result.append("json");
-                } else if ("md".equalsIgnoreCase(extension)) {
-                    result.append("markdown");
-                } else if ("c".equalsIgnoreCase(extension) || 
-                           "cpp".equalsIgnoreCase(extension) || 
-                           "h".equalsIgnoreCase(extension) || 
-                           "hpp".equalsIgnoreCase(extension)) {
-                    result.append("cpp");
-                } else if ("sh".equalsIgnoreCase(extension)) {
-                    result.append("bash");
+                IWorkbenchPage page = window.getActivePage();
+                if (page == null) {
+                    result.append("No active page found in the workbench.");
+                    return;
                 }
                 
-                result.append("\n");
+                // Get the active editor
+                IEditorPart editor = page.getActiveEditor();
+                if (editor == null) {
+                    result.append("No active editor found. Please open a file.");
+                    return;
+                }
                 
-                // Read file content
-                try (InputStream is = file.getContents()) {
-                    ByteArrayOutputStream result2 = new ByteArrayOutputStream();
-                    byte[] buffer = new byte[1024];
-                    int length;
-                    while ((length = is.read(buffer)) != -1) {
-                        result2.write(buffer, 0, length);
+                // Get the editor input
+                IEditorInput editorInput = editor.getEditorInput();
+                if (editorInput == null) {
+                    result.append("No editor input available for the active editor.");
+                    return;
+                }
+                
+                // Get file information
+                result.append("# Currently Opened File\n\n");
+                
+                // Get the file name
+                String fileName = editorInput.getName();
+                result.append("File Name: ").append(fileName).append("\n");
+                
+                // Get the file path
+                IFile file = null;
+                if (editorInput instanceof IFileEditorInput) {
+                    file = ((IFileEditorInput) editorInput).getFile();
+                    result.append("File Path: ").append(file.getFullPath().toString()).append("\n");
+                    
+                    // Get project information
+                    IProject project = file.getProject();
+                    result.append("Project: ").append(project.getName()).append("\n");
+                    
+                    // Detect file type/language
+                    String extension = file.getFileExtension();
+                    if (extension != null) {
+                        result.append("File Type: ").append(extension).append("\n");
                     }
-                    result.append(result2.toString(file.getCharset()));
+                    
+                    // Get file content
+                    result.append("\n## File Content\n\n");
+                    result.append("```");
+                    
+                    // Add language hint for syntax highlighting based on extension
+                    if ("java".equalsIgnoreCase(extension)) {
+                        result.append("java");
+                    } else if ("py".equalsIgnoreCase(extension)) {
+                        result.append("python");
+                    } else if ("js".equalsIgnoreCase(extension)) {
+                        result.append("javascript");
+                    } else if ("html".equalsIgnoreCase(extension)) {
+                        result.append("html");
+                    } else if ("xml".equalsIgnoreCase(extension)) {
+                        result.append("xml");
+                    } else if ("json".equalsIgnoreCase(extension)) {
+                        result.append("json");
+                    } else if ("md".equalsIgnoreCase(extension)) {
+                        result.append("markdown");
+                    } else if ("c".equalsIgnoreCase(extension) || 
+                               "cpp".equalsIgnoreCase(extension) || 
+                               "h".equalsIgnoreCase(extension) || 
+                               "hpp".equalsIgnoreCase(extension)) {
+                        result.append("cpp");
+                    } else if ("sh".equalsIgnoreCase(extension)) {
+                        result.append("bash");
+                    }
+                    
+                    result.append("\n");
+                    
+                    // Read file content
+                    try (InputStream is = file.getContents()) {
+                        ByteArrayOutputStream result2 = new ByteArrayOutputStream();
+                        byte[] buffer = new byte[1024];
+                        int length;
+                        while ((length = is.read(buffer)) != -1) {
+                            result2.write(buffer, 0, length);
+                        }
+                        result.append(result2.toString(file.getCharset()));
+                    }
+                    
+                    result.append("\n```");
+                } else {
+                    result.append("File information not available. The editor input is not a file.\n");
                 }
-                
-                result.append("\n```");
-            } else {
-                result.append("File information not available. The editor input is not a file.\n");
+            } catch (Exception e) {
+                logger.error(e.getMessage(), e);
+                result.append("Error retrieving current file information: ").append(e.getMessage());
             }
-            
-            return result.toString();
-            
-        } catch (Exception e) {
-            logger.error(e.getMessage(), e);
-            return "Error retrieving current file information: " + e.getMessage();
-        }
+        });
+        
+        return result.toString();
     }
     
+
     @Tool(name="getEditorSelection", description="Gets the currently selected text or lines in the active editor.", type="object")
     public String getEditorSelection() {
-        try {
-            // Get the workbench and active page
-            IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
-            if (window == null) {
-                return "No active workbench window found.";
-            }
-            
-            IWorkbenchPage page = window.getActivePage();
-            if (page == null) {
-                return "No active page found in the workbench.";
-            }
-            
-            // Get the active editor
-            IEditorPart editor = page.getActiveEditor();
-            if (editor == null) {
-                return "No active editor found. Please open a file.";
-            }
-            
-            // Get the selection from the editor
-            if (editor instanceof ITextEditor) {
-                ITextEditor textEditor = (ITextEditor) editor;
-                ISelection selection = textEditor.getSelectionProvider().getSelection();
-                
-                if (selection.isEmpty()) {
-                    return "No text is currently selected in the editor.";
+        final StringBuilder result = new StringBuilder();
+        
+        Display.getDefault().syncExec(() -> {
+            try {
+                // Get the workbench and active page
+                IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+                if (window == null) {
+                    result.append("No active workbench window found.");
+                    return;
                 }
                 
-                if (selection instanceof ITextSelection) {
-                    ITextSelection textSelection = (ITextSelection) selection;
+                IWorkbenchPage page = window.getActivePage();
+                if (page == null) {
+                    result.append("No active page found in the workbench.");
+                    return;
+                }
+                
+                // Get the active editor
+                IEditorPart editor = page.getActiveEditor();
+                if (editor == null) {
+                    result.append("No active editor found. Please open a file.");
+                    return;
+                }
+                
+                // Get the selection from the editor
+                if (editor instanceof ITextEditor) {
+                    ITextEditor textEditor = (ITextEditor) editor;
+                    ISelection selection = textEditor.getSelectionProvider().getSelection();
                     
-                    // Get the selected text
-                    String selectedText = textSelection.getText();
-                    if (selectedText == null || selectedText.isEmpty()) {
-                        return "Selection exists but contains no text.";
+                    if (selection.isEmpty()) {
+                        result.append("No text is currently selected in the editor.");
+                        return;
                     }
                     
-                    StringBuilder result = new StringBuilder();
-                    result.append("# Selected Text in Editor\n\n");
-                    
-                    // Get file information
-                    IEditorInput editorInput = editor.getEditorInput();
-                    String fileName = editorInput.getName();
-                    result.append("File: ").append(fileName).append("\n");
-                    
-                    // Selection details
-                    int startLine = textSelection.getStartLine() + 1; // 1-based line numbers for display
-                    int endLine = textSelection.getEndLine() + 1;
-                    int offset = textSelection.getOffset();
-                    int length = textSelection.getLength();
-                    
-                    result.append("Selection: Lines ").append(startLine).append(" to ").append(endLine)
-                          .append(" (").append(length).append(" characters)\n\n");
-                    
-                    // Try to determine the language for syntax highlighting
-                    String language = "";
-                    if (editorInput instanceof IFileEditorInput) {
-                        IFile file = ((IFileEditorInput) editorInput).getFile();
-                        String extension = file.getFileExtension();
-                        if (extension != null) {
-                            if ("java".equalsIgnoreCase(extension)) {
-                                language = "java";
-                            } else if ("py".equalsIgnoreCase(extension)) {
-                                language = "python";
-                            } else if ("js".equalsIgnoreCase(extension)) {
-                                language = "javascript";
-                            } else if ("html".equalsIgnoreCase(extension)) {
-                                language = "html";
-                            } else if ("xml".equalsIgnoreCase(extension)) {
-                                language = "xml";
-                            } else if ("json".equalsIgnoreCase(extension)) {
-                                language = "json";
-                            } else if ("md".equalsIgnoreCase(extension)) {
-                                language = "markdown";
-                            } else if ("c".equalsIgnoreCase(extension) || 
-                                      "cpp".equalsIgnoreCase(extension) || 
-                                      "h".equalsIgnoreCase(extension) || 
-                                      "hpp".equalsIgnoreCase(extension)) {
-                                language = "cpp";
-                            } else if ("sh".equalsIgnoreCase(extension)) {
-                                language = "bash";
+                    if (selection instanceof ITextSelection) {
+                        ITextSelection textSelection = (ITextSelection) selection;
+                        
+                        // Get the selected text
+                        String selectedText = textSelection.getText();
+                        if (selectedText == null || selectedText.isEmpty()) {
+                            result.append("Selection exists but contains no text.");
+                            return;
+                        }
+                        
+                        result.append("# Selected Text in Editor\n\n");
+                        
+                        // Get file information
+                        IEditorInput editorInput = editor.getEditorInput();
+                        String fileName = editorInput.getName();
+                        result.append("File: ").append(fileName).append("\n");
+                        
+                        // Selection details
+                        int startLine = textSelection.getStartLine() + 1; // 1-based line numbers for display
+                        int endLine = textSelection.getEndLine() + 1;
+                        int offset = textSelection.getOffset();
+                        int length = textSelection.getLength();
+                        
+                        result.append("Selection: Lines ").append(startLine).append(" to ").append(endLine)
+                              .append(" (").append(length).append(" characters)\n\n");
+                        
+                        // Try to determine the language for syntax highlighting
+                        String language = "";
+                        if (editorInput instanceof IFileEditorInput) {
+                            IFile file = ((IFileEditorInput) editorInput).getFile();
+                            String extension = file.getFileExtension();
+                            if (extension != null) {
+                                if ("java".equalsIgnoreCase(extension)) {
+                                    language = "java";
+                                } else if ("py".equalsIgnoreCase(extension)) {
+                                    language = "python";
+                                } else if ("js".equalsIgnoreCase(extension)) {
+                                    language = "javascript";
+                                } else if ("html".equalsIgnoreCase(extension)) {
+                                    language = "html";
+                                } else if ("xml".equalsIgnoreCase(extension)) {
+                                    language = "xml";
+                                } else if ("json".equalsIgnoreCase(extension)) {
+                                    language = "json";
+                                } else if ("md".equalsIgnoreCase(extension)) {
+                                    language = "markdown";
+                                } else if ("c".equalsIgnoreCase(extension) || 
+                                          "cpp".equalsIgnoreCase(extension) || 
+                                          "h".equalsIgnoreCase(extension) || 
+                                          "hpp".equalsIgnoreCase(extension)) {
+                                    language = "cpp";
+                                } else if ("sh".equalsIgnoreCase(extension)) {
+                                    language = "bash";
+                                }
                             }
                         }
+                        
+                        // Add the selected text with syntax highlighting if possible
+                        result.append("```").append(language).append("\n");
+                        result.append(selectedText);
+                        if (!selectedText.endsWith("\n")) {
+                            result.append("\n");
+                        }
+                        result.append("```\n");
+                    } else {
+                        result.append("The current selection is not a text selection.");
                     }
-                    
-                    // Add the selected text with syntax highlighting if possible
-                    result.append("```").append(language).append("\n");
-                    result.append(selectedText);
-                    if (!selectedText.endsWith("\n")) {
-                        result.append("\n");
-                    }
-                    result.append("```\n");
-                    
-                    return result.toString();
                 } else {
-                    return "The current selection is not a text selection.";
+                    result.append("The active editor is not a text editor.");
                 }
-            } else {
-                return "The active editor is not a text editor.";
+            } catch (Exception e) {
+                logger.error(e.getMessage(), e);
+                result.append("Error retrieving editor selection: ").append(e.getMessage());
             }
-            
-        } catch (Exception e) {
-            logger.error(e.getMessage(), e);
-            return "Error retrieving editor selection: " + e.getMessage();
-        }
+        });
+        
+        return result.toString();
     }
 
 
@@ -883,171 +895,178 @@ public class EclipseIntegrationsMcpServer
     }
 
 
+
     @Tool(name="getConsoleOutput", description="Retrieves the recent output from Eclipse console(s).", type="object")
     public String getConsoleOutput(
             @ToolParam(name="consoleName", description="Name of the specific console to retrieve (optional, leave empty for all or most recent console)", required=false) String consoleName,
             @ToolParam(name="maxLines", description="Maximum number of lines to retrieve (default: 100)", required=false) Integer maxLines,
             @ToolParam(name="includeAllConsoles", description="Whether to include output from all available consoles (default: false)", required=false) Boolean includeAllConsoles) {
         
-        try {
-            // Set default values
-            if (maxLines == null || maxLines < 1) {
-                maxLines = 100;
-            }
-            
-            if (includeAllConsoles == null) {
-                includeAllConsoles = false;
-            }
-            
-            StringBuilder result = new StringBuilder();
-            result.append("# Console Output\n\n");
-            
-            // Get all consoles from the console manager
-            IConsoleManager consoleManager = ConsolePlugin.getDefault().getConsoleManager();
-            IConsole[] consoles = consoleManager.getConsoles();
-            
-            if (consoles.length == 0) {
-                return "No consoles found in the Eclipse workspace.";
-            }
-            
-            // Filter consoles based on parameters
-            List<IConsole> targetConsoles = new ArrayList<>();
-            
-            if (consoleName != null && !consoleName.trim().isEmpty()) {
-                // Find console by name
-                for (IConsole console : consoles) {
-                    if (console.getName().contains(consoleName)) {
-                        targetConsoles.add(console);
+        // Set default values
+        if (maxLines == null || maxLines < 1) {
+            maxLines = 100;
+        }
+        
+        if (includeAllConsoles == null) {
+            includeAllConsoles = false;
+        }
+        
+        final StringBuilder result = new StringBuilder();
+        result.append("# Console Output\n\n");
+        
+        final int finalMaxLines = maxLines;
+        final boolean finalIncludeAllConsoles = includeAllConsoles;
+        
+        Display.getDefault().syncExec(() -> {
+            try {
+                // Get all consoles from the console manager
+                IConsoleManager consoleManager = ConsolePlugin.getDefault().getConsoleManager();
+                IConsole[] consoles = consoleManager.getConsoles();
+                
+                if (consoles.length == 0) {
+                    result.append("No consoles found in the Eclipse workspace.");
+                    return;
+                }
+                
+                // Filter consoles based on parameters
+                List<IConsole> targetConsoles = new ArrayList<>();
+                
+                if (consoleName != null && !consoleName.trim().isEmpty()) {
+                    // Find console by name
+                    for (IConsole console : consoles) {
+                        if (console.getName().contains(consoleName)) {
+                            targetConsoles.add(console);
+                        }
+                    }
+                    
+                    if (targetConsoles.isEmpty()) {
+                        result.append("No console found with name containing '").append(consoleName).append("'.");
+                        return;
+                    }
+                } else if (finalIncludeAllConsoles) {
+                    // Include all consoles
+                    targetConsoles.addAll(Arrays.asList(consoles));
+                } else {
+                    // Get the most recently used console
+                    IConsole mostRecentConsole = null;
+                    
+                    // First check if there's an active console page
+                    IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+                    if (window != null) {
+                        IWorkbenchPage page = window.getActivePage();
+                        if (page != null) {
+                            IViewPart consoleView = page.findView(IConsoleConstants.ID_CONSOLE_VIEW);
+                            if (consoleView instanceof IConsoleView) {
+                                IConsole activeConsole = ((IConsoleView) consoleView).getConsole();
+                                if (activeConsole != null) {
+                                    mostRecentConsole = activeConsole;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // If we couldn't find an active console, just use the first one
+                    if (mostRecentConsole == null && consoles.length > 0) {
+                        mostRecentConsole = consoles[0];
+                    }
+                    
+                    if (mostRecentConsole != null) {
+                        targetConsoles.add(mostRecentConsole);
                     }
                 }
                 
                 if (targetConsoles.isEmpty()) {
-                    return "No console found with name containing '" + consoleName + "'.";
+                    result.append("No applicable consoles found to retrieve output from.");
+                    return;
                 }
-            } else if (includeAllConsoles) {
-                // Include all consoles
-                targetConsoles.addAll(Arrays.asList(consoles));
-            } else {
-                // Get the most recently used console
-                IConsole mostRecentConsole = null;
                 
-                // First check if there's an active console page
-                IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
-                if (window != null) {
-                    IWorkbenchPage page = window.getActivePage();
-                    if (page != null) {
-                        IViewPart consoleView = page.findView(IConsoleConstants.ID_CONSOLE_VIEW);
-                        if (consoleView instanceof IConsoleView) {
-                            IConsole activeConsole = ((IConsoleView) consoleView).getConsole();
-                            if (activeConsole != null) {
-                                mostRecentConsole = activeConsole;
+                // Process each target console
+                boolean foundContent = false;
+                for (IConsole console : targetConsoles) {
+                    String consoleContent = "";
+                    
+                    // Handle different console types
+                    if (console instanceof TextConsole) {
+                        TextConsole textConsole = (TextConsole) console;
+                        IDocument document = textConsole.getDocument();
+                        
+                        if (document != null) {
+                            String fullContent = document.get();
+                            
+                            // Get the last N lines
+                            String[] lines = fullContent.split("\n");
+                            int startLine = Math.max(0, lines.length - finalMaxLines);
+                            
+                            StringBuilder consoleText = new StringBuilder();
+                            for (int i = startLine; i < lines.length; i++) {
+                                consoleText.append(lines[i]).append("\n");
                             }
+                            
+                            consoleContent = consoleText.toString();
+                        }
+                    } else if (console instanceof IOConsole) {
+                        IOConsole ioConsole = (IOConsole) console;
+                        
+                        // For IOConsole, we can only access what's currently in the buffer
+                        IDocument document = ioConsole.getDocument();
+                        if (document != null) {
+                            String fullContent = document.get();
+                            
+                            // Get the last N lines
+                            String[] lines = fullContent.split("\n");
+                            int startLine = Math.max(0, lines.length - finalMaxLines);
+                            
+                            StringBuilder consoleText = new StringBuilder();
+                            for (int i = startLine; i < lines.length; i++) {
+                                consoleText.append(lines[i]).append("\n");
+                            }
+                            
+                            consoleContent = consoleText.toString();
+                        }
+                    } else if (console instanceof MessageConsole) {
+                        MessageConsole messageConsole = (MessageConsole) console;
+                        
+                        // For MessageConsole, access the document
+                        IDocument document = messageConsole.getDocument();
+                        if (document != null) {
+                            String fullContent = document.get();
+                            
+                            // Get the last N lines
+                            String[] lines = fullContent.split("\n");
+                            int startLine = Math.max(0, lines.length - finalMaxLines);
+                            
+                            StringBuilder consoleText = new StringBuilder();
+                            for (int i = startLine; i < lines.length; i++) {
+                                consoleText.append(lines[i]).append("\n");
+                            }
+                            
+                            consoleContent = consoleText.toString();
                         }
                     }
-                }
-                
-                // If we couldn't find an active console, just use the first one
-                if (mostRecentConsole == null && consoles.length > 0) {
-                    mostRecentConsole = consoles[0];
-                }
-                
-                if (mostRecentConsole != null) {
-                    targetConsoles.add(mostRecentConsole);
-                }
-            }
-            
-            if (targetConsoles.isEmpty()) {
-                return "No applicable consoles found to retrieve output from.";
-            }
-            
-            // Process each target console
-            boolean foundContent = false;
-            for (IConsole console : targetConsoles) {
-                String consoleContent = "";
-                
-                // Handle different console types
-                if (console instanceof TextConsole) {
-                    TextConsole textConsole = (TextConsole) console;
-                    IDocument document = textConsole.getDocument();
                     
-                    if (document != null) {
-                        String fullContent = document.get();
-                        
-                        // Get the last N lines
-                        String[] lines = fullContent.split("\n");
-                        int startLine = Math.max(0, lines.length - maxLines);
-                        
-                        StringBuilder consoleText = new StringBuilder();
-                        for (int i = startLine; i < lines.length; i++) {
-                            consoleText.append(lines[i]).append("\n");
+                    // Add the console content to the result if not empty
+                    if (consoleContent != null && !consoleContent.trim().isEmpty()) {
+                        foundContent = true;
+                        result.append("## Console: ").append(console.getName()).append("\n\n");
+                        result.append("```\n");
+                        result.append(consoleContent);
+                        if (!consoleContent.endsWith("\n")) {
+                            result.append("\n");
                         }
-                        
-                        consoleContent = consoleText.toString();
-                    }
-                } else if (console instanceof IOConsole) {
-                    IOConsole ioConsole = (IOConsole) console;
-                    IOConsoleOutputStream outputStream = ioConsole.newOutputStream();
-                    
-                    // For IOConsole, we can only access what's currently in the buffer
-                    IDocument document = ioConsole.getDocument();
-                    if (document != null) {
-                        String fullContent = document.get();
-                        
-                        // Get the last N lines
-                        String[] lines = fullContent.split("\n");
-                        int startLine = Math.max(0, lines.length - maxLines);
-                        
-                        StringBuilder consoleText = new StringBuilder();
-                        for (int i = startLine; i < lines.length; i++) {
-                            consoleText.append(lines[i]).append("\n");
-                        }
-                        
-                        consoleContent = consoleText.toString();
-                    }
-                } else if (console instanceof MessageConsole) {
-                    MessageConsole messageConsole = (MessageConsole) console;
-                    
-                    // For MessageConsole, access the document
-                    IDocument document = messageConsole.getDocument();
-                    if (document != null) {
-                        String fullContent = document.get();
-                        
-                        // Get the last N lines
-                        String[] lines = fullContent.split("\n");
-                        int startLine = Math.max(0, lines.length - maxLines);
-                        
-                        StringBuilder consoleText = new StringBuilder();
-                        for (int i = startLine; i < lines.length; i++) {
-                            consoleText.append(lines[i]).append("\n");
-                        }
-                        
-                        consoleContent = consoleText.toString();
+                        result.append("```\n\n");
                     }
                 }
                 
-                // Add the console content to the result if not empty
-                if (consoleContent != null && !consoleContent.trim().isEmpty()) {
-                    foundContent = true;
-                    result.append("## Console: ").append(console.getName()).append("\n\n");
-                    result.append("```\n");
-                    result.append(consoleContent);
-                    if (!consoleContent.endsWith("\n")) {
-                        result.append("\n");
-                    }
-                    result.append("```\n\n");
+                if (!foundContent) {
+                    result.append("No content found in the ").append(targetConsoles.size() == 1 ? "selected console." : "selected consoles.");
                 }
+            } catch (Exception e) {
+                logger.error(e.getMessage(), e);
+                result.append("Error retrieving console output: ").append(e.getMessage());
             }
-            
-            if (!foundContent) {
-                return "No content found in the " + (targetConsoles.size() == 1 ? "selected console." : "selected consoles.");
-            }
-            
-            return result.toString();
-            
-        } catch (Exception e) {
-            logger.error(e.getMessage(), e);
-            return "Error retrieving console output: " + e.getMessage();
-        }
+        });
+        
+        return result.toString();
     }
 
     
