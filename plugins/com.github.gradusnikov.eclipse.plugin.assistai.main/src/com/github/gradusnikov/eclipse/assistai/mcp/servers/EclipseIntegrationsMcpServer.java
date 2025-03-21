@@ -3,12 +3,12 @@ package com.github.gradusnikov.eclipse.assistai.mcp.servers;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
-
-import jakarta.inject.Inject;
 
 import org.apache.tika.Tika;
 import org.eclipse.core.resources.IContainer;
@@ -34,13 +34,20 @@ import org.eclipse.jdt.core.Signature;
 import org.eclipse.jdt.internal.corext.callhierarchy.CallHierarchy;
 import org.eclipse.jdt.internal.corext.callhierarchy.MethodWrapper;
 import org.eclipse.jface.text.Document;
-
+import org.eclipse.jgit.diff.DiffFormatter;
+import org.eclipse.jgit.diff.EditList;
+import org.eclipse.jgit.diff.MyersDiff;
+import org.eclipse.jgit.diff.RawText;
+import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.ui.editors.text.TextFileDocumentProvider;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.Tool;
 import com.github.gradusnikov.eclipse.assistai.mcp.ToolParam;
 import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
+
+import jakarta.inject.Inject;
+
 
 @Creatable
 @McpServer(name = "eclipse-ide")
@@ -61,6 +68,164 @@ public class EclipseIntegrationsMcpServer
     {
         return getClassAttachedSource( fullyQualifiedClassName );
     }
+    
+    
+
+    @Tool(name="generateCodeDiff", description="Generate a diff/patch between proposed code and an existing file in the project.", type="object")
+    public String generateCodeDiff(
+            @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
+            @ToolParam(name="filePath", description="The path to the file relative to the project root", required=true) String filePath,
+            @ToolParam(name="proposedCode", description="The new/updated code being proposed", required=true) String proposedCode,
+            @ToolParam(name="contextLines", description="Number of context lines to include in the diff (default: 3)", required=false) Integer contextLines) {
+        
+        if (contextLines == null || contextLines < 0) {
+            contextLines = 3; // Default context lines
+        }
+        
+        try {
+            // Get the project
+            IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+            if (project == null || !project.exists()) {
+                return "Error: Project '" + projectName + "' not found.";
+            }
+            
+            if (!project.isOpen()) {
+                return "Error: Project '" + projectName + "' is closed.";
+            }
+            
+            // Get the file
+            IResource resource = project.findMember(filePath);
+            if (resource == null || !resource.exists()) {
+                return "Error: File '" + filePath + "' not found in project '" + projectName + "'.";
+            }
+            
+            // Check if the resource is a file
+            if (!(resource instanceof IFile)) {
+                return "Error: Resource '" + filePath + "' is not a file.";
+            }
+            
+            IFile file = (IFile) resource;
+            
+            // Read the original file content
+            String originalContent;
+            try (InputStream is = file.getContents()) {
+                ByteArrayOutputStream result = new ByteArrayOutputStream();
+                byte[] buffer = new byte[1024];
+                int length;
+                while ((length = is.read(buffer)) != -1) {
+                    result.write(buffer, 0, length);
+                }
+                originalContent = result.toString(file.getCharset());
+            }
+            
+            // Create temporary files for diff
+            Path originalFile = Files.createTempFile("original-", ".tmp");
+            Path proposedFile = Files.createTempFile("proposed-", ".tmp");
+            
+            try {
+                // Write contents to temp files
+                Files.writeString(originalFile, originalContent);
+                Files.writeString(proposedFile, proposedCode);
+                
+                // Generate diff using JGit's DiffFormatter
+                ByteArrayOutputStream diffOutput = new ByteArrayOutputStream();
+                try (DiffFormatter formatter = new DiffFormatter(diffOutput)) {
+                    formatter.setContext(contextLines);
+                    
+                    // Create a simple manual diff
+                    RawText rawOriginal = new RawText(originalFile.toFile());
+                    RawText rawProposed = new RawText(proposedFile.toFile());
+                    
+                    // Write a manual diff header
+                    diffOutput.write(("--- a/" + filePath + "\n").getBytes());
+                    diffOutput.write(("+++ b/" + filePath + "\n").getBytes());
+                    
+                    // Create and format the edit list
+                    EditList edits = new EditList();
+                    RawTextComparator comparator = RawTextComparator.DEFAULT;
+                    edits.addAll(MyersDiff.INSTANCE.diff(comparator, rawOriginal, rawProposed));
+                    
+                    // Write the unified diff format
+                    for (org.eclipse.jgit.diff.Edit edit : edits) {
+                        int beginA = edit.getBeginA();
+                        int endA = edit.getEndA();
+                        int beginB = edit.getBeginB();
+                        int endB = edit.getEndB();
+                        
+                        // Write the hunk header
+                        diffOutput.write(("@@ -" + (beginA + 1) + "," + (endA - beginA) + 
+                                         " +" + (beginB + 1) + "," + (endB - beginB) + " @@\n").getBytes());
+                        
+                        // Write the context and changes
+                        for (int i = beginA; i < endA; i++) {
+                            diffOutput.write(("-" + rawOriginal.getString(i) + "\n").getBytes());
+                        }
+                        for (int i = beginB; i < endB; i++) {
+                            diffOutput.write(("+" + rawProposed.getString(i) + "\n").getBytes());
+                        }
+                    }
+                } catch (IOException e) {
+                    logger.error( e.getMessage(), e );
+                }
+                
+                String diffResult = diffOutput.toString();
+                
+                // If there are no changes, inform the user
+                if (diffResult.trim().isEmpty() || !diffResult.contains("@@")) {
+                    return "No changes detected. The proposed code is identical to the existing file.";
+                }
+                
+                StringBuilder response = new StringBuilder();
+                response.append("# Diff for ").append(filePath).append("\n\n");
+                response.append("```diff\n");
+                response.append(diffResult);
+                response.append("```\n\n");
+                
+                // Add summary of changes
+                int addedLines = countMatches(diffResult, "\n+") - countMatches(diffResult, "\n+++");
+                int removedLines = countMatches(diffResult, "\n-") - countMatches(diffResult, "\n---");
+                
+                response.append("## Summary of Changes\n");
+                response.append("- Added lines: ").append(addedLines).append("\n");
+                response.append("- Removed lines: ").append(removedLines).append("\n");
+                response.append("- Net change: ").append(addedLines - removedLines).append(" line(s)\n\n");
+                
+                response.append("## How to Apply\n");
+                response.append("You can apply this patch by updating the file with the changes shown above. ");
+                response.append("Lines starting with '+' should be added, and lines starting with '-' should be removed.\n");
+                
+                return response.toString();
+                
+            } finally {
+                // Clean up temporary files
+                Files.deleteIfExists(originalFile);
+                Files.deleteIfExists(proposedFile);
+            }
+            
+        } catch (IOException | CoreException e) {
+            logger.error(e.getMessage(), e);
+            return "Error generating diff: " + e.getMessage();
+        }
+    }
+    
+    
+    /**
+     * Count occurrences of a substring in a string
+     */
+    private int countMatches(String str, String sub) {
+        if (str == null || str.isEmpty() || sub == null || sub.isEmpty()) {
+            return 0;
+        }
+        
+        int count = 0;
+        int idx = 0;
+        while ((idx = str.indexOf(sub, idx)) != -1) {
+            count++;
+            idx += sub.length();
+        }
+        return count;
+    }
+    
     
     @Tool(name="readProjectResource", description="Read the content of a text resource from a specified project.", type="object")
     public String readProjectResource(
