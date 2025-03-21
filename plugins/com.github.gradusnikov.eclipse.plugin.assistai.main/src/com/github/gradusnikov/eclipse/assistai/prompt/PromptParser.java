@@ -46,7 +46,7 @@ public class PromptParser
         try( var scanner = new Scanner(prompt) )
         {
             scanner.useDelimiter( "\n" );
-            var codeBlockPattern = Pattern.compile( "^```([aA-zZ]*)$" );
+            var codeBlockPattern = Pattern.compile( "^[`]+([aA-zZ]*)$" );
             var functionCallPattern = Pattern.compile( "^\"function_call\".*" );
             while ( scanner.hasNext() )
             {
