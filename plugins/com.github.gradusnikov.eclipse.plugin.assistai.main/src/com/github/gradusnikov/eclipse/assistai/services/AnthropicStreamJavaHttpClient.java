@@ -139,7 +139,6 @@ public class AnthropicStreamJavaHttpClient implements LanguageModelClient
             requestBody.put("messages", messages);
             requestBody.put("temperature", model.temperature() / 10.0);
             requestBody.put("stream", true);
-            requestBody.put("max_tokens", 4096); // Configurable limit
             
             // Add tools if function calling is enabled
             if (model.functionCalling())
