@@ -18,16 +18,21 @@ import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jdt.core.IBuffer;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMember;
+import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.ISourceRange;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
+import org.eclipse.jdt.core.Signature;
+import org.eclipse.jdt.internal.corext.callhierarchy.CallHierarchy;
+import org.eclipse.jdt.internal.corext.callhierarchy.MethodWrapper;
 import org.eclipse.jface.text.Document;
 
 import org.eclipse.ui.editors.text.TextFileDocumentProvider;
@@ -298,6 +303,186 @@ public class EclipseIntegrationsMcpServer
         return result.toString();
     }
 
+
+    @Tool(name="getMethodCallHierarchy", description="Retrieves the call hierarchy (callers) for a specified method to understand how it's used in the codebase.", type="object")
+    public String getMethodCallHierarchy(
+            @ToolParam(name="fullyQualifiedClassName", description="The fully qualified name of the class containing the method", required=true) String fullyQualifiedClassName,
+            @ToolParam(name="methodName", description="The name of the method to analyze", required=true) String methodName,
+            @ToolParam(name="methodSignature", description="The signature of the method (optional, required if method is overloaded)", required=false) String methodSignature,
+            @ToolParam(name="maxDepth", description="Maximum depth of the call hierarchy to retrieve (default: 3)", required=false) Integer maxDepth) {
+        
+        if (maxDepth == null || maxDepth < 1) {
+            maxDepth = 3; // Default to 3 levels of depth
+        }
+        
+        StringBuilder result = new StringBuilder();
+        result.append("# Call Hierarchy for Method: ").append(methodName).append("\n\n");
+        
+        try {
+            // Find the method in available Java projects
+            IMethod targetMethod = null;
+            
+            for (IJavaProject project : getAvailableJavaProjects()) {
+                IType type = project.findType(fullyQualifiedClassName);
+                if (type == null) {
+                    continue;
+                }
+                
+                // If method signature is provided, use it to find the exact method
+                if (methodSignature != null && !methodSignature.isEmpty()) {
+                    targetMethod = type.getMethod(methodName, methodSignature.split(","));
+                    if (targetMethod != null && targetMethod.exists()) {
+                        break;
+                    }
+                } else {
+                    // Try to find the method without signature
+                    IMethod[] methods = type.getMethods();
+                    for (IMethod method : methods) {
+                        if (method.getElementName().equals(methodName)) {
+                            targetMethod = method;
+                            break;
+                        }
+                    }
+                    if (targetMethod != null) {
+                        break;
+                    }
+                }
+            }
+            
+            if (targetMethod == null || !targetMethod.exists()) {
+                return "Method '" + methodName + "' not found in class '" + fullyQualifiedClassName + "'.";
+            }
+            
+            // Get the call hierarchy
+            CallHierarchy callHierarchy = CallHierarchy.getDefault();
+            MethodWrapper[] callerRoots = callHierarchy.getCallerRoots(new IMethod[] {targetMethod});
+            
+            if (callerRoots == null || callerRoots.length == 0) {
+                result.append("No callers found for this method.\n");
+            } else {
+                result.append("## Callers:\n\n");
+                collectCallHierarchy(callerRoots, 0, maxDepth, result);
+            }
+            
+            // Also get callees (methods called by this method)
+            MethodWrapper[] calleeRoots = callHierarchy.getCalleeRoots(new IMethod[] {targetMethod});
+            
+            if (calleeRoots != null && calleeRoots.length > 0) {
+                result.append("\n## Methods Called By ").append(methodName).append(":\n\n");
+                collectCalleeHierarchy(calleeRoots, 0, 1, result); // Only go one level deep for callees
+            }
+            
+            return result.toString();
+            
+        } catch (JavaModelException e) {
+            logger.error(e.getMessage(), e);
+            return "Error retrieving call hierarchy: " + e.getMessage();
+        }
+    }
+    
+    private void collectCallHierarchy(MethodWrapper[] callers, int level, int maxDepth, StringBuilder result) {
+        if (level >= maxDepth) {
+            return;
+        }
+        
+        for (MethodWrapper caller : callers) {
+            IJavaElement member = caller.getMember();
+            if (member instanceof IMethod) {
+                IMethod method = (IMethod) member;
+                
+                // Indent based on level
+                for (int i = 0; i < level; i++) {
+                    result.append("  ");
+                }
+                
+                try {
+                    // Add the method with its declaring type
+                    result.append("- **").append(method.getElementName()).append("**");
+                    result.append(" in `").append(method.getDeclaringType().getFullyQualifiedName()).append("`");
+                    
+                    // Add method parameters for clarity
+                    String[] parameterTypes = method.getParameterTypes();
+                    if (parameterTypes.length > 0) {
+                        result.append(" (");
+                        for (int i = 0; i < parameterTypes.length; i++) {
+                            if (i > 0) {
+                                result.append(", ");
+                            }
+                            result.append(Signature.toString(parameterTypes[i]));
+                        }
+                        result.append(")");
+                    }
+                    
+                    // Add source location information
+                    ICompilationUnit cu = method.getCompilationUnit();
+                    if (cu != null) {
+                        result.append(" - ").append(cu.getElementName());
+                    }
+                    
+                    result.append("\n");
+                    
+                    // Recurse to next level
+                    MethodWrapper[] nestedCallers = caller.getCalls(new NullProgressMonitor());
+                    collectCallHierarchy(nestedCallers, level + 1, maxDepth, result);
+                    
+                } catch (Exception e) {
+                    logger.error(e.getMessage(), e);
+                    result.append(" [Error retrieving method details]\n");
+                }
+            }
+        }
+    }
+    
+    private void collectCalleeHierarchy(MethodWrapper[] callees, int level, int maxDepth, StringBuilder result) {
+        if (level >= maxDepth) {
+            return;
+        }
+        
+        for (MethodWrapper callee : callees) {
+            IJavaElement member = callee.getMember();
+            if (member instanceof IMethod) {
+                IMethod method = (IMethod) member;
+                
+                // Indent based on level
+                for (int i = 0; i < level; i++) {
+                    result.append("  ");
+                }
+                
+                try {
+                    // Add the method with its declaring type
+                    result.append("- **").append(method.getElementName()).append("**");
+                    result.append(" in `").append(method.getDeclaringType().getFullyQualifiedName()).append("`");
+                    
+                    // Add method parameters for clarity
+                    String[] parameterTypes = method.getParameterTypes();
+                    if (parameterTypes.length > 0) {
+                        result.append(" (");
+                        for (int i = 0; i < parameterTypes.length; i++) {
+                            if (i > 0) {
+                                result.append(", ");
+                            }
+                            result.append(Signature.toString(parameterTypes[i]));
+                        }
+                        result.append(")");
+                    }
+                    
+                    result.append("\n");
+                    
+                    // Recurse to next level if needed
+                    if (level + 1 < maxDepth) {
+                        MethodWrapper[] nestedCallees = callee.getCalls(new NullProgressMonitor());
+                        collectCalleeHierarchy(nestedCallees, level + 1, maxDepth, result);
+                    }
+                    
+                } catch (Exception e) {
+                    logger.error(e.getMessage(), e);
+                    result.append(" [Error retrieving method details]\n");
+                }
+            }
+        }
+    }
+    
+    
     private void collectResourcesForLLM(IResource resource, int depth, StringBuilder result) throws CoreException {
         // Use proper indentation with markdown list formatting
         String indent = "";
