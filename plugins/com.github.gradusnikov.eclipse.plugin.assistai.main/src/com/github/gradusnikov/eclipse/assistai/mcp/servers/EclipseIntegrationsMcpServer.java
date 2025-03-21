@@ -1,5 +1,8 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.servers;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -7,6 +10,8 @@ import java.util.function.Predicate;
 
 import jakarta.inject.Inject;
 
+import org.apache.tika.Tika;
+import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
@@ -36,6 +41,9 @@ import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
 @McpServer(name = "eclipse-ide")
 public class EclipseIntegrationsMcpServer
 {
+    @Inject
+    private ILog logger;
+    
     @Tool(name="getJavaDoc", description="Get the JavaDoc for the given compilation unit.  For example,a class B defined as a member type of a class A in package x.y should have athe fully qualified name \"x.y.A.B\".Note that in order to be found, a type name (or its top level enclosingtype name) must match its corresponding compilation unit name.", type="object")
     public String getJavaDoc(
             @ToolParam(name="fullyQualifiedName", description="A fully qualified name of the compilation unit", required=true) String fullyQualifiedClassName)
@@ -49,8 +57,278 @@ public class EclipseIntegrationsMcpServer
         return getClassAttachedSource( fullyQualifiedClassName );
     }
     
-    @Inject
-    private ILog logger;
+    @Tool(name="readProjectResource", description="Read the content of a text resource from a specified project.", type="object")
+    public String readProjectResource(
+            @ToolParam(name="projectName", description="The name of the project containing the resource", required=true) String projectName,
+            @ToolParam(name="resourcePath", description="The path to the resource relative to the project root", required=true) String resourcePath) {
+        
+        try {
+            // Get the project
+            IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+            if (project == null || !project.exists()) {
+                return "Error: Project '" + projectName + "' not found.";
+            }
+            
+            if (!project.isOpen()) {
+                return "Error: Project '" + projectName + "' is closed.";
+            }
+            
+            // Get the resource
+            IResource resource = project.findMember(resourcePath);
+            if (resource == null || !resource.exists()) {
+                return "Error: Resource '" + resourcePath + "' not found in project '" + projectName + "'.";
+            }
+            
+            // Check if the resource is a file
+            if (!(resource instanceof IFile)) {
+                return "Error: Resource '" + resourcePath + "' is not a file.";
+            }
+            
+            IFile file = (IFile) resource;
+            
+            // Check file size to avoid loading extremely large files
+            long fileSizeInKB = file.getLocation().toFile().length() / 1024;
+            if (fileSizeInKB > 1024) { // Limit to 1MB
+                return "Error: File '" + resourcePath + "' is too large (" + fileSizeInKB + " KB). Maximum size is 1024 KB.";
+            }
+            
+            // Use Apache Tika to detect content type
+            Tika tika = new Tika();
+            String mimeType = tika.detect(file.getLocation().toFile());
+            
+            // Check if this is a text file
+            if (!mimeType.startsWith("text/") && 
+                !mimeType.equals("application/json") && 
+                !mimeType.equals("application/xml") &&
+                !mimeType.equals("application/javascript") &&
+                !mimeType.contains("+xml") &&
+                !mimeType.contains("+json")) {
+                
+                return "Error: Cannot read binary file '" + resourcePath + "' with MIME type '" + mimeType + 
+                       "'. Only text files are supported.";
+            }
+            
+            // Read the file content
+            try (InputStream is = file.getContents()) {
+                // Use Tika to extract text content safely
+                String content = tika.parseToString(is);
+                
+                // If the content is empty or very short, try reading it directly with the file's encoding
+                if (content == null || content.trim().length() < 10) {
+                    try (InputStream directIs = file.getContents()) {
+                        ByteArrayOutputStream result = new ByteArrayOutputStream();
+                        byte[] buffer = new byte[1024];
+                        int length;
+                        while ((length = directIs.read(buffer)) != -1) {
+                            result.write(buffer, 0, length);
+                        }
+                        
+                        String charset = file.getCharset();
+                        content = result.toString(charset);
+                    }
+                }
+                
+                // Prepare the response
+                StringBuilder response = new StringBuilder();
+                response.append("# Content of ").append(resourcePath).append("\n\n");
+                response.append("MIME Type: ").append(mimeType).append("\n\n");
+                response.append("```");
+                
+                // Add language hint for syntax highlighting based on MIME type
+                if (mimeType.equals("text/x-java-source") || mimeType.contains("java")) {
+                    response.append("java");
+                } else if (mimeType.equals("text/x-python") || mimeType.contains("python")) {
+                    response.append("python");
+                } else if (mimeType.equals("application/javascript") || mimeType.contains("javascript")) {
+                    response.append("javascript");
+                } else if (mimeType.equals("text/html") || mimeType.contains("html")) {
+                    response.append("html");
+                } else if (mimeType.equals("application/xml") || mimeType.contains("xml")) {
+                    response.append("xml");
+                } else if (mimeType.equals("application/json") || mimeType.contains("json")) {
+                    response.append("json");
+                } else if (mimeType.equals("text/markdown") || resourcePath.endsWith(".md")) {
+                    response.append("markdown");
+                } else if (mimeType.equals("text/x-c") || resourcePath.endsWith(".c") || resourcePath.endsWith(".cpp") || 
+                           resourcePath.endsWith(".h") || resourcePath.endsWith(".hpp")) {
+                    response.append("cpp");
+                } else if (mimeType.equals("application/x-sh") || resourcePath.endsWith(".sh")) {
+                    response.append("bash");
+                }
+                // No specific highlighting for other text types
+                
+                response.append("\n").append(content).append("\n```\n");
+                
+                return response.toString();
+            }
+        } catch ( Exception e) {
+            logger.error(e.getMessage(), e);
+            return "Error reading resource: " + e.getMessage();
+        }
+    }
+
+    @Tool(name="listProjects", description="List all available projects in the workspace with their detected natures (Java, C/C++, Python, etc.).", type="object")
+    public String listProjects() {
+        StringBuilder result = new StringBuilder();
+        result.append("# Available Projects in Workspace\n\n");
+        
+        try {
+            // Get all projects in the workspace
+            IProject[] projects = ResourcesPlugin.getWorkspace().getRoot().getProjects();
+            
+            if (projects.length == 0) {
+                return "No projects found in the workspace.";
+            }
+            
+            // Define common nature IDs
+            final String JAVA_NATURE = JavaCore.NATURE_ID; // "org.eclipse.jdt.core.javanature"
+            final String CPP_NATURE = "org.eclipse.cdt.core.cnature";
+            final String CPP_CC_NATURE = "org.eclipse.cdt.core.ccnature";
+            final String PYTHON_NATURE = "org.python.pydev.pythonNature";
+            final String JS_NATURE = "org.eclipse.wst.jsdt.core.jsNature";
+            final String PHP_NATURE = "org.eclipse.php.core.PHPNature";
+            final String WEB_NATURE = "org.eclipse.wst.common.project.facet.core.nature";
+            final String MAVEN_NATURE = "org.eclipse.m2e.core.maven2Nature";
+            final String GRADLE_NATURE = "org.eclipse.buildship.core.gradleprojectnature";
+            
+            // List all projects with their status and natures
+            for (IProject project : projects) {
+                result.append("- **").append(project.getName()).append("**");
+                
+                // Add project status (open/closed)
+                result.append(" (").append(project.isOpen() ? "Open" : "Closed").append(")");
+                
+                // Only attempt to determine natures if the project is open
+                if (project.isOpen()) {
+                    try {
+                        List<String> detectedNatures = new ArrayList<>();
+                        
+                        // Check for Java nature
+                        if (project.hasNature(JAVA_NATURE)) {
+                            IJavaProject javaProject = JavaCore.create(project);
+                            String javaVersion = javaProject.getOption(JavaCore.COMPILER_COMPLIANCE, true);
+                            detectedNatures.add("Java " + javaVersion);
+                        }
+                        
+                        // Check for C/C++ nature
+                        if (project.hasNature(CPP_NATURE)) {
+                            detectedNatures.add("C");
+                        }
+                        if (project.hasNature(CPP_CC_NATURE)) {
+                            detectedNatures.add("C++");
+                        }
+                        
+                        // Check for Python nature
+                        if (project.hasNature(PYTHON_NATURE)) {
+                            detectedNatures.add("Python");
+                        }
+                        
+                        // Check for JavaScript nature
+                        if (project.hasNature(JS_NATURE)) {
+                            detectedNatures.add("JavaScript");
+                        }
+                        
+                        // Check for PHP nature
+                        if (project.hasNature(PHP_NATURE)) {
+                            detectedNatures.add("PHP");
+                        }
+                        
+                        // Check for Web nature
+                        if (project.hasNature(WEB_NATURE)) {
+                            detectedNatures.add("Web");
+                        }
+                        
+                        // Check for build system natures
+                        if (project.hasNature(MAVEN_NATURE)) {
+                            detectedNatures.add("Maven");
+                        }
+                        if (project.hasNature(GRADLE_NATURE)) {
+                            detectedNatures.add("Gradle");
+                        }
+                        
+                        // If we detected natures, add them to the output
+                        if (!detectedNatures.isEmpty()) {
+                            result.append(" - Project Type: ").append(String.join(", ", detectedNatures));
+                        } else {
+                            // Get all natures for projects we couldn't categorize
+                            String[] natures = project.getDescription().getNatureIds();
+                            if (natures.length > 0) {
+                                result.append(" - Other Nature IDs: ").append(String.join(", ", natures));
+                            } else {
+                                result.append(" - Generic Project (no specific natures)");
+                            }
+                        }
+                    } catch (CoreException e) {
+                        result.append(" - Error determining project nature");
+                        logger.error(e.getMessage(), e);
+                    }
+                }
+                
+                result.append("\n");
+            }
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+            return "Error retrieving projects: " + e.getMessage();
+        }
+        
+        return result.toString();
+    }
+
+    
+    
+    @Tool(name="getProjectLayout", description="Get the file and folder structure of a specified project in a hierarchical format suitable for LLM processing.", type="object")
+    public String getProjectLayout(
+            @ToolParam(name="projectName", description="The name of the project to analyze", required=true) String projectName)
+    {
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+        if (project == null || !project.exists()) {
+            return "Project '" + projectName + "' not found.";
+        }
+        
+        StringBuilder result = new StringBuilder();
+        try {
+            result.append("# Project Structure: ").append(projectName).append("\n\n");
+            collectResourcesForLLM(project, 0, result); // Start with the project root
+        }
+        catch (CoreException e) {
+            logger.error(e.getMessage(), e);
+            return "Error retrieving project layout: " + e.getMessage();
+        }
+        
+        return result.toString();
+    }
+
+    private void collectResourcesForLLM(IResource resource, int depth, StringBuilder result) throws CoreException {
+        // Use proper indentation with markdown list formatting
+        String indent = "";
+        for (int i = 0; i < depth; i++) {
+            indent += "  ";
+        }
+        
+        // Append the current resource with markdown list item
+        String prefix = depth > 0 ? indent + "- " : "- ";
+        result.append(prefix).append(resource.getName());
+        
+        // Add type indicator for better context
+        if (resource.getType() == IResource.FOLDER) {
+            result.append(" (Directory)");
+        } else if (resource.getType() == IResource.FILE) {
+            result.append(" (File)");
+        } else if (resource.getType() == IResource.PROJECT) {
+            result.append(" (Project)");
+        }
+        
+        result.append("\n");
+
+        // If the resource is a container, list its children
+        if (resource instanceof IContainer) {
+            IContainer container = (IContainer) resource;
+            IResource[] members = container.members();
+            for (IResource member : members) {
+                collectResourcesForLLM(member, depth + 1, result);
+            }
+        }
+    }
     
     /**
      * Retrieves the attached JavaDoc documentation for a given class within the available Java projects.
