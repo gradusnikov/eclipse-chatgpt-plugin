@@ -1,5 +1,7 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.servers;
 
+import java.util.Optional;
+
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServer;
@@ -73,26 +75,26 @@ public class EclipseIntegrationsMcpServer
             @ToolParam(name="fullyQualifiedClassName", description="The fully qualified name of the class containing the method", required=true) String fullyQualifiedClassName,
             @ToolParam(name="methodName", description="The name of the method to analyze", required=true) String methodName,
             @ToolParam(name="methodSignature", description="The signature of the method (optional, required if method is overloaded)", required=false) String methodSignature,
-            @ToolParam(name="maxDepth", description="Maximum depth of the call hierarchy to retrieve (default: 3)", required=false) Integer maxDepth) 
+            @ToolParam(name="maxDepth", description="Maximum depth of the call hierarchy to retrieve (default: 3)", required=false) String maxDepth) 
     {
-        return codeAnalysisService.getMethodCallHierarchy( fullyQualifiedClassName, methodName, methodSignature, maxDepth );
+        return codeAnalysisService.getMethodCallHierarchy( fullyQualifiedClassName, methodName, methodSignature,  Optional.ofNullable( maxDepth ).map( Integer::parseInt ).orElse( 0 )  );
     }
     @Tool(name="getCompilationErrors", description="Retrieves compilation errors and problems from the current workspace or a specific project.", type="object")
     public String getCompilationErrors(
             @ToolParam(name="projectName", description="The name of the specific project to check (optional, leave empty for all projects)", required=false) String projectName,
             @ToolParam(name="severity", description="Filter by severity level: 'ERROR', 'WARNING', or 'ALL' (default)", required=false) String severity,
-            @ToolParam(name="maxResults", description="Maximum number of problems to return (default: 50)", required=false) Integer maxResults) 
+            @ToolParam(name="maxResults", description="Maximum number of problems to return (default: 50)", required=false) String maxResults) 
     {
-        return codeAnalysisService.getCompilationErrors( projectName, severity, maxResults );
+        return codeAnalysisService.getCompilationErrors( projectName, severity, Optional.ofNullable( maxResults ).map( Integer::parseInt ).orElse( 0 ) );
     }
     @Tool(name="generateCodeDiff", description="Generate a diff/patch between proposed code and an existing file in the project. Returns a diff code block that should be presented to the User, and change summary.", type="object")
     public String generateCodeDiff(
             @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
             @ToolParam(name="filePath", description="The path to the file relative to the project root", required=true) String filePath,
             @ToolParam(name="proposedCode", description="The new/updated code being proposed", required=true) String proposedCode,
-            @ToolParam(name="contextLines", description="Number of context lines to include in the diff (default: 3)", required=false) Integer contextLines) 
+            @ToolParam(name="contextLines", description="Number of context lines to include in the diff (default: 3)", required=false) String contextLines) 
     {
-        return codeEditingService.generateCodeDiff( projectName, filePath, proposedCode, contextLines ); 
+        return codeEditingService.generateCodeDiff( projectName, filePath, proposedCode, Optional.ofNullable( contextLines ).map( Integer::parseInt ).orElse( 0 ) ); 
     }
     
     @Tool(name="readProjectResource", description="Read the content of a text resource from a specified project.", type="object")
@@ -121,9 +123,9 @@ public class EclipseIntegrationsMcpServer
     @Tool(name="getConsoleOutput", description="Retrieves the recent output from Eclipse console(s).", type="object")
     public String getConsoleOutput(
             @ToolParam(name="consoleName", description="Name of the specific console to retrieve (optional, leave empty for all or most recent console)", required=false) String consoleName,
-            @ToolParam(name="maxLines", description="Maximum number of lines to retrieve (default: 100)", required=false) Integer maxLines,
+            @ToolParam(name="maxLines", description="Maximum number of lines to retrieve (default: 100)", required=false) String  maxLines,
             @ToolParam(name="includeAllConsoles", description="Whether to include output from all available consoles (default: false)", required=false) Boolean includeAllConsoles) 
     {
-        return consoleService.getConsoleOutput( consoleName, maxLines, includeAllConsoles );
+        return consoleService.getConsoleOutput( consoleName, Optional.ofNullable( maxLines ).map( Integer::parseInt ).orElse( 0 ), includeAllConsoles );
     }
 }

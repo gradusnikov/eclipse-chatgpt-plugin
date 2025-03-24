@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IMarker;
 import org.eclipse.core.resources.IProject;
@@ -59,45 +60,56 @@ public class CodeAnalysisService
                                   String methodSignature, 
                                   Integer maxDepth)
     {
-        if (maxDepth == null || maxDepth < 1) {
+        if (maxDepth == null || maxDepth < 1) 
+        {
             maxDepth = 3; // Default to 3 levels of depth
         }
         
         StringBuilder result = new StringBuilder();
         result.append("# Call Hierarchy for Method: ").append(methodName).append("\n\n");
         
-        try {
+        try 
+        {
             // Find the method in available Java projects
             IMethod targetMethod = null;
             
-            for (IJavaProject project : getAvailableJavaProjects()) {
+            for (IJavaProject project : getAvailableJavaProjects()) 
+            {
                 IType type = project.findType(fullyQualifiedClassName);
-                if (type == null) {
+                if (type == null) 
+                {
                     continue;
                 }
                 
                 // If method signature is provided, use it to find the exact method
-                if (methodSignature != null && !methodSignature.isEmpty()) {
+                if (methodSignature != null && !methodSignature.isEmpty()) 
+                {
                     targetMethod = type.getMethod(methodName, methodSignature.split(","));
-                    if (targetMethod != null && targetMethod.exists()) {
+                    if (targetMethod != null && targetMethod.exists()) 
+                    {
                         break;
                     }
-                } else {
+                } 
+                else 
+                {
                     // Try to find the method without signature
                     IMethod[] methods = type.getMethods();
                     for (IMethod method : methods) {
-                        if (method.getElementName().equals(methodName)) {
+                        if (method.getElementName().equals(methodName)) 
+                        {
                             targetMethod = method;
                             break;
                         }
                     }
-                    if (targetMethod != null) {
+                    if (targetMethod != null) 
+                    {
                         break;
                     }
                 }
             }
             
-            if (targetMethod == null || !targetMethod.exists()) {
+            if (targetMethod == null || !targetMethod.exists()) 
+            {
                 return "Method '" + methodName + "' not found in class '" + fullyQualifiedClassName + "'.";
             }
             
@@ -105,9 +117,12 @@ public class CodeAnalysisService
             CallHierarchy callHierarchy = CallHierarchy.getDefault();
             MethodWrapper[] callerRoots = callHierarchy.getCallerRoots(new IMethod[] {targetMethod});
             
-            if (callerRoots == null || callerRoots.length == 0) {
+            if (callerRoots == null || callerRoots.length == 0) 
+            {
                 result.append("No callers found for this method.\n");
-            } else {
+            }
+            else 
+            {
                 result.append("## Callers:\n\n");
                 collectCallHierarchy(callerRoots, 0, maxDepth, result);
             }
@@ -115,16 +130,19 @@ public class CodeAnalysisService
             // Also get callees (methods called by this method)
             MethodWrapper[] calleeRoots = callHierarchy.getCalleeRoots(new IMethod[] {targetMethod});
             
-            if (calleeRoots != null && calleeRoots.length > 0) {
+            if (calleeRoots != null && calleeRoots.length > 0) 
+            {
                 result.append("\n## Methods Called By ").append(methodName).append(":\n\n");
                 collectCalleeHierarchy(calleeRoots, 0, 1, result); // Only go one level deep for callees
             }
             
             return result.toString();
             
-        } catch (JavaModelException e) {
+        }
+        catch (JavaModelException e) 
+        {
             logger.error(e.getMessage(), e);
-            return "Error retrieving call hierarchy: " + e.getMessage();
+            throw new RuntimeException( "Error retrieving call hierarchy: " + ExceptionUtils.getRootCauseMessage( e ) );
         }
 
     }
@@ -139,55 +157,64 @@ public class CodeAnalysisService
      */
     public String getCompilationErrors(String projectName, String severity, Integer maxResults)
     {
-        try {
+        try 
+        {
             // Set default values
-            if (severity == null || severity.trim().isEmpty()) {
+            if (severity == null || severity.isBlank())
+            {
                 severity = "ALL";
-            } else {
+            }
+            else 
+            {
                 severity = severity.toUpperCase();
             }
             
-            if (maxResults == null || maxResults < 1) {
+            if (maxResults == null || maxResults < 1) 
+            {
                 maxResults = 50;
             }
             
             // Define severity filter
-            int severityFilter;
-            if ("ERROR".equals(severity)) {
-                severityFilter = IMarker.SEVERITY_ERROR;
-            } else if ("WARNING".equals(severity)) {
-                severityFilter = IMarker.SEVERITY_WARNING;
-            } else {
-                severityFilter = -1; // ALL
-            }
+            int severityFilter = switch ( severity.toUpperCase() ) {
+                case "ERROR" -> IMarker.SEVERITY_ERROR;
+                case "WARNING" -> IMarker.SEVERITY_WARNING;
+                default -> -1;
+            };
             
             StringBuilder result = new StringBuilder();
             result.append("# Compilation Problems\n\n");
             
             // Get markers from workspace or specific project
             IMarker[] markers;
-            if (projectName != null && !projectName.trim().isEmpty()) {
+            if (projectName != null && !projectName.isBlank() ) 
+            {
                 IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
-                if (project == null || !project.exists()) {
-                    return "Project '" + projectName + "' not found.";
+                if (project == null || !project.exists()) 
+                {
+                    throw new RuntimeException( "Project '" + projectName + "' not found." );
                 }
                 
-                if (!project.isOpen()) {
-                    return "Project '" + projectName + "' is closed.";
+                if (!project.isOpen()) 
+                {
+                    throw new RuntimeException( "Project '" + projectName + "' is closed." );
                 }
                 
                 result.append("Project: ").append(projectName).append("\n\n");
                 markers = project.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
-            } else {
+            } 
+            else 
+            {
                 result.append("Scope: All Projects\n\n");
                 markers = ResourcesPlugin.getWorkspace().getRoot().findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
             }
             
             // Filter and sort markers
             List<IMarker> filteredMarkers = new ArrayList<>();
-            for (IMarker marker : markers) {
+            for (IMarker marker : markers) 
+            {
                 Integer severityValue = (Integer) marker.getAttribute(IMarker.SEVERITY);
-                if (severityFilter == -1 || (severityValue != null && severityValue.intValue() == severityFilter)) {
+                if (severityFilter == -1 || (severityValue != null && severityValue.intValue() == severityFilter)) 
+                {
                     filteredMarkers.add(marker);
                 }
             }
@@ -204,32 +231,39 @@ public class CodeAnalysisService
             });
             
             // Limit the number of results
-            if (filteredMarkers.size() > maxResults) {
+            if (filteredMarkers.size() > maxResults) 
+            {
                 result.append("Showing ").append(maxResults).append(" of ").append(filteredMarkers.size())
                       .append(" problems found.\n\n");
                 filteredMarkers = filteredMarkers.subList(0, maxResults);
-            } else {
+            }
+            else 
+            {
                 result.append("Found ").append(filteredMarkers.size()).append(" problems.\n\n");
             }
             
-            if (filteredMarkers.isEmpty()) {
+            if (filteredMarkers.isEmpty()) 
+            {
                 result.append("No compilation problems found with the specified criteria.");
                 return result.toString();
             }
             
             // Group by resource
             Map<String, List<IMarker>> markersByResource = new HashMap<>();
-            for (IMarker marker : filteredMarkers) {
+            for (IMarker marker : filteredMarkers) 
+            {
                 IResource resource = marker.getResource();
                 String resourcePath = resource.getFullPath().toString();
-                if (!markersByResource.containsKey(resourcePath)) {
+                if (!markersByResource.containsKey(resourcePath)) 
+                {
                     markersByResource.put(resourcePath, new ArrayList<>());
                 }
                 markersByResource.get(resourcePath).add(marker);
             }
             
             // Output problems grouped by resource
-            for (Map.Entry<String, List<IMarker>> entry : markersByResource.entrySet()) {
+            for (Map.Entry<String, List<IMarker>> entry : markersByResource.entrySet()) 
+            {
                 String resourcePath = entry.getKey();
                 List<IMarker> resourceMarkers = entry.getValue();
                 
@@ -271,35 +305,46 @@ public class CodeAnalysisService
                           .append(message).append("\n");
                     
                     // If this is a Java problem, try to get more context
-                    if (marker.getType().equals(IJavaModelMarker.JAVA_MODEL_PROBLEM_MARKER)) {
-                        String sourceId = (String) marker.getAttribute(IJavaModelMarker.ID);
-                        if (sourceId != null) {
+                    if (marker.getType().equals(IJavaModelMarker.JAVA_MODEL_PROBLEM_MARKER)) 
+                    {
+                        var sourceId = marker.getAttribute(IJavaModelMarker.ID);
+                        if (sourceId != null) 
+                        {
                             result.append("  - Problem ID: ").append(sourceId).append("\n");
                         }
                         
                         // Try to get source code snippet if line number is available
-                        if (lineNumber != null && marker.getResource() instanceof IFile) {
-                            try {
+                        if (lineNumber != null && marker.getResource() instanceof IFile) 
+                        {
+                            try 
+                            {
                                 IFile file = (IFile) marker.getResource();
                                 String fileContent = readFileContent(file);
                                 String[] lines = fileContent.split("\n");
                                 
-                                if (lineNumber > 0 && lineNumber <= lines.length) {
+                                if (lineNumber > 0 && lineNumber <= lines.length) 
+                                {
                                     int startLine = Math.max(1, lineNumber - 1);
                                     int endLine = Math.min(lines.length, lineNumber + 1);
                                     
                                     result.append("  - Context:\n```java\n");
-                                    for (int i = startLine - 1; i < endLine; i++) {
-                                        if (i == lineNumber - 1) {
+                                    for (int i = startLine - 1; i < endLine; i++) 
+                                    {
+                                        if (i == lineNumber - 1) 
+                                        {
                                             result.append("> "); // Highlight the error line
-                                        } else {
+                                        }
+                                        else 
+                                        {
                                             result.append("  ");
                                         }
                                         result.append(lines[i]).append("\n");
                                     }
                                     result.append("```\n");
                                 }
-                            } catch (Exception e) {
+                            } 
+                            catch (Exception e) 
+                            {
                                 // Skip context if we can't read the file
                             }
                         }
@@ -311,9 +356,11 @@ public class CodeAnalysisService
             
             return result.toString();
             
-        } catch (CoreException e) {
+        }
+        catch (CoreException e) 
+        {
             logger.error(e.getMessage(), e);
-            return "Error retrieving compilation problems: " + e.getMessage();
+            throw new RuntimeException( "Error retrieving compilation problems: " + ExceptionUtils.getStackTrace(  e )  );
         }
 
     }
@@ -337,11 +384,14 @@ public class CodeAnalysisService
     }    
     
     private void collectCallHierarchy(MethodWrapper[] callers, int level, int maxDepth, StringBuilder result) {
-        if (level >= maxDepth) {
+       
+        if (level >= maxDepth) 
+        {
             return;
         }
         
-        for (MethodWrapper caller : callers) {
+        for (MethodWrapper caller : callers) 
+        {
             IJavaElement member = caller.getMember();
             if (member instanceof IMethod) {
                 IMethod method = (IMethod) member;
@@ -381,7 +431,9 @@ public class CodeAnalysisService
                     MethodWrapper[] nestedCallers = caller.getCalls(new NullProgressMonitor());
                     collectCallHierarchy(nestedCallers, level + 1, maxDepth, result);
                     
-                } catch (Exception e) {
+                } 
+                catch (Exception e) 
+                {
                     logger.error(e.getMessage(), e);
                     result.append(" [Error retrieving method details]\n");
                 }
@@ -390,7 +442,8 @@ public class CodeAnalysisService
     }
     
     private void collectCalleeHierarchy(MethodWrapper[] callees, int level, int maxDepth, StringBuilder result) {
-        if (level >= maxDepth) {
+        if (level >= maxDepth) 
+        {
             return;
         }
         
