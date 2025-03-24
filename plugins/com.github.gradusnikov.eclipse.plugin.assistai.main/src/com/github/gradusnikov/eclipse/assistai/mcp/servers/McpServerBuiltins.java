@@ -16,7 +16,8 @@ public class McpServerBuiltins
             EclipseIntegrationsMcpServer.class,
             DuckDuckSearchMcpServer.class,
             TimeMcpServer.class,
-            ReadWebPageMcpServer.class
+            ReadWebPageMcpServer.class,
+            MemoryMcpServer.class
     };
     
     public static List<McpServerDescriptor> listBuiltInImplementations()
