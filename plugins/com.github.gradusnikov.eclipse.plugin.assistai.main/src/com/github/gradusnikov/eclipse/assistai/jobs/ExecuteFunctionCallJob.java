@@ -1,12 +1,12 @@
 package com.github.gradusnikov.eclipse.assistai.jobs;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.Optional;
-
-import jakarta.inject.Inject;
-import jakarta.inject.Provider;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -20,8 +20,13 @@ import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.model.FunctionCall;
+import com.github.gradusnikov.eclipse.assistai.part.Attachment;
 
+import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
+import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
+import jakarta.inject.Inject;
+import jakarta.inject.Provider;
 
 @Creatable
 public class ExecuteFunctionCallJob extends Job
@@ -92,7 +97,7 @@ public class ExecuteFunctionCallJob extends Job
         CallToolRequest request = new CallToolRequest( toolName, functionCall.arguments() );
 
         // Find and execute the tool
-        Optional<CompletableFuture<Object>> functionExecutor = mcpClientRetistry.findClient( clientName )
+        var functionExecutor = mcpClientRetistry.findClient( clientName )
                 .map( client -> CompletableFuture.supplyAsync( () -> client.callTool( request ) ) );
 
         if ( functionExecutor.isEmpty() )
@@ -103,9 +108,10 @@ public class ExecuteFunctionCallJob extends Job
         return functionExecutor.get().thenApply( this::handleFunctionResult ).exceptionally( this::handleExecutionError );
     }
 
-    private IStatus handleFunctionResult( Object result )
+    private IStatus handleFunctionResult( CallToolResult result )
     {
-        logger.info( "Finished function call " + functionCall.name() );
+        logger.info( "Finished function call " + functionCall.name() 
+                    + "\n\nResult:\n\\n" + Optional.ofNullable( result ).map( Object::toString ).orElse( "" ) );
         try
         {
             // 1. Create assistant message with function call
@@ -135,12 +141,29 @@ public class ExecuteFunctionCallJob extends Job
         return message;
     }
 
-    private ChatMessage createFunctionResultMessage( Object result ) throws Exception
+    private ChatMessage createFunctionResultMessage( CallToolResult result ) throws Exception
     {
         ChatMessage resultMessage = new ChatMessage( UUID.randomUUID().toString(), functionCall.name(), "function" );
-
-        String resultJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString( result );
-        resultMessage.setContent( resultJson );
+        
+        StringBuilder textContent = new StringBuilder();
+        List<Attachment> attachments = new ArrayList<Attachment>();
+        if ( result.isError() )
+        {
+            textContent.append( "Error: " );
+        }
+        var contentParts = Optional.ofNullable( result.content() ).orElse( Collections.emptyList() );
+        for ( McpSchema.Content content : contentParts )
+        {
+            // TODO: add support for images and other content types
+            switch ( content.type() )
+            {
+                case "text" -> textContent.append( ((McpSchema.TextContent) content).text() ).append( "\n" );
+                default -> logger.error( "Unsupported result content type: " + content.type() );
+                    
+            }
+        }
+        resultMessage.setAttachments( null );
+        resultMessage.setContent( textContent.toString() );
         resultMessage.setFunctionCall( functionCall );
 
         return resultMessage;
