@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
@@ -156,6 +157,8 @@ public class McpClientServerFactory
         return toolRegistrations;
     }
 
+
+    
     /**
      * Executes a tool call with the provided arguments.
      * 
@@ -173,8 +176,8 @@ public class McpClientServerFactory
         }
         catch ( Exception e )
         {
-            logger.error( e.getMessage() );
-            return new McpSchema.CallToolResult( null, true );
+            logger.error( e.getMessage(), e );
+            return createErrorResult( e );
         }
     }
 
@@ -192,6 +195,13 @@ public class McpClientServerFactory
                 0.0,
                 Optional.ofNullable( result ).map( Object::toString ).orElse( "" ) );
         return new McpSchema.CallToolResult( List.of( content ), false );
+    }
+    
+    public CallToolResult createErrorResult( Exception e )
+    {
+        var cause = ExceptionUtils.getRootCauseMessage( e );
+        var content = new McpSchema.TextContent( "Error: " + cause );
+        return new McpSchema.CallToolResult( List.of( content ), true );
     }
     
     /**

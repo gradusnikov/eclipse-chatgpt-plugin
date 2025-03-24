@@ -49,8 +49,6 @@ public class ExecuteFunctionCallJob extends Job
 
     private FunctionCall                  functionCall;
 
-    private final ObjectMapper            objectMapper          = new ObjectMapper();
-
     public ExecuteFunctionCallJob()
     {
         super( JOB_NAME );
@@ -162,7 +160,7 @@ public class ExecuteFunctionCallJob extends Job
                     
             }
         }
-        resultMessage.setAttachments( null );
+        resultMessage.setAttachments( attachments );
         resultMessage.setContent( textContent.toString() );
         resultMessage.setFunctionCall( functionCall );
 
