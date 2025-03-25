@@ -87,15 +87,15 @@ public class EclipseIntegrationsMcpServer
     {
         return codeAnalysisService.getCompilationErrors( projectName, severity, Optional.ofNullable( maxResults ).map( Integer::parseInt ).orElse( 0 ) );
     }
-    @Tool(name="generateCodeDiff", description="Generate a diff/patch between proposed code and an existing file in the project. Returns a diff code block that should be presented to the User, and change summary.", type="object")
-    public String generateCodeDiff(
-            @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
-            @ToolParam(name="filePath", description="The path to the file relative to the project root", required=true) String filePath,
-            @ToolParam(name="proposedCode", description="The new/updated code being proposed", required=true) String proposedCode,
-            @ToolParam(name="contextLines", description="Number of context lines to include in the diff (default: 3)", required=false) String contextLines) 
-    {
-        return codeEditingService.generateCodeDiff( projectName, filePath, proposedCode, Optional.ofNullable( contextLines ).map( Integer::parseInt ).orElse( 0 ) ); 
-    }
+//    @Tool(name="generateCodeDiff", description="Generate a diff/patch between proposed code and an existing file in the project. Returns a diff code block that should be presented to the User, and change summary.", type="object")
+//    public String generateCodeDiff(
+//            @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
+//            @ToolParam(name="filePath", description="The path to the file relative to the project root", required=true) String filePath,
+//            @ToolParam(name="proposedCode", description="The new/updated code being proposed", required=true) String proposedCode,
+//            @ToolParam(name="contextLines", description="Number of context lines to include in the diff (default: 3)", required=false) String contextLines) 
+//    {
+//        return codeEditingService.generateCodeDiffAndShowApplyDialog( projectName, filePath, proposedCode, Optional.ofNullable( contextLines ).map( Integer::parseInt ).orElse( 0 ) ); 
+//    }
     
     @Tool(name="readProjectResource", description="Read the content of a text resource from a specified project.", type="object")
     public String readProjectResource(
