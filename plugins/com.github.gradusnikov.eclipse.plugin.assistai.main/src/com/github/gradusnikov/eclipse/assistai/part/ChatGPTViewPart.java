@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -360,6 +361,9 @@ public class ChatGPTViewPart
     {
         new CopyCodeFunction( browser, "eclipseCopyCode" );
         new ApplyPatchFunction( browser, "eclipseApplyPatch" );
+        new DiffCodeFunction( browser, "eclipseDiffCode" );
+        new InsertCodeFunction( browser, "eclipseInsertCode" );
+        new NewFileFunction( browser, "eclipseNewFile" );
     }
 
     private void initializeChatView( Browser browser )
@@ -665,7 +669,7 @@ public class ChatGPTViewPart
             return null;
         }
     }
-
+    
     /**
      * This function establishes a JavaScript-to-Java callback for the browser,
      * allowing the IDE to copy code. It is invoked from JavaScript when the
@@ -677,7 +681,6 @@ public class ChatGPTViewPart
         {
             super( browser, name );
         }
-
         @Override
         public Object function( Object[] arguments )
         {
@@ -689,5 +692,57 @@ public class ChatGPTViewPart
             return null;
         }
     }
-
+    private class InsertCodeFunction extends BrowserFunction
+    {
+        public InsertCodeFunction( Browser browser, String name )
+        {
+            super( browser, name );
+        }
+        @Override
+        public Object function( Object[] arguments )
+        {
+            if ( arguments.length > 0 && arguments[0] instanceof String )
+            {
+                String codeBlock = (String) arguments[0];
+                presenter.onInsertCode( codeBlock );
+            }
+            return null;
+        }
+    }
+    private class DiffCodeFunction extends BrowserFunction
+    {
+        public DiffCodeFunction( Browser browser, String name )
+        {
+            super( browser, name );
+        }
+        @Override
+        public Object function( Object[] arguments )
+        {
+            if ( arguments.length > 0 && arguments[0] instanceof String )
+            {
+                String codeBlock = (String) arguments[0];
+                presenter.onDiffCode( codeBlock );
+            }
+            return null;
+        }
+    }
+    private class NewFileFunction extends BrowserFunction
+    {
+        public NewFileFunction( Browser browser, String name )
+        {
+            super( browser, name );
+        }
+        @Override
+        public Object function( Object[] arguments )
+        {
+            if ( arguments.length > 0 && Arrays.stream( arguments ).allMatch( s -> s instanceof String ) )
+            {
+                String codeBlock = (String) arguments[0];
+                String lang      = (String) arguments[1];
+System.out.println( ">>>> " + lang );                
+                presenter.onNewFile( codeBlock, lang );
+            }
+            return null;
+        }
+    }
 }

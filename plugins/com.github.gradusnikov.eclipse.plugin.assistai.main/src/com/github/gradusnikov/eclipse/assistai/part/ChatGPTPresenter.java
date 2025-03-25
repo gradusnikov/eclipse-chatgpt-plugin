@@ -3,16 +3,38 @@ package com.github.gradusnikov.eclipse.assistai.part;
 import static com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities.createPreview;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Consumer;
 
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
+import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.jobs.IJobManager;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.jdt.core.dom.AST;
+import org.eclipse.jdt.core.dom.ASTParser;
+import org.eclipse.jdt.core.dom.CompilationUnit;
+import org.eclipse.jdt.core.dom.EnumDeclaration;
+import org.eclipse.jdt.core.dom.PackageDeclaration;
+import org.eclipse.jdt.core.dom.TypeDeclaration;
+import org.eclipse.jface.viewers.StructuredSelection;
+import org.eclipse.jface.wizard.Wizard;
+import org.eclipse.jface.wizard.WizardDialog;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.dnd.Clipboard;
 import org.eclipse.swt.dnd.TextTransfer;
@@ -22,12 +44,19 @@ import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.swt.graphics.ImageLoader;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.ui.IWorkbench;
+import org.eclipse.ui.IWorkbenchPage;
+import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.dialogs.WizardNewFileCreationPage;
+import org.eclipse.ui.part.IPage;
 import org.osgi.service.prefs.BackingStoreException;
 import org.osgi.service.prefs.Preferences;
 
 import com.github.gradusnikov.eclipse.assistai.jobs.AssistAIJobConstants;
 import com.github.gradusnikov.eclipse.assistai.jobs.SendConversationJob;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.part.Attachment.FileContentAttachment;
@@ -40,6 +69,9 @@ import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.inject.Provider;
 import jakarta.inject.Singleton;
+
+import java.io.InputStream;
+import java.io.ByteArrayInputStream;
 
 @Creatable
 @Singleton
@@ -68,6 +100,10 @@ public class ChatGPTPresenter
     
     @Inject
     private ApplyPatchWizardHelper        applyPatchWizzardHelper;
+    
+    @Inject
+    private CodeEditingService codeEditingService;
+    
 
     private static final String           LAST_SELECTED_DIR_KEY = "lastSelectedDirectory";
 
@@ -192,6 +228,12 @@ public class ChatGPTPresenter
     public void onAddAttachment()
     {
         Display display = PlatformUI.getWorkbench().getDisplay();
+        if ( Objects.isNull( display ) )
+        {
+            logger.error( "No active display" );
+            return;
+        }
+        
         display.asyncExec( () -> {
             FileDialog fileDialog = new FileDialog( display.getActiveShell(), SWT.OPEN );
             fileDialog.setText( "Select an Image" );
@@ -258,4 +300,347 @@ public class ChatGPTPresenter
             messageView.setAttachments( attachments );
         } );
     }
+
+
+    public void onInsertCode(String codeBlock) {
+        Display.getDefault().asyncExec(() -> {
+            try 
+            {
+                Optional.ofNullable(PlatformUI.getWorkbench())
+                    .map(workbench -> workbench.getActiveWorkbenchWindow())
+                    .map(window -> window.getActivePage())
+                    .map(page -> page.getActiveEditor())
+                    .flatMap(editor -> Optional.ofNullable(editor.getAdapter(org.eclipse.ui.texteditor.ITextEditor.class)))
+                    .ifPresent(textEditor -> {
+                        var selectionProvider = textEditor.getSelectionProvider();
+                        var document = textEditor.getDocumentProvider()
+                                                 .getDocument(textEditor.getEditorInput());
+                        
+                        if (selectionProvider != null && document != null) 
+                        {
+                            var selection = (org.eclipse.jface.text.ITextSelection) selectionProvider.getSelection();
+                            try 
+                            {
+                                // Replace selection or insert at cursor position
+                                if (selection.getLength() > 0) 
+                                {
+                                    // Replace selected text
+                                    document.replace(selection.getOffset(), selection.getLength(), codeBlock);
+                                }
+                                else 
+                                {
+                                    // Insert at cursor position
+                                    document.replace(selection.getOffset(), 0, codeBlock);
+                                }
+                            } 
+                            catch (org.eclipse.jface.text.BadLocationException e) 
+                            {
+                                logger.error("Error inserting code at location", e);
+                            }
+                        } 
+                        else 
+                        {
+                            logger.error("Selection provider or document is null");
+                        }
+                    });
+            } 
+            catch (Exception e) 
+            {
+                logger.error("Error inserting code", e);
+            }
+        });
+    }
+
+    public void onDiffCode(String codeBlock) {
+        Display.getDefault().asyncExec(() -> {
+            try {
+                Optional.ofNullable(PlatformUI.getWorkbench())
+                    .map(workbench -> workbench.getActiveWorkbenchWindow())
+                    .map(window -> window.getActivePage())
+                    .map(page -> page.getActiveEditor())
+                    .flatMap(editor -> Optional.ofNullable(editor.getAdapter(org.eclipse.ui.texteditor.ITextEditor.class)))
+                    .ifPresent(textEditor -> {
+                        // Get the file information
+                        if (textEditor.getEditorInput() instanceof org.eclipse.ui.part.FileEditorInput) {
+                            org.eclipse.ui.part.FileEditorInput fileInput = 
+                                (org.eclipse.ui.part.FileEditorInput) textEditor.getEditorInput();
+                            
+                            // Get project name and file path
+                            String projectName = fileInput.getFile().getProject().getName();
+                            String filePath = fileInput.getFile().getProjectRelativePath().toString();
+                            
+                            // Generate diff using the CodeEditingService
+                            String diff = codeEditingService.generateCodeDiff(
+                                projectName, 
+                                filePath, 
+                                codeBlock, 
+                                3 // Default context lines
+                            );
+                            
+                            if (diff != null && !diff.isBlank() ) 
+                            {
+                                // Show the apply patch wizard with the generated diff and preselected project
+                                applyPatchWizzardHelper.showApplyPatchWizardDialog(diff, projectName);
+                            } else {
+                                logger.info("No differences found between current code and provided code block");
+                            }
+                        } else {
+                            logger.error("Cannot get file information from editor");
+                        }
+                    });
+            } catch (Exception e) {
+                logger.error("Error generating diff for code", e);
+            }
+        });
+    }
+
+
+
+    public void onNewFile(String codeBlock, String lang) 
+    {
+        Display.getDefault().asyncExec(() -> {
+            try 
+            {
+                IProject project = Optional.ofNullable( PlatformUI.getWorkbench() )
+                        .map(IWorkbench::getActiveWorkbenchWindow)
+                        .map( IWorkbenchWindow::getActivePage )
+                        .map( IWorkbenchPage::getActiveEditor )
+                        .map(editor -> editor.getEditorInput())
+                        .filter(input -> input instanceof org.eclipse.ui.part.FileEditorInput)
+                        .map(input -> ((org.eclipse.ui.part.FileEditorInput) input).getFile().getProject())
+                        .orElse(null);
+
+                if (project != null) 
+                {
+                    // Create suggested file name and path based on language
+                    String suggestedFileName = getSuggestedFileName(lang, codeBlock);
+                    IPath suggestedPath      = getSuggestedPath(project, lang, codeBlock);
+                    WizardNewFileCreationPage newFilePage = new WizardNewFileCreationPage("NewFilePage", new StructuredSelection(project));
+                    newFilePage.setTitle("New File");
+                    newFilePage.setDescription(String.format("Create a new %s file in the project", getFileExtensionForLang( lang )) );
+                    
+                    // Set suggested file name and path
+                    if (suggestedPath != null) 
+                    {
+                        newFilePage.setContainerFullPath(suggestedPath);
+                    }
+                    if (suggestedFileName != null && !suggestedFileName.isBlank()) 
+                    {
+                        newFilePage.setFileName(suggestedFileName);
+                    }
+                    
+                    
+                    Wizard wizard = new Wizard() {
+                        @Override
+                        public void addPages() 
+                        {
+                            addPage(newFilePage);
+                        }
+
+                        @Override
+                        public boolean performFinish() {
+                            IFile newFile = newFilePage.createNewFile();
+                            if (newFile != null) 
+                            {
+                                try (InputStream stream = new ByteArrayInputStream(codeBlock.getBytes(StandardCharsets.UTF_8))) 
+                                {
+                                    newFile.setContents(stream, true, true, null);
+                                    logger.info("New file created at: " + newFile.getFullPath().toString());
+                                    return true;
+                                } 
+                                catch (CoreException | IOException e) 
+                                {
+                                    logger.error("Error creating new file", e);
+                                }
+                            }
+                            return false;
+                        }
+                    };
+
+                    WizardDialog dialog = new WizardDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(), wizard);
+                    dialog.open();
+                } 
+                else 
+                {
+                    logger.error("No active project found");
+                }
+            } 
+            catch (Exception e) 
+            {
+                logger.error("Error opening new file wizard", e);
+            }
+        });
+    }
+    
+    private String getSuggestedFileName(String lang, String codeBlock) {
+        // Fall back to the original implementation if parsing fails or for other languages
+        return switch (lang) {
+            case "java" -> suggestedJavaFile(codeBlock);
+            case "python" -> "new_script.py";
+            case "javascript" -> "script.js";
+            case "typescript" -> "script.ts";
+            case "html" -> "index.html";
+            case "xml" -> "config.xml";
+            case "json" -> "data.json";
+            case "markdown" -> "README.md";
+            case "cpp" -> "main.cpp";
+            case "bash" -> "script.sh";
+            case "yaml" -> "config.yaml";
+            case "properties" -> "config.properties";
+            default -> "NewFile." + getFileExtensionForLang(lang);
+        };
+    }
+    
+
+    private IPath suggestedJavaPackage(String codeBlock) 
+    {
+        String pathString = "";
+        // Extract package name from Java code
+        if (codeBlock != null && !codeBlock.isBlank()) 
+        {
+            try 
+            {
+                // Use Eclipse JDT to parse the Java code
+                ASTParser parser = ASTParser.newParser(AST.JLS23);
+                parser.setSource(codeBlock.toCharArray());
+                parser.setKind(ASTParser.K_COMPILATION_UNIT);
+    
+                CompilationUnit cu = (CompilationUnit) parser.createAST(null);
+    
+                PackageDeclaration packageDecl = cu.getPackage();
+                if (packageDecl != null) 
+                {
+                    pathString = packageDecl.getName().getFullyQualifiedName().replace(".", "/");
+                }
+            } 
+            catch (Exception e) 
+            {
+                logger.error("Error parsing Java code for package name suggestion", e);
+            }
+        }
+        return IPath.fromPath( Paths.get(pathString) );
+    }
+
+    
+    private String suggestedJavaFile( String codeBlock )
+    {
+        // Extract class name from Java code
+        if ( codeBlock != null && !codeBlock.isBlank() )
+        {
+            try 
+            {
+                // Use Eclipse JDT to parse the Java code
+                ASTParser parser = ASTParser.newParser(AST.JLS23);
+                parser.setSource(codeBlock.toCharArray());
+                parser.setKind(ASTParser.K_COMPILATION_UNIT);
+                
+                CompilationUnit cu = (CompilationUnit) parser.createAST(null);
+                
+                // Find the first type declaration (class, interface, enum)
+                for (Object type : cu.types()) 
+                {
+                    if (type instanceof TypeDeclaration) 
+                    {
+                        TypeDeclaration typeDecl = (TypeDeclaration) type;
+                        return typeDecl.getName().getIdentifier() + ".java";
+                    } 
+                    else if (type instanceof EnumDeclaration) 
+                    {
+                        EnumDeclaration enumDecl = (EnumDeclaration) type;
+                        return enumDecl.getName().getIdentifier() + ".java";
+                    }
+                }
+            } 
+            catch (Exception e) 
+            {
+                logger.error("Error parsing Java code for file name suggestion", e);
+            }
+        }
+        return "NewClass.java";
+        
+    }
+    
+    private IPath getSuggestedPath(IProject project, String lang, String codeBlock) {
+        return switch (lang) {
+            case "java" -> suggestedJavaPath(project).append( suggestedJavaPackage( codeBlock ) );
+            case "python" -> suggestedPythonPath(project);
+            case "javascript", "typescript", "html", "css" -> suggestedWebPath(project);
+            default -> project.getFullPath();
+        };
+    }
+
+    private IPath suggestedWebPath( IProject project )
+    {
+        // Check for web folders
+        if ( project.getFolder( "webapp" ).exists() )
+        {
+            return project.getFolder( "webapp" ).getFullPath();
+        }
+        else if ( project.getFolder( "WebContent" ).exists() )
+        {
+            return project.getFolder( "WebContent" ).getFullPath();
+        }
+        else if ( project.getFolder( "public" ).exists() )
+        {
+            return project.getFolder( "public" ).getFullPath();
+        }
+        else if ( project.getFolder( "web" ).exists() )
+        {
+            return project.getFolder( "web" ).getFullPath();
+        }
+        else
+        {
+            return project.getFullPath();
+        }
+    }
+
+    private IPath suggestedPythonPath( IProject project )
+    {
+        if ( project.getFolder( "src" ).exists() )
+        {
+            return project.getFolder( "src" ).getFullPath();
+        }
+        else
+        {
+            return project.getFullPath();
+        }
+    }
+
+    private IPath suggestedJavaPath( IProject project )
+    {
+        // Try to find src/main/java or src folder
+        IPath srcMainJava = project.getFolder( "src/main/java" ).getFullPath();
+        if ( project.getFolder( "src/main/java" ).exists() )
+        {
+            return srcMainJava;
+        }
+        else if ( project.getFolder( "src" ).exists() )
+        {
+            return project.getFolder( "src" ).getFullPath();
+        }
+        else
+        {
+            return project.getFullPath();
+        }
+    }
+    
+    private String getFileExtensionForLang(String lang) {
+        return switch (lang) {
+            case "java" -> "java";
+            case "python" -> "py";
+            case "javascript" -> "js";
+            case "typescript" -> "ts";
+            case "html" -> "html";
+            case "xml" -> "xml";
+            case "json" -> "json";
+            case "markdown" -> "md";
+            case "cpp" -> "cpp";
+            case "bash" -> "sh";
+            case "yaml" -> "yaml";
+            case "properties" -> "properties";
+            case "text" -> "txt";
+            default -> "txt";
+        };
+    }
 }
+

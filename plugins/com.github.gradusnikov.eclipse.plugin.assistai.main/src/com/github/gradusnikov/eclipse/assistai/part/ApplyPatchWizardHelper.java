@@ -3,6 +3,8 @@ package com.github.gradusnikov.eclipse.assistai.part;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
+import java.util.Optional;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -16,6 +18,10 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.ui.IEditorPart;
+import org.eclipse.ui.IWorkbench;
+import org.eclipse.ui.IWorkbenchPage;
+import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
@@ -46,9 +52,15 @@ public class ApplyPatchWizardHelper
             var patchStorage = new PatchStorage( patch );
             var window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
             var part = window.getActivePage().getActivePart();
+            
             // TODO: for the moment assume the target is associated with the project of currently opened editor
             // which may not be true
-            var target = getProjectOfCurrentlyOpenedEditor();
+            var target = getProjectOfCurrentlyOpenedEditor().get();
+            
+            if ( Objects.isNull( target ) )
+            {
+                logger.error( "No project available." );
+            }
             
             ApplyPatchOperation operation = new ApplyPatchOperation( part, patchStorage, target, new CompareConfiguration() );
             // Create and open the WizardDialog
@@ -66,23 +78,17 @@ public class ApplyPatchWizardHelper
      *
      * @return The {@link IProject} of the project, or null if the active editor is not a text editor.
      */
-    private IProject getProjectOfCurrentlyOpenedEditor() 
+    private Optional<IProject> getProjectOfCurrentlyOpenedEditor() 
     {
-        var window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
-        var activePage = window.getActivePage();
-        var activeEditor = activePage.getActiveEditor();
-        if ( activeEditor instanceof ITextEditor )
-        {
-            ITextEditor textEditor = (ITextEditor) activeEditor;
-            IFile file = textEditor.getEditorInput().getAdapter(IFile.class);
-            IProject project = file.getProject();
-            return project;
-        }
-        else
-        {
-            return null;
-        }
+        return Optional.ofNullable( PlatformUI.getWorkbench() )
+                       .map( IWorkbench::getActiveWorkbenchWindow )
+                       .map( IWorkbenchWindow::getActivePage )
+                       .map( IWorkbenchPage::getActiveEditor )
+                       .map( IEditorPart::getEditorInput )
+                       .map( editorInput -> editorInput.getAdapter(IFile.class))
+                       .map( IFile::getProject);
     }
+    
     private static class PatchStorage implements IStorage
     {
         private final String patch;

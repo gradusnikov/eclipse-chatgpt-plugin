@@ -1,10 +1,10 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
@@ -19,12 +19,14 @@ import org.eclipse.jgit.diff.RawTextComparator;
 
 import jakarta.inject.Inject;
 
+
 @Creatable
 public class CodeEditingService
 {
     @Inject
     ILog logger;
     
+
     /**
      * Generates a diff between proposed code and an existing file in the project.
      * 
@@ -44,23 +46,27 @@ public class CodeEditingService
         {
             // Get the project
             IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
-            if (project == null || !project.exists()) {
-                return "Error: Project '" + projectName + "' not found.";
+            if (project == null || !project.exists()) 
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' not found." );
             }
             
-            if (!project.isOpen()) {
-                return "Error: Project '" + projectName + "' is closed.";
+            if (!project.isOpen()) 
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
             }
             
             // Get the file
             IResource resource = project.findMember(filePath);
-            if (resource == null || !resource.exists()) {
-                return "Error: File '" + filePath + "' not found in project '" + projectName + "'.";
+            if (resource == null || !resource.exists()) 
+            {
+                throw new RuntimeException( "Error: File '" + filePath + "' not found in project '" + projectName + "'." );
             }
             
             // Check if the resource is a file
-            if (!(resource instanceof IFile)) {
-                return "Error: Resource '" + filePath + "' is not a file.";
+            if (!(resource instanceof IFile)) 
+            {
+                throw new RuntimeException( "Error: Resource '" + filePath + "' is not a file." );
             }
             
             IFile file = (IFile) resource;
@@ -90,8 +96,8 @@ public class CodeEditingService
                     RawText rawProposed = new RawText(proposedFile.toFile());
                     
                     // Write a manual diff header
-                    diffOutput.write(("--- a/" + filePath + "\n").getBytes());
-                    diffOutput.write(("+++ b/" + filePath + "\n").getBytes());
+                    diffOutput.write(("--- /" + filePath + "\n").getBytes());
+                    diffOutput.write(("+++ /" + filePath + "\n").getBytes());
                     
                     // Create and format the edit list
                     EditList edits = new EditList();
@@ -99,7 +105,8 @@ public class CodeEditingService
                     edits.addAll(MyersDiff.INSTANCE.diff(comparator, rawOriginal, rawProposed));
                     
                     // Write the unified diff format
-                    for (org.eclipse.jgit.diff.Edit edit : edits) {
+                    for (org.eclipse.jgit.diff.Edit edit : edits) 
+                    {
                         int beginA = edit.getBeginA();
                         int endA = edit.getEndA();
                         int beginB = edit.getBeginB();
@@ -119,64 +126,30 @@ public class CodeEditingService
                     }
                     diffResult = diffOutput.toString();
                 } 
-                catch (IOException e) 
-                {
-                    logger.error( e.getMessage(), e );
-                }
                 
                 // If there are no changes, inform the user
-                if (diffResult.trim().isEmpty() || !diffResult.contains("@@")) {
-                    return "No changes detected. The proposed code is identical to the existing file.";
+                if (diffResult.trim().isEmpty() || !diffResult.contains("@@")) 
+                {
+                    // No changes detected. The proposed code is identical to the existing file.
+                    return "";
                 }
                 
                 StringBuilder response = new StringBuilder();
-                response.append("# Diff for ").append(filePath).append("\n\n");
-                response.append("```diff\n");
                 response.append(diffResult);
-                response.append("```\n\n");
-                
-                // Add summary of changes
-                int addedLines = countMatches(diffResult, "\n+") - countMatches(diffResult, "\n+++");
-                int removedLines = countMatches(diffResult, "\n-") - countMatches(diffResult, "\n---");
-                
-                response.append("## Summary of Changes\n");
-                response.append("- Added lines: ").append(addedLines).append("\n");
-                response.append("- Removed lines: ").append(removedLines).append("\n");
-                response.append("- Net change: ").append(addedLines - removedLines).append(" line(s)\n\n");
-                
                 return response.toString();
                 
-            } finally {
+            } 
+            finally 
+            {
                 // Clean up temporary files
                 Files.deleteIfExists(originalFile);
                 Files.deleteIfExists(proposedFile);
             }
-            
         } 
         catch (Exception e) 
         {
             logger.error(e.getMessage(), e);
-            return "Error generating diff: " + e.getMessage();
+            throw new RuntimeException( "Error generating diff: " + ExceptionUtils.getRootCauseMessage( e )  );
         }
     }
-    
-    
-    /**
-     * Count occurrences of a substring in a string
-     */
-    private int countMatches(String str, String sub) {
-        if (str == null || str.isEmpty() || sub == null || sub.isEmpty()) {
-            return 0;
-        }
-        
-        int count = 0;
-        int idx = 0;
-        while ((idx = str.indexOf(sub, idx)) != -1) {
-            count++;
-            idx += sub.length();
-        }
-        return count;
-    }
-
-
 }

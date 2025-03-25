@@ -175,19 +175,28 @@ public class PromptParser
         {
             String codeBlockId = UUID.randomUUID().toString();
             out.append( """ 
-                    <input type="button" onClick="eclipseCopyCode(document.getElementById('${codeBlockId}').innerText)" value="Copy Code" />
-                    <input type="${showApplyPatch}" onClick="eclipseApplyPatch(document.getElementById('${codeBlockId}').innerText)" value="ApplyPatch"/>
+                    <div class="codeBlock">
+                    <div class="codeBlockButtons"> 
+                    <input type="button" onClick="eclipseCopyCode(document.getElementById('${codeBlockId}').innerText)" value="Copy" />
+                    <input type="${showInsert}" onClick="eclipseInsertCode(document.getElementById('${codeBlockId}').innerText)" value="Insert" />
+                    <input type="${showNewFile}" onClick="eclipseNewFile(document.getElementById('${codeBlockId}').innerText, '${lang}')" value="New File" />
+                    <input type="${showDiff}" onClick="eclipseDiffCode(document.getElementById('${codeBlockId}').innerText)" value="Diff" />
+                    <input type="${showApplyPatch}" onClick="eclipseApplyPatch(document.getElementById('${codeBlockId}').innerText)" value="Apply"/>
+                    </div>
                     <pre><code lang="${lang}" id="${codeBlockId}">
                     """
                     .replace( "${lang}", lang )
                     .replace( "${codeBlockId}", codeBlockId )
-                    .replace( "${showApplyPatch}", "diff".equals(lang) ? "button" : "hidden" ) // show "Apply Patch" button for diffs
+                    .replace( "${showApplyPatch}", "diff".equals(lang) ? "button" : "hidden" ) 
+                    .replace( "${showNewFile}",    "diff".equals(lang) ? "hidden" : "button" ) 
+                    .replace( "${showDiff}",       "diff".equals(lang) ? "hidden" : "button" )
+                    .replace( "${showInsert}",     "diff".equals(lang) ? "hidden" : "button" )
             );
             state ^= CODE_BLOCK_STATE;
         }
         else
         {
-            out.append( "</code></pre>\n" );
+            out.append( "</code></pre></div>\n" );
             state ^= CODE_BLOCK_STATE;
         }
     }
