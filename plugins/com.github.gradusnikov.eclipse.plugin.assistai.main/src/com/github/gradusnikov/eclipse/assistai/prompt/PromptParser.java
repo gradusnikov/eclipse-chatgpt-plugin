@@ -246,8 +246,6 @@ public class PromptParser
         input = input.replaceAll("^- (.*?)$", "<li>$1</li>");
         input = input.replaceAll("^\\+ (.*?)$", "<li>$1</li>");
 
-        
-        
         // Ordered lists
 //        input = input.replaceAll("^\\d+\\. (.*?)$", "<li>$1</li>");
         
