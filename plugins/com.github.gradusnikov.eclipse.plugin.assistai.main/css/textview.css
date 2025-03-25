@@ -1,65 +1,136 @@
-/* Chat bubble styles */
+/* Reset some basic elements */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #1e1e1e;
+  color: #f0f0f0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+  padding: 0;
+}
+
+/* Chat container */
+#content {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Message styling */
 .chat-bubble {
-	flex-direction: column;
-	margin: 0.5rem;
-	padding: 1rem;
-	border-radius: 1rem;
-	box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
-	background-color: #222;
-	font-family: 'Roboto', sans-serif;
-	color: #fff;
-	line-height: 120%;
-    font-size: 14px;
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  margin: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
-summary {
-    font-weight: bold;
-    color: #30e582;
-}
-/* User-specific styles */
+
 .chat-bubble.me {
-	align-self: flex-end;
-	background-color: #823c3c;
-}
-
-
-.chat-bubble.me:last-child {
-	margin-bottom: 1.5rem;
+  background-color: #2d333b;
 }
 
 .chat-bubble.you {
-	align-self: flex-start;
-	background-color: #444;
+  background-color: #1e1e1e;
 }
 
-.chat-bubble.you pre {
-	background-color: #666;
+/* Ensure inline elements stay inline */
+.chat-bubble i, .chat-bubble em, .chat-bubble b, .chat-bubble strong, .chat-bubble span, .chat-bubble a {
+  display: inline;
+  white-space: normal;
 }
 
-.chat-bubble.you:last-child {
-	margin-bottom: 1.5rem;
-}
-
-/* Hide scrollbar for code snippets */
-.chat-bubble pre::-webkit-scrollbar {
-	display: none;
-}
-
-.chat-bubble img {
-	display:block;
-	width:50%;
-	padding: 1rem;
-	margin:auto;
-}
-
-/* Dark body color */
-body {
-	background-color: #111;
-}
-
+/* Code formatting */
 code {
-	font-family: 'Roboto Mono', monospace;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  background-color: rgba(110, 118, 129, 0.4);
+  border-radius: 3px;
+  font-size: 12px;
+  padding: 0.1em 0.3em;
+  margin: 0;
+  white-space: break-spaces;
 }
 
+/* Code blocks */
+.codeBlock {
+  margin: 8px 0;
+}
+
+pre {
+  background-color: #161b22;
+  border-radius: 5px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow: auto;
+  padding: 12px;
+  margin: 0;
+}
+
+pre code {
+  background-color: transparent;
+  border-radius: 0;
+  font-size: inherit;
+  margin: 0;
+  padding: 0;
+  white-space: pre;
+  overflow-wrap: normal;
+  display: block;
+}
+
+/* Code block buttons */
+.codeBlockButtons {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+.codeBlockButtons input[type="button"] {
+  background-color: #2d333b;
+  border: 1px solid #444c56;
+  border-radius: 4px;
+  color: #adbac7;
+  cursor: pointer;
+  font-size: 11px;
+  margin-left: 6px;
+  padding: 3px 8px;
+}
+
+.codeBlockButtons input[type="button"]:hover {
+  background-color: #444c56;
+}
+
+/* Links */
 a {
-	color: #fff;
+  color: #58a6ff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Fix for images */
+.chat-bubble img {
+  max-width: 100%;
+  display: block;
+  margin: 10px 0;
+}
+
+/* Syntax highlighting adjustments */
+.hljs {
+  background: transparent !important;
+}
+
+/* Summary elements */
+summary {
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 10px;
+  color: #58a6ff;
 }
