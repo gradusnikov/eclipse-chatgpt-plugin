@@ -40,8 +40,6 @@ public class EclipseIntegrationsMcpServer
     @Inject
     private ConsoleService consoleService;
     
-    @Inject
-    private CodeEditingService codeEditingService;
     
     
     @Tool(name="getJavaDoc", description="Get the JavaDoc for the given compilation unit.  For example,a class B defined as a member type of a class A in package x.y should have athe fully qualified name \"x.y.A.B\".Note that in order to be found, a type name (or its top level enclosingtype name) must match its corresponding compilation unit name.", type="object")
@@ -87,16 +85,10 @@ public class EclipseIntegrationsMcpServer
     {
         return codeAnalysisService.getCompilationErrors( projectName, severity, Optional.ofNullable( maxResults ).map( Integer::parseInt ).orElse( 0 ) );
     }
-//    @Tool(name="generateCodeDiff", description="Generate a diff/patch between proposed code and an existing file in the project. Returns a diff code block that should be presented to the User, and change summary.", type="object")
-//    public String generateCodeDiff(
-//            @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
-//            @ToolParam(name="filePath", description="The path to the file relative to the project root", required=true) String filePath,
-//            @ToolParam(name="proposedCode", description="The new/updated code being proposed", required=true) String proposedCode,
-//            @ToolParam(name="contextLines", description="Number of context lines to include in the diff (default: 3)", required=false) String contextLines) 
-//    {
-//        return codeEditingService.generateCodeDiffAndShowApplyDialog( projectName, filePath, proposedCode, Optional.ofNullable( contextLines ).map( Integer::parseInt ).orElse( 0 ) ); 
-//    }
     
+
+
+	
     @Tool(name="readProjectResource", description="Read the content of a text resource from a specified project.", type="object")
     public String readProjectResource(
             @ToolParam(name="projectName", description="The name of the project containing the resource", required=true) String projectName,
