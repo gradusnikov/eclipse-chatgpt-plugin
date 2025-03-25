@@ -44,7 +44,9 @@ body {
   display: inline;
   white-space: normal;
 }
-
+.chat-bubble pre, .chat-bubble pre span {
+	white-space: pre;	
+}
 /* Code formatting */
 code {
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
