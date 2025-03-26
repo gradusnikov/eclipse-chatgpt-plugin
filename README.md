@@ -30,6 +30,34 @@ AssistAI is an Eclipse IDE plugin that brings a Large Language Model (LLM) assis
 
 You can also pose general questions to LLM, just like with the regular ChatGPT interface.
 
+## Built-in MCP tools
+
+| MCP Server | Tool | Description |
+|------------|------|-------------|
+| duck-duck-search | webSearch | Performs a search using a Duck Duck Go search engine and returns the search result json. |
+| eclipse-coder | createFile | Creates a new file in the specified project, adds it to the project, and opens it in the editor. |
+| eclipse-coder | insertIntoFile | Inserts content at a specific position in an existing file. |
+| eclipse-coder | replaceString | Replaces a specific string in a file with a new string, optionally within a specified line range. |
+| eclipse-coder | undoEdit | Undoes the last edit operation by restoring a file from its backup. |
+| eclipse-coder | createDirectories | Creates a directory structure (recursively) in the specified project. |
+| eclipse-ide | formatCode | Formats code according to the current Eclipse formatter settings. |
+| eclipse-ide | getJavaDoc | Get the JavaDoc for the given compilation unit. |
+| eclipse-ide | getSource | Get the source for the given class. |
+| eclipse-ide | getProjectProperties | Retrieves the properties and configuration of a specified project. |
+| eclipse-ide | getProjectLayout | Get the file and folder structure of a specified project in a hierarchical format. |
+| eclipse-ide | getMethodCallHierarchy | Retrieves the call hierarchy (callers) for a specified method. |
+| eclipse-ide | getCompilationErrors | Retrieves compilation errors and problems from the workspace or a project. |
+| eclipse-ide | readProjectResource | Read the content of a text resource from a specified project. |
+| eclipse-ide | listProjects | List all available projects in the workspace with their detected natures. |
+| eclipse-ide | getCurrentlyOpenedFile | Gets information about the currently active file in the Eclipse editor. |
+| eclipse-ide | getEditorSelection | Gets the currently selected text or lines in the active editor. |
+| eclipse-ide | getConsoleOutput | Retrieves the recent output from Eclipse console(s). |
+| memory | think | Use this tool to think about something without obtaining new information or performing changes. |
+| webpage-reader | readWebPage | Reads the content of the given web site and returns its content as a markdown text. |
+| time | currentTime | Returns the current date and time in the following format: yyyy-MM-dd HH:mm:ss |
+| time | convertTimeZone | Converts time from one time zone to another. |
+
+
 ## Context
 
 The plugin leverages the OpenAI API to send predefined prompts to the LLM. These prompts include relevant context from your IDE, such as:
@@ -103,14 +131,8 @@ Alternatively you can configure an update site:
 After installing the plugin, configure access to the **OpenAI API**:
 
 1. Open *Window > Preferences > Assist AI* preferences
-2. Configure your models *Window > Preferences > Assist AI* preferences > Models:
-   1. input the model URL (e.g. if you want to use OpenAI models, type https://api.openai.com/v1/chat/completions . You can use any other LLM endpoint, as long as it implements the OpenAI protocol - groq, LLM studio, etc.)
-   2. input your API keys (e.g. if you want to use OpenAI models, you can find your keys at https://platform.openai.com/account/api-keys)
-   3. Input the model name. By default, the plugin uses the *gpt-4*o model, but you can also utilize *gpt-3.5-turbo* or any available ChatGPT model. To check which models are available to you, go to https://platform.openai.com/playground?mode=chat and check the *Model* drop list.  **I highly recommend using one of the GPT-4o models*** as these have larger context window, which is essential for handling large source files. If you encounter 400 errors, the most probable cause is exceeding the context window limit. The LLM model has a maximum capacity that, when surpassed, results in these errors. 
-   4. if the model supports vision (image analysis) check the "With Vision" checkbox
-   5. if the model supports function calling (e.g. gpt-4) check the "With Function Calls" checkbox
-   6. adjust the model Temperature parameter (if needed)
-
+2. Configure your models *Window > Preferences > Assist AI* preferences > Models
+   
 3. Select the model you want to use from a dropdown list: *Window > Preferences > Assist AI* preferences. You can switch between the defined models here.
 
 ### Configuring MCP Servers
