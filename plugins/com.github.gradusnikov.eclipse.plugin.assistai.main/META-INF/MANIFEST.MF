@@ -3,7 +3,7 @@ Bundle-ManifestVersion: 2
 Bundle-Name: Assist AI
 Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.main;singleton:=true
 Bundle-Vendor: Wojciech Gradkowski
-Bundle-Version: 1.0.5.qualifier
+Bundle-Version: 1.0.6.qualifier
 Bundle-Activator: com.github.gradusnikov.eclipse.assistai.Activator
 Require-Bundle: org.eclipse.e4.ui.services,
  org.eclipse.core.runtime,
@@ -29,7 +29,7 @@ Require-Bundle: org.eclipse.e4.ui.services,
  org.apache.commons.commons-io;bundle-version="2.15.1",
  org.eclipse.ui.ide,
  org.eclipse.ui.console
-Bundle-RequiredExecutionEnvironment: JavaSE-21
+Bundle-RequiredExecutionEnvironment: JavaSE-23
 Automatic-Module-Name: assistai.main
 Bundle-Classpath: .
 Bundle-ActivationPolicy: lazy
@@ -39,6 +39,7 @@ Export-Package: com.github.gradusnikov.eclipse.assistai,
  com.github.gradusnikov.eclipse.assistai.jobs,
  com.github.gradusnikov.eclipse.assistai.mcp,
  com.github.gradusnikov.eclipse.assistai.mcp.servers,
+ com.github.gradusnikov.eclipse.assistai.mcp.services,
  com.github.gradusnikov.eclipse.assistai.model,
  com.github.gradusnikov.eclipse.assistai.part,
  com.github.gradusnikov.eclipse.assistai.part.dnd,

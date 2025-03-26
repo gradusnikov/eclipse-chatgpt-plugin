@@ -2,13 +2,14 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Tests
 Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.main.tests
-Bundle-Version: 1.0.2.qualifier
+Bundle-Version: 1.0.4.qualifier
 Export-Package: com.github.gradusnikov.eclipse.plugin.assistai.main
 Fragment-Host: com.github.gradusnikov.eclipse.plugin.assistai.main
 Require-Bundle: junit-jupiter-api,
  org.eclipse.jdt.core,
- org.eclipse.jdt.launching
+ org.eclipse.jdt.launching,
+ slf4j.api
 Automatic-Module-Name: com.github.gradusnikov.eclipse.plugin.assistai.main.tests
-Bundle-RequiredExecutionEnvironment: JavaSE-17
+Bundle-RequiredExecutionEnvironment: JavaSE-23
 Import-Package: org.eclipse.core.runtime,
  org.hamcrest;version="2.2.0"
