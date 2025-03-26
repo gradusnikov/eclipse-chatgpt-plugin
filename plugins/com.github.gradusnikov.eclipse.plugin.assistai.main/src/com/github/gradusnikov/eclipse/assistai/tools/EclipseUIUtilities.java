@@ -16,7 +16,7 @@ public class EclipseUIUtilities
      *            The task to execute
      * @return The result of the task
      */
-    public <T> T syncExec( Callable<T> callable )
+    public static  <T> T syncExec( Callable<T> callable )
     {
         final Object[]    result = new Object[1];
         final Exception[] exception = new Exception[1];
