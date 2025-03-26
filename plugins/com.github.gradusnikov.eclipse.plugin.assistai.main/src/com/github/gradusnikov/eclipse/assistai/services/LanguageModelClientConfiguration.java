@@ -1,7 +1,5 @@
 package com.github.gradusnikov.eclipse.assistai.services;
 
-import jakarta.inject.Singleton;
-
 import java.util.Optional;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
@@ -11,6 +9,8 @@ import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.preferences.ModelApiDescriptorUtilities;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
+
+import jakarta.inject.Singleton;
 
 @Creatable
 @Singleton

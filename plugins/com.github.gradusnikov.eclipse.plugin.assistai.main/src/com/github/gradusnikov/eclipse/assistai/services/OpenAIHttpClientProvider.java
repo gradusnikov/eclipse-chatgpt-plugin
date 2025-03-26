@@ -1,15 +1,15 @@
 package com.github.gradusnikov.eclipse.assistai.services;
 
 
-import jakarta.inject.Inject;
-import jakarta.inject.Provider;
-import jakarta.inject.Singleton;
-
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.subscribers.AppendMessageToViewSubscriber;
 import com.github.gradusnikov.eclipse.assistai.subscribers.FunctionCallSubscriber;
 import com.github.gradusnikov.eclipse.assistai.subscribers.PrintMessageSubscriber;
+
+import jakarta.inject.Inject;
+import jakarta.inject.Provider;
+import jakarta.inject.Singleton;
 
 @Creatable
 @Singleton

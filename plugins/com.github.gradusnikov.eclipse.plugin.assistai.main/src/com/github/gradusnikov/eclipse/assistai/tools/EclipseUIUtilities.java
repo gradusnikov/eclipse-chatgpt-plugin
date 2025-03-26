@@ -1,5 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.tools;
 
+import java.util.Objects;
 import java.util.concurrent.Callable;
 
 import org.eclipse.swt.widgets.Display;
@@ -39,6 +40,21 @@ public class EclipseUIUtilities
         @SuppressWarnings( "unchecked" )
         T typedResult = (T) result[0];
         return typedResult;
+    }
+    
+    public static void asyncExec(Runnable callable)
+    {
+        // If we're on the UI thread, refresh directly
+    	var display = Display.getCurrent();
+    	if ( Objects.isNull(display) )
+    	{
+    		callable.run();
+    	}
+	    else 
+	    {
+	        // Otherwise, queue it on the UI thread
+	        display.asyncExec(() -> callable.run());
+	    }    	
     }
 
 }

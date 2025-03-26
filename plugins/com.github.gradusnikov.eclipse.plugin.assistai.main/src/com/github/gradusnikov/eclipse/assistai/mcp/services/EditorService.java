@@ -20,6 +20,8 @@ import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
+import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
+
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 

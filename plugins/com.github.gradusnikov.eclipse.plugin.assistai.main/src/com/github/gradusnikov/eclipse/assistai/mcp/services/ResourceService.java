@@ -11,7 +11,8 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.github.gradusnikov.eclipse.assistai.mcp.services.ResourceUtilities.FileInfo;
+import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
+import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities.FileInfo;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
