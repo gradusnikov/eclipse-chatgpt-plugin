@@ -56,8 +56,8 @@ public class CodeEditingService
 	 * @param filePath The path to the file relative to the project root
 	 * @param oldString The exact string to replace
 	 * @param newString The new string to insert
-	 * @param startLine Optional line number to start searching from (1-based, inclusive)
-	 * @param endLine Optional line number to end searching at (1-based, inclusive)
+	 * @param startLine Optional line number to start searching from (0-based, inclusive)
+	 * @param endLine Optional line number to end searching at (0-based, inclusive)
 	 * @return A status message indicating success or failure
 	 */
 	public String replaceStringInFile(String projectName, String filePath, String oldString, String newString, 
@@ -111,19 +111,15 @@ public class CodeEditingService
 	        int totalLines = lines.size();
 	        
 	        // Convert to 0-based indexing for internal use
-	        int effectiveStartLine = (startLine != null && startLine > 0) ? startLine - 1 : 0;
-	        int effectiveEndLine   = (endLine != null && endLine > 0) ? endLine - 1 : totalLines - 1;
+	        int effectiveStartLine = (startLine != null && startLine > 0) ? startLine : 0;
+	        int effectiveEndLine   = (endLine != null && endLine > 0) ? endLine : totalLines - 1;
 	        
 	        // Validate range
 	        if (effectiveStartLine >= totalLines) 
 	        {
 	            throw new RuntimeException( "Error: Start line " + startLine + " is beyond the end of the file (total lines: " + totalLines + ")." );
 	        }
-	        
-	        if (effectiveEndLine >= totalLines) 
-	        {
-	            effectiveEndLine = totalLines - 1;
-	        }
+	        effectiveEndLine = Math.min( effectiveEndLine, totalLines -1 );
 	        
 	        if (effectiveStartLine > effectiveEndLine) 
 	        {

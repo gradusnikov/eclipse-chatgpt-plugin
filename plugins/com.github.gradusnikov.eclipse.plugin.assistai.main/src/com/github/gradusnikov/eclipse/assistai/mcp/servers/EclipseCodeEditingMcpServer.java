@@ -46,8 +46,8 @@ public class EclipseCodeEditingMcpServer
 	        @ToolParam(name="filePath", description="The path to the file relative to the project root", required=true) String filePath,
 	        @ToolParam(name="oldString", description="The text to replace (must match exactly, including whitespace and indentation)", required=true) String oldString,
 	        @ToolParam(name="newString", description="The new text to insert in place of the old text", required=true) String newString,
-	        @ToolParam(name="startLine", description="Optional line number to start searching from (1-based, inclusive)", required=false) String startLine,
-	        @ToolParam(name="endLine", description="Optional line number to end searching at (1-based, inclusive)", required=false) String endLine) 
+	        @ToolParam(name="startLine", description="Optional line number to start searching from (0 for beginning of file)", required=false) String startLine,
+	        @ToolParam(name="endLine", description="Optional line number to end searching at (0 for beginning of file)", required=false) String endLine) 
 	{
 	    Integer startLineNum = Optional.ofNullable(startLine).map(Integer::parseInt).orElse(null);
 	    Integer endLineNum = Optional.ofNullable(endLine).map(Integer::parseInt).orElse(null);
