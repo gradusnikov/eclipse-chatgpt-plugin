@@ -14,6 +14,7 @@ import java.util.Optional;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IFileState;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
@@ -52,6 +53,148 @@ public class CodeEditingService
     @Inject
     UISynchronize sync;
     
+    
+    
+	/**
+	 * Creates a directory structure (recursively) in the specified project.
+	 * 
+	 * @param projectName The name of the project where directories should be created
+	 * @param directoryPath The path of directories to create, relative to the project root
+	 * @return A status message indicating success or failure
+	 */
+	public String createDirectories(String projectName, String directoryPath) {
+	    Objects.requireNonNull(projectName);
+	    Objects.requireNonNull(directoryPath);
+	    
+	    if (projectName.isEmpty()) 
+	    {
+	        throw new IllegalArgumentException("Error: Project name cannot be empty.");
+	    }
+	    if (directoryPath.isEmpty()) 
+	    {
+	        throw new IllegalArgumentException("Error: Directory path cannot be empty.");
+	    }
+	    
+	    try 
+	    {
+	        // Get the project
+	        IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+	        IProject project = root.getProject(projectName);
+	        
+	        if (!project.exists()) 
+	        {
+	            throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+	        }
+	        if (!project.isOpen()) 
+	        {
+	            project.open(null);
+	        }
+	        
+	        // Fix the path by removing any leading slash
+	        String normalizedPath = directoryPath;
+	        while (normalizedPath.startsWith("/") || normalizedPath.startsWith("\\")) 
+	        {
+	            normalizedPath = normalizedPath.substring(1);
+	        }
+	        
+	        if (normalizedPath.isEmpty()) 
+	        {
+	            throw new RuntimeException("Error: Invalid directory path. Path cannot be empty after normalization.");
+	        }
+	        
+	        // Get the folder handle
+	        IFolder folder = project.getFolder(normalizedPath);
+	        
+	        if (folder.exists()) {
+	            return "Directory '" + normalizedPath + "' already exists in project '" + projectName + "'.";
+	        }
+	        
+	        // Create the folder hierarchy
+	        ResourceUtilities.createFolderHierarchy(folder);
+	        
+	        return "Success: Directory structure '" + normalizedPath + "' created in project '" + projectName + "'.";
+	    } 
+	    catch (CoreException e) 
+	    {
+	        throw new RuntimeException(e);
+	    }
+	}
+
+	/**
+	 * Undoes the last edit operation by restoring a file from its backup.
+	 * 
+	 * @param projectName The name of the project containing the file
+	 * @param filePath The path to the file relative to the project root
+	 * @return A status message indicating success or failure
+	 */
+	public String undoEdit(String projectName, String filePath) 
+	{
+	    Objects.requireNonNull(projectName);
+	    Objects.requireNonNull(filePath);
+	    
+	    if (projectName.isEmpty()) 
+	    {
+	        throw new IllegalArgumentException("Error: Project name cannot be empty.");
+	    }
+	    if (filePath.isEmpty()) 
+	    {
+	        throw new IllegalArgumentException("Error: File path cannot be empty.");
+	    }
+	    
+	    try 
+	    {
+	        // Get the project and file
+	        IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+	        IProject project = root.getProject(projectName);
+	        
+	        if (!project.exists()) 
+	        {
+	            throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+	        }
+	        if (!project.isOpen()) 
+	        {
+	            project.open(null);
+	        }
+	        
+	        IPath path = IPath.fromPath(Path.of(filePath));
+	        IFile file = project.getFile(path);
+	        
+	        if (!file.exists()) 
+	        {
+	            throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+	        }
+	        
+	        // Use Eclipse's built-in local history to undo changes
+	        IFileState[] history = file.getHistory(null);
+	        if (history == null || history.length == 0) 
+	        {
+	            throw new RuntimeException("Error: No edit history found for file '" + filePath + "'.");
+	        }
+	        
+	        // Get the most recent history state
+	        IFileState previousState = history[0];
+	        
+	        // Restore the file from the previous state
+	        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(
+	                ResourceUtilities.readInputStream(previousState.getContents()))) {
+	            file.setContents(inputStream, IResource.FORCE, null);
+	        }
+	        
+	        // Try to refresh the editor if the file is open
+	        sync.asyncExec(() -> 
+	        {
+	            safeOpenEditor(file);
+	            refreshEditor(file);
+	        });
+	        
+	        return "Success: Undid last edit in file '" + filePath + "' in project '" + projectName + "'.";
+	    } 
+	    catch (CoreException | IOException e) 
+	    {
+	        throw new RuntimeException(e);
+	    }
+	}
+	
 	/**
 	 * Replaces a specific string in a file with a new string, optionally within a specified line range.
 	 * 

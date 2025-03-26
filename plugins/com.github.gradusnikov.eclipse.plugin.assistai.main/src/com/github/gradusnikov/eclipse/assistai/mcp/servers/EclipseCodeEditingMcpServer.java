@@ -54,4 +54,23 @@ public class EclipseCodeEditingMcpServer
 	    
 	    return codeEditingService.replaceStringInFile(projectName, filePath, oldString, newString, startLineNum, endLineNum);
 	}
+	
+	
+	@Tool(name="undoEdit", description="Undoes the last edit operation by restoring a file from its backup.", type="object")
+	public String undoEdit(
+	        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
+	        @ToolParam(name="filePath", description="The path to the file relative to the project root", required=true) String filePath) 
+	{
+	    return codeEditingService.undoEdit(projectName, filePath);
+	}
+	
+	
+	@Tool(name="createDirectories", description="Creates a directory structure (recursively) in the specified project.", type="object")
+	public String createDirectories(
+	        @ToolParam(name="projectName", description="The name of the project where directories should be created", required=true) String projectName,
+	        @ToolParam(name="directoryPath", description="The path of directories to create, relative to the project root", required=true) String directoryPath) 
+	{
+	    return codeEditingService.createDirectories(projectName, directoryPath);
+	}
+
 }

@@ -53,6 +53,18 @@ public class ResourceUtilities
 	    }
 	}
 	
+	public static byte[] readInputStream(InputStream inputStream) throws IOException 
+	{
+	    ByteArrayOutputStream result = new ByteArrayOutputStream();
+	    byte[] buffer = new byte[1024];
+	    int length;
+	    while ((length = inputStream.read(buffer)) != -1) 
+	    {
+	        result.write(buffer, 0, length);
+	    }
+	    return result.toByteArray();
+	}
+	
     public static String readFileContent( IFile file ) throws IOException, CoreException
     {
 		Objects.requireNonNull(file);
