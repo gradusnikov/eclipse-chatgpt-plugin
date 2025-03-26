@@ -23,6 +23,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.diff.HistogramDiff;
@@ -37,7 +38,6 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.ide.IDE;
 import org.eclipse.ui.texteditor.ITextEditor;
 
-import com.github.gradusnikov.eclipse.assistai.tools.EclipseUIUtilities;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
 import jakarta.inject.Inject;
@@ -48,6 +48,9 @@ public class CodeEditingService
 {
     @Inject
     ILog logger;
+    
+    @Inject
+    UISynchronize sync;
     
 	/**
 	 * Replaces a specific string in a file with a new string, optionally within a specified line range.
@@ -219,10 +222,10 @@ public class CodeEditingService
 	        }
 	        
 	        // Try to open the file in the editor, but don't fail if we can't
-	        EclipseUIUtilities.asyncExec(() -> safeOpenEditor(file) );
+	        sync.asyncExec(() -> safeOpenEditor(file) );
 
 	        // Try to refresh the editor if the file is open
-	        EclipseUIUtilities.asyncExec( () -> refreshEditor(file) );
+	        sync.asyncExec( () -> refreshEditor(file) );
 	        
 	        String rangeInfo = "";
 	        if (startLine != null || endLine != null) 
@@ -332,10 +335,11 @@ public class CodeEditingService
 	            file.setContents(source, IResource.FORCE, null);
 	        }
 	        // Try to open the file in the editor, but don't fail if we can't
-	        EclipseUIUtilities.asyncExec(() -> safeOpenEditor(file) );
-
 	        // Try to refresh the editor if the file is open
-	        EclipseUIUtilities.asyncExec( () -> refreshEditor(file) );
+	        sync.asyncExec( () -> {
+	        	safeOpenEditor(file);
+	        	refreshEditor(file);	
+	        });
 	        
 	        return "Success: Content inserted after line " + afterLine + " in file '" + filePath + "' in project '" + projectName + "'.";
 	    } 
@@ -581,7 +585,7 @@ public class CodeEditingService
 	        file.create(source, true, null);
 	        
 	        // Try to open the file in the editor, but don't fail if we can't
-	        EclipseUIUtilities.asyncExec(() -> safeOpenEditor(file) );
+	        sync.asyncExec(() -> safeOpenEditor(file) );
 	        
 	        return "Success: File '" + normalizedPath + "' created in project '" + projectName + "'. " +
 	               "The file may have been opened in the editor if a UI session is available.";
@@ -592,7 +596,8 @@ public class CodeEditingService
 	}
 	
 	/** 
-	 * Safely opens a file in the editor, handling null cases. 
+	 * Safely opens a file in the editor, handling null cases,
+	 * and brings the editor into focus.
 	 * @param file The file to open 
 	 */
 	private void safeOpenEditor(IFile file) 
@@ -603,7 +608,13 @@ public class CodeEditingService
                 .ifPresent( page -> {
 					try 
 					{
-						IDE.openEditor(page, file);
+						// Open the editor and get the editor reference
+						var editor = IDE.openEditor(page, file);
+						// Set focus to the editor
+						if (editor != null) 
+						{
+							editor.setFocus();
+						}
 					} 
 					catch (PartInitException e) 
 					{
@@ -612,5 +623,4 @@ public class CodeEditingService
 					}
 				});
 	}
-
 }

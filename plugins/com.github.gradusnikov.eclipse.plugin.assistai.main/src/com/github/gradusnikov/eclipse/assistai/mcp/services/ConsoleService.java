@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
@@ -21,7 +22,6 @@ import org.eclipse.ui.console.IOConsole;
 import org.eclipse.ui.console.MessageConsole;
 import org.eclipse.ui.console.TextConsole;
 
-import com.github.gradusnikov.eclipse.assistai.tools.EclipseUIUtilities;
 
 import jakarta.inject.Inject;
 
@@ -33,6 +33,8 @@ public class ConsoleService
 {
     @Inject
     ILog logger;
+    @Inject
+    UISynchronize sync;
     
     /**
      * Retrieves the recent output from Eclipse console(s).
@@ -61,16 +63,13 @@ public class ConsoleService
         final int finalMaxLines = maxLines;
         final boolean finalIncludeAllConsoles = includeAllConsoles;
         
-        
-        result.append( EclipseUIUtilities.syncExec(() -> readConsoleOutput(consoleName, finalMaxLines, finalIncludeAllConsoles) ) 
-        );
+        sync.syncExec(() -> readConsoleOutput(result, consoleName, finalMaxLines, finalIncludeAllConsoles) );
         
         return result.toString();
     }
 
-	private String readConsoleOutput(String consoleName, final int finalMaxLines, final boolean finalIncludeAllConsoles ) 
+	private void readConsoleOutput(StringBuilder result, String consoleName, final int finalMaxLines, final boolean finalIncludeAllConsoles ) 
 	{
-		StringBuilder result = new StringBuilder();
 		try 
 		{
 			
@@ -179,7 +178,6 @@ public class ConsoleService
 		        result.append("No content found in the ")
 		              .append(targetConsoles.size() == 1 ? "selected console." : "selected consoles.");
 		    }
-		    return result.toString();
 		} 
 		catch (Exception e) 
 		{
