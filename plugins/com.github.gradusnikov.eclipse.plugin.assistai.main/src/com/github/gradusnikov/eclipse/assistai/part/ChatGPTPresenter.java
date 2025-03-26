@@ -184,7 +184,9 @@ public class ChatGPTPresenter
     public void onStop()
     {
         var jobs = jobManager.find( null );
-        Arrays.stream( jobs ).filter( job -> job.getName().startsWith( AssistAIJobConstants.JOB_PREFIX ) ).forEach( Job::cancel );
+        Arrays.stream( jobs )
+        	  .filter( job -> job.getName().startsWith( AssistAIJobConstants.JOB_PREFIX ) )
+        	  .forEach( Job::cancel );
 
         partAccessor.findMessageView().ifPresent( messageView -> {
             messageView.setInputEnabled( true );

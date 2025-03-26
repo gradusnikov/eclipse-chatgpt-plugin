@@ -11,7 +11,6 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.services.OpenAIHttpClientProvider;
 
@@ -32,22 +31,50 @@ public class SendConversationJob extends Job
         super( AssistAIJobConstants.JOB_PREFIX + " ask ChatGPT for help");
         
     }
-    @Override
-    protected IStatus run(IProgressMonitor progressMonitor) 
-    {
-        var openAIClient = clientProvider.get();
-        openAIClient.setCancelProvider( () -> progressMonitor.isCanceled() ); 
-        
-        try 
-        {
-            var future = CompletableFuture.runAsync( openAIClient.run(conversation) )
-                    .thenApply( v -> Status.OK_STATUS )
-                    .exceptionally( e -> Status.error("Unable to run the task: " + e.getMessage(), e) );
-            return future.get();
-        } 
-        catch ( Exception e ) 
-        {
-            return Status.error( e.getMessage(), e );
-        }
-    }
+	
+
+	@Override
+	protected IStatus run(IProgressMonitor progressMonitor) 
+	{
+	    var openAIClient = clientProvider.get();
+	    openAIClient.setCancelProvider(() -> progressMonitor.isCanceled()); 
+	    
+	    try 
+	    {
+	        // Get the runnable from the client
+	        Runnable task = openAIClient.run(conversation);
+	        
+	        // Create a CompletableFuture that can be explicitly canceled
+	        var future = CompletableFuture.runAsync(task)
+	                .thenApply(v -> Status.OK_STATUS)
+	                .exceptionally(e -> Status.error("Unable to run the task: " + e.getMessage(), e));
+	        
+	        // Check for cancellation while waiting for completion
+	        try 
+	        {
+	            while (!future.isDone()) 
+	            {
+	                if (progressMonitor.isCanceled()) 
+	                {
+	                    future.cancel(true); // Attempt to cancel the future
+	                    return Status.CANCEL_STATUS;
+	                }
+	                Thread.sleep(100); // Small delay to prevent CPU hogging
+	            }
+	            
+	            return future.get(); // Get the result (OK_STATUS or error status)
+	        } 
+	        catch (InterruptedException e) 
+	        {
+	            Thread.currentThread().interrupt(); // Restore the interrupted status
+	            return Status.CANCEL_STATUS;
+	        }
+	    } 
+	    catch (Exception e) 
+	    {
+	        return Status.error(e.getMessage(), e);
+	    }
+	}
+
+
 }
