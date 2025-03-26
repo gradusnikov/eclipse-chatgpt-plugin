@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -25,11 +26,20 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
+import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.JavaCore;
+import org.eclipse.jdt.core.ToolFactory;
+import org.eclipse.jdt.core.formatter.CodeFormatter;
+import org.eclipse.jface.text.BadLocationException;
+import org.eclipse.jface.text.Document;
+import org.eclipse.jface.text.IDocument;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.diff.HistogramDiff;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.diff.RawTextComparator;
+import org.eclipse.text.edits.MalformedTreeException;
+import org.eclipse.text.edits.TextEdit;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.IWorkbench;
@@ -202,8 +212,8 @@ public class CodeEditingService
 	 * @param filePath The path to the file relative to the project root
 	 * @param oldString The exact string to replace
 	 * @param newString The new string to insert
-	 * @param startLine Optional line number to start searching from (0-based, inclusive)
-	 * @param endLine Optional line number to end searching at (0-based, inclusive)
+	 * @param startLine Optional line number to start searching from (0 for beginning of file)
+	 * @param endLine Optional line number to start searching from (0 for beginning of file)
 	 * @return A status message indicating success or failure
 	 */
 	public String replaceStringInFile(String projectName, String filePath, String oldString, String newString, 
@@ -257,8 +267,8 @@ public class CodeEditingService
 	        int totalLines = lines.size();
 	        
 	        // Convert to 0-based indexing for internal use
-	        int effectiveStartLine = (startLine != null && startLine > 0) ? startLine : 0;
-	        int effectiveEndLine   = (endLine != null && endLine > 0) ? endLine : totalLines - 1;
+	        int effectiveStartLine = (startLine != null) ? Math.max(0, startLine - 1) : 0;
+	        int effectiveEndLine = (endLine != null) ? Math.min(totalLines - 1, endLine - 1) : totalLines - 1;
 	        
 	        // Validate range
 	        if (effectiveStartLine >= totalLines) 
@@ -351,9 +361,7 @@ public class CodeEditingService
 	            String rangeInfo = "";
 	            if (startLine != null || endLine != null) 
 	            {
-	                rangeInfo = " within the specified range (lines " + 
-	                           (startLine != null ? startLine : 1) + " to " + 
-	                           (endLine != null ? endLine : totalLines) + ")";
+	            	rangeInfo = " within range (lines " + (startLine != null ? startLine : 1) + " to " + (endLine != null ? endLine : totalLines) + ")";
 	            }
 	            throw new RuntimeException( "Error: The specified string was not found in the file" + rangeInfo + "." );
 	        }
@@ -658,7 +666,69 @@ public class CodeEditingService
         }
     }
 
+    /**
+     * Formats the given code string according to the current Eclipse formatter settings.
+     * This is equivalent to pressing Ctrl+Shift+F in the Eclipse editor.
+     * 
+     * @param code The unformatted code string
+     * @param projectName Optional project name to use project-specific formatter settings
+     * @return The formatted code string
+     */
+	public String formatCode(String code, String projectName) {
+		Objects.requireNonNull(code, "Code cannot be null");
+		try
+		{
+			// Get formatting options - first try project-specific settings if project is
+			// provided
+			Map<String, String> options;
 
+			if (projectName != null && !projectName.isEmpty()) 
+			{
+				IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+				if (project.exists() && project.isOpen()) 
+				{
+					IJavaProject javaProject = JavaCore.create(project);
+					options = javaProject.getOptions(true);
+				}
+				else 
+				{
+					// Fall back to workspace defaults if project doesn't exist or is closed
+					options = JavaCore.getOptions();
+				}
+			} 
+			else 
+			{
+				// Use workspace defaults
+				options = JavaCore.getOptions();
+			}
+
+			// Create formatter with the options
+			CodeFormatter formatter = ToolFactory.createCodeFormatter(options);
+
+			// Format the code
+			TextEdit textEdit = formatter.format(CodeFormatter.K_COMPILATION_UNIT | CodeFormatter.F_INCLUDE_COMMENTS,
+					code, 0, code.length(), 0, null);
+
+			if (textEdit == null) 
+			{
+				// If formatting failed, return the original code
+				logger.warn("Code formatting failed - returning unformatted code");
+				return code;
+			}
+
+			// Apply the formatting changes
+			IDocument document = new Document(code);
+			textEdit.apply(document);
+
+			// Return the formatted code
+			return document.get();
+		} 
+		catch (MalformedTreeException | BadLocationException e)
+		{
+			logger.error("Error during code formatting: " + e.getMessage(), e);
+			throw new RuntimeException("Error formatting code: " + e.getMessage(), e);
+		}
+	}
 
 
 	public String createFileAndOpen(String projectName, String filePath, String content) 

@@ -40,7 +40,18 @@ public class EclipseIntegrationsMcpServer
     @Inject
     private ConsoleService consoleService;
     
+    @Inject
+    private CodeEditingService codeEditingService;
     
+    
+	@Tool(name="formatCode", description="Formats code according to the current Eclipse formatter settings.", type="object")
+	public String formatCode(
+	        @ToolParam(name="code", description="The code to be formatted", required=true) String code,
+	        @ToolParam(name="projectName", description="Optional project name to use project-specific formatter settings", required=false) String projectName)
+	{
+	    return codeEditingService.formatCode(code, projectName);
+	}
+
     
     @Tool(name="getJavaDoc", description="Get the JavaDoc for the given compilation unit.  For example,a class B defined as a member type of a class A in package x.y should have athe fully qualified name \"x.y.A.B\".Note that in order to be found, a type name (or its top level enclosingtype name) must match its corresponding compilation unit name.", type="object")
     public String getJavaDoc(
@@ -85,9 +96,6 @@ public class EclipseIntegrationsMcpServer
     {
         return codeAnalysisService.getCompilationErrors( projectName, severity, Optional.ofNullable( maxResults ).map( Integer::parseInt ).orElse( 0 ) );
     }
-    
-
-
 	
     @Tool(name="readProjectResource", description="Read the content of a text resource from a specified project.", type="object")
     public String readProjectResource(

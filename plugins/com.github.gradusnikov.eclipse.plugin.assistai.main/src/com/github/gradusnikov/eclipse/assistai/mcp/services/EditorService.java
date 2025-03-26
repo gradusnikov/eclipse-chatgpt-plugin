@@ -1,11 +1,15 @@
 
 package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.text.ITextSelection;
@@ -22,8 +26,21 @@ import org.eclipse.ui.texteditor.ITextEditor;
 
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
+import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.JavaCore;
+import org.eclipse.jdt.core.ToolFactory;
+import org.eclipse.jdt.core.formatter.CodeFormatter;
+import org.eclipse.jdt.core.formatter.DefaultCodeFormatterConstants;
+import org.eclipse.jface.text.BadLocationException;
+import org.eclipse.jface.text.Document;
+import org.eclipse.jface.text.IDocument;
+import org.eclipse.text.edits.MalformedTreeException;
+import org.eclipse.text.edits.TextEdit;
+
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+
+
 
 /**
  * Service interface for editor-related operations including
@@ -34,6 +51,9 @@ public class EditorService
 {
     @Inject
     ILog logger;
+    
+    
+
     
     /**
      * Gets information about the currently active file in the Eclipse editor.

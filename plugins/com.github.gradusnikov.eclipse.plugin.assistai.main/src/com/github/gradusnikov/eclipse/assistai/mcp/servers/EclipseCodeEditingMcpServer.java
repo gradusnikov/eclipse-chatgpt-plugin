@@ -22,7 +22,7 @@ public class EclipseCodeEditingMcpServer
 	@Tool(name="createFile", description="Creates a new file in the specified project, adds it to the project, and opens it in the editor.", type="object")
 	public String createFile(
 	        @ToolParam(name="projectName", description="The name of the project where the file should be created", required=true) String projectName,
-	        @ToolParam(name="filePath", description="The path to the file relative to the project root", required=true) String filePath,
+	        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
 	        @ToolParam(name="content", description="The content to write to the file", required=true) String content) 
 	{
 	    return codeEditingService.createFileAndOpen(projectName, filePath, content);
@@ -31,7 +31,7 @@ public class EclipseCodeEditingMcpServer
 	@Tool(name="insertIntoFile", description="Inserts content at a specific position in an existing file.", type="object")
 	public String insertIntoFile(
 			@ToolParam(name = "projectName", description = "The name of the project containing the file", required = true) String projectName,
-			@ToolParam(name = "filePath", description = "The path to the file relative to the project root", required = true) String filePath,
+			@ToolParam(name = "filePath", description = "The path to the file relative to the project root. Do not include project name!", required = true) String filePath,
 			@ToolParam(name = "content", description = "The content to insert into the file", required = true) String content,
 			@ToolParam(name = "line", description = "The line number after which to insert the text (0 for beginning of file)", required = false) String line) {
 	    int lineNum = Optional.ofNullable(line).map(Integer::parseInt).orElse(0);
@@ -43,7 +43,7 @@ public class EclipseCodeEditingMcpServer
 	@Tool(name="replaceString", description="Replaces a specific string in a file with a new string, optionally within a specified line range. This is used for making precise edits.", type="object")
 	public String replaceString(
 	        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
-	        @ToolParam(name="filePath", description="The path to the file relative to the project root", required=true) String filePath,
+	        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
 	        @ToolParam(name="oldString", description="The text to replace (must match exactly, including whitespace and indentation)", required=true) String oldString,
 	        @ToolParam(name="newString", description="The new text to insert in place of the old text", required=true) String newString,
 	        @ToolParam(name="startLine", description="Optional line number to start searching from (0 for beginning of file)", required=false) String startLine,
@@ -59,7 +59,7 @@ public class EclipseCodeEditingMcpServer
 	@Tool(name="undoEdit", description="Undoes the last edit operation by restoring a file from its backup.", type="object")
 	public String undoEdit(
 	        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
-	        @ToolParam(name="filePath", description="The path to the file relative to the project root", required=true) String filePath) 
+	        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath) 
 	{
 	    return codeEditingService.undoEdit(projectName, filePath);
 	}
@@ -68,9 +68,11 @@ public class EclipseCodeEditingMcpServer
 	@Tool(name="createDirectories", description="Creates a directory structure (recursively) in the specified project.", type="object")
 	public String createDirectories(
 	        @ToolParam(name="projectName", description="The name of the project where directories should be created", required=true) String projectName,
-	        @ToolParam(name="directoryPath", description="The path of directories to create, relative to the project root", required=true) String directoryPath) 
+	        @ToolParam(name="directoryPath", description="The path of directories to create, relative to the project root. Do not include project name!", required=true) String directoryPath) 
 	{
 	    return codeEditingService.createDirectories(projectName, directoryPath);
 	}
+	
+	
 
 }
