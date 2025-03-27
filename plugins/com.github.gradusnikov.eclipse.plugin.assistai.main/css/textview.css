@@ -136,3 +136,9 @@ summary {
   margin-bottom: 10px;
   color: #58a6ff;
 }
+
+
+.chat-bubble.hidden {
+    display: none;
+}
+

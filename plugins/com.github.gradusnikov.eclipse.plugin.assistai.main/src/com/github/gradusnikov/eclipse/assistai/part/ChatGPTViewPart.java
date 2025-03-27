@@ -397,7 +397,7 @@ public class ChatGPTViewPart
     private String loadCss()
     {
         StringBuilder css = new StringBuilder();
-        String[] cssFiles = { "textview.css", "dark.min.css" };
+        String[] cssFiles = { "textview.css", "dark.min.css", "fa6.all.min.css" };
         for ( String file : cssFiles )
         {
             try (InputStream in = FileLocator.toFileURL( new URL( "platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/css/" + file ) )
@@ -422,7 +422,7 @@ public class ChatGPTViewPart
      */
     private String loadJavaScripts()
     {
-        String[] jsFiles = { "highlight.min.js" };
+        String[] jsFiles = { "highlight.min.js", "textview.js" };
         StringBuilder js = new StringBuilder();
         for ( String file : jsFiles )
         {
@@ -496,7 +496,22 @@ public class ChatGPTViewPart
         } );
     }
 
-    public Object removeMessage( int id )
+	
+	// Add a method to hide the tool use message
+	public void hideMessage(String messageId) 
+	{
+	    uiSync.asyncExec(() -> {
+	        browser.execute("""
+	                var node = document.getElementById("message-${id}");
+	                if(node) {
+	                    node.classList.add("hidden");
+	                }
+	                """.replace("${id}", messageId));
+	    });
+	}
+
+
+	public Object removeMessage( int id )
     {
         // TODO Auto-generated method stub
         return null;
@@ -739,7 +754,6 @@ public class ChatGPTViewPart
             {
                 String codeBlock = (String) arguments[0];
                 String lang      = (String) arguments[1];
-System.out.println( ">>>> " + lang );                
                 presenter.onNewFile( codeBlock, lang );
             }
             return null;

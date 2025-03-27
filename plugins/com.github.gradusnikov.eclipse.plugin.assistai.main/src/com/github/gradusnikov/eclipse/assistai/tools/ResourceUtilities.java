@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -15,7 +16,15 @@ import org.apache.tika.Tika;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
+import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IPath;
+import org.eclipse.jdt.core.dom.AST;
+import org.eclipse.jdt.core.dom.ASTParser;
+import org.eclipse.jdt.core.dom.CompilationUnit;
+import org.eclipse.jdt.core.dom.EnumDeclaration;
+import org.eclipse.jdt.core.dom.PackageDeclaration;
+import org.eclipse.jdt.core.dom.TypeDeclaration;
 
 public class ResourceUtilities
 {
@@ -82,7 +91,169 @@ public class ResourceUtilities
         }
     }
     
-    public static record FileInfo( String lang, boolean supported, String error ) {};
+    public static String getSuggestedFileName(String lang, String codeBlock) {
+	    // Fall back to the original implementation if parsing fails or for other languages
+	    return switch (lang) {
+	        case "java" -> suggestedJavaFile(codeBlock);
+	        case "python" -> "new_script.py";
+	        case "javascript" -> "script.js";
+	        case "typescript" -> "script.ts";
+	        case "html" -> "index.html";
+	        case "xml" -> "config.xml";
+	        case "json" -> "data.json";
+	        case "markdown" -> "README.md";
+	        case "cpp" -> "main.cpp";
+	        case "bash" -> "script.sh";
+	        case "yaml" -> "config.yaml";
+	        case "properties" -> "config.properties";
+	        default -> "NewFile." + getFileExtensionForLang(lang);
+	    };
+	}
+	public static IPath suggestedJavaPackage(String codeBlock) 
+	{
+	    String pathString = "";
+	    // Extract package name from Java code
+	    if (codeBlock != null && !codeBlock.isBlank()) 
+	    {
+	        try 
+	        {
+	            // Use Eclipse JDT to parse the Java code
+	            ASTParser parser = ASTParser.newParser(AST.JLS23);
+	            parser.setSource(codeBlock.toCharArray());
+	            parser.setKind(ASTParser.K_COMPILATION_UNIT);
+	
+	            CompilationUnit cu = (CompilationUnit) parser.createAST(null);
+	
+	            PackageDeclaration packageDecl = cu.getPackage();
+	            if (packageDecl != null) 
+	            {
+	                pathString = packageDecl.getName().getFullyQualifiedName().replace(".", "/");
+	            }
+	        } 
+	        catch (Exception e) 
+	        {
+	            // ignore
+	        }
+	    }
+	    return IPath.fromPath( Paths.get(pathString) );
+	}
+	public static String suggestedJavaFile( String codeBlock )
+	{
+	    // Extract class name from Java code
+	    if ( codeBlock != null && !codeBlock.isBlank() )
+	    {
+	        try 
+	        {
+	            // Use Eclipse JDT to parse the Java code
+	            ASTParser parser = ASTParser.newParser(AST.JLS23);
+	            parser.setSource(codeBlock.toCharArray());
+	            parser.setKind(ASTParser.K_COMPILATION_UNIT);
+	            
+	            CompilationUnit cu = (CompilationUnit) parser.createAST(null);
+	            
+	            // Find the first type declaration (class, interface, enum)
+	            for (Object type : cu.types()) 
+	            {
+	                if (type instanceof TypeDeclaration) 
+	                {
+	                    TypeDeclaration typeDecl = (TypeDeclaration) type;
+	                    return typeDecl.getName().getIdentifier() + ".java";
+	                } 
+	                else if (type instanceof EnumDeclaration) 
+	                {
+	                    EnumDeclaration enumDecl = (EnumDeclaration) type;
+	                    return enumDecl.getName().getIdentifier() + ".java";
+	                }
+	            }
+	        } 
+	        catch (Exception e) 
+	        {
+	        	// ignore
+	        }
+	    }
+        return "NewClass.java";
+	    
+	}
+	public static  IPath getSuggestedPath(IProject project, String lang, String codeBlock) {
+	    return switch (lang) {
+	        case "java" -> suggestedJavaPath(project).append( suggestedJavaPackage( codeBlock ) );
+	        case "python" -> suggestedPythonPath(project);
+	        case "javascript", "typescript", "html", "css" -> suggestedWebPath(project);
+	        default -> project.getFullPath();
+	    };
+	}
+	public static IPath suggestedWebPath( IProject project )
+	{
+	    // Check for web folders
+	    if ( project.getFolder( "webapp" ).exists() )
+	    {
+	        return project.getFolder( "webapp" ).getFullPath();
+	    }
+	    else if ( project.getFolder( "WebContent" ).exists() )
+	    {
+	        return project.getFolder( "WebContent" ).getFullPath();
+	    }
+	    else if ( project.getFolder( "public" ).exists() )
+	    {
+	        return project.getFolder( "public" ).getFullPath();
+	    }
+	    else if ( project.getFolder( "web" ).exists() )
+	    {
+	        return project.getFolder( "web" ).getFullPath();
+	    }
+	    else
+	    {
+	        return project.getFullPath();
+	    }
+	}
+	public static  IPath suggestedPythonPath( IProject project )
+	{
+	    if ( project.getFolder( "src" ).exists() )
+	    {
+	        return project.getFolder( "src" ).getFullPath();
+	    }
+	    else
+	    {
+	        return project.getFullPath();
+	    }
+	}
+	public static  IPath suggestedJavaPath( IProject project )
+	{
+	    // Try to find src/main/java or src folder
+	    IPath srcMainJava = project.getFolder( "src/main/java" ).getFullPath();
+	    if ( project.getFolder( "src/main/java" ).exists() )
+	    {
+	        return srcMainJava;
+	    }
+	    else if ( project.getFolder( "src" ).exists() )
+	    {
+	        return project.getFolder( "src" ).getFullPath();
+	    }
+	    else
+	    {
+	        return project.getFullPath();
+	    }
+	}
+	public static  String getFileExtensionForLang(String lang) {
+	    return switch (lang) {
+	        case "java" -> "java";
+	        case "python" -> "py";
+	        case "javascript" -> "js";
+	        case "typescript" -> "ts";
+	        case "html" -> "html";
+	        case "xml" -> "xml";
+	        case "json" -> "json";
+	        case "markdown" -> "md";
+	        case "cpp" -> "cpp";
+	        case "bash" -> "sh";
+	        case "yaml" -> "yaml";
+	        case "properties" -> "properties";
+	        case "text" -> "txt";
+	        default -> "txt";
+	    };
+	}
+
+	public static record FileInfo( String lang, boolean supported, String error ) {};
     
     public static FileInfo readFileInfo( IFile file )
     {

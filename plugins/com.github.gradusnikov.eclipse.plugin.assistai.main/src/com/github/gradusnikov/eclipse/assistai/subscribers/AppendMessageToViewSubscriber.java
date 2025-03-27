@@ -45,24 +45,26 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
     }
 
     @Override
-    public synchronized void onNext(Incoming item)
+    public void onNext(Incoming item)
     {
         Objects.requireNonNull( presenter );
         Objects.requireNonNull( subscription );
         
-        if ( Objects.isNull( message ) ||  messageType != item.type() )
+        synchronized ( this )
         {
-            if ( Objects.nonNull( message ) )
-            {
-                presenter.endMessageFromAssistant();
-            }
-            messageType = item.type();
-            message = presenter.beginMessageFromAssistant();
+        	if ( Objects.isNull( message ) ||  messageType != item.type() )
+        	{
+        		if ( Objects.nonNull( message ) )
+        		{
+        			presenter.endMessageFromAssistant( message );
+        		}
+        		messageType = item.type();
+	        	message = presenter.beginMessageFromAssistant();
+        	}
+        	message.append( item.payload().toString() );
+	        presenter.updateMessageFromAssistant( message ); 
+        	subscription.request(1);
         }
-        
-        message.append(item.payload().toString());
-        presenter.updateMessageFromAssistant( message );
-        subscription.request(1);
     }
 
     @Override
@@ -77,10 +79,14 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
     public void onComplete()
     {
         Objects.requireNonNull( presenter );
-        message = null;
-        subscription = null;
-        presenter.endMessageFromAssistant();
-        subscription.request(1);
+        synchronized ( this )
+        {
+    		presenter.endMessageFromAssistant( message );
+        	message = null;
+        	subscription = null;
+        	messageType = null;
+        	subscription.request(1);
+        }
     }
     
 
