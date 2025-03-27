@@ -63,8 +63,6 @@ public class CodeEditingService
     @Inject
     UISynchronize sync;
     
-    
-    
 	/**
 	 * Creates a directory structure (recursively) in the specified project.
 	 * 
@@ -173,6 +171,12 @@ public class CodeEditingService
 	        {
 	            throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
 	        }
+	        // Try to refresh the editor if the file is open
+	        sync.syncExec(() -> 
+	        {
+	            safeOpenEditor(file);
+	            refreshEditor(file);
+	        });
 	        
 	        // Use Eclipse's built-in local history to undo changes
 	        IFileState[] history = file.getHistory(null);
@@ -193,11 +197,11 @@ public class CodeEditingService
 	        // Try to refresh the editor if the file is open
 	        sync.asyncExec(() -> 
 	        {
-	            safeOpenEditor(file);
 	            refreshEditor(file);
 	        });
 	        
-	        return "Success: Undid last edit in file '" + filePath + "' in project '" + projectName + "'.";
+	        return "Success: Undid last edit in file '" + filePath + "' in project '" + projectName + "'." +
+            "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
 	    } 
 	    catch (CoreException | IOException e) 
 	    {
@@ -259,6 +263,12 @@ public class CodeEditingService
 	        {
 	        	throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
 	        }
+	        // Try to refresh the editor if the file is open
+	        sync.syncExec(() -> 
+	        {
+	            safeOpenEditor(file);
+	            refreshEditor(file);
+	        });
 	        
 	        // Read the file line by line for better range handling
 	        List<String> lines = ResourceUtilities.readFileLines( file );
@@ -386,7 +396,8 @@ public class CodeEditingService
 	                       (endLine != null ? endLine : totalLines) + ")";
 	        }
 	        
-	        return "Success: String replaced in file '" + filePath + "' in project '" + projectName + "'" + rangeInfo + ".";
+	        return "Success: String replaced in file '" + filePath + "' in project '" + projectName + "'" + rangeInfo + "." +
+            "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
 	    } 
 	    catch (CoreException | IOException e) 
 	    {
@@ -444,14 +455,19 @@ public class CodeEditingService
 	        {
 	            throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
 	        }
-	        
 	        List<String> lines = ResourceUtilities.readFileLines(file);
 	        
 	        // Validate line number
 	        if (afterLine < 0 || afterLine > lines.size() ) 
 	        {
-	            return "Error: Invalid line number " + afterLine + ". File has " + lines.size() + " lines.";
+	            throw new RuntimeException("Error: Invalid line number " + afterLine + ". File has " + lines.size() + " lines.");
 	        }
+	        // Try to refresh the editor if the file is open
+	        sync.syncExec(() -> 
+	        {
+	            safeOpenEditor(file);
+	            refreshEditor(file);
+	        });
 	        
 	        // Build the new content
 	        StringBuilder modifiedContent = new StringBuilder();
@@ -492,7 +508,9 @@ public class CodeEditingService
 	        	refreshEditor(file);	
 	        });
 	        
-	        return "Success: Content inserted after line " + afterLine + " in file '" + filePath + "' in project '" + projectName + "'.";
+	        return "Success: Content inserted after line " + afterLine + " in file '" + filePath + "' in project '" + projectName + "'." +
+            "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
+
 	    } 
 	    catch (CoreException | IOException e) 
 	    {
@@ -608,6 +626,13 @@ public class CodeEditingService
             
             IFile file = (IFile) resource;
             
+	        // Try to refresh the editor if the file is open
+	        sync.syncExec(() -> 
+	        {
+	            safeOpenEditor(file);
+	            refreshEditor(file);
+	        });
+
             // Read the original file content
             String originalContent = ResourceUtilities.readFileContent(file);
             
@@ -801,8 +826,10 @@ public class CodeEditingService
 	        sync.asyncExec(() -> safeOpenEditor(file) );
 	        
 	        return "Success: File '" + normalizedPath + "' created in project '" + projectName + "'. " +
-	               "The file may have been opened in the editor if a UI session is available.";
-	    } catch (CoreException e) 
+	               "The file may have been opened in the editor if a UI session is available." +
+	               "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
+	    } 
+	    catch ( IOException | CoreException e) 
 	    {
 	        throw new RuntimeException( e );
 	    }
@@ -912,7 +939,13 @@ public class CodeEditingService
 	        {
 	            throw new RuntimeException("Error: Start line " + startLine + " is beyond the end of the file (total lines: " + totalLines + ").");
 	        }
-	        
+	        // Try to refresh the editor if the file is open
+	        sync.syncExec(() -> 
+	        {
+	            safeOpenEditor(file);
+	            refreshEditor(file);
+	        });
+
 	        // Ensure endLine is within bounds
 	        int effectiveEndLine = Math.min(endLine, totalLines - 1);
 	        
@@ -958,7 +991,8 @@ public class CodeEditingService
 	        int linesReplaced = effectiveEndLine - startLine + 1;
 	        return "Success: Replaced " + linesReplaced + " line" + (linesReplaced != 1 ? "s" : "") + 
 	               " (lines " + startLine + " to " + effectiveEndLine + ") in file '" + 
-	               filePath + "' in project '" + projectName + "'.";
+	               filePath + "' in project '" + projectName + "'." +
+	               "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
 	    } 
 	    catch (CoreException | IOException e) 
 	    {

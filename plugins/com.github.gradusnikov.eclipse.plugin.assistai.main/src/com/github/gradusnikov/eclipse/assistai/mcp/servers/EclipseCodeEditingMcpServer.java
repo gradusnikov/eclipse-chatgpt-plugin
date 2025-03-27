@@ -19,7 +19,7 @@ public class EclipseCodeEditingMcpServer
     @Inject
     private CodeEditingService codeEditingService;
 
-	@Tool(name="createFile", description="Creates a new file in the specified project, adds it to the project, and opens it in the editor.", type="object")
+	@Tool(name="createFile", description="Creates a new file in the specified project, adds it to the project, and opens it in the editor. If the file exists returns an error. Make sure to check that the file does not exist before using this tool.", type="object")
 	public String createFile(
 	        @ToolParam(name="projectName", description="The name of the project where the file should be created", required=true) String projectName,
 	        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
@@ -38,6 +38,7 @@ public class EclipseCodeEditingMcpServer
 	    return codeEditingService.insertIntoFile(projectName, filePath, content, lineNum);
 	}
 	
+
 	@Tool(name="replaceLines", description="Replaces specified lines in a file with new content. Use this tool to replace code blocks, for example a new function, or new file content, or delete portions of the file by replacing with empty string.", type="object")
 	public String replaceLines(
 	        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
@@ -49,8 +50,13 @@ public class EclipseCodeEditingMcpServer
 	    int startLineNum = Integer.parseInt(startLine);
 	    int endLineNum = Integer.parseInt(endLine);
 	    
-	    return codeEditingService.replaceLines(projectName, filePath, startLineNum, endLineNum, replacementContent);
+	    // Step 1: Delete the code block between startLine and endLine
+	    codeEditingService.replaceLines(projectName, filePath, startLineNum, endLineNum, "");
+	    
+	    // Step 2: Insert the new content at position startLine
+	    return codeEditingService.insertIntoFile(projectName, filePath, replacementContent, startLineNum);
 	}
+
 
 
 	
