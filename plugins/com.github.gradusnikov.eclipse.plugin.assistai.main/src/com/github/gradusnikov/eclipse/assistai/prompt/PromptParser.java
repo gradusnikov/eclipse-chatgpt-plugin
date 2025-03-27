@@ -46,7 +46,7 @@ public class PromptParser
         try( var scanner = new Scanner(prompt) )
         {
             scanner.useDelimiter( "\n" );
-            var codeBlockPattern = Pattern.compile( "^[`]+([aA-zZ]*)$" );
+            var codeBlockPattern = Pattern.compile( "^\\s*[`]+([aA-zZ]*)$" );
             var functionCallPattern = Pattern.compile( "^\"function_call\".*" );
             while ( scanner.hasNext() )
             {
@@ -81,7 +81,6 @@ public class PromptParser
         if ( ( state & TEXT_ATTACHMENT_STATE ) != TEXT_ATTACHMENT_STATE )
         {
             out.append( """
-
                     <div class="function-call">
                     <details><summary>""" );
             state ^= TEXT_ATTACHMENT_STATE;
