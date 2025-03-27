@@ -27,7 +27,6 @@ public class EclipseCodeEditingMcpServer
 	{
 	    return codeEditingService.createFileAndOpen(projectName, filePath, content);
 	}
-
 	@Tool(name="insertIntoFile", description="Inserts content at a specific position in an existing file.", type="object")
 	public String insertIntoFile(
 			@ToolParam(name = "projectName", description = "The name of the project containing the file", required = true) String projectName,
@@ -39,6 +38,21 @@ public class EclipseCodeEditingMcpServer
 	    return codeEditingService.insertIntoFile(projectName, filePath, content, lineNum);
 	}
 	
+	@Tool(name="replaceLines", description="Replaces specified lines in a file with new content. Use this tool to replace code blocks, for example a new function, or new file content, or delete portions of the file by replacing with empty string.", type="object")
+	public String replaceLines(
+	        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
+	        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
+	        @ToolParam(name="startLine", description="The line number to start replacement from (0-based index, where 0 is the first line)", required=true) String startLine,
+	        @ToolParam(name="endLine", description="The line number to end replacement at (inclusive, 0-based index)", required=true) String endLine,
+	        @ToolParam(name="replacementContent", description="The new content to insert in place of the deleted lines", required=true) String replacementContent) 
+	{
+	    int startLineNum = Integer.parseInt(startLine);
+	    int endLineNum = Integer.parseInt(endLine);
+	    
+	    return codeEditingService.replaceLines(projectName, filePath, startLineNum, endLineNum, replacementContent);
+	}
+
+
 	
 	@Tool(name="replaceString", description="Replaces a specific string in a file with a new string, optionally within a specified line range. This is used for making precise edits.", type="object")
 	public String replaceString(

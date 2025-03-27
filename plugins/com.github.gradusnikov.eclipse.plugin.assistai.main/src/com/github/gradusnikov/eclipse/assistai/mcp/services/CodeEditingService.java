@@ -836,4 +836,136 @@ public class CodeEditingService
 					}
 				});
 	}
+
+	
+
+
+	/**
+	 * Replaces specified lines in a file with new content.
+	 * 
+	 * @param projectName The name of the project containing the file
+	 * @param filePath The path to the file relative to the project root
+	 * @param startLine The line number to start replacement from (0-based index, where 0 is the first line)
+	 * @param endLine The line number to end replacement at (inclusive, 0-based index)
+	 * @param replacementContent The new content to insert in place of the deleted lines
+	 * @return A status message indicating success or failure
+	 */
+	public String replaceLines(String projectName, String filePath, int startLine, int endLine, String replacementContent) 
+	{
+	    Objects.requireNonNull(projectName);
+	    Objects.requireNonNull(filePath);
+	    
+	    if (projectName.isEmpty()) 
+	    {
+	        throw new IllegalArgumentException("Error: Project name cannot be empty.");
+	    }
+	    if (filePath.isEmpty()) 
+	    {
+	        throw new IllegalArgumentException("Error: File path cannot be empty.");
+	    }
+	    
+	    if (replacementContent == null)
+	    {
+	        replacementContent = ""; // Allow empty replacement content
+	    }
+	    
+	    try 
+	    {
+	        // Get the project and file
+	        IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+	        IProject project = root.getProject(projectName);
+	        
+	        if (!project.exists()) 
+	        {
+	            throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+	        }
+	        if (!project.isOpen()) 
+	        {
+	            project.open(null);
+	        }
+	        
+	        IPath path = IPath.fromPath(Path.of(filePath));
+	        IFile file = project.getFile(path);
+	        
+	        if (!file.exists()) 
+	        {
+	            throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+	        }
+	        
+	        // Read file content
+	        List<String> lines = ResourceUtilities.readFileLines(file);
+	        
+	        // Validate line numbers
+	        int totalLines = lines.size();
+	        
+	        if (startLine < 0) 
+	        {
+	            throw new IllegalArgumentException("Error: Start line must be at least 0.");
+	        }
+	        
+	        if (endLine < startLine) 
+	        {
+	            throw new IllegalArgumentException("Error: End line must be greater than or equal to start line.");
+	        }
+	        
+	        if (startLine >= totalLines) 
+	        {
+	            throw new RuntimeException("Error: Start line " + startLine + " is beyond the end of the file (total lines: " + totalLines + ").");
+	        }
+	        
+	        // Ensure endLine is within bounds
+	        int effectiveEndLine = Math.min(endLine, totalLines - 1);
+	        
+	        // Build new content with the lines replaced
+	        StringBuilder modifiedContent = new StringBuilder();
+	        
+	        // Add lines before replacement
+	        for (int i = 0; i < startLine; i++) 
+	        {
+	            modifiedContent.append(lines.get(i)).append("\n");
+	        }
+	        
+	        // Add the replacement content
+	        modifiedContent.append(replacementContent);
+	        if (!replacementContent.isEmpty() && !replacementContent.endsWith("\n")) 
+	        {
+	            modifiedContent.append("\n");
+	        }
+	        
+	        // Add lines after replacement
+	        for (int i = effectiveEndLine + 1; i < totalLines; i++) 
+	        {
+	            modifiedContent.append(lines.get(i));
+	            if (i < totalLines - 1) 
+	            {
+	                modifiedContent.append("\n");
+	            }
+	        }
+	        
+	        // Write back to the file
+	        try (ByteArrayInputStream source = new ByteArrayInputStream(
+	                modifiedContent.toString().getBytes(StandardCharsets.UTF_8))) 
+	        {
+	            file.setContents(source, IResource.FORCE, null);
+	        }
+	        
+	        // Try to open the file in the editor and refresh it
+	        sync.asyncExec(() -> {
+	            safeOpenEditor(file);
+	            refreshEditor(file);
+	        });
+	        
+	        int linesReplaced = effectiveEndLine - startLine + 1;
+	        return "Success: Replaced " + linesReplaced + " line" + (linesReplaced != 1 ? "s" : "") + 
+	               " (lines " + startLine + " to " + effectiveEndLine + ") in file '" + 
+	               filePath + "' in project '" + projectName + "'.";
+	    } 
+	    catch (CoreException | IOException e) 
+	    {
+	        throw new RuntimeException(e);
+	    }
+	}
+
+
+
 }
