@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import org.apache.tika.Tika;
+import org.eclipse.core.internal.resources.ResourceException;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
@@ -253,52 +254,43 @@ public class ResourceUtilities
 	    };
 	}
 
-	public static record FileInfo( String lang, boolean supported, String error ) {};
     
-    public static FileInfo readFileInfo( IFile file )
+    public static String getResourceFileType( IFile file ) throws IOException
     {
 		Objects.requireNonNull(file);
 
         int MAX_FILE_SIZE_KB = 1024;
-        String  error = null;
-        String  lang = null;
         // Check file size to avoid loading extremely large files
         long fileSizeInKB = file.getLocation().toFile().length() / 1024;
         if (fileSizeInKB > MAX_FILE_SIZE_KB) 
         {
             // Limit to 1MB
-            error = "Error: File '" + file.getFullPath().toFile() + "' is too large (" + fileSizeInKB + " KB). Maximum size is " + MAX_FILE_SIZE_KB +  " KB.";
+            throw new IOException( "Error: File '" + file.getFullPath().toFile() + "' is too large (" + fileSizeInKB + " KB). Maximum size is " + MAX_FILE_SIZE_KB +  " KB." );
         }
         
-        if ( Objects.nonNull( error ) )
+        // Use Apache Tika to detect content type
+        Tika tika = new Tika();
+        try
         {
-            // Use Apache Tika to detect content type
-            Tika tika = new Tika();
-            try
-            {
-                String mimeType = tika.detect(file.getLocation().toFile());
+            String mimeType = tika.detect(file.getLocation().toFile());
+            
+            // Check if this is a text file
+            if ( !isTextMimeType( mimeType )) {
                 
-                // Check if this is a text file
-                if ( !isTextMimeType( mimeType )) {
-                    
-                    error = "Error: Cannot read binary file '" + file.getFullPath().toFile() + "' with MIME type '" + mimeType + 
-                            "'. Only text files are supported.";
-                }   
-                else
-                {
-                    lang = getLanguageForMimeType( mimeType );
-                    if ( lang.isBlank() )
-                    {
-                        lang = getLanguageForFile( file );
-                    }
-                }
-            }
-            catch (Exception e) 
+                throw new IOException("Cannot read binary file '" + file.getFullPath().toFile() + "' with MIME type '" + mimeType + 
+                        "'. Only text files are supported.");
+            }   
+            String lang = getLanguageForMimeType( mimeType );
+            if ( lang.isBlank() )
             {
-                error = "Error: Cannot detect the file content type. Reason: " + e.getMessage();
+                lang = getLanguageForFile( file );
             }
+            return lang;
         }
-        return new FileInfo( lang, Objects.nonNull( error ), error );
+        catch (Exception e) 
+        {
+            throw new IOException( "Error: Cannot detect the file content type. Reason: " + e.getMessage() );
+        }
     }
 
     private static boolean isTextMimeType( String mimeType )
