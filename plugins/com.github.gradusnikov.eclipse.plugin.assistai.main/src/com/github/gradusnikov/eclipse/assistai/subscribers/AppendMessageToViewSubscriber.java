@@ -11,7 +11,9 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
+import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.model.Incoming;
+import com.github.gradusnikov.eclipse.assistai.model.Incoming.Type;
 import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 
 @Creatable
@@ -23,9 +25,13 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
     
     private Flow.Subscription subscription;
     
-    private ChatMessage message;
     private ChatGPTPresenter presenter;
-    private Incoming.Type messageType;
+    
+    private ChatMessage currentMessage;
+    
+    private ChatMessage currentFunctionCallMessage;
+    
+    private Type lastType;
     
     public AppendMessageToViewSubscriber( )
     {
@@ -41,6 +47,9 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
     {
         Objects.requireNonNull( presenter );
         this.subscription = subscription;
+        this.lastType = null;
+        this.currentMessage = null;
+        this.currentFunctionCallMessage = null;
         subscription.request(1);
     }
 
@@ -50,28 +59,59 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
         Objects.requireNonNull( presenter );
         Objects.requireNonNull( subscription );
         
-        synchronized ( this )
+        if ( item.type() != lastType )
         {
-        	if ( Objects.isNull( message ) ||  messageType != item.type() )
-        	{
-        		if ( Objects.nonNull( message ) )
-        		{
-        			presenter.endMessageFromAssistant( message );
-        		}
-        		messageType = item.type();
-	        	message = presenter.beginMessageFromAssistant();
-        	}
-        	message.append( item.payload().toString() );
-	        presenter.updateMessageFromAssistant( message ); 
-        	subscription.request(1);
+            if ( Objects.nonNull(currentMessage))
+            {
+            	presenter.endMessageFromAssistant( currentMessage );
+            	currentMessage = null;
+            }
+            if ( Objects.nonNull(currentFunctionCallMessage) )
+            {
+            	presenter.endMessageFromAssistant( currentFunctionCallMessage );
+            	currentMessage = null;
+            }
+            lastType = item.type();
         }
+        
+        switch ( item.type() )
+        {
+        	case Type.FUNCTION_CALL -> handleFunctionCall( item.payload() );  
+        	case Type.CONTENT -> handleContentMessage( item.payload()  );
+        }
+    	subscription.request(1);
+    }
+    
+    private void handleContentMessage( Object payload ) 
+    {
+    	if ( Objects.isNull( currentMessage ) )
+    	{
+			currentMessage = presenter.beginMessageFromAssistant();
+    	}
+    	if ( Objects.nonNull( currentMessage) )
+    	{
+    		currentMessage.append( payload.toString() );
+    		presenter.updateMessageFromAssistant(currentMessage);
+    	}
+	}
+
+	private void handleFunctionCall( Object payload )
+    {
+		if ( Objects.isNull(currentFunctionCallMessage) )
+		{
+			currentFunctionCallMessage = presenter.beginFunctionCallMessage();
+		}
+		if ( Objects.nonNull(currentFunctionCallMessage))
+		{
+			currentFunctionCallMessage.append( payload.toString() );
+    		presenter.updateMessageFromAssistant(currentFunctionCallMessage);
+		}
+			
     }
 
     @Override
     public void onError(Throwable throwable)
     {
-        messageType = null;
-        message = null;
         logger.error(throwable.getMessage(), throwable);
     }
 
@@ -79,14 +119,18 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
     public void onComplete()
     {
         Objects.requireNonNull( presenter );
-        synchronized ( this )
+        if ( Objects.nonNull(currentMessage))
         {
-    		presenter.endMessageFromAssistant( message );
-        	message = null;
-        	subscription = null;
-        	messageType = null;
-        	subscription.request(1);
+        	presenter.endMessageFromAssistant( currentMessage );
+        	currentMessage = null;
         }
+        if ( Objects.nonNull(currentFunctionCallMessage) )
+        {
+        	presenter.endMessageFromAssistant( currentFunctionCallMessage );
+        	currentMessage = null;
+        }
+    	subscription = null;
+        subscription.request(1);
     }
     
 

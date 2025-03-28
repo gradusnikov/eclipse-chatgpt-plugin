@@ -511,10 +511,16 @@ public class ChatGPTViewPart
 	}
 
 
-	public Object removeMessage( int id )
+	public void removeMessage( String messageId )
     {
-        // TODO Auto-generated method stub
-        return null;
+	    uiSync.asyncExec(() -> {
+	        browser.execute("""
+	                var node = document.getElementById("message-${id}");
+	                if(node) {
+	                    node.remove();
+	                }
+	                """.replace("${id}", messageId));
+	    });
     }
 
     public void clearAttachments()

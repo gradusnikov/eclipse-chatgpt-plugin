@@ -1,3 +1,4 @@
+
 package com.github.gradusnikov.eclipse.assistai.jobs;
 
 import java.util.ArrayList;
@@ -6,7 +7,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -60,7 +60,7 @@ public class ExecuteFunctionCallJob extends Job
 
         try
         {
-            return executeFunctionCall().join();
+            return executeFunctionCall();
         }
         catch ( Exception e )
         {
@@ -74,7 +74,7 @@ public class ExecuteFunctionCallJob extends Job
         this.functionCall = functionCall;
     }
 
-    private CompletableFuture<IStatus> executeFunctionCall()
+    private IStatus executeFunctionCall()
     {
         logger.info( "Executing function call: " + functionCall );
 
@@ -84,7 +84,7 @@ public class ExecuteFunctionCallJob extends Job
 
         if ( separatorIndex == -1 )
         {
-            return CompletableFuture.completedFuture( Status.error( "Invalid function call format: " + clientToolName ) );
+            return Status.error( "Invalid function call format: " + clientToolName );
         }
 
         String clientName = clientToolName.substring( 0, separatorIndex );
@@ -94,15 +94,22 @@ public class ExecuteFunctionCallJob extends Job
         CallToolRequest request = new CallToolRequest( toolName, functionCall.arguments() );
 
         // Find and execute the tool
-        var functionExecutor = mcpClientRetistry.findClient( clientName )
-                .map( client -> CompletableFuture.supplyAsync( () -> client.callTool( request ) ) );
-
-        if ( functionExecutor.isEmpty() )
+        var clientOpt = mcpClientRetistry.findClient( clientName );
+        
+        if ( clientOpt.isEmpty() )
         {
-            return CompletableFuture.completedFuture( Status.error( "Tool not found: " + clientName + ":" + toolName ) );
+            return Status.error( "Tool not found: " + clientName + ":" + toolName );
         }
-
-        return functionExecutor.get().thenApply( this::handleFunctionResult ).exceptionally( this::handleExecutionError );
+        
+        try
+        {
+            CallToolResult result = clientOpt.get().callTool( request );
+            return handleFunctionResult( result );
+        }
+        catch ( Exception e )
+        {
+            return handleExecutionError( e );
+        }
     }
 
     private IStatus handleFunctionResult( CallToolResult result )

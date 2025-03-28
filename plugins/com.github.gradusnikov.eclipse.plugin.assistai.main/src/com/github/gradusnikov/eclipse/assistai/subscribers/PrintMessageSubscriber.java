@@ -7,7 +7,10 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.model.Incoming;
 
+import jakarta.inject.Singleton;
+
 @Creatable
+@Singleton
 public class PrintMessageSubscriber implements Flow.Subscriber<Incoming>
 {
     private Flow.Subscription subscription;

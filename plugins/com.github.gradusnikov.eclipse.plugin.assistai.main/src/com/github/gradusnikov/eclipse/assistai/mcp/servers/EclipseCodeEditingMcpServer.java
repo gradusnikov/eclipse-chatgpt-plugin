@@ -32,7 +32,7 @@ public class EclipseCodeEditingMcpServer
 			@ToolParam(name = "projectName", description = "The name of the project containing the file", required = true) String projectName,
 			@ToolParam(name = "filePath", description = "The path to the file relative to the project root. Do not include project name!", required = true) String filePath,
 			@ToolParam(name = "content", description = "The content to insert into the file", required = true) String content,
-			@ToolParam(name = "line", description = "The line number after which to insert the text (0 for beginning of file)", required = false) String line) {
+			@ToolParam(name = "line", description = "The line number after which to insert the text (0-based index, where 0 is the first line)", required = false) String line) {
 	    int lineNum = Optional.ofNullable(line).map(Integer::parseInt).orElse(0);
 	    
 	    return codeEditingService.insertIntoFile(projectName, filePath, content, lineNum);
@@ -43,18 +43,14 @@ public class EclipseCodeEditingMcpServer
 	public String replaceLines(
 	        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
 	        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
-	        @ToolParam(name="startLine", description="The line number to start replacement from (0-based index, where 0 is the first line)", required=true) String startLine,
-	        @ToolParam(name="endLine", description="The line number to end replacement at (inclusive, 0-based index)", required=true) String endLine,
+	        @ToolParam(name="startLine", description="The line number to start replacement from (0-based index, where 0 is the first line). Start cannot be greated than total number of lines in a file.", required=true) String startLine,
+	        @ToolParam(name="endLine", description="The line number to end replacement at (inclusive, 0-based index). End line must be greater than or equal to start line. ", required=true) String endLine,
 	        @ToolParam(name="replacementContent", description="The new content to insert in place of the deleted lines", required=true) String replacementContent) 
 	{
 	    int startLineNum = Integer.parseInt(startLine);
 	    int endLineNum = Integer.parseInt(endLine);
 	    
-	    // Step 1: Delete the code block between startLine and endLine
-	    codeEditingService.replaceLines(projectName, filePath, startLineNum, endLineNum, "");
-	    
-	    // Step 2: Insert the new content at position startLine
-	    return codeEditingService.insertIntoFile(projectName, filePath, replacementContent, startLineNum);
+	    return codeEditingService.replaceLines(projectName, filePath, startLineNum, endLineNum, "");
 	}
 
 
@@ -66,8 +62,8 @@ public class EclipseCodeEditingMcpServer
 	        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
 	        @ToolParam(name="oldString", description="The text to replace (must match exactly, including whitespace and indentation)", required=true) String oldString,
 	        @ToolParam(name="newString", description="The new text to insert in place of the old text", required=true) String newString,
-	        @ToolParam(name="startLine", description="Optional line number to start searching from (0 for beginning of file)", required=false) String startLine,
-	        @ToolParam(name="endLine", description="Optional line number to end searching at (0 for beginning of file)", required=false) String endLine) 
+	        @ToolParam(name="startLine", description="Optional line number to start searching from (0-based index, where 0 is the first line)", required=false) String startLine,
+	        @ToolParam(name="endLine", description="Optional line number to end searching at (0-based index, where 0 is the first line)", required=false) String endLine) 
 	{
 	    Integer startLineNum = Optional.ofNullable(startLine).map(Integer::parseInt).orElse(null);
 	    Integer endLineNum = Optional.ofNullable(endLine).map(Integer::parseInt).orElse(null);

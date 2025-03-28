@@ -9,6 +9,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 
 import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
@@ -16,6 +17,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import com.github.gradusnikov.eclipse.assistai.model.Incoming;
 
 @Creatable
+@Singleton
 public class PrintToFileMessageSubscriber implements Flow.Subscriber<Incoming>
 {
     private Flow.Subscription subscription;
@@ -59,6 +61,7 @@ public class PrintToFileMessageSubscriber implements Flow.Subscriber<Incoming>
     @Override
     public void onError(Throwable throwable)
     {
+//        subscription.request(1);
     }
 
     @Override

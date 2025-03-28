@@ -36,7 +36,6 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
         this.subscription = subscription;
         jsonBuffer.setLength( 0 );
         subscription.request(1);
-
     }
 
     @Override
@@ -80,6 +79,7 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
             ExecuteFunctionCallJob job = executeFunctionCallJobProvider.get();
             job.setFunctionCall( functionCall );
             job.schedule();
+            logger.info("Job scheduled: " + functionCall.id() );
         }
         catch ( Exception e )
         {

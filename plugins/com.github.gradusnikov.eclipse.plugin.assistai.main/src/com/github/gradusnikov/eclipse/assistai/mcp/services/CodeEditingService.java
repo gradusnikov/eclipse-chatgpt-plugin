@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -113,12 +114,17 @@ public class CodeEditingService
 	        // Get the folder handle
 	        IFolder folder = project.getFolder(normalizedPath);
 	        
-	        if (folder.exists()) {
+	        if (folder.exists()) 
+	        {
 	            return "Directory '" + normalizedPath + "' already exists in project '" + projectName + "'.";
 	        }
 	        
 	        // Create the folder hierarchy
 	        ResourceUtilities.createFolderHierarchy(folder);
+	        
+	        // Add this line to refresh the parent container (or project)
+	        folder.getParent().refreshLocal(IResource.DEPTH_INFINITE, null);
+
 	        
 	        return "Success: Directory structure '" + normalizedPath + "' created in project '" + projectName + "'.";
 	    } 
@@ -194,6 +200,9 @@ public class CodeEditingService
 	            file.setContents(inputStream, IResource.FORCE, null);
 	        }
 	        
+	        // Add this line to refresh the parent container (or project)
+	        file.getParent().refreshLocal(IResource.DEPTH_ONE, null);
+
 	        // Try to refresh the editor if the file is open
 	        sync.asyncExec(() -> 
 	        {
@@ -209,6 +218,7 @@ public class CodeEditingService
 	    }
 	}
 	
+
 	/**
 	 * Replaces a specific string in a file with a new string, optionally within a specified line range.
 	 * 
@@ -223,18 +233,18 @@ public class CodeEditingService
 	public String replaceStringInFile(String projectName, String filePath, String oldString, String newString, 
 	                                 Integer startLine, Integer endLine) {
 	    
-		Objects.requireNonNull(projectName);
-		Objects.requireNonNull(filePath);
-		Objects.requireNonNull(oldString);
-		
-		if (projectName.isEmpty()) 
+	    Objects.requireNonNull(projectName);
+	    Objects.requireNonNull(filePath);
+	    Objects.requireNonNull(oldString);
+	    
+	    if (projectName.isEmpty()) 
 	    {
 	        throw new IllegalArgumentException("Error: Project name cannot be empty.");
 	    }
 	    
 	    if (filePath.isEmpty()) 
 	    {
-	    	throw new IllegalArgumentException( "Error: File path cannot be empty.");
+	        throw new IllegalArgumentException( "Error: File path cannot be empty.");
 	    }
 	    if (newString == null) 
 	    {
@@ -253,7 +263,7 @@ public class CodeEditingService
 	        }
 	        if (!project.isOpen()) 
 	        {
-	            project.open(null);
+	        	throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
 	        }
 	        
 	        IPath path = IPath.fromPath(Path.of(filePath));
@@ -261,7 +271,7 @@ public class CodeEditingService
 	        
 	        if (!file.exists()) 
 	        {
-	        	throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+	            throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
 	        }
 	        // Try to refresh the editor if the file is open
 	        sync.syncExec(() -> 
@@ -271,7 +281,7 @@ public class CodeEditingService
 	        });
 	        
 	        // Read the file line by line for better range handling
-	        List<String> lines = ResourceUtilities.readFileLines( file );
+	        List<String> lines = ResourceUtilities.readFileLines(file);
 	        
 	        // Validate line range
 	        int totalLines = lines.size();
@@ -283,97 +293,70 @@ public class CodeEditingService
 	        // Validate range
 	        if (effectiveStartLine >= totalLines) 
 	        {
-	            throw new RuntimeException( "Error: Start line " + startLine + " is beyond the end of the file (total lines: " + totalLines + ")." );
+	            throw new RuntimeException("Error: Start line " + startLine + " is beyond the end of the file (total lines: " + totalLines + ").");
 	        }
-	        effectiveEndLine = Math.min( effectiveEndLine, totalLines -1 );
+	        effectiveEndLine = Math.min(effectiveEndLine, totalLines - 1);
 	        
 	        if (effectiveStartLine > effectiveEndLine) 
 	        {
-	        	throw new RuntimeException( "Error: Start line cannot be greater than end line." );
+	            throw new RuntimeException("Error: Start line cannot be greater than end line.");
 	        }
 	        
-	        // Build content with range-limited replacements
-	        StringBuilder modifiedContent = new StringBuilder();
-	        boolean replacementMade = false;
-	        
-	        for (int i = 0; i < totalLines; i++) 
+	        // Store the content as a single string for the range we're working with
+	        StringBuilder rangeContent = new StringBuilder();
+	        for (int i = effectiveStartLine; i <= effectiveEndLine; i++) 
 	        {
-	            String currentLine = lines.get(i);
-	            
-	            // Only perform replacements within the specified range
-	            if (i >= effectiveStartLine && i <= effectiveEndLine) 
+	            rangeContent.append(lines.get(i));
+	            if (i < effectiveEndLine) 
 	            {
-	                // Check if this line or group of lines contains the target string
-	                // We need to handle multi-line replacements, so we'll build a chunk of text
-	                StringBuilder chunk = new StringBuilder(currentLine);
-	                int linesInChunk = 1;
-	                
-	                // If the oldString contains newlines, we need to check across multiple lines
-	                if (oldString.contains("\n")) {
-	                    int potentialLines = Math.min(effectiveEndLine - i + 1, 
-	                                                 oldString.split("\n", -1).length);
-	                    
-	                    for (int j = 1; j < potentialLines; j++) 
-	                    {
-	                        if (i + j < totalLines) 
-	                        {
-	                            chunk.append("\n").append(lines.get(i + j));
-	                            linesInChunk++;
-	                        }
-	                    }
-	                }
-	                
-	                String chunkStr = chunk.toString();
-	                if (chunkStr.contains(oldString)) 
-	                {
-	                    String replacedChunk = chunkStr.replace(oldString, newString);
-	                    replacementMade = true;
-	                    
-	                    // Split the replaced chunk back into lines
-	                    String[] replacedLines = replacedChunk.split("\n", -1);
-	                    
-	                    // Add the first line
-	                    modifiedContent.append(replacedLines[0]).append("\n");
-	                    
-	                    // Skip the lines that were part of the chunk in the original file
-	                    i += linesInChunk - 1;
-	                    
-	                    // Add remaining lines from the replacement
-	                    for (int j = 1; j < replacedLines.length; j++) 
-	                    {
-	                        if (i + j < totalLines) 
-	                        {
-	                            modifiedContent.append(replacedLines[j]).append("\n");
-	                        } 
-	                        else 
-	                        {
-	                            modifiedContent.append(replacedLines[j]);
-	                            if (j < replacedLines.length - 1) 
-	                            {
-	                                modifiedContent.append("\n");
-	                            }
-	                        }
-	                    }
-	                    continue;
-	                }
-	            }
-	            
-	            // Add the unchanged line
-	            modifiedContent.append(currentLine);
-	            if (i < totalLines - 1) 
-	            {
-	                modifiedContent.append("\n");
+	                rangeContent.append("\n");
 	            }
 	        }
 	        
-	        if (!replacementMade) 
+	        String rangeText = rangeContent.toString();
+	        
+	        // Check if the range contains the target string
+	        if (!rangeText.contains(oldString)) 
 	        {
 	            String rangeInfo = "";
 	            if (startLine != null || endLine != null) 
 	            {
-	            	rangeInfo = " within range (lines " + (startLine != null ? startLine : 1) + " to " + (endLine != null ? endLine : totalLines) + ")";
+	                rangeInfo = " within range (lines " + (startLine != null ? startLine : 1) + " to " + (endLine != null ? endLine : totalLines) + ")";
 	            }
-	            throw new RuntimeException( "Error: The specified string was not found in the file" + rangeInfo + "." );
+	            throw new RuntimeException("Error: The specified string was not found in the file" + rangeInfo + ".");
+	        }
+	        
+	        // Replace the string in the range
+	        String replacedRangeText = rangeText.replace(oldString, newString);
+	        
+	        // Build the new content
+	        StringBuilder modifiedContent = new StringBuilder();
+	        
+	        // Add lines before the range
+	        for (int i = 0; i < effectiveStartLine; i++) 
+	        {
+	            modifiedContent.append(lines.get(i)).append("\n");
+	        }
+	        
+	        // Add the modified range content
+	        modifiedContent.append(replacedRangeText);
+	        
+	        // Add a newline if we're not at the end of the file
+	        if (effectiveEndLine < totalLines - 1) 
+	        {
+	            modifiedContent.append("\n");
+	        }
+	        
+	        // Add lines after the range
+	        for (int i = effectiveEndLine + 1; i < totalLines; i++) 
+	        {
+	            modifiedContent.append(lines.get(i));
+                modifiedContent.append("\n");
+	        }
+	        // Add new line at the end of the last line
+	        if ( !modifiedContent.toString().endsWith("\n") )
+	        {
+	        	modifiedContent.append("\n");
 	        }
 	        
 	        // Write back to the file
@@ -383,25 +366,24 @@ public class CodeEditingService
 	        }
 	        
 	        // Try to open the file in the editor, but don't fail if we can't
-	        sync.asyncExec(() -> safeOpenEditor(file) );
-
 	        // Try to refresh the editor if the file is open
-	        sync.asyncExec( () -> refreshEditor(file) );
-	        
+	        sync.asyncExec(() -> {
+	        	refreshEditor(file);
+	        });
+	
 	        String rangeInfo = "";
-	        if (startLine != null || endLine != null) 
-	        {
+	        if (startLine != null || endLine != null) {
 	            rangeInfo = " within range (lines " + 
-	                       (startLine != null ? startLine : 1) + " to " + 
-	                       (endLine != null ? endLine : totalLines) + ")";
+	                      (startLine != null ? startLine : 1) + " to " + 
+	                      (endLine != null ? endLine : totalLines) + ")";
 	        }
 	        
 	        return "Success: String replaced in file '" + filePath + "' in project '" + projectName + "'" + rangeInfo + "." +
-            "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
+	        "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
 	    } 
 	    catch (CoreException | IOException e) 
 	    {
-	        throw new RuntimeException( e );
+	        throw new RuntimeException(e);
 	    }
 	}
 
@@ -446,7 +428,7 @@ public class CodeEditingService
 	        }
 	        if (!project.isOpen()) 
 	        {
-	            project.open(null);
+	        	throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
 	        }
 	        IPath path = IPath.fromPath(Path.of(filePath));
 	        IFile file = project.getFile(path);
@@ -455,6 +437,12 @@ public class CodeEditingService
 	        {
 	            throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
 	        }
+	        // Try to refresh the editor if the file is open
+	        sync.syncExec(() -> 
+	        {
+	        	safeOpenEditor(file);
+	        	refreshEditor(file);
+	        });
 	        List<String> lines = ResourceUtilities.readFileLines(file);
 	        
 	        // Validate line number
@@ -462,12 +450,6 @@ public class CodeEditingService
 	        {
 	            throw new RuntimeException("Error: Invalid line number " + afterLine + ". File has " + lines.size() + " lines.");
 	        }
-	        // Try to refresh the editor if the file is open
-	        sync.syncExec(() -> 
-	        {
-	            safeOpenEditor(file);
-	            refreshEditor(file);
-	        });
 	        
 	        // Build the new content
 	        StringBuilder modifiedContent = new StringBuilder();
@@ -501,10 +483,13 @@ public class CodeEditingService
 	        {
 	            file.setContents(source, IResource.FORCE, null);
 	        }
+	        
+	        // Add this line to refresh the parent container (or project)
+	        file.getParent().refreshLocal(IResource.DEPTH_ONE, null);
+
 	        // Try to open the file in the editor, but don't fail if we can't
 	        // Try to refresh the editor if the file is open
-	        sync.asyncExec( () -> {
-	        	safeOpenEditor(file);
+	        sync.syncExec( () -> {
 	        	refreshEditor(file);	
 	        });
 	        
@@ -525,7 +510,9 @@ public class CodeEditingService
 	{
 	    try 
 	    {
-	        Optional.ofNullable(PlatformUI.getWorkbench())
+	    	file.getParent().refreshLocal(IResource.DEPTH_ONE, null);
+	        
+	    	Optional.ofNullable(PlatformUI.getWorkbench())
 	            .map(IWorkbench::getActiveWorkbenchWindow)
 	            .map(IWorkbenchWindow::getActivePage)
 	            .ifPresent(page -> {
@@ -544,14 +531,10 @@ public class CodeEditingService
 	                        {
 	                        	// Found the editor, now refresh it
 	                        	IEditorInput input = editor.getEditorInput();
-	                        	if (editor instanceof ITextEditor) {
+	                        	if (editor instanceof ITextEditor) 
+	                        	{
 	                        		((ITextEditor) editor).getDocumentProvider().resetDocument(input);
 	                        	} 
-	                        	else 
-	                        	{
-	                        		// Try generic refresh
-	                        		editor.doSave(null);
-	                        	}
 	                        }
 	                        catch ( Exception e )
 	                        {
@@ -788,7 +771,7 @@ public class CodeEditingService
 	        
 	        if (!project.isOpen()) 
 	        {
-	            project.open(null);
+	        	throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
 	        }
 	        
 	        // Fix the path by removing any leading slash
@@ -820,13 +803,18 @@ public class CodeEditingService
 	        
 	        // Create the file with content
 	        ByteArrayInputStream source = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
-	        file.create(source, true, null);
-	        
+			file.create(source, true, null);
+	        // Add this line to refresh the parent container (or project)
+	        file.getParent().refreshLocal(IResource.DEPTH_ONE, null);
+			
 	        // Try to open the file in the editor, but don't fail if we can't
-	        sync.asyncExec(() -> safeOpenEditor(file) );
+	        sync.syncExec(() -> {
+	        	safeOpenEditor(file);
+	        	refreshEditor(file);
+	        });
 	        
 	        return "Success: File '" + normalizedPath + "' created in project '" + projectName + "'. " +
-	               "The file may have been opened in the editor if a UI session is available." +
+	               "The file may have been opened in the editor if a UI session is available. " +
 	               "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
 	    } 
 	    catch ( IOException | CoreException e) 
@@ -918,6 +906,12 @@ public class CodeEditingService
 	        {
 	            throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
 	        }
+	        // Try to refresh the editor if the file is open
+	        sync.syncExec(() -> 
+	        {
+	        	safeOpenEditor(file);
+	        	refreshEditor(file);
+	        });
 	        
 	        // Read file content
 	        List<String> lines = ResourceUtilities.readFileLines(file);
@@ -930,6 +924,11 @@ public class CodeEditingService
 	            throw new IllegalArgumentException("Error: Start line must be at least 0.");
 	        }
 	        
+	        if ( startLine == 0 && endLine == 0 )
+	        {
+	        	return insertIntoFile(projectName, filePath, replacementContent, 0);
+	        }
+	        
 	        if (endLine < startLine) 
 	        {
 	            throw new IllegalArgumentException("Error: End line must be greater than or equal to start line.");
@@ -939,40 +938,43 @@ public class CodeEditingService
 	        {
 	            throw new RuntimeException("Error: Start line " + startLine + " is beyond the end of the file (total lines: " + totalLines + ").");
 	        }
-	        // Try to refresh the editor if the file is open
-	        sync.syncExec(() -> 
-	        {
-	            safeOpenEditor(file);
-	            refreshEditor(file);
-	        });
-
+	
 	        // Ensure endLine is within bounds
 	        int effectiveEndLine = Math.min(endLine, totalLines - 1);
+	        
+	        // Store lines before startLine
+	        List<String> beforeLines = new ArrayList<>();
+	        for (int i = 0; i < startLine; i++) 
+	        {
+	            beforeLines.add(lines.get(i));
+	        }
+	        
+	        // Store lines after endLine
+	        List<String> afterLines = new ArrayList<>();
+	        for (int i = effectiveEndLine + 1; i < totalLines; i++) 
+	        {
+	            afterLines.add(lines.get(i));
+	        }
 	        
 	        // Build new content with the lines replaced
 	        StringBuilder modifiedContent = new StringBuilder();
 	        
 	        // Add lines before replacement
-	        for (int i = 0; i < startLine; i++) 
-	        {
-	            modifiedContent.append(lines.get(i)).append("\n");
+	        for (String line : beforeLines) {
+	            modifiedContent.append(line).append("\n");
 	        }
 	        
 	        // Add the replacement content
 	        modifiedContent.append(replacementContent);
-	        if (!replacementContent.isEmpty() && !replacementContent.endsWith("\n")) 
-	        {
+	        if (!replacementContent.isEmpty() && !replacementContent.endsWith("\n")) {
 	            modifiedContent.append("\n");
 	        }
 	        
 	        // Add lines after replacement
-	        for (int i = effectiveEndLine + 1; i < totalLines; i++) 
+	        for (int i = 0; i < afterLines.size(); i++) 
 	        {
-	            modifiedContent.append(lines.get(i));
-	            if (i < totalLines - 1) 
-	            {
-	                modifiedContent.append("\n");
-	            }
+	            modifiedContent.append(afterLines.get(i));
+                modifiedContent.append("\n");
 	        }
 	        
 	        // Write back to the file
@@ -982,16 +984,18 @@ public class CodeEditingService
 	            file.setContents(source, IResource.FORCE, null);
 	        }
 	        
+	        // Add this line to refresh the parent container (or project)
+	        file.getParent().refreshLocal(IResource.DEPTH_ONE, null);
+
 	        // Try to open the file in the editor and refresh it
-	        sync.asyncExec(() -> {
-	            safeOpenEditor(file);
+	        sync.syncExec(() -> {
 	            refreshEditor(file);
 	        });
 	        
 	        int linesReplaced = effectiveEndLine - startLine + 1;
 	        return "Success: Replaced " + linesReplaced + " line" + (linesReplaced != 1 ? "s" : "") + 
 	               " (lines " + startLine + " to " + effectiveEndLine + ") in file '" + 
-	               filePath + "' in project '" + projectName + "'." +
+	               filePath + "' in project '" + projectName + "'. " +
 	               "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
 	    } 
 	    catch (CoreException | IOException e) 
@@ -1000,6 +1004,7 @@ public class CodeEditingService
 	    }
 	}
 
+	
 
 
 }

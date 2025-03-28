@@ -69,7 +69,7 @@ public class PromptParser
                 }
                 else
                 {
-                    handleNonCodeBlock( out, line, !scanner.hasNext() );
+                    handleContent( out, line, !scanner.hasNext() );
                 }
             }
         }
@@ -104,7 +104,7 @@ public class PromptParser
         }
     }
 
-    private void handleNonCodeBlock( StringBuilder out,  String line, boolean lastLine )
+    private void handleContent( StringBuilder out,  String line, boolean lastLine )
     {
         if ( (state & CODE_BLOCK_STATE) == CODE_BLOCK_STATE  )
         {
@@ -125,7 +125,7 @@ public class PromptParser
         {
         	out.append( "</code></pre>\n" );
         }
-        if ( lastLine && (state & FUNCION_CALL_STATE) == FUNCION_CALL_STATE  ) // close opened code blocks
+        else if ( lastLine && (state & FUNCION_CALL_STATE) == FUNCION_CALL_STATE  ) // close opened code blocks
         {
             out.append( "</pre></div>\n" );
         }

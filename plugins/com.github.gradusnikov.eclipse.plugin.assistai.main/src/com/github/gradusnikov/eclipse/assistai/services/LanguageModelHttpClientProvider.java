@@ -6,6 +6,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import com.github.gradusnikov.eclipse.assistai.subscribers.AppendMessageToViewSubscriber;
 import com.github.gradusnikov.eclipse.assistai.subscribers.FunctionCallSubscriber;
 import com.github.gradusnikov.eclipse.assistai.subscribers.PrintMessageSubscriber;
+import com.github.gradusnikov.eclipse.assistai.subscribers.PrintToFileMessageSubscriber;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Provider;
@@ -13,7 +14,7 @@ import jakarta.inject.Singleton;
 
 @Creatable
 @Singleton
-public class OpenAIHttpClientProvider
+public class LanguageModelHttpClientProvider
 {
     @Inject
     private Provider<OpenAIStreamJavaHttpClient> openaiClientProvider;
@@ -27,9 +28,10 @@ public class OpenAIHttpClientProvider
     private PrintMessageSubscriber printMessageSubscriber;
     @Inject
     private LanguageModelClientConfiguration configuration;
+    @Inject
+    private PrintToFileMessageSubscriber printToFileSubscriber;
     
-    
-    public OpenAIHttpClientProvider()
+    public LanguageModelHttpClientProvider()
     {
     }
     
@@ -49,9 +51,11 @@ public class OpenAIHttpClientProvider
         }
         
         LanguageModelClient client = clientProvider.get();
+//        client.subscribe( conversationSubscriber );
         client.subscribe( printMessageSubscriber );
         client.subscribe( appendMessageToViewSubscriber );
         client.subscribe( functionCallSubscriber );
+//        client.subscribe( printToFileSubscriber );
         return client;
     }
 }

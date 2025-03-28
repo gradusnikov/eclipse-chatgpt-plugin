@@ -141,6 +141,16 @@ public class ChatGPTPresenter
     }
 
 
+	public ChatMessage beginFunctionCallMessage() {
+        ChatMessage message = chatMessageFactory.createAssistantChatMessage( "" );
+        // DO NOT ADD IT TO CONVERSATION
+        partAccessor.findMessageView().ifPresent( messageView -> {
+            messageView.appendMessage( message.getId(), message.getRole() );
+            messageView.setInputEnabled( false );
+        } );
+        return message;
+	}
+
 	public ChatMessage beginMessageFromAssistant()
     {
         ChatMessage message = chatMessageFactory.createAssistantChatMessage( "" );
@@ -163,6 +173,11 @@ public class ChatGPTPresenter
     {
         partAccessor.findMessageView().ifPresent( messageView -> {
             messageView.setInputEnabled( true );
+            if ( message.getContent().isBlank() )
+            {
+            	conversation.removeLastMessage();
+            	messageView.removeMessage(message.getId());
+            }
         } );
     }
     

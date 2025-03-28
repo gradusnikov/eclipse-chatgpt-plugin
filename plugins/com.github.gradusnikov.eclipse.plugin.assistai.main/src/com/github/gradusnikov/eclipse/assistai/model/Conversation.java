@@ -38,6 +38,14 @@ public class Conversation
     {
         ChatMessage removed = !conversation.isEmpty() ? conversation.remove( conversation.size() - 1 ) : null;
         return Optional.ofNullable( removed );
-        
     }
+    
+    public Optional<ChatMessage> lastMessage()
+    {
+    	return conversation.isEmpty() 
+    			? Optional.empty() 
+    			: Optional.of( conversation.get( conversation.size() - 1) );
+    }
+    
+    
 }

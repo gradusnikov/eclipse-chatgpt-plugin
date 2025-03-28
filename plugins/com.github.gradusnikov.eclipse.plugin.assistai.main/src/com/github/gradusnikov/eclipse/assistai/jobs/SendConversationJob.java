@@ -12,7 +12,7 @@ import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
-import com.github.gradusnikov.eclipse.assistai.services.OpenAIHttpClientProvider;
+import com.github.gradusnikov.eclipse.assistai.services.LanguageModelHttpClientProvider;
 
 @Creatable
 public class SendConversationJob extends Job
@@ -21,7 +21,7 @@ public class SendConversationJob extends Job
     private ILog logger;
     
     @Inject
-    private OpenAIHttpClientProvider clientProvider;
+    private LanguageModelHttpClientProvider clientProvider;
     
     @Inject
     private Conversation conversation;

@@ -187,7 +187,12 @@ public class OpenAIStreamJavaHttpClient implements LanguageModelClient
                     .map( Attachment::toChatMessageContent )
                     .filter( Objects::nonNull )
                     .collect( Collectors.toList() );
-            String textContent = String.join( "\n", textParts ) + "\n\n" + message.getContent();
+            
+            var attachmentsString = String.join( "\n", textParts );
+            
+            var textContent = attachmentsString.isBlank() 
+            			    ? message.getContent() 
+            			    : attachmentsString + "\n\n" + message.getContent();
            
             // add image content
             if ( model.vision() )
