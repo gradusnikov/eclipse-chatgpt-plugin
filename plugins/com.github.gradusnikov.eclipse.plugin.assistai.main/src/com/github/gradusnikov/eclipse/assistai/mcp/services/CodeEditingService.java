@@ -3,6 +3,7 @@ package com.github.gradusnikov.eclipse.assistai.mcp.services;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -865,7 +866,7 @@ public class CodeEditingService
 	 * @param replacementContent The new content to insert in place of the deleted lines
 	 * @return A status message indicating success or failure
 	 */
-	public String replaceLines(String projectName, String filePath, int startLine, int endLine, String replacementContent) 
+	public String replaceLines(String projectName, String filePath,  String replacementContent, int startLine, int endLine) 
 	{
 	    Objects.requireNonNull(projectName);
 	    Objects.requireNonNull(filePath);
@@ -919,67 +920,38 @@ public class CodeEditingService
 	        // Validate line numbers
 	        int totalLines = lines.size();
 	        
-	        if (startLine < 0) 
+	        if (startLine < 0 || endLine < startLine ||  startLine >= totalLines ) 
 	        {
-	            throw new IllegalArgumentException("Error: Start line must be at least 0.");
+	            throw new IllegalArgumentException("Error: Invalid line range specified.");
 	        }
 	        
-	        if ( startLine == 0 && endLine == 0 )
-	        {
-	        	return insertIntoFile(projectName, filePath, replacementContent, 0);
-	        }
-	        
-	        if (endLine < startLine) 
-	        {
-	            throw new IllegalArgumentException("Error: End line must be greater than or equal to start line.");
-	        }
-	        
-	        if (startLine >= totalLines) 
-	        {
-	            throw new RuntimeException("Error: Start line " + startLine + " is beyond the end of the file (total lines: " + totalLines + ").");
-	        }
-	
 	        // Ensure endLine is within bounds
-	        int effectiveEndLine = Math.min(endLine, totalLines - 1);
+	        int effectiveEndLine = Math.max( Math.min( endLine, totalLines - 1), 0 );
 	        
-	        // Store lines before startLine
-	        List<String> beforeLines = new ArrayList<>();
-	        for (int i = 0; i < startLine; i++) 
-	        {
-	            beforeLines.add(lines.get(i));
-	        }
-	        
-	        // Store lines after endLine
-	        List<String> afterLines = new ArrayList<>();
-	        for (int i = effectiveEndLine + 1; i < totalLines; i++) 
-	        {
-	            afterLines.add(lines.get(i));
-	        }
-	        
-	        // Build new content with the lines replaced
 	        StringBuilder modifiedContent = new StringBuilder();
 	        
-	        // Add lines before replacement
-	        for (String line : beforeLines) {
-	            modifiedContent.append(line).append("\n");
+	        // Store lines before startLine
+	        for (int i = 0; i < startLine; i++) 
+	        {
+	            modifiedContent.append( lines.get(i) );
+                modifiedContent.append("\n");
 	        }
-	        
 	        // Add the replacement content
 	        modifiedContent.append(replacementContent);
-	        if (!replacementContent.isEmpty() && !replacementContent.endsWith("\n")) {
+	        if (!replacementContent.isEmpty() && !replacementContent.endsWith("\n")) 
+	        {
 	            modifiedContent.append("\n");
 	        }
-	        
 	        // Add lines after replacement
-	        for (int i = 0; i < afterLines.size(); i++) 
+	        for (int i = effectiveEndLine + 1; i < totalLines; i++) 
 	        {
-	            modifiedContent.append(afterLines.get(i));
+	            modifiedContent.append(lines.get(i));
                 modifiedContent.append("\n");
 	        }
 	        
-	        // Write back to the file
+			// Write back to the file
 	        try (ByteArrayInputStream source = new ByteArrayInputStream(
-	                modifiedContent.toString().getBytes(StandardCharsets.UTF_8))) 
+	                modifiedContent.toString().getBytes( Charset.forName(file.getCharset())))) 
 	        {
 	            file.setContents(source, IResource.FORCE, null);
 	        }
