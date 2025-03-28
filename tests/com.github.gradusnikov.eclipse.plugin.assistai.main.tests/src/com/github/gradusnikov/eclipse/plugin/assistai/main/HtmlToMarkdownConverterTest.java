@@ -8,7 +8,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 
 import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
 
-public class HtmlToMarkdownConverter {
+public class HtmlToMarkdownConverterTest {
     
     @Test
     public void testHtmlToMarkdown() {
