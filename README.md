@@ -72,6 +72,10 @@ Use the "Clear" button to reset the conversation context. Press the "Stop" butto
 
 ## Usage Examples
 
+1. Vibe-coding ;)
+
+   ![Eclipse Coder](src/website/eclipse-coder.gif)
+
 1. To discuss the class you're working on, select "Discuss" from the "Code Assist AI" context menu and ask any question about the code.
 
 ![Discuss with ChatGPT](src/website/how-it-works-discuss.gif)
