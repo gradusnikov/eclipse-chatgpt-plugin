@@ -30,6 +30,22 @@ AssistAI is an Eclipse IDE plugin that brings a Large Language Model (LLM) assis
 
 You can also pose general questions to LLM, just like with the regular ChatGPT interface.
 
+## Supported Models
+
+AssistAI supports multiple LLM providers through different API protocols:
+
+| Provider | Protocol | Sample Models | MCP / tools | Vision | Notes |
+|----------|----------|--------------|----------------|--------|-------|
+| OpenAI | OpenAI API | gpt-4o, gpt-4-turbo, gpt-3.5-turbo | ✅ | ✅ | Default integration |
+| Anthropic | Claude API | claude-3-7-sonnet, claude-3-5-sonnet, claude-3-opus | ✅ | ✅ | Native Claude API integration |
+| Groq | OpenAI API | qwen-qwq-32b, llama3-70b-8192 | ✅ | ✅ | Uses OpenAI-compatible API |
+| DeepSeek | DeepSeek API | deepseek-chat | ✅ | ❌ | Specialized integration |
+| Google | Gemini API | gemini-2.0-flash, gemini-1.5-pro | ✅ | ✅ | Specialized integration |
+| Local/Self-hosted | OpenAI API | Any local model via Ollama, LM Studio, etc. | Varies | Varies | Configure with OpenAI-compatible endpoint |
+| Other 3rd party | OpenAI API | Various models from providers like Together.ai, Anyscale, etc. | Varies | Varies | Use OpenAI-compatible settings |
+
+To use a local or third-party model, configure it using the OpenAI protocol format in the Models preferences section with the appropriate endpoint URL.
+
 ## Built-in MCP tools
 
 | MCP Server | Tool | Description |
@@ -170,4 +186,3 @@ Add the *ChatGPT View* to your IDE:
 
 1. Open *Window > Show View > Other*
 2. Select *ChatGPT View* from the *Code Assist AI* category
-
