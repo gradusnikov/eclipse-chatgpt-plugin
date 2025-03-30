@@ -32,6 +32,8 @@ public class LanguageModelHttpClientProvider
     private PrintToFileMessageSubscriber printToFileSubscriber;
     @Inject
     private Provider<DeepSeekStreamJavaHttpClient> deepseekClientProvider;
+    @Inject
+    private Provider<GeminiStreamJavaHttpClient> geminiClientProvider;
     
     public LanguageModelHttpClientProvider()
     {
@@ -45,6 +47,7 @@ public class LanguageModelHttpClientProvider
         var clientProvider = switch ( apiUrl.toLowerCase() ) {
         	case String s when s.contains("anthropic") -> anthropicClientProvider;
         	case String s when s.contains("deepseek")  -> deepseekClientProvider;
+        	case String s when s.contains("googleapis") -> geminiClientProvider;
         	default -> openaiClientProvider; 
         };
         
