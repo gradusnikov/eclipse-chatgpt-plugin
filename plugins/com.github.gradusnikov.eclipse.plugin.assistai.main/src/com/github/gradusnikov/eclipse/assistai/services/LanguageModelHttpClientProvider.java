@@ -30,6 +30,8 @@ public class LanguageModelHttpClientProvider
     private LanguageModelClientConfiguration configuration;
     @Inject
     private PrintToFileMessageSubscriber printToFileSubscriber;
+    @Inject
+    private Provider<DeepSeekStreamJavaHttpClient> deepseekClientProvider;
     
     public LanguageModelHttpClientProvider()
     {
@@ -40,15 +42,12 @@ public class LanguageModelHttpClientProvider
         var modelApiDescriptor = configuration.getSelectedModel().orElseThrow( () -> new IllegalArgumentException("Model not selected") );
         var apiUrl = modelApiDescriptor.apiUrl();
         
-        Provider<? extends LanguageModelClient> clientProvider;
-        if ( apiUrl.toLowerCase().contains( "anthropic" ) )
-        {
-            clientProvider = anthropicClientProvider;
-        }
-        else
-        {
-            clientProvider = openaiClientProvider;
-        }
+        var clientProvider = switch ( apiUrl.toLowerCase() ) {
+        	case String s when s.contains("anthropic") -> anthropicClientProvider;
+        	case String s when s.contains("deepseek")  -> deepseekClientProvider;
+        	default -> openaiClientProvider; 
+        };
+        
         
         LanguageModelClient client = clientProvider.get();
 //        client.subscribe( conversationSubscriber );
