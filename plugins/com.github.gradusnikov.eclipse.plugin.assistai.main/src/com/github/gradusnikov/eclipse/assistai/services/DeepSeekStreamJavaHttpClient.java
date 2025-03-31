@@ -336,7 +336,6 @@ public class DeepSeekStreamJavaHttpClient implements LanguageModelClient
                      var reader = new BufferedReader(inputStreamReader))
                 {
                     String line;
-                    StringBuilder functionCallBuilder = null;
                     String currentToolCallId = null;
                     
                     while ((line = reader.readLine()) != null && !isCancelled.get())
@@ -374,46 +373,38 @@ public class DeepSeekStreamJavaHttpClient implements LanguageModelClient
                                             }
                                         }
                                         
-                                        // Handle tool calls (function calls)
+										// handle function calls
                                         if (delta.has("tool_calls") && delta.get("tool_calls").isArray()) {
-                                            var toolCalls = delta.get("tool_calls");
-                                            for (var toolCall : toolCalls) {
-                                                // Initialize function call if this is the first chunk
-                                                if (toolCall.has("index") && toolCall.has("id") && toolCall.has("type") && 
-                                                    "function".equals(toolCall.get("type").asText())) {
-                                                    
-                                                    currentToolCallId = toolCall.get("id").asText();
-                                                    var function = toolCall.get("function");
-                                                    
-                                                    if (function != null && function.has("name")) {
-                                                        String functionName = function.get("name").asText();
-                                                        functionCallBuilder = new StringBuilder();
-                                                        functionCallBuilder.append(String.format(
-                                                            "\"function_call\" : { \n \"name\": \"%s\",\n \"id\": \"%s\",\n \"arguments\" :",
-                                                            functionName, currentToolCallId));
-                                                    }
-                                                }
-                                                
-                                                // Append arguments to the function call
-                                                if (toolCall.has("function") && toolCall.get("function").has("arguments")) {
-                                                    String argumentChunk = toolCall.get("function").get("arguments").asText();
-                                                    if (functionCallBuilder != null) {
-                                                        functionCallBuilder.append(argumentChunk);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        
-                                        // Check finish reason to see if we're done with a function call
-                                        var finishReason = choice.get("finish_reason");
-                                        if (finishReason != null && "tool_calls".equals(finishReason.asText()) && 
-                                            functionCallBuilder != null) {
-                                            // Complete the function call JSON and send it
-                                            functionCallBuilder.append("}");
-                                            publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL, functionCallBuilder.toString()));
-                                            functionCallBuilder = null;
-                                            currentToolCallId = null;
-                                        }
+										    var toolCalls = delta.get("tool_calls");
+										    for (var toolCall : toolCalls) {
+										        // Publish the function call name and ID (first chunk)
+										        if (toolCall.has("index") && toolCall.has("id") && toolCall.has("type") && 
+										            "function".equals(toolCall.get("type").asText())) {
+										            
+										            currentToolCallId = toolCall.get("id").asText();
+										            var function = toolCall.get("function");
+										            
+										            if (function != null && function.has("name")) {
+										                String functionName = function.get("name").asText();
+										                // Publish the initial function call structure
+										                
+										                publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL,
+					                                        String.format( "\"function_call\" : { \n \"name\": \"%s\",\n \"id\": \"%s\",\n \"arguments\" :", functionName, currentToolCallId ) 
+										                ));
+										            }
+										        }
+										        // Publish argument chunks (raw JSON strings)
+										        if (toolCall.has("function") && toolCall.get("function").has("arguments")) {
+										            publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL, toolCall.get("function").get("arguments").asText()));
+										        }
+										    }
+										}
+										
+										// Publish the closing brace when the function call is complete
+										var finishReason = choice.get("finish_reason");
+										if (finishReason != null && "tool_calls".equals(finishReason.asText())) {
+										    publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL, "}"));
+										}
                                     }
                                 }
                             } 
