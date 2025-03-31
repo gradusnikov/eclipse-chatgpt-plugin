@@ -2,14 +2,18 @@ package com.github.gradusnikov.eclipse.assistai.part;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.ui.di.Focus;
@@ -43,16 +47,18 @@ import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.layout.RowLayout;
-import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.swt.widgets.Text;
+import org.eclipse.swt.widgets.ToolBar;
+import org.eclipse.swt.widgets.ToolItem;
 import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.PlatformUI;
 
+import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.part.Attachment.UiVisitor;
 import com.github.gradusnikov.eclipse.assistai.part.dnd.DropManager;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptParser;
@@ -77,6 +83,9 @@ public class ChatGPTViewPart
     @Inject
     private DropManager          dropManager;
 
+    @Inject
+    private AssistaiSharedImages sharedImages;
+    
     private LocalResourceManager resourceManager;
 
     private Text                 inputArea;
@@ -84,15 +93,23 @@ public class ChatGPTViewPart
     private ScrolledComposite    scrolledComposite;
 
     private Composite            imagesContainer;
+    
+	private ToolItem modelDropdownItem;
+	
+	private ToolBar  actionToolBar;
 
+	private Menu modelMenu;
+    
     public ChatGPTViewPart()
     {
     }
 
+    
     @Focus
     public void setFocus()
     {
         inputArea.setFocus();
+        presenter.onViewVisible();
     }
 
     public void clearChatView()
@@ -102,9 +119,7 @@ public class ChatGPTViewPart
 
     public void clearUserInput()
     {
-        uiSync.asyncExec( () -> {
-            inputArea.setText( "" );
-        } );
+        uiSync.asyncExec( () -> inputArea.setText( "" ) );
     }
 
     @PostConstruct
@@ -124,29 +139,49 @@ public class ChatGPTViewPart
         new CopyCodeFunction( browser, "eclipseFunc" );
 
         Composite controls = new Composite( sashForm, SWT.NONE );
+        GridLayout controlsLayout = new GridLayout(1, false);
+        controlsLayout.marginWidth = 5;
+        controlsLayout.marginHeight = 5;
+        controls.setLayout(controlsLayout);
 
+        // Create attachments panel at the top
         Composite attachmentsPanel = createAttachmentsPanel( controls );
-        inputArea = createUserInput( controls );
-        // create components
-        Button[] buttons = { 
-                createClearChatButton( controls ), 
-                createStopButton( controls ),
-//                createArrowButton( controls )
-                };
-
-        // layout components
-        controls.setLayout( new GridLayout( buttons.length, false ) );
-        attachmentsPanel.setLayoutData( new GridData( SWT.FILL, SWT.FILL, true, false, buttons.length, 1 ) ); // Full
-                                                                                                              // width
-        inputArea.setLayoutData( new GridData( SWT.FILL, SWT.FILL, true, true, buttons.length, 1 ) ); // colspan
-                                                                                                      // =
-                                                                                                      // num
-                                                                                                      // of
-                                                                                                      // buttons
-        for ( var button : buttons )
-        {
-            button.setLayoutData( new GridData( SWT.FILL, SWT.RIGHT, true, false ) );
-        }
+        attachmentsPanel.setLayoutData( new GridData( SWT.FILL, SWT.FILL, true, false) );
+        
+        // Create input area with attachment button
+        Composite inputContainer = new Composite(controls, SWT.NONE);
+        GridLayout inputLayout = new GridLayout(2, false);
+        inputLayout.marginWidth = 0;
+        inputLayout.marginHeight = 0;
+        inputLayout.horizontalSpacing = 5;
+        inputContainer.setLayout(inputLayout);
+        inputContainer.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        
+        // Create the text input area
+        inputArea = createUserInput(inputContainer);
+        inputArea.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        
+        
+        // Create button bar at the bottom with model selector on left, action buttons on right
+        Composite buttonBar = new Composite(controls, SWT.NONE);
+        GridLayout buttonBarLayout = new GridLayout(2, false);
+        buttonBarLayout.marginHeight = 0;
+        buttonBarLayout.marginWidth = 0;
+        buttonBar.setLayout(buttonBarLayout);
+        buttonBar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        
+        // Left side: Model selector
+        
+        // Right side: Action buttons - Use ToolBar instead of Composite
+        actionToolBar = new ToolBar(buttonBar, SWT.FLAT | SWT.RIGHT);
+        actionToolBar.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, true, false));
+        
+        // Add toolbar items instead of buttons
+        modelDropdownItem = createModelSelectorComposite(actionToolBar);
+        createAttachmentToolItem(actionToolBar);
+        createReplayToolItem(actionToolBar);
+        createClearChatToolItem(actionToolBar);
+        createStopToolItem(actionToolBar);
 
         // Sets the initial weight ratio: 75% browser, 25% controls
         sashForm.setWeights( new int[] { 70, 30 } );
@@ -176,102 +211,172 @@ public class ChatGPTViewPart
         return attachmentsPanel;
     }
 
-    private Button createClearChatButton( Composite parent )
-    {
-        Button button = new Button( parent, SWT.PUSH );
-        button.setText( "Clear" );
-        try
+    /**
+     * Creates a toolbar item that allows the user to add image attachments to their message.
+     * 
+     * @param toolbar The parent toolbar
+     * @return The created toolbar item
+     */
+    private ToolItem createAttachmentToolItem(ToolBar toolbar) {
+        ToolItem item = new ToolItem(toolbar, SWT.PUSH);
+        
+        try 
         {
-            Image clearIcon = PlatformUI.getWorkbench().getSharedImages().getImage( org.eclipse.ui.ISharedImages.IMG_ELCL_REMOVE );
-            button.setImage( clearIcon );
+            // Use a suitable icon for attachments - using the add/import icon
+            Image attachIcon = PlatformUI.getWorkbench().getSharedImages().getImage(ISharedImages.IMG_OBJ_ADD);
+            item.setImage(attachIcon);
+        } 
+        catch (Exception e) 
+        {
+            logger.error(e.getMessage(), e);
         }
-        catch ( Exception e )
-        {
-            logger.error( e.getMessage(), e );
-        }
-        button.addSelectionListener( new SelectionAdapter()
-        {
+        
+        item.setToolTipText("Add image attachment");
+        
+        // Add click handler to open file dialog
+        item.addSelectionListener(new SelectionAdapter() {
             @Override
-            public void widgetSelected( SelectionEvent e )
-            {
+            public void widgetSelected(SelectionEvent e) {
+                presenter.onAddAttachment();
+            }
+        });
+        
+        return item;
+    }
+    
+    /**
+     * Creates a toolbar item that allows the user to replay the last conversation
+     * using a different model.
+     * 
+     * @param toolbar The parent toolbar
+     * @return The created toolbar item
+     */
+    private ToolItem createReplayToolItem(ToolBar toolbar) {
+        ToolItem item = new ToolItem(toolbar, SWT.PUSH);
+        
+        try {
+            // Use the REDO icon for replay
+            Image replayIcon = PlatformUI.getWorkbench().getSharedImages().getImage(ISharedImages.IMG_TOOL_REDO);
+            item.setImage(replayIcon);
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+        }
+        
+        item.setToolTipText("Regenerate response");
+        
+        item.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                presenter.onReplayLastMessage();
+            }
+        });
+        
+        return item;
+    }
+    
+    /**
+     * Creates a toolbar item that allows the user to clear the conversation.
+     * 
+     * @param toolbar The parent toolbar
+     * @return The created toolbar item
+     */
+    private ToolItem createClearChatToolItem(ToolBar toolbar) {
+        ToolItem item = new ToolItem(toolbar, SWT.PUSH);
+        try {
+            // Use the erase/clear icon
+            Image clearIcon = PlatformUI.getWorkbench().getSharedImages().getImage(ISharedImages.IMG_ETOOL_CLEAR);
+            item.setImage(clearIcon);
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+        }
+        item.setToolTipText("Clear conversation");
+        item.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
                 presenter.onClear();
             }
-        } );
-        return button;
+        });
+        return item;
     }
-
-    private Button createStopButton( Composite parent )
-    {
-        Button button = new Button( parent, SWT.PUSH );
-        button.setText( "Stop" );
+    
+    /**
+     * Creates a toolbar item that allows the user to stop the generation.
+     * 
+     * @param toolbar The parent toolbar
+     * @return The created toolbar item
+     */
+    private ToolItem createStopToolItem(ToolBar toolbar) {
+        ToolItem item = new ToolItem(toolbar, SWT.PUSH);
 
         // Use the built-in 'IMG_ELCL_STOP' icon
-        Image stopIcon = PlatformUI.getWorkbench().getSharedImages().getImage( org.eclipse.ui.ISharedImages.IMG_ELCL_STOP );
-        button.setImage( stopIcon );
+        Image stopIcon = PlatformUI.getWorkbench().getSharedImages().getImage(ISharedImages.IMG_ELCL_STOP);
+        item.setImage(stopIcon);
+        item.setToolTipText("Stop generation");
 
-        button.addSelectionListener( new SelectionAdapter()
-        {
+        item.addSelectionListener(new SelectionAdapter() {
             @Override
-            public void widgetSelected( SelectionEvent e )
-            {
+            public void widgetSelected(SelectionEvent e) {
                 presenter.onStop();
             }
-        } );
-        return button;
+        });
+        return item;
     }
-
-
-    private Button createArrowButton(Composite parent) {
-        // Create an arrow button
-        Button arrowButton = new Button(parent, SWT.FLAT | SWT.ARROW | SWT.DOWN);
-
-//        // Create a menu for the button
-//        Menu menu = new Menu(parent.getShell(), SWT.POP_UP);
-//        arrowButton.addListener(SWT.Selection, event -> {
-//            if (!menu.isDisposed()) {
-//                Rectangle rect = arrowButton.getBounds();
-//                Point pt = new Point(rect.x, rect.y + rect.height);
-//                pt = parent.toDisplay(pt);
-//                menu.setLocation(pt.x, pt.y);
-//                menu.setVisible(true);
-//            }
-//        });
-//
-//        // Add items with checkboxes
-//        String[] items = {"Item 1", "Item 2", "Item 3"};
-//        boolean[] selections = {false, true, false}; // Initial selections
-//
-//        for (int i = 0; i < items.length; i++) {
-//            MenuItem menuItem = new MenuItem(menu, SWT.CHECK);
-//            menuItem.setText(items[i]);
-//            menuItem.setSelection(selections[i]);
-//            final int index = i;
-//            menuItem.addSelectionListener(new SelectionAdapter() {
-//                @Override
-//                public void widgetSelected(SelectionEvent e) {
-//                    selections[index] = !selections[index];
-//                    menuItem.setSelection(selections[index]);
-//                }
-//            });
-//        }
-//
-        return arrowButton;
+    
+    
+    /**
+     * Creates a model selector composite with model icon, name, and dropdown button
+     * 
+     * @param parent The parent composite
+     * @return The created composite containing the model selector
+     */
+    private ToolItem createModelSelectorComposite(ToolBar modelToolBar) {
+        // Create a dropdown tool item
+        ToolItem modelDropdownItem = new ToolItem(modelToolBar, SWT.DROP_DOWN);
+        
+        modelDropdownItem.setImage( sharedImages.getImage("assistai-16") );
+        // Set initial text for the model
+        modelDropdownItem.setText("Undefined");
+        modelDropdownItem.setToolTipText("Select AI Model");
+        
+        return modelDropdownItem;
     }
-
-
+    
+    
+    
     private Text createUserInput( Composite parent )
     {
         Text inputArea = new Text( parent, SWT.BORDER | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL );
+        
+        // Set a prompt message
+        inputArea.setMessage("Type a message or question here... (Press Enter to send)");
+        
+        // Add a listener for Enter key to send the message
         inputArea.addTraverseListener( new TraverseListener()
         {
             public void keyTraversed( TraverseEvent e )
             {
                 if ( e.detail == SWT.TRAVERSE_RETURN && ( e.stateMask & SWT.MODIFIER_MASK ) == 0 )
                 {
-                    presenter.onSendUserMessage( inputArea.getText() );
+                    // Only send if there's actual text to send
+                    String text = inputArea.getText().trim();
+                    if (!text.isEmpty()) {
+                        presenter.onSendUserMessage( text );
+                    }
                 }
             }
         } );
+        
+        // Add a key listener to handle Shift+Enter for newlines
+        inputArea.addListener(SWT.KeyDown, event -> {
+            // If Shift+Enter is pressed, insert a newline instead of sending
+            if (event.keyCode == SWT.CR && (event.stateMask & SWT.SHIFT) != 0) {
+                int caretPosition = inputArea.getCaretPosition();
+                inputArea.insert("\n");
+                inputArea.setSelection(caretPosition + 1);
+                event.doit = false; // Prevent default behavior
+            }
+        });
+        
         createCustomMenu( inputArea );
         return inputArea;
     }
@@ -400,13 +505,13 @@ public class ChatGPTViewPart
         String[] cssFiles = { "textview.css", "dark.min.css", "fa6.all.min.css" };
         for ( String file : cssFiles )
         {
-            try (InputStream in = FileLocator.toFileURL( new URL( "platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/css/" + file ) )
+            try (InputStream in = FileLocator.toFileURL( new URI( "platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/css/" + file ).toURL() )
                     .openStream())
             {
                 css.append( new String( in.readAllBytes(), StandardCharsets.UTF_8 ) );
                 css.append( "\n" );
             }
-            catch ( IOException e )
+            catch ( IOException | URISyntaxException e )
             {
                 throw new RuntimeException( e );
             }
@@ -563,7 +668,120 @@ public class ChatGPTViewPart
         } );
     }
 
-    private class AttachmentVisitor implements UiVisitor
+    public void setAvailableModels(List<ModelApiDescriptor> availableModels, String selected ) 
+    {
+    	uiSync.asyncExec( () -> {
+        	// update menu button with model name and icon
+        	availableModels.stream()
+        				   .filter( model -> model.uid().equals(selected) )
+        				   .map( model -> new ModelApiDescriptorDecorator(model, selected))
+        				   .findFirst()
+        				   .ifPresent( model -> {
+        					   uiSync.asyncExec( () -> {
+        						   modelDropdownItem.setText( model.getDisplayName() );
+        						   modelDropdownItem.setImage( model.getDisplayIcon() );
+        						   updateLayout( actionToolBar );
+        					   });
+        				   });
+    		
+    	});
+    	// clean previous
+    	if ( Objects.nonNull(modelMenu) )
+    	{
+    		Menu oldMenu = modelMenu;
+    		Stream.of( modelMenu.getListeners(SWT.Selection) ).forEach( l -> oldMenu.removeListener(SWT.Selection, l) );
+    		oldMenu.dispose();
+    	}
+    	// Re-create the dropdown menu
+        modelMenu = new Menu(actionToolBar.getShell(), SWT.POP_UP);
+        
+        // Add selection listener to handle dropdown arrow clicks
+        modelDropdownItem.addListener(SWT.Selection, event -> {
+            // Check if the dropdown arrow was clicked
+            if (event.detail == SWT.ARROW) 
+            {
+                // Position the menu below the tool item
+                Rectangle rect = modelDropdownItem.getBounds();
+                Point pt = new Point(rect.x, rect.y + rect.height);
+                pt = actionToolBar.toDisplay(pt);
+                
+                // Rebuild the menu each time to ensure it reflects current state
+                for (MenuItem item : modelMenu.getItems()) 
+                {
+                    item.dispose();
+                }
+                
+                availableModels.stream()
+                				.map( model -> new ModelApiDescriptorDecorator(model, selected) )
+                				.forEach( model -> createModelMenuItem(modelMenu, model) );
+                modelMenu.setLocation(pt.x, pt.y);
+                modelMenu.setVisible(true);
+            } 
+            else 
+            {
+                // Main part of button was clicked
+            }
+        });		
+	}
+
+	private void createModelMenuItem(final Menu modelMenu, ModelApiDescriptorDecorator model ) 
+	{
+		MenuItem menuItem = new MenuItem(modelMenu, SWT.CHECK);
+		menuItem.setText(model.getDisplayName());
+		menuItem.setSelection(model.isSelected());
+		menuItem.addSelectionListener( new SelectionAdapter() {
+		    @Override
+		    public void widgetSelected(SelectionEvent e) {
+		    	presenter.onModelSelected(model.getModelId());
+		    }
+		});
+	}
+
+	public void updateLayout( Composite composite )
+	{
+	    if ( composite != null )
+	    {
+	        composite.layout();
+	        updateLayout( composite.getParent() );
+	    }
+	}
+
+
+	public void setInputEnabled( boolean b )
+	{
+	    uiSync.asyncExec( () -> {
+	        inputArea.setEnabled( b );
+	    } );
+	}
+
+	private Image createSelectedImage( Image originalImage )
+	{
+	    // Create a new image that is a copy of the original
+	    Image tintedImage = new Image( Display.getCurrent(), originalImage.getBounds() );
+	
+	    // Create a GC to draw on the tintedImage
+	    GC gc = new GC( tintedImage );
+	
+	    // Draw the original image onto the new image
+	    gc.drawImage( originalImage, 0, 0 );
+	
+	    // Set alpha value for the overlay (128 is half-transparent)
+	    gc.setAlpha( 128 );
+	
+	    // Get the system selection color
+	    Color selectionColor = Display.getCurrent().getSystemColor( SWT.COLOR_LIST_SELECTION );
+	
+	    // Fill the image with the selection color overlay
+	    gc.setBackground( selectionColor );
+	    gc.fillRectangle( tintedImage.getBounds() );
+	
+	    // Dispose the GC to free up system resources
+	    gc.dispose();
+	
+	    return tintedImage;
+	}
+
+	private class AttachmentVisitor implements UiVisitor
     {
         private Label imageLabel;
 
@@ -576,15 +794,9 @@ public class ChatGPTViewPart
             imageLabel.setToolTipText( caption );
 
             ImageDescriptor imageDescriptor;
-            try
-            {
-                imageDescriptor = Optional.ofNullable( preview ).map( id -> ImageDescriptor.createFromImageDataProvider( zoom -> id ) ).orElse(
-                        ImageDescriptor.createFromURL( new URL( "platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/icons/folder.png" ) ) );
-            }
-            catch ( MalformedURLException e )
-            {
-                throw new IllegalStateException( e );
-            }
+            imageDescriptor = Optional.ofNullable( preview )
+            						  .map( id -> ImageDescriptor.createFromImageDataProvider( zoom -> id ) )
+            						  .orElse(sharedImages.getImageDescriptor("folder")  );
 
             Image scaledImage = resourceManager.createImageWithDefault( imageDescriptor );
             Image selectedImage = createSelectedImage( scaledImage );
@@ -624,50 +836,41 @@ public class ChatGPTViewPart
         }
     }
 
-    private Image createSelectedImage( Image originalImage )
-    {
-        // Create a new image that is a copy of the original
-        Image tintedImage = new Image( Display.getCurrent(), originalImage.getBounds() );
+    private class ModelApiDescriptorDecorator
+	{
+		private final ModelApiDescriptor descriptor;
+		private final String selectedUid;
+		public ModelApiDescriptorDecorator( ModelApiDescriptor descriptor, String selectedUid )
+		{
+			this.descriptor = descriptor;
+			this.selectedUid = selectedUid;
+		}
+		public String getDisplayName()
+		{
+			return StringUtils.abbreviate( descriptor.modelName(), 20);
+		}
+		public Image getDisplayIcon()
+		{
+			return switch( descriptor.apiUrl() ) {
+				case String s when s.contains( "anthropic" ) -> sharedImages.getImage("claude-ai-icon-16");
+				case String s when s.contains( "openai" ) -> sharedImages.getImage("chatgpt-icon-16");
+				case String s when s.contains( "grok" ) -> sharedImages.getImage("grok-icon-16");
+				case String s when s.contains( "google" ) -> sharedImages.getImage("google-gemini-icon-16");
+				case String s when s.contains( "deepseek" ) -> sharedImages.getImage("deepseek-logo-icon-16");
+				default -> sharedImages.getImage("assistai-16");
+			};
+			
+		}
+		public String getModelId()
+		{
+			return descriptor.uid();
+		}
+		public boolean isSelected() {
+			return descriptor.uid().equals(selectedUid);
+		}
+	}
 
-        // Create a GC to draw on the tintedImage
-        GC gc = new GC( tintedImage );
-
-        // Draw the original image onto the new image
-        gc.drawImage( originalImage, 0, 0 );
-
-        // Set alpha value for the overlay (128 is half-transparent)
-        gc.setAlpha( 128 );
-
-        // Get the system selection color
-        Color selectionColor = Display.getCurrent().getSystemColor( SWT.COLOR_LIST_SELECTION );
-
-        // Fill the image with the selection color overlay
-        gc.setBackground( selectionColor );
-        gc.fillRectangle( tintedImage.getBounds() );
-
-        // Dispose the GC to free up system resources
-        gc.dispose();
-
-        return tintedImage;
-    }
-
-    public void updateLayout( Composite composite )
-    {
-        if ( composite != null )
-        {
-            composite.layout();
-            updateLayout( composite.getParent() );
-        }
-    }
-
-    public void setInputEnabled( boolean b )
-    {
-        uiSync.asyncExec( () -> {
-            inputArea.setEnabled( b );
-        } );
-    }
-
-    /**
+	/**
      * This function establishes a JavaScript-to-Java callback for the browser,
      * allowing the IDE to copy code. It is invoked from JavaScript when the
      * user interacts with the chat view to copy a code block.

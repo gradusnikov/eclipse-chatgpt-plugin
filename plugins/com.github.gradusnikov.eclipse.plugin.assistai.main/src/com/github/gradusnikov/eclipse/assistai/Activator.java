@@ -12,6 +12,7 @@ import org.osgi.framework.BundleContext;
 import com.github.gradusnikov.eclipse.assistai.preferences.ModelListPreferencePresenter;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 import com.github.gradusnikov.eclipse.assistai.preferences.PromptsPreferencePresenter;
+import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepository;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.preferences.McpServerPreferencePresenter;
 
@@ -41,8 +42,9 @@ public class Activator extends AbstractUIPlugin
     
     public ModelListPreferencePresenter getModelsPreferencePresenter()
     {
-        ModelListPreferencePresenter presneter = new ModelListPreferencePresenter( getDefault().getPreferenceStore() );
-        return presneter;
+        IEclipseContext eclipseContext = PlatformUI.getWorkbench().getService( IEclipseContext.class );
+        var repository = ContextInjectionFactory.make( ModelApiDescriptorRepository.class, eclipseContext );
+        return new ModelListPreferencePresenter( repository );
     }
     
 

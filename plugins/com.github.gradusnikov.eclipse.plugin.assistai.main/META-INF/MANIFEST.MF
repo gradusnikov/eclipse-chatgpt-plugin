@@ -28,7 +28,8 @@ Require-Bundle: org.eclipse.e4.ui.services,
  jakarta.inject.jakarta.inject-api;bundle-version="2.0.1",
  org.apache.commons.commons-io;bundle-version="2.15.1",
  org.eclipse.ui.ide,
- org.eclipse.ui.console
+ org.eclipse.ui.console,
+ org.osgi.service.event
 Bundle-RequiredExecutionEnvironment: JavaSE-23
 Automatic-Module-Name: assistai.main
 Bundle-Classpath: .

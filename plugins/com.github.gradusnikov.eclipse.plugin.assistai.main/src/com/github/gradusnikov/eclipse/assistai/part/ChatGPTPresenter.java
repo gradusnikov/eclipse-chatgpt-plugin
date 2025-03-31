@@ -23,6 +23,7 @@ import org.eclipse.core.runtime.jobs.IJobManager;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.wizard.Wizard;
 import org.eclipse.jface.wizard.WizardDialog;
@@ -43,15 +44,18 @@ import org.eclipse.ui.dialogs.WizardNewFileCreationPage;
 import org.osgi.service.prefs.BackingStoreException;
 import org.osgi.service.prefs.Preferences;
 
+import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.jobs.AssistAIJobConstants;
 import com.github.gradusnikov.eclipse.assistai.jobs.SendConversationJob;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
+import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.part.Attachment.FileContentAttachment;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageUtilities;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
+import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepository;
 import com.github.gradusnikov.eclipse.assistai.subscribers.AppendMessageToViewSubscriber;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
@@ -91,26 +95,40 @@ public class ChatGPTPresenter
     @Inject
     private CodeEditingService codeEditingService;
     
-
+    @Inject
+    private ModelApiDescriptorRepository modelReposotiry;
+    
+    
+    private IPreferenceStore preferences;
+    
     private static final String           LAST_SELECTED_DIR_KEY = "lastSelectedDirectory";
-
-    // Preference node for your plugin
-    private Preferences                   preferences           = InstanceScope.INSTANCE.getNode( "com.github.gradusnikov.eclipse.assistai" );
 
     private final List<Attachment>        attachments           = new ArrayList<>();
 
     @PostConstruct
     public void init()
     {
-        appendMessageToViewSubscriber.setPresenter( this );
+        preferences = Activator.getDefault().getPreferenceStore();
+    	appendMessageToViewSubscriber.setPresenter( this );
+        
+        initializeAvailableModels();
     }
+
+	private void initializeAvailableModels() {
+		// Initialize model from preferences if available
+        var selectedModel = modelReposotiry.getModelInUse();
+        var models = modelReposotiry.listModelApiDescriptors();
+        applyToView( view -> {
+        	view.setAvailableModels( models, Optional.ofNullable( selectedModel.uid() ).orElse("" ) );
+        });
+	}
 
     public void onClear()
     {
         onStop();
         conversation.clear();
         attachments.clear();
-        partAccessor.findMessageView().ifPresent( view -> {
+        applyToView( view -> {
             view.clearChatView();
             view.clearUserInput();
             view.clearAttachments();
@@ -119,10 +137,9 @@ public class ChatGPTPresenter
 
     public void onSendUserMessage( String text )
     {
-        logger.info( "Send user message" );
         ChatMessage message = createUserMessage( text );
         conversation.add( message );
-        partAccessor.findMessageView().ifPresent( part -> {
+        applyToView( part -> {
             part.clearUserInput();
             part.clearAttachments();
             part.appendMessage( message.getId(), message.getRole() );
@@ -144,7 +161,7 @@ public class ChatGPTPresenter
 	public ChatMessage beginFunctionCallMessage() {
         ChatMessage message = chatMessageFactory.createAssistantChatMessage( "" );
         // DO NOT ADD IT TO CONVERSATION
-        partAccessor.findMessageView().ifPresent( messageView -> {
+        applyToView( messageView -> {
             messageView.appendMessage( message.getId(), message.getRole() );
             messageView.setInputEnabled( false );
         } );
@@ -155,7 +172,7 @@ public class ChatGPTPresenter
     {
         ChatMessage message = chatMessageFactory.createAssistantChatMessage( "" );
         conversation.add( message );
-        partAccessor.findMessageView().ifPresent( messageView -> {
+        applyToView( messageView -> {
             messageView.appendMessage( message.getId(), message.getRole() );
             messageView.setInputEnabled( false );
         } );
@@ -164,14 +181,14 @@ public class ChatGPTPresenter
 
     public void updateMessageFromAssistant( ChatMessage message )
     {
-        partAccessor.findMessageView().ifPresent( messageView -> {
+        applyToView( messageView -> {
             messageView.setMessageHtml( message.getId(), message.getContent() );
         } );
     }
 
     public void endMessageFromAssistant( ChatMessage message )
     {
-        partAccessor.findMessageView().ifPresent( messageView -> {
+    	applyToView( messageView -> {
             messageView.setInputEnabled( true );
             if ( message.getContent().isBlank() )
             {
@@ -183,7 +200,7 @@ public class ChatGPTPresenter
     
     public void hideMessage( String messageId )
     {
-        partAccessor.findMessageView().ifPresent( messageView -> {
+        applyToView( messageView -> {
             messageView.hideMessage(messageId);
         } );
     }
@@ -200,7 +217,7 @@ public class ChatGPTPresenter
         	  .filter( job -> job.getName().startsWith( AssistAIJobConstants.JOB_PREFIX ) )
         	  .forEach( Job::cancel );
 
-        partAccessor.findMessageView().ifPresent( messageView -> {
+        applyToView( messageView -> {
             messageView.setInputEnabled( true );
         } );
     }
@@ -230,7 +247,7 @@ public class ChatGPTPresenter
         conversation.add( message );
 
         // update view
-        partAccessor.findMessageView().ifPresent( messageView -> {
+        applyToView( messageView -> {
             messageView.appendMessage( message.getId(), message.getRole() );
             messageView.setMessageHtml( message.getId(), type.getDescription() );
         } );
@@ -253,7 +270,7 @@ public class ChatGPTPresenter
             fileDialog.setText( "Select an Image" );
 
             // Retrieve the last selected directory from the preferences
-            String lastSelectedDirectory = preferences.get( LAST_SELECTED_DIR_KEY, System.getProperty( "user.home" ) );
+            String lastSelectedDirectory = preferences.getString( LAST_SELECTED_DIR_KEY );
             fileDialog.setFilterPath( lastSelectedDirectory );
 
             fileDialog.setFilterExtensions( new String[] { "*.png", "*.jpeg", "*.jpg" } );
@@ -265,17 +282,7 @@ public class ChatGPTPresenter
             {
                 // Save the last selected directory back to the preferences
                 String newLastSelectedDirectory = new File( selectedFilePath ).getParent();
-                preferences.put( LAST_SELECTED_DIR_KEY, newLastSelectedDirectory );
-
-                try
-                {
-                    // Ensure that the preference changes are persisted
-                    preferences.flush();
-                }
-                catch ( BackingStoreException e )
-                {
-                    logger.error( "Error saving last selected directory preference", e );
-                }
+                preferences.putValue( LAST_SELECTED_DIR_KEY, newLastSelectedDirectory );
 
                 ImageData[] imageDataArray = new ImageLoader().load( selectedFilePath );
                 if ( imageDataArray.length > 0 )
@@ -485,5 +492,70 @@ public class ChatGPTPresenter
             }
         });
     }
-}
+    
+    /**
+     * Handles model selection from the dropdown menu.
+     * 
+     * This method is called when a user selects a different AI model from the
+     * dropdown menu in the UI. It updates the preferences to store the selected
+     * model and would typically update any service configurations to use the new model.
+     * 
+     * @param modelId The ID of the selected model
+     */
+    public void onModelSelected(String modelId) 
+    {
+        logger.info("Model selected: " + modelId);
+        
+        modelReposotiry.setModelInUse( modelId );
+        initializeAvailableModels();
+        
+//        ChatMessage message = chatMessageFactory.createAssistantChatMessage(
+//                "Model changed to **" + modelInUse.modelName() + "**. New messages will use this model.");
+//        
+//        partAccessor.findMessageView().ifPresent(messageView -> {
+//            messageView.appendMessage(message.getId(), message.getRole());
+//            messageView.setMessageHtml(message.getId(), message.getContent());
+//            
+//            // Auto-hide this message after a few seconds
+//            Display.getDefault().timerExec(5000, () -> {
+//                messageView.removeMessage(message.getId());
+//            });
+//        });
+    }
+    
+    /**
+     * Regenerates the last AI response using the currently selected model.
+     * 
+     * This method is called when the user clicks the replay button. It removes
+     * the last assistant message from the conversation (if it exists) and
+     * sends the conversation again to generate a new response.
+     */
+    public void onReplayLastMessage() {
+        logger.info("Replaying last message with current model");
+        
+        // Check if there's a conversation with at least one message
+        if (conversation.messages().isEmpty()) 
+        {
+            return;
+        }
+        // If the last message is from the assistant, remove it
+        // (We want to regenerate the assistant's response)
+        List<ChatMessage> messages = conversation.messages();
+        if (!messages.isEmpty() && "assistant".equals(messages.get(messages.size() - 1).getRole())) {
+            ChatMessage lastMessage = messages.get(messages.size() - 1);
+            conversation.removeLastMessage();
+            
+            // Remove the message from the UI
+            applyToView(view -> {
+                view.removeMessage(lastMessage.getId());
+            });
+        }
+        // Send the conversation for processing to generate a new response
+    	sendConversationJobProvider.get().schedule();
+    }
 
+	public void onViewVisible() 
+	{
+		initializeAvailableModels();
+	}
+}
