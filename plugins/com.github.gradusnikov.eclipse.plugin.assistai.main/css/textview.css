@@ -142,3 +142,22 @@ summary {
     display: none;
 }
 
+
+/* Default visibility */
+.diff-only { display: none; }
+.code-only { display: inline; }
+
+/* Conditional visibility based on parent class */
+.diff-block .diff-only { display: inline; }
+.diff-block .code-only { display: none; }
+
+/* Error styling */
+.error {
+    color: #e74c3c;
+    background-color: #fdecea;
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+
