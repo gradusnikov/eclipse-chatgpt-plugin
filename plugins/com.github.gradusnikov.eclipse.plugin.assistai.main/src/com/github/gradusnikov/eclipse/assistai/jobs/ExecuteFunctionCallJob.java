@@ -48,12 +48,15 @@ public class ExecuteFunctionCallJob extends Job
 
     private FunctionCall                  functionCall;
 
-    public ExecuteFunctionCallJob()
-    {
-        super( JOB_NAME );
-    }
 
-    @Override
+	// In ExecuteFunctionCallJob.java, add a job rule in the constructor
+	public ExecuteFunctionCallJob() {
+	    super(JOB_NAME);
+	    // Add a mutual exclusion rule for both SendConversationJob and ExecuteFunctionCallJob
+	    super.setRule(new AssistAIJobRule());
+	}
+	
+	@Override
     protected IStatus run( IProgressMonitor monitor )
     {
         Objects.requireNonNull( functionCall, "Function call cannot be null" );

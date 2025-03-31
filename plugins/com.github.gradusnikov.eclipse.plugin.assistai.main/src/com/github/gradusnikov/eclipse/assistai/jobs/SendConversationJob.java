@@ -1,9 +1,5 @@
 package com.github.gradusnikov.eclipse.assistai.jobs;
 
-import java.util.concurrent.CompletableFuture;
-
-import jakarta.inject.Inject;
-
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -13,6 +9,8 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.services.LanguageModelHttpClientProvider;
+
+import jakarta.inject.Inject;
 
 @Creatable
 public class SendConversationJob extends Job
@@ -29,7 +27,7 @@ public class SendConversationJob extends Job
     public SendConversationJob()
     {
         super( AssistAIJobConstants.JOB_PREFIX + " ask ChatGPT for help");
-        
+        setRule(new AssistAIJobRule());
     }
 	
 
@@ -39,41 +37,22 @@ public class SendConversationJob extends Job
 	    var openAIClient = clientProvider.get();
 	    openAIClient.setCancelProvider(() -> progressMonitor.isCanceled()); 
 	    
-	    try 
-	    {
-	        // Get the runnable from the client
-	        Runnable task = openAIClient.run(conversation);
-	        
-	        // Create a CompletableFuture that can be explicitly canceled
-	        var future = CompletableFuture.runAsync(task)
-	                .thenApply(v -> Status.OK_STATUS)
-	                .exceptionally(e -> Status.error("Unable to run the task: " + e.getMessage(), e));
-	        
-	        // Check for cancellation while waiting for completion
-	        try 
-	        {
-	            while (!future.isDone()) 
-	            {
-	                if (progressMonitor.isCanceled()) 
-	                {
-	                    future.cancel(true); // Attempt to cancel the future
-	                    return Status.CANCEL_STATUS;
-	                }
-	                Thread.sleep(100); // Small delay to prevent CPU hogging
-	            }
-	            
-	            return future.get(); // Get the result (OK_STATUS or error status)
-	        } 
-	        catch (InterruptedException e) 
-	        {
-	            Thread.currentThread().interrupt(); // Restore the interrupted status
-	            return Status.CANCEL_STATUS;
-	        }
-	    } 
-	    catch (Exception e) 
-	    {
-	        return Status.error(e.getMessage(), e);
-	    }
+        // Get the runnable from the client
+        Runnable task = openAIClient.run(conversation);
+        try
+        {
+        	task.run();
+        }
+        catch ( Exception e )
+        {
+        	logger.error(e.getMessage(), e);
+        	return Status.error( e.getMessage(), e);
+        }
+        if ( progressMonitor.isCanceled() )
+        {
+        	return Status.CANCEL_STATUS;
+        }
+        return Status.OK_STATUS;
 	}
 
 
