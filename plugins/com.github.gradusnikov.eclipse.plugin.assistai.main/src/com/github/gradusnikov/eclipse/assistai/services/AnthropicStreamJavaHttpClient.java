@@ -1,6 +1,7 @@
 package com.github.gradusnikov.eclipse.assistai.services;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
@@ -17,6 +18,7 @@ import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Flow;
 import java.util.concurrent.SubmissionPublisher;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -265,134 +267,195 @@ public class AnthropicStreamJavaHttpClient implements LanguageModelClient
         imageObject.put("source", imageSource);
         return imageObject;
     }
-    public Runnable run(Conversation prompt)
-    {
-        return () -> {
-            var model = configuration.getSelectedModel().orElseThrow();
-            
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
-                    .build();
 
-            String requestBody = getRequestBody(prompt, model);
-            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(model.apiUrl()))
-                    .timeout(Duration.ofSeconds(configuration.getRequestTimoutSeconds()))
-                    .version(HttpClient.Version.HTTP_1_1)
-                    .header("x-api-key", model.apiKey())
-                    .header("anthropic-version", "2023-06-01") // Update to latest API version if needed
-                    .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                    .build();
-
-            logger.info( "Sending request to Anthropic API.\n\n" +  requestBody);
-
-            try
-            {
-                HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
-
-                if (response.statusCode() != 200)
-                {
-                    String responseBody = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
-                    logger.error("Request failed with status code: " + response.statusCode() + " and response body: " + responseBody);
-                    return;
-                }
-                
-                try (var inputStream = response.body();
-                     var inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
-                     var reader = new BufferedReader(inputStreamReader))
-                {
-                    String line;
-                    Incoming.Type incomingType = null;
-                    
-                    while ((line = reader.readLine()) != null && !isCancelled.get())
-                    {
-                        // Skip empty lines and ping messages
-                        if (line.isEmpty()) 
-                        {
-                            continue;
-                        }
-                        // Handle data: prefix (SSE format)
-                        if (line.startsWith("data:")) 
-                        {
-                            line = line.substring(5).trim();
-                            // Skip [DONE] marker
-                            if ("[DONE]".equals(line)) {
-                                continue;
-                            }
-                            try 
-                            {
-                                var node = objectMapper.readTree(line);
-                                var type = node.has("type") ? node.get("type").asText() : "";
-                                
-                                // ignore pings
-                                if ( "ping".equals( type ) )
-                                {
-                                    continue;
-                                }
-                                
-                                if ( "content_block_start".equals( type ) )
-                                {
-                                    incomingType =  switch ( node.get( "content_block" ).get( "type" ).asText() )
-                                    {
-                                        case "text" -> Incoming.Type.CONTENT;
-                                        case "tool_use" -> Incoming.Type.FUNCTION_CALL;
-                                        default -> null;
-                                    };
-                                }
-                                // Handle tool use events (function calls)
-                                if ( "content_block_start".equals(type) && Incoming.Type.FUNCTION_CALL.equals(incomingType) ) 
-                                {
-                                    JsonNode toolUseNode = node.get("content_block");
-                                    String toolName = toolUseNode.get("name").asText();
-                                    String toolId = toolUseNode.get("id").asText();
-                                    
-                                    JsonNode inputNode = toolUseNode.get("input");
-                                    String arguments = inputNode.toString();
-                                    
-                                    publisher.submit( new Incoming(Incoming.Type.FUNCTION_CALL, 
-                                            String.format( "\"function_call\" : { \n \"name\": \"%s\",\n \"id\": \"%s\",\n \"arguments\" :", toolName, toolId ) ) );
-                                }
-                                // Handle content blocks
-                                if ("content_block_delta".equals(type) && Objects.nonNull( incomingType ) ) 
-                                {
-                                    var delta = node.get( "delta" );
-                                    if ( Objects.nonNull( delta ) )
-                                    {
-                                        if ( delta.has("text") )
-                                        {
-                                            publisher.submit( new Incoming( incomingType, delta.get("text").asText() ) );
-                                        }
-                                        else if ( delta.has("partial_json") )
-                                        {
-                                            publisher.submit( new Incoming( incomingType, delta.get("partial_json").asText() ) );
-                                        }
-                                    }
-                                } 
-
-                            } catch (Exception e) {
-                                // Handle parsing errors but continue processing
-                                logger.error("Error parsing response line: " + line, e);
-                            }
-                        }
-                    }
-                }
-                
-                if (isCancelled.get())
-                {
-                    publisher.closeExceptionally(new CancellationException());
-                }
-            }
-            catch (Exception e)
-            {
-                logger.error(e.getMessage(), e);
-                publisher.closeExceptionally(e);
-            }
-            finally
-            {
-                publisher.close();
-            }
-        };
-    }
-    
+	public Runnable run(Conversation prompt) {
+	    return () -> {
+	        var model = configuration.getSelectedModel().orElseThrow();
+	        
+	        HttpClient client = HttpClient.newBuilder()
+	                .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
+	                .build();
+	
+	        String requestBody = getRequestBody(prompt, model);
+	        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(model.apiUrl()))
+	                .timeout(Duration.ofSeconds(configuration.getRequestTimoutSeconds()))
+	                .version(HttpClient.Version.HTTP_1_1)
+	                .header("x-api-key", model.apiKey())
+	                .header("anthropic-version", "2023-06-01") // Update to latest API version if needed
+	                .header("Content-Type", "application/json")
+	                .header("Accept", "application/json")
+	                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+	                .build();
+	
+	        logger.info("Sending request to Anthropic API.\n\n" + requestBody);
+	
+	        // Rate limit handling variables
+	        int maxRetries = 3;
+	        int retryCount = 0;
+	        boolean shouldRetry = false;
+	        
+	        do 
+	        {
+	            shouldRetry = false;
+	            
+	            try 
+	            {
+	                HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+	
+	                // Handle rate limit errors (429)
+	                if (response.statusCode() == 429) 
+	                {
+	                    // Get retry-after header
+	                    String retryAfter = response.headers().firstValue("retry-after").orElse("60");
+	                    int waitSeconds = Integer.parseInt(retryAfter);
+	                    
+	                    // Extract error message from response body
+	                    String responseBody = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
+	                    JsonNode errorNode = objectMapper.readTree(responseBody);
+	                    String errorType = "unknown";
+	                    String errorMessage = "Rate limit exceeded";
+	                    
+	                    if (errorNode.has("error") && errorNode.get("error").has("type")) {
+	                        errorType = errorNode.get("error").get("type").asText();
+	                    }
+	                    
+	                    if (errorNode.has("error") && errorNode.get("error").has("message")) {
+	                        errorMessage = errorNode.get("error").get("message").asText();
+	                    }
+	                    
+	                    retryCount++;
+	                    if (retryCount <= maxRetries) 
+	                    {
+	                        // Inform user about rate limiting
+	                        String rateLimitMessage = String.format(
+	                            "Rate limit exceeded (%s). Waiting %d seconds before retry %d of %d. %s", 
+	                            errorType, waitSeconds, retryCount, maxRetries, errorMessage);
+	                        
+	                        logger.warn(rateLimitMessage);
+	                        
+	                        // Wait before retrying
+                            Thread.sleep( TimeUnit.SECONDS.toMillis( waitSeconds ) );
+                            shouldRetry = true;
+	                    } 
+	                    else 
+	                    {
+	                        // Max retries exceeded
+	                        throw new IOException("Max retries exceeded for rate limit. Error: " + errorMessage);
+	                    }
+	                }
+	                else if (response.statusCode() != 200) 
+	                {
+	                    // Handle other error codes
+	                    String responseBody = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
+	                    throw new IOException("Request failed with status code: " + response.statusCode() + " and response body: " + responseBody);
+	                }
+	                else 
+	                {
+	                    // Process successful response
+	                    try (var inputStream = response.body();
+	                         var inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
+	                         var reader = new BufferedReader(inputStreamReader))
+	                    {
+	                        String line;
+	                        Incoming.Type incomingType = null;
+	                        
+	                        while ((line = reader.readLine()) != null && !isCancelled.get())
+	                        {
+	                            // Skip empty lines and ping messages
+	                            if (line.isEmpty()) 
+	                            {
+	                                continue;
+	                            }
+	                            // Handle data: prefix (SSE format)
+	                            if (line.startsWith("data:")) 
+	                            {
+	                                line = line.substring(5).trim();
+	                                // Skip [DONE] marker
+	                                if ("[DONE]".equals(line)) {
+	                                    continue;
+	                                }
+	                                try 
+	                                {
+	                                    var node = objectMapper.readTree(line);
+	                                    var type = node.has("type") ? node.get("type").asText() : "";
+	                                    
+	                                    // ignore pings
+	                                    if ("ping".equals(type))
+	                                    {
+	                                        continue;
+	                                    }
+	                                    
+	                                    if ("content_block_start".equals(type))
+	                                    {
+	                                        incomingType = switch (node.get("content_block").get("type").asText())
+	                                        {
+	                                            case "text" -> Incoming.Type.CONTENT;
+	                                            case "tool_use" -> Incoming.Type.FUNCTION_CALL;
+	                                            default -> null;
+	                                        };
+	                                    }
+	                                    // Handle tool use events (function calls)
+	                                    if ("content_block_start".equals(type) && Incoming.Type.FUNCTION_CALL.equals(incomingType)) 
+	                                    {
+	                                        JsonNode toolUseNode = node.get("content_block");
+	                                        String toolName = toolUseNode.get("name").asText();
+	                                        String toolId = toolUseNode.get("id").asText();
+	                                        
+	                                        JsonNode inputNode = toolUseNode.get("input");
+	                                        String arguments = inputNode.toString();
+	                                        
+	                                        publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL, 
+	                                                String.format("\"function_call\" : { \n \"name\": \"%s\",\n \"id\": \"%s\",\n \"arguments\" :", toolName, toolId)));
+	                                    }
+	                                    // Handle content blocks
+	                                    if ("content_block_delta".equals(type) && Objects.nonNull(incomingType)) 
+	                                    {
+	                                        var delta = node.get("delta");
+	                                        if (Objects.nonNull(delta))
+	                                        {
+	                                            if (delta.has("text"))
+	                                            {
+	                                                publisher.submit(new Incoming(incomingType, delta.get("text").asText()));
+	                                            }
+	                                            else if (delta.has("partial_json"))
+	                                            {
+	                                                publisher.submit(new Incoming(incomingType, delta.get("partial_json").asText()));
+	                                            }
+	                                        }
+	                                    } 
+	
+	                                } 
+	                                catch (Exception e) 
+	                                {
+	                                    // Handle parsing errors but continue processing
+	                                    logger.error("Error parsing response line: " + line, e);
+	                                }
+	                            }
+	                        }
+	                    }
+	                }
+	            } 
+	            catch (Exception e) 
+	            {
+	                logger.error(e.getMessage(), e);
+	                publisher.closeExceptionally(e);
+	            }
+	            finally 
+	            {
+	                if (!shouldRetry) 
+	                {
+	                    if (isCancelled.get()) 
+	                    {
+	                        publisher.closeExceptionally(new CancellationException());
+	                    } 
+	                    else 
+	                    {
+	                        publisher.close();
+	                    }
+	                }
+	            }
+	        } while (shouldRetry && !isCancelled.get());
+	    };
+	}
+	   
 }
