@@ -4,10 +4,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +62,9 @@ public class CodeEditingService
     
     @Inject
     UISynchronize sync;
+    
+    @Inject
+    CodeAnalysisService codeAnalysisService;
     
 	/**
 	 * Creates a directory structure (recursively) in the specified project.
@@ -195,10 +196,13 @@ public class CodeEditingService
 	        // Get the most recent history state
 	        IFileState previousState = history[0];
 	        
+	        var previousContentString = new String( ResourceUtilities.readInputStream(previousState.getContents()), Charset.forName( file.getCharset() ));
+	        String diff = generateCodeDiff(projectName, filePath, previousContentString, 3 );
+	        
 	        // Restore the file from the previous state
-	        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(
-	                ResourceUtilities.readInputStream(previousState.getContents()))) {
-	            file.setContents(inputStream, IResource.FORCE, null);
+	        try (ByteArrayInputStream source = new ByteArrayInputStream(previousContentString.getBytes(Charset.forName( file.getCharset() )))) 
+	        {
+	            file.setContents(source, IResource.FORCE, null);
 	        }
 	        
 	        // Add this line to refresh the parent container (or project)
@@ -211,7 +215,7 @@ public class CodeEditingService
 	        });
 	        
 	        return "Success: Undid last edit in file '" + filePath + "' in project '" + projectName + "'." +
-            "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
+	        	   "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
 	    } 
 	    catch (CoreException | IOException e) 
 	    {
@@ -360,8 +364,11 @@ public class CodeEditingService
 	        	modifiedContent.append("\n");
 	        }
 	        
+	        var modifiedContentString = modifiedContent.toString();
+	        String diff = generateCodeDiff(projectName, filePath, modifiedContentString, 3);
+	        
 	        // Write back to the file
-	        try (ByteArrayInputStream source = new ByteArrayInputStream(modifiedContent.toString().getBytes(StandardCharsets.UTF_8))) 
+	        try (ByteArrayInputStream source = new ByteArrayInputStream(modifiedContentString.getBytes(Charset.forName( file.getCharset() )))) 
 	        {
 	            file.setContents(source, IResource.FORCE, null);
 	        }
@@ -372,15 +379,10 @@ public class CodeEditingService
 	        	refreshEditor(file);
 	        });
 	
-	        String rangeInfo = "";
-	        if (startLine != null || endLine != null) {
-	            rangeInfo = " within range (lines " + 
-	                      (startLine != null ? startLine : 1) + " to " + 
-	                      (endLine != null ? endLine : totalLines) + ")";
-	        }
 	        
-	        return "Success: String replaced in file '" + filePath + "' in project '" + projectName + "'" + rangeInfo + "." +
-	        "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
+	        return "Success: String replaced in file '" + filePath + "' in project '" + projectName + "'. "  + "'.\n" +
+	        	   "Changes:\n```diff\n" + diff + "\n```";
+	        
 	    } 
 	    catch (CoreException | IOException e) 
 	    {
@@ -478,9 +480,11 @@ public class CodeEditingService
 	            }
 	        }
 	        
+	        var modifiedContentString = modifiedContent.toString();
+	        String diff = generateCodeDiff(projectName, filePath, modifiedContentString, 3);
+
 	        // Write back to the file
-	        try (ByteArrayInputStream source = new ByteArrayInputStream(
-	                modifiedContent.toString().getBytes(StandardCharsets.UTF_8))) 
+	        try (ByteArrayInputStream source = new ByteArrayInputStream(modifiedContentString.getBytes(Charset.forName( file.getCharset() )))) 
 	        {
 	            file.setContents(source, IResource.FORCE, null);
 	        }
@@ -494,8 +498,8 @@ public class CodeEditingService
 	        	refreshEditor(file);	
 	        });
 	        
-	        return "Success: Content inserted after line " + afterLine + " in file '" + filePath + "' in project '" + projectName + "'." +
-            "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
+	        return "Success: file '" + filePath + "' in project '" + projectName + "' was updated.\n" +
+	        	   "Changes:\n```diff\n" + diff + "\n```";
 
 	    } 
 	    catch (CoreException | IOException e) 
@@ -801,9 +805,8 @@ public class CodeEditingService
 	        {
 	            ResourceUtilities.createFolderHierarchy((IFolder) parent);
 	        }
-	        
 	        // Create the file with content
-	        ByteArrayInputStream source = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+	        ByteArrayInputStream source = new ByteArrayInputStream(content.getBytes(Charset.forName( project.getDefaultCharset() )));
 			file.create(source, true, null);
 	        // Add this line to refresh the parent container (or project)
 	        file.getParent().refreshLocal(IResource.DEPTH_ONE, null);
@@ -814,11 +817,9 @@ public class CodeEditingService
 	        	refreshEditor(file);
 	        });
 	        
-	        return "Success: File '" + normalizedPath + "' created in project '" + projectName + "'. " +
-	               "The file may have been opened in the editor if a UI session is available. " +
-	               "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
+	        return "Success: File '" + normalizedPath + "' created in project '" + projectName + "'.";
 	    } 
-	    catch ( IOException | CoreException e) 
+	    catch ( CoreException e) 
 	    {
 	        throw new RuntimeException( e );
 	    }
@@ -949,9 +950,14 @@ public class CodeEditingService
                 modifiedContent.append("\n");
 	        }
 	        
+	        var modifiedContentString = modifiedContent.toString();
+	        // Generate diff between old and new versions
+	        String diff = generateCodeDiff(projectName, filePath, modifiedContentString, 3);
+
+	        
 			// Write back to the file
 	        try (ByteArrayInputStream source = new ByteArrayInputStream(
-	                modifiedContent.toString().getBytes( Charset.forName(file.getCharset())))) 
+	        		modifiedContentString.getBytes( Charset.forName(file.getCharset())))) 
 	        {
 	            file.setContents(source, IResource.FORCE, null);
 	        }
@@ -964,11 +970,9 @@ public class CodeEditingService
 	            refreshEditor(file);
 	        });
 	        
-	        int linesReplaced = effectiveEndLine - startLine + 1;
-	        return "Success: Replaced " + linesReplaced + " line" + (linesReplaced != 1 ? "s" : "") + 
-	               " (lines " + startLine + " to " + effectiveEndLine + ") in file '" + 
-	               filePath + "' in project '" + projectName + "'. " +
-	               "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
+	        
+	        return "Success: file '" + filePath + "' in project '" + projectName + "' was updated.\n" +
+	        	   "Changes:\n```diff\n" + diff + "\n```";
 	    } 
 	    catch (CoreException | IOException e) 
 	    {
