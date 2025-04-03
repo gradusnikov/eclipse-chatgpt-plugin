@@ -28,23 +28,23 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.createFileAndOpen(projectName, filePath, content);
     }
 
-    @Tool(name="insertIntoFile", description="Insert content into a file at a specified line position, using 0-based line indexing.", type="object")
+    @Tool(name="insertIntoFile", description="Insert content into a file at a specified line position, using 1-based line indexing.", type="object")
     public String insertIntoFile(
         @ToolParam(name = "projectName", description = "The name of the project containing the file", required = true) String projectName,
         @ToolParam(name = "filePath", description = "The path to the file relative to the project root. Do not include project name!", required = true) String filePath,
         @ToolParam(name = "content", description = "The content to insert into the file", required = true) String content,
-        @ToolParam(name = "line", description = "The line number to which to insert the text (0-based index, where 0 is the first line)", required = false) String line) 
+        @ToolParam(name = "line", description = "The line number to which to insert the text (1-based index)", required = false) String line) 
     {
         int lineNum = Optional.ofNullable(line).map(Integer::parseInt).orElse(0);
         return codeEditingService.insertIntoFile(projectName, filePath, content, lineNum);
     }
 
-//    @Tool(name="replaceLines", description="Replace specific lines in a file with new content. Ensure accurate line range selection to avoid duplication or misplacement. Use 0-based line indexing.", type="object")
+//    @Tool(name="replaceLines", description="Replace specific lines in a file with new content. Ensure accurate line range selection to avoid duplication or misplacement. Use 1-based line indexing.", type="object")
 //    public String replaceLines(
 //        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
 //        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
-//        @ToolParam(name="startLine", description="The line number to start replacement from (0-based index, where 0 is the first line).", required=true) String startLine,
-//        @ToolParam(name="endLine", description="The line number to end replacement at (inclusive, 0-based index).", required=true) String endLine,
+//        @ToolParam(name="startLine", description="The line number to start replacement from (1-based index).", required=true) String startLine,
+//        @ToolParam(name="endLine", description="The line number to end replacement at (inclusive, 1-based index).", required=true) String endLine,
 //        @ToolParam(name="replacementContent", description="The new content to insert in place of the deleted lines", required=true) String replacementContent) 
 //    {
 //        int startLineNum = Integer.parseInt(startLine);
@@ -58,8 +58,8 @@ public class EclipseCodeEditingMcpServer
         @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
         @ToolParam(name="oldString", description="The text to replace (must match exactly, including whitespace and indentation)", required=true) String oldString,
         @ToolParam(name="newString", description="The new text to insert in place of the old text", required=true) String newString,
-        @ToolParam(name="startLine", description="Optional line number to start searching from (0-based index, where 0 is the first line)", required=false) String startLine,
-        @ToolParam(name="endLine", description="Optional line number to end searching at (0-based index, where 0 is the first line)", required=false) String endLine) 
+        @ToolParam(name="startLine", description="Optional line number to start searching from (1-based index)", required=false) String startLine,
+        @ToolParam(name="endLine", description="Optional line number to end searching at (1-based index)", required=false) String endLine) 
     {
         Integer startLineNum = Optional.ofNullable(startLine).map(Integer::parseInt).orElse(null);
         Integer endLineNum = Optional.ofNullable(endLine).map(Integer::parseInt).orElse(null);

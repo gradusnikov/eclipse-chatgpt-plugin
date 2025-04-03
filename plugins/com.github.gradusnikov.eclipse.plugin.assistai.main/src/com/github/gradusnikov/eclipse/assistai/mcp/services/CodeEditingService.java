@@ -398,10 +398,10 @@ public class CodeEditingService
 	 * @param projectName The name of the project containing the file
 	 * @param filePath The path to the file relative to the project root
 	 * @param content The content to insert into the file
-	 * @param afterLine The line number after which to insert the text (0 for beginning of file)
+	 * @param atLine The line number after which to insert the text (0 for beginning of file)
 	 * @return A status message indicating success or failure
 	 */
-	public String insertIntoFile(String projectName, String filePath, String content, int afterLine) 
+	public String insertIntoFile(String projectName, String filePath, String content, int atLine) 
 	{
 		Objects.requireNonNull(projectName);
 		Objects.requireNonNull(filePath);
@@ -448,17 +448,19 @@ public class CodeEditingService
 	        });
 	        List<String> lines = ResourceUtilities.readFileLines(file);
 	        
+	        // convert to 0-based indexing
+	        var effectiveAtLine = atLine - 1;
 	        // Validate line number
-	        if (afterLine < 0 || afterLine > lines.size() ) 
+	        if (effectiveAtLine < 0 || effectiveAtLine > lines.size() ) 
 	        {
-	            throw new RuntimeException("Error: Invalid line number " + afterLine + ". File has " + lines.size() + " lines.");
+	            throw new RuntimeException("Error: Invalid line number " + atLine + ". File has " + lines.size() + " lines.");
 	        }
 	        
 	        // Build the new content
 	        StringBuilder modifiedContent = new StringBuilder();
 	        
 	        // Add lines before insertion point
-	        for (int i = 0; i < afterLine; i++) 
+	        for (int i = 0; i < effectiveAtLine; i++) 
 	        {
 	            modifiedContent.append(lines.get(i)).append("\n");
 	        }
@@ -471,7 +473,7 @@ public class CodeEditingService
 	        }
 	        
 	        // Add the remaining lines
-	        for (int i = afterLine; i < lines.size(); i++) 
+	        for (int i = effectiveAtLine; i < lines.size(); i++) 
 	        {
 	            modifiedContent.append(lines.get(i) );
 	            if (i < lines.size() - 1) 
@@ -920,19 +922,20 @@ public class CodeEditingService
 	        
 	        // Validate line numbers
 	        int totalLines = lines.size();
-	        
-	        if (startLine < 0 || endLine < startLine ||  startLine >= totalLines ) 
+	        int effectiveStartLine = startLine -1;
+	        int effectiveEndLine = endLine - 1;
+	        if (effectiveStartLine < 0 || effectiveEndLine < effectiveStartLine ||  effectiveStartLine >= totalLines ) 
 	        {
 	            throw new IllegalArgumentException("Error: Invalid line range specified.");
 	        }
 	        
 	        // Ensure endLine is within bounds
-	        int effectiveEndLine = Math.max( Math.min( endLine, totalLines - 1), 0 );
+	        effectiveEndLine = Math.max( Math.min( endLine, totalLines - 1), 0 );
 	        
 	        StringBuilder modifiedContent = new StringBuilder();
 	        
 	        // Store lines before startLine
-	        for (int i = 0; i < startLine; i++) 
+	        for (int i = 0; i < effectiveStartLine; i++) 
 	        {
 	            modifiedContent.append( lines.get(i) );
                 modifiedContent.append("\n");
