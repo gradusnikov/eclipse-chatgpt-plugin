@@ -2,13 +2,13 @@ package com.github.gradusnikov.eclipse.assistai.prompt;
 
 public enum Prompts
 {
-    SYSTEM("system-prompt.txt", "System"),
-    DISCUSS("discuss-prompt.txt", "Discuss"),
-    DOCUMENT("document-prompt.txt", "Document"),
-    FIX_ERRORS("fix-errors-prompt.txt", "Fix Errors"),
-    GIT_COMMENT("gitcomment-prompt.txt", "Git Comment"),
-    REFACTOR("refactor-prompt.txt", "Refactor"),
-    TEST_CASE("testcase-prompt.txt", "JUnit Test case");
+    SYSTEM("system-prompt.md", "System"),
+    DISCUSS("discuss-prompt.md", "Discuss"),
+    DOCUMENT("document-prompt.md", "Document"),
+    FIX_ERRORS("fix-errors-prompt.md", "Fix Errors"),
+    GIT_COMMENT("gitcomment-prompt.md", "Git Comment"),
+    REFACTOR("refactor-prompt.md", "Refactor"),
+    TEST_CASE("testcase-prompt.md", "JUnit Test case");
 
     private final String fileName;
     private final String description;

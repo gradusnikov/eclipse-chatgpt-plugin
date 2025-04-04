@@ -1,38 +1,34 @@
 package com.github.gradusnikov.eclipse.assistai.prompt;
 
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
-
-import jakarta.annotation.PostConstruct;
-import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
-import org.eclipse.jface.preference.IPreferenceStore;
 
-import com.github.gradusnikov.eclipse.assistai.Activator;
-import com.github.gradusnikov.eclipse.assistai.handlers.Context;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
+import com.github.gradusnikov.eclipse.assistai.repository.PromptRepository;
+
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
 @Creatable
 @Singleton
 public class ChatMessageFactory
 {
-	private IPreferenceStore preferenceStore;
     
 	@Inject
-    private PromptLoader promptLoader;
-
+	private PromptContextValueProvider contextValues;
+	
+	@Inject
+	private PromptRepository promptRepository;
+	
     public ChatMessageFactory()
     {
         
     }
-    @PostConstruct
-    public void init()
-    {
-        preferenceStore = Activator.getDefault().getPreferenceStore();
-    }
-
     public ChatMessage createAssistantChatMessage( String text )
     {
         ChatMessage message = new ChatMessage( UUID.randomUUID().toString(), "assistant" );
@@ -41,74 +37,49 @@ public class ChatMessageFactory
 
     }
     
-    public ChatMessage createUserChatMessage( Prompts type, Context context )
+    public ChatMessage createUserChatMessage( Prompts type)
     {
         Supplier<String> promptSupplier =
             switch ( type )
             {
-                case DOCUMENT   -> javaDocPromptSupplier( context );
-                case TEST_CASE  -> unitTestSupplier( context );
-                case REFACTOR   -> refactorPromptSupplier( context );
-                case DISCUSS    -> discussCodePromptSupplier( context );
-                case FIX_ERRORS -> fixErrorsPromptSupplier( context );
+                case DOCUMENT   -> javaDocPromptSupplier();
+                case TEST_CASE  -> unitTestSupplier();
+                case REFACTOR   -> refactorPromptSupplier(); 
+                case DISCUSS    -> discussCodePromptSupplier();
+                case FIX_ERRORS -> fixErrorsPromptSupplier( );
                 default ->
                     throw new IllegalArgumentException();
             };
         return createUserChatMessage( promptSupplier );
     }
     
-    private Supplier<String> fixErrorsPromptSupplier( Context context )
+    private Supplier<String> fixErrorsPromptSupplier( )
     {
-        return () -> promptLoader.updatePromptText( preferenceStore.getString( Prompts.FIX_ERRORS.preferenceName() ), 
-                "${documentText}", context.fileContents(),
-                "${fileName}", context.fileName(),
-                "${lang}", context.lang(),
-                "${errors}", context.selectedContent()
-                );
+        return () -> updatePromptText( promptRepository.getPrompt( Prompts.FIX_ERRORS.name() ) );
     }
 
-    private Supplier<String> discussCodePromptSupplier( Context context )
+    private Supplier<String> discussCodePromptSupplier()
     {
-        return () -> promptLoader.updatePromptText( preferenceStore.getString( Prompts.DISCUSS.preferenceName() ), 
-                "${documentText}", context.fileContents(),
-                "${fileName}", context.fileName(),
-                "${lang}", context.lang()
-                );
+        return () -> updatePromptText( promptRepository.getPrompt( Prompts.DISCUSS.name() ) );
     }
 
-    private Supplier<String> javaDocPromptSupplier( Context context )
+    private Supplier<String> javaDocPromptSupplier()
     {
-        return () -> promptLoader.updatePromptText( preferenceStore.getString( Prompts.DOCUMENT.preferenceName() ), 
-                    "${documentText}", context.fileContents(),
-                    "${javaType}", context.selectedItemType(),
-                    "${name}", context.selectedItem(),
-                    "${lang}", context.lang()
-                    );
+        return () -> updatePromptText( promptRepository.getPrompt( Prompts.DOCUMENT.name() ) );
     }
-    private Supplier<String> refactorPromptSupplier( Context context )
+    private Supplier<String> refactorPromptSupplier()
     {
-        return () -> promptLoader.updatePromptText( preferenceStore.getString( Prompts.REFACTOR.preferenceName() ), 
-                "${documentText}", context.fileContents(),
-                "${selectedText}", context.selectedContent(),
-                "${fileName}", context.fileName(),
-                "${lang}", context.lang()
-                );
+        return () -> updatePromptText( promptRepository.getPrompt( Prompts.REFACTOR.name() ) );
     }
-    private Supplier<String> unitTestSupplier( Context context )
+    private Supplier<String> unitTestSupplier( )
     {
-        return () -> promptLoader.updatePromptText( preferenceStore.getString( Prompts.TEST_CASE.preferenceName() ), 
-                "${documentText}", context.fileContents(),
-                "${javaType}", context.selectedItemType(),
-                "${name}", context.selectedItem(),
-                "${lang}", context.lang()
-                );
+        return () -> updatePromptText( promptRepository.getPrompt( Prompts.TEST_CASE.name() ) );
     }
 
     
-    public ChatMessage createGenerateGitCommitCommentJob( String patch )
+    public ChatMessage createGenerateGitCommitCommentJob( )
     {
-        Supplier<String> promptSupplier  =  () -> promptLoader.updatePromptText( preferenceStore.getString( Prompts.GIT_COMMENT.preferenceName() ), 
-                "${content}", patch );
+        Supplier<String> promptSupplier  =  () -> updatePromptText( promptRepository.getPrompt( Prompts.GIT_COMMENT.name() ) );
         
         return createUserChatMessage( promptSupplier );
     }
@@ -119,7 +90,23 @@ public class ChatMessageFactory
         message.setContent( promptSupplier.get() );
         return message;        
     }
-
+    
+    public String updatePromptText(String promptText) 
+    {
+        var pattern = Pattern.compile("\\$\\{(\\S+)\\}");
+        var matcher = pattern.matcher(promptText);
+        var out = new StringBuilder();
+        while (matcher.find()) 
+        {
+            var key = matcher.group(1);
+            String replacement = Optional.ofNullable( contextValues.getContextValue(key) )
+                                         .map(Matcher::quoteReplacement)
+                                         .orElse( "" );
+            matcher.appendReplacement(out, replacement);
+        }
+        matcher.appendTail(out);
+        return out.toString();
+    }
 
 
 }

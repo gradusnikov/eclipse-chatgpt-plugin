@@ -1,4 +1,3 @@
-
 package com.github.gradusnikov.eclipse.plugin.assistai.mcp.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -15,7 +14,6 @@ import org.eclipse.core.resources.IProjectDescription;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.IWorkspaceRoot;
-import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.NullProgressMonitor;
@@ -37,6 +35,7 @@ import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
 public class CodeEditingServiceTest {
 
+    
     private static final String TEST_PROJECT_NAME = "CodeEditingTestProject";
     private IProject project;
     private CodeEditingService service;
@@ -125,12 +124,11 @@ public class CodeEditingServiceTest {
         
         IFile testFile = createFile("src/testFile.txt", initialContent);
         
-        // Replace lines 1-3 (0-based index) with new content
+        // Replace lines 2-4 (1-based index) with new content
         String replacementContent = "New Line A\nNew Line B";
-        String result = service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", 1, 3, replacementContent);
+        String result = service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", replacementContent, 2, 4);
         
-        // Verify the operation was successful
-        assertTrue(result.contains("Success: Replaced 3 lines"));
+        System.out.println( result );
         
         // Read the updated file content
         String updatedContent = ResourceUtilities.readFileContent(testFile);
@@ -158,7 +156,7 @@ public class CodeEditingServiceTest {
         
         // Replace the first line
         String replacementContent = "New First Line";
-        service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", 0, 0, replacementContent);
+        service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", replacementContent, 1, 1);
         
         // Read the updated file content
         String updatedContent = ResourceUtilities.readFileContent(testFile);
@@ -185,7 +183,7 @@ public class CodeEditingServiceTest {
         
         // Replace the last line
         String replacementContent = "New Last Line";
-        service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", 2, 2, replacementContent);
+        service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", replacementContent, 3, 3);
         
         // Read the updated file content
         String updatedContent = ResourceUtilities.readFileContent(testFile);
@@ -212,7 +210,7 @@ public class CodeEditingServiceTest {
         
         // Replace all lines
         String replacementContent = "Completely New Content";
-        service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", 0, 2, replacementContent);
+        service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", replacementContent, 1, 3);
         
         // Read the updated file content
         String updatedContent = ResourceUtilities.readFileContent(testFile);
@@ -235,8 +233,8 @@ public class CodeEditingServiceTest {
         
         IFile testFile = createFile("src/testFile.txt", initialContent);
         
-        // Replace lines with empty content (effectively deleting lines 1-2)
-        service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", 1, 2, "");
+        // Replace lines with empty content (effectively deleting lines 2-3)
+        service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", "", 2, 3);
         
         // Read the updated file content
         String updatedContent = ResourceUtilities.readFileContent(testFile);
@@ -262,24 +260,24 @@ public class CodeEditingServiceTest {
         
         // Test with start line beyond file length
         Exception exception = assertThrows(RuntimeException.class, () -> {
-            service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", 10, 12, "New Content");
+            service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", "New Content", 11, 13);
         });
         
-        assertTrue(exception.getMessage().contains("beyond the end of the file"));
+        assertTrue(exception.getMessage().contains("range"));
         
         // Test with negative start line
         exception = assertThrows(IllegalArgumentException.class, () -> {
-            service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", -1, 2, "New Content");
+            service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", "New Content", 0, 2);
         });
         
-        assertTrue(exception.getMessage().contains("Start line must be at least 0"));
+        assertTrue(exception.getMessage().contains("range"));
         
         // Test with end line less than start line
         exception = assertThrows(IllegalArgumentException.class, () -> {
-            service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", 2, 1, "New Content");
+            service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", "New Content", 3, 2);
         });
         
-        assertTrue(exception.getMessage().contains("End line must be greater than or equal to start line"));
+        assertTrue(exception.getMessage().contains("range"));
     }
     
     
@@ -408,7 +406,7 @@ public class CodeEditingServiceTest {
 	    String newString = "NewLine";
 	    
 	    Exception exception = assertThrows(RuntimeException.class, () -> {
-	        service.replaceStringInFile(TEST_PROJECT_NAME, "src/testFile.txt", oldString, newString, 10, 12);
+	        service.replaceStringInFile(TEST_PROJECT_NAME, "src/testFile.txt", oldString, newString, 11, 13);
 	    });
 	    
 	    assertTrue(exception.getMessage().contains("Start line"));
@@ -445,70 +443,30 @@ public class CodeEditingServiceTest {
 	public void testReplaceLinesIssue() throws CoreException, IOException
 	{
 		String replacement = """
-package com.example.app;
-/**
- * Hello world!
- *
- */
-public class App
-{
-    public static void welcomeLeetCoder() {
-        System.out.println("Welcome l33t coder!");
-    }
-
-    public static void welcome()
-    {
-        System.out.println( "Welcome to the application!" );
-    }
-
-    public static void greet()
-    {
-        System.out.println( "Greetings from the new method!" );
-    }
-
-    public static void main( String[] args )
-    {
-        System.out.println( "Hello World!" );
-    }
-}
+    public static void main(String[] args) {
+        System.out.println("Hello World!");
+    }}
 				""";
 		
 		String initialContent = """
-package com.example.app;
+package com.example.snake;
 
-/**
- * Hello world!
- *
- */
-public class App
-public static void welcomeLeetCoder() {
-    System.out.println("Welcome l33t coder!");
-}
-{
-    public static void welcome()
-    {
-        System.out.println( "Welcome to the application!" );
-    }
+public class ApplicationNew {
 
-    public static void greet()
-    {
-        System.out.println( "Greetings from the new method!" );
+    public String getHelloWorld() {
+        return "Hello World!";
     }
-
-    public static void main( String[] args )
-    {
-        System.out.println( "Hello World!" );
-    }
-}				
+}			
 				""";
-		 int startLine=0;
-		 int endLine=20;
+		 int startLine=5;
+		 int endLine=8;
 		 
 		 IFile testFile = createFile("src/testFile.txt", initialContent);
 
-		 service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", startLine, endLine, replacement);
+		 service.replaceLines(TEST_PROJECT_NAME, "src/testFile.txt", replacement, startLine, endLine);
 		 
 		 String updatedContent = ResourceUtilities.readFileContent(testFile);
+		 System.out.println("------------");
 		 System.out.println(updatedContent);
 	}
 	

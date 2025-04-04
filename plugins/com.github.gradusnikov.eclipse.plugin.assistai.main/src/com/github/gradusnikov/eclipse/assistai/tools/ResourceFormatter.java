@@ -1,12 +1,10 @@
-package com.github.gradusnikov.eclipse.assistai.handlers;
+package com.github.gradusnikov.eclipse.assistai.tools;
 
 import java.io.IOException;
 import java.util.List;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
-
-import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
 /**
  * Formats the content of Eclipse resource files with line numbers for display.

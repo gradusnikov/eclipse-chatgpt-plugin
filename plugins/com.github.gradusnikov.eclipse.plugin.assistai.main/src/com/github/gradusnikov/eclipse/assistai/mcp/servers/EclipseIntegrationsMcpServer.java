@@ -113,7 +113,7 @@ public class EclipseIntegrationsMcpServer
     @Tool(name="getCurrentlyOpenedFile", description="Gets information about the currently active file in the Eclipse editor.", type="object")
     public String getCurrentlyOpenedFile() 
     {
-        return editorService.getCurrentlyOpenedFile();
+        return editorService.getCurrentlyOpenedFileContent();
     }
     @Tool(name="getEditorSelection", description="Gets the currently selected text or lines in the active editor.", type="object")
     public String getEditorSelection() 

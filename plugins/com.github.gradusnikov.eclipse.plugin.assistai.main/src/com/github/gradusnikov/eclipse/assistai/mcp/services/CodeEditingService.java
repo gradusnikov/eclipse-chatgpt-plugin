@@ -864,8 +864,8 @@ public class CodeEditingService
 	 * 
 	 * @param projectName The name of the project containing the file
 	 * @param filePath The path to the file relative to the project root
-	 * @param startLine The line number to start replacement from (0-based index, where 0 is the first line)
-	 * @param endLine The line number to end replacement at (inclusive, 0-based index)
+	 * @param startLine The line number to start replacement from (1-based index)
+	 * @param endLine The line number to end replacement at (inclusive, 1-based index)
 	 * @param replacementContent The new content to insert in place of the deleted lines
 	 * @return A status message indicating success or failure
 	 */
@@ -922,20 +922,20 @@ public class CodeEditingService
 	        
 	        // Validate line numbers
 	        int totalLines = lines.size();
-	        int effectiveStartLine = startLine -1;
-	        int effectiveEndLine = endLine - 1;
-	        if (effectiveStartLine < 0 || effectiveEndLine < effectiveStartLine ||  effectiveStartLine >= totalLines ) 
+	        int startLine0 = startLine -1;
+	        int endLine0   = endLine - 1;
+	        if (startLine0 < 0 || endLine0 < startLine0 ||  startLine0 >= totalLines ) 
 	        {
 	            throw new IllegalArgumentException("Error: Invalid line range specified.");
 	        }
 	        
 	        // Ensure endLine is within bounds
-	        effectiveEndLine = Math.max( Math.min( endLine, totalLines - 1), 0 );
+	        endLine0 = Math.max( Math.min( endLine0, totalLines - 1), 0 );
 	        
 	        StringBuilder modifiedContent = new StringBuilder();
 	        
 	        // Store lines before startLine
-	        for (int i = 0; i < effectiveStartLine; i++) 
+	        for (int i = 0; i < startLine0; i++) 
 	        {
 	            modifiedContent.append( lines.get(i) );
                 modifiedContent.append("\n");
@@ -947,7 +947,7 @@ public class CodeEditingService
 	            modifiedContent.append("\n");
 	        }
 	        // Add lines after replacement
-	        for (int i = effectiveEndLine + 1; i < totalLines; i++) 
+	        for (int i = endLine0 + 1; i < totalLines; i++) 
 	        {
 	            modifiedContent.append(lines.get(i));
                 modifiedContent.append("\n");

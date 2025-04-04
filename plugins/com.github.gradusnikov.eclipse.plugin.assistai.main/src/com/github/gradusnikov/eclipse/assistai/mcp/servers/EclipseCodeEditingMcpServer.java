@@ -39,7 +39,46 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.insertIntoFile(projectName, filePath, content, lineNum);
     }
 
-//    @Tool(name="replaceLines", description="Replace specific lines in a file with new content. Ensure accurate line range selection to avoid duplication or misplacement. Use 1-based line indexing.", type="object")
+    /**
+     * LLMs have problems with correctly using replace lines, in contrary to
+     * replace string.
+     * <p>
+     * This is their argumentation:
+     * <br>
+     * <quote> When using replaceString, I only
+     * needed to identify the exact string to replace and provide a new string.
+     * The tool handled the replacement precisely, regardless of the internal
+     * structure of the file.
+     * 
+     * With replaceLines, I encountered several issues:
+     * 
+     * 1. Line counting error: In my first attempt, I didn't correctly account
+     * for all the lines in the original code block, which led to a malformed
+     * replacement where some closing braces were duplicated.
+     * 
+     * 2. Boundary identification: I needed to be very precise about which lines
+     * to include in the replacement. With replaceString, the tool automatically
+     * finds the exact string boundaries, but with replaceLines, I had to
+     * manually specify start and end lines.
+     * 
+     * 3. Content integrity: When replacing lines, I needed to ensure that the
+     * replacement content maintained the correct structure of the code,
+     * including proper indentation and braces. I accidentally introduced syntax
+     * errors by not properly closing the array declaration.
+     * 
+     * The fundamental difference is that replaceString operates on exact string
+     * matching (regardless of line boundaries), while replaceLines operates on
+     * a line-by-line basis that requires precise line counting and boundary
+     * identification.
+     * 
+     * This demonstrates an important lesson: replaceString is often safer for
+     * replacing well-defined blocks of code because it ensures exact matching,
+     * while replaceLines requires more careful handling of line numbers and
+     * content structure. </quote>
+     * <p>
+     * Note: this is why this tool is disabled
+     */
+//    @Tool(name="replaceLines", description="Replace specific lines in a file with new content. Ensure accurate line range selection to avoid duplication or misplacement. Use 1-based line indexing. This function works by first deleting a code block between startLine and endLine, and then inserting new content at startLine. Important: carefully analyze the code structure before making the replacement. Be careful about identifying the exact content and boundaries.", type="object")
 //    public String replaceLines(
 //        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
 //        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,

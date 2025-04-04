@@ -26,20 +26,7 @@ public class PromptLoader
 	{
 	}
 	
-	
-	public String updatePromptText( String promptText, String... substitutions )
-	{
-        if (substitutions.length % 2 != 0)
-        {
-            throw new IllegalArgumentException("Expecting key, value pairs");
 
-        }
-        for (int i = 0; i < substitutions.length; i = i + 2)
-        {
-            promptText = promptText.replace(substitutions[i], substitutions[i + 1]);
-        }
-        return promptText;
-	}
 	
 
     public String getDefaultPrompt( String resourceFile )
