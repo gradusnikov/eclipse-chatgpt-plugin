@@ -6,7 +6,7 @@ import java.util.Scanner;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-import org.apache.commons.lang3.StringEscapeUtils;
+import org.apache.commons.text.StringEscapeUtils;
 
 /**
  * A utility class for parsing and converting a text prompt to an HTML formatted string.
