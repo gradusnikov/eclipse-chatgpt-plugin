@@ -527,7 +527,7 @@ public class ChatGPTViewPart
      */
     private String loadJavaScripts()
     {
-        String[] jsFiles = { "highlight.min.js", "textview.js" };
+        String[] jsFiles = { "highlight.min.js", "MathJax/es5/tex-mml-svg.js", "textview.js" };
         StringBuilder js = new StringBuilder();
         for ( String file : jsFiles )
         {
@@ -552,7 +552,7 @@ public class ChatGPTViewPart
 
             String fixedHtml = escapeHtmlQuotes( fixLineBreaks( parser.parseToHtml() ) );
             // inject and highlight html message
-            browser.execute( "document.getElementById(\"message-" + messageId + "\").innerHTML = '" + fixedHtml + "';hljs.highlightAll();" );
+            browser.execute( "document.getElementById(\"message-" + messageId + "\").innerHTML = '" + fixedHtml + "';renderCode();" );
             // Scroll down
             browser.execute( "window.scrollTo(0, document.body.scrollHeight);" );
         } );
