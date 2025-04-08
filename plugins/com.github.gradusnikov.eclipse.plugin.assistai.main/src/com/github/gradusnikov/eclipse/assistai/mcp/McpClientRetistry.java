@@ -20,7 +20,6 @@ import org.eclipse.jface.preference.IPreferenceStore;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpClientServerFactory.InMemorySyncClientServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.McpServerBuiltins;
-import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor;
 import com.github.gradusnikov.eclipse.assistai.preferences.McpServerDescriptorUtilities;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 import com.github.gradusnikov.eclipse.assistai.tools.EclipseVariableUtilities;

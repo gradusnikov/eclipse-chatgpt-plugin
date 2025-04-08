@@ -1,6 +1,5 @@
 package com.github.gradusnikov.eclipse.assistai.preferences;
 
-import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepository;
 
 

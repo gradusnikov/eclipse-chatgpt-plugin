@@ -5,7 +5,6 @@ import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.McpServerBuiltins;
-import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 

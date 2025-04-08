@@ -14,9 +14,9 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
-import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor;
-import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor.McpServerDescriptorWithStatus;
-import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor.Status;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor.McpServerDescriptorWithStatus;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor.Status;
 
 /**
  * Presenter for MCP Server preferences

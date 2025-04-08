@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.model;
+package com.github.gradusnikov.eclipse.assistai.mcp;
 
 import java.util.List;
 

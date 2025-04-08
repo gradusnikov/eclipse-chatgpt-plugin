@@ -37,7 +37,7 @@ import com.github.gradusnikov.eclipse.assistai.model.Attachment;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.model.Incoming;
-import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.preferences.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 

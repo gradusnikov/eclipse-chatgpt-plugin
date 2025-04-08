@@ -7,7 +7,7 @@ import java.util.List;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
 
 /**
  * Utilities for serializing and deserializing MCP Server descriptors

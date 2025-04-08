@@ -37,9 +37,9 @@ import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
-import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor;
-import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor.EnvironmentVariable;
-import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor.McpServerDescriptorWithStatus;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor.EnvironmentVariable;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor.McpServerDescriptorWithStatus;
 
 /**
  * Preference page for MCP Server settings

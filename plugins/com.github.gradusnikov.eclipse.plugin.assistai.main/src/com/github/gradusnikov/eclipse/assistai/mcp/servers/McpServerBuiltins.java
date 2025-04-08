@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServer;
-import com.github.gradusnikov.eclipse.assistai.model.McpServerDescriptor;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
 
 public class McpServerBuiltins
 {
