@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
+import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.repository.PromptRepository;
 
 import jakarta.inject.Inject;

@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.model;
+package com.github.gradusnikov.eclipse.assistai.chat;
 
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jface.resource.ImageDescriptor;

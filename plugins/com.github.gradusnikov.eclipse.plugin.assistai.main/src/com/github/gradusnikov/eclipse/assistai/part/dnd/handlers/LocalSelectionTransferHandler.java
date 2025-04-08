@@ -19,7 +19,7 @@ import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.ui.texteditor.ITextEditor;
 
-import com.github.gradusnikov.eclipse.assistai.model.Attachment.FileContentAttachment;
+import com.github.gradusnikov.eclipse.assistai.chat.Attachment.FileContentAttachment;
 import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 import com.google.common.collect.Sets;
 

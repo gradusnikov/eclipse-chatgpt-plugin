@@ -45,13 +45,13 @@ import org.osgi.service.prefs.BackingStoreException;
 import org.osgi.service.prefs.Preferences;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
+import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
+import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
+import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
+import com.github.gradusnikov.eclipse.assistai.chat.Attachment.FileContentAttachment;
 import com.github.gradusnikov.eclipse.assistai.jobs.AssistAIJobConstants;
 import com.github.gradusnikov.eclipse.assistai.jobs.SendConversationJob;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
-import com.github.gradusnikov.eclipse.assistai.model.Attachment;
-import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
-import com.github.gradusnikov.eclipse.assistai.model.Conversation;
-import com.github.gradusnikov.eclipse.assistai.model.Attachment.FileContentAttachment;
 import com.github.gradusnikov.eclipse.assistai.preferences.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageUtilities;

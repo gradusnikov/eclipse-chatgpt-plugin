@@ -36,13 +36,13 @@ Automatic-Module-Name: assistai.main
 Bundle-Classpath: .
 Bundle-ActivationPolicy: lazy
 Export-Package: com.github.gradusnikov.eclipse.assistai,
+ com.github.gradusnikov.eclipse.assistai.chat,
  com.github.gradusnikov.eclipse.assistai.commands,
  com.github.gradusnikov.eclipse.assistai.handlers,
  com.github.gradusnikov.eclipse.assistai.jobs,
  com.github.gradusnikov.eclipse.assistai.mcp,
  com.github.gradusnikov.eclipse.assistai.mcp.servers,
  com.github.gradusnikov.eclipse.assistai.mcp.services,
- com.github.gradusnikov.eclipse.assistai.model,
  com.github.gradusnikov.eclipse.assistai.part,
  com.github.gradusnikov.eclipse.assistai.part.dnd,
  com.github.gradusnikov.eclipse.assistai.part.dnd.handlers,

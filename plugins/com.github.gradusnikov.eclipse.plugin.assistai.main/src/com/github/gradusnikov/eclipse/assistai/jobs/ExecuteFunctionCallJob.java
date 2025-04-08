@@ -15,11 +15,11 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
+import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
+import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
+import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
+import com.github.gradusnikov.eclipse.assistai.chat.FunctionCall;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
-import com.github.gradusnikov.eclipse.assistai.model.Attachment;
-import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
-import com.github.gradusnikov.eclipse.assistai.model.Conversation;
-import com.github.gradusnikov.eclipse.assistai.model.FunctionCall;
 
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;

@@ -6,8 +6,8 @@ import java.util.stream.Collectors;
 
 import org.eclipse.swt.graphics.ImageData;
 
-import com.github.gradusnikov.eclipse.assistai.model.Attachment;
-import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
+import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
+import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
 public class ChatMessageUtilities

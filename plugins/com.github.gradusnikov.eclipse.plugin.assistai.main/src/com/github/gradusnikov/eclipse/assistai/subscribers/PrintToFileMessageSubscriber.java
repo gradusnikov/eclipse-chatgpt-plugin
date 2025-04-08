@@ -14,7 +14,7 @@ import jakarta.inject.Singleton;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.github.gradusnikov.eclipse.assistai.model.Incoming;
+import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 
 @Creatable
 @Singleton

@@ -5,7 +5,7 @@ import java.util.concurrent.Flow.Subscription;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.github.gradusnikov.eclipse.assistai.model.Incoming;
+import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 
 import jakarta.inject.Singleton;
 

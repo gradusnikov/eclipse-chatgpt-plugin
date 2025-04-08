@@ -58,8 +58,8 @@ import org.eclipse.swt.widgets.ToolItem;
 import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.PlatformUI;
 
-import com.github.gradusnikov.eclipse.assistai.model.Attachment;
-import com.github.gradusnikov.eclipse.assistai.model.Attachment.UiVisitor;
+import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
+import com.github.gradusnikov.eclipse.assistai.chat.Attachment.UiVisitor;
 import com.github.gradusnikov.eclipse.assistai.part.dnd.DropManager;
 import com.github.gradusnikov.eclipse.assistai.preferences.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptParser;

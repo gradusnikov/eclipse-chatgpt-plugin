@@ -10,10 +10,10 @@ import jakarta.inject.Singleton;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
-import com.github.gradusnikov.eclipse.assistai.model.Conversation;
-import com.github.gradusnikov.eclipse.assistai.model.Incoming;
-import com.github.gradusnikov.eclipse.assistai.model.Incoming.Type;
+import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
+import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
+import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
+import com.github.gradusnikov.eclipse.assistai.chat.Incoming.Type;
 import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 
 @Creatable

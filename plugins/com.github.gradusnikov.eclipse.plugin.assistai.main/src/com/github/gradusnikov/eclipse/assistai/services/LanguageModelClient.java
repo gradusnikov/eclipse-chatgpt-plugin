@@ -3,8 +3,8 @@ package com.github.gradusnikov.eclipse.assistai.services;
 import java.util.concurrent.Flow;
 import java.util.function.Supplier;
 
-import com.github.gradusnikov.eclipse.assistai.model.Conversation;
-import com.github.gradusnikov.eclipse.assistai.model.Incoming;
+import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
+import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 
 public interface LanguageModelClient
 {
