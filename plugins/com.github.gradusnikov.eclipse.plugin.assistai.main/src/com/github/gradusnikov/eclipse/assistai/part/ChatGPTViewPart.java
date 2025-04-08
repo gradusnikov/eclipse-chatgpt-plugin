@@ -61,7 +61,7 @@ import org.eclipse.ui.PlatformUI;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment.UiVisitor;
 import com.github.gradusnikov.eclipse.assistai.part.dnd.DropManager;
-import com.github.gradusnikov.eclipse.assistai.preferences.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptParser;
 import com.github.gradusnikov.eclipse.assistai.tools.AssistaiSharedImages;
 

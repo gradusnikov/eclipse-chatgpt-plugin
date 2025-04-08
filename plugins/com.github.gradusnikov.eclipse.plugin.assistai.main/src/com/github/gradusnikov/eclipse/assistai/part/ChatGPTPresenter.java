@@ -52,7 +52,7 @@ import com.github.gradusnikov.eclipse.assistai.chat.Attachment.FileContentAttach
 import com.github.gradusnikov.eclipse.assistai.jobs.AssistAIJobConstants;
 import com.github.gradusnikov.eclipse.assistai.jobs.SendConversationJob;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
-import com.github.gradusnikov.eclipse.assistai.preferences.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageUtilities;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;

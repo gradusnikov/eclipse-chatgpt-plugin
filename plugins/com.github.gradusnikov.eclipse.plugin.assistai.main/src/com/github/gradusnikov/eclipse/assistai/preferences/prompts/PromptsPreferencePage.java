@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.preferences;
+package com.github.gradusnikov.eclipse.assistai.preferences.prompts;
 
 import java.util.Objects;
 

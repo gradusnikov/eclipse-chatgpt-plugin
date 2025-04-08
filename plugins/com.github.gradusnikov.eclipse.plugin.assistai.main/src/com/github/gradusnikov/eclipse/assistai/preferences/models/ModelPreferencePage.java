@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.preferences;
+package com.github.gradusnikov.eclipse.assistai.preferences.models;
 
 import java.util.Arrays;
 
@@ -12,6 +12,8 @@ import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
+import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
+import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorUtilities;
 
 
 public class ModelPreferencePage extends FieldEditorPreferencePage implements IWorkbenchPreferencePage

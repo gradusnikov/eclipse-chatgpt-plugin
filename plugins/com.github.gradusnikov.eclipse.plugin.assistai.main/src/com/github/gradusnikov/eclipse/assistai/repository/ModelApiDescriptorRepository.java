@@ -10,9 +10,8 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
-import com.github.gradusnikov.eclipse.assistai.preferences.ModelApiDescriptor;
-import com.github.gradusnikov.eclipse.assistai.preferences.ModelApiDescriptorUtilities;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
+import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;

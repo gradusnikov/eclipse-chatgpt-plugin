@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.preferences;
+package com.github.gradusnikov.eclipse.assistai.preferences.models;
 
 import java.util.Arrays;
 import java.util.Objects;

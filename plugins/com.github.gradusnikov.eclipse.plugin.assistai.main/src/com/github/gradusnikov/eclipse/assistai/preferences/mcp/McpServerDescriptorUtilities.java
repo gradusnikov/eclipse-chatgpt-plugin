@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.preferences;
+package com.github.gradusnikov.eclipse.assistai.preferences.mcp;
 
 import java.util.ArrayList;
 import java.util.Arrays;

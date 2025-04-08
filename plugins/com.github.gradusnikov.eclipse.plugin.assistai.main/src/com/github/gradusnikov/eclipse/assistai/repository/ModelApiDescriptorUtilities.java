@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.preferences;
+package com.github.gradusnikov.eclipse.assistai.repository;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -7,6 +7,7 @@ import java.util.List;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 
 public class ModelApiDescriptorUtilities
 {

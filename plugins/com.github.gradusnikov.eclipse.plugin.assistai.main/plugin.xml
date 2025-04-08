@@ -14,7 +14,7 @@
          point="org.eclipse.ui.preferencePages">
       
       <page
-            class="com.github.gradusnikov.eclipse.assistai.preferences.ModelPreferencePage"
+            class="com.github.gradusnikov.eclipse.assistai.preferences.models.ModelPreferencePage"
             id="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
             name="AssistAI">
       </page>
@@ -22,19 +22,19 @@
             id="com.github.gradusnikov.eclipse.assistai.preferences.PromptsPreferencePage"
             name="Prompts"
             category="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
-            class="com.github.gradusnikov.eclipse.assistai.preferences.PromptsPreferencePage">
+            class="com.github.gradusnikov.eclipse.assistai.preferences.prompts.PromptsPreferencePage">
         </page>      
         <page
             id="com.github.gradusnikov.eclipse.assistai.preferences.ModelListPreferencePage"
             name="Models"
             category="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
-            class="com.github.gradusnikov.eclipse.assistai.preferences.ModelListPreferencePage">
+            class="com.github.gradusnikov.eclipse.assistai.preferences.models.ModelListPreferencePage">
         </page>
         <page
             id="com.github.gradusnikov.eclipse.assistai.preferences.McpServerPreferencePage"
             name="MCP Servers"
             category="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
-            class="com.github.gradusnikov.eclipse.assistai.preferences.McpServerPreferencePage">
+            class="com.github.gradusnikov.eclipse.assistai.preferences.mcp.McpServerPreferencePage">
         </page>
    </extension>
    <extension

@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.preferences;
+package com.github.gradusnikov.eclipse.assistai.preferences.mcp;
 
 import java.util.List;
 import java.util.Objects;
@@ -17,6 +17,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor.McpServerDescriptorWithStatus;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor.Status;
+import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 
 /**
  * Presenter for MCP Server preferences
