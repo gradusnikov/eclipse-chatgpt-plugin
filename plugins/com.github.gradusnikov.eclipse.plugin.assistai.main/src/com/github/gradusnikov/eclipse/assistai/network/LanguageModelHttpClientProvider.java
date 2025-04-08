@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.services;
+package com.github.gradusnikov.eclipse.assistai.network;
 
 
 import org.eclipse.e4.core.di.annotations.Creatable;

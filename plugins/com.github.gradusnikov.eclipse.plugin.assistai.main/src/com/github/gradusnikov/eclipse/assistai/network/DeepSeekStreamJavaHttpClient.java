@@ -1,5 +1,5 @@
 
-package com.github.gradusnikov.eclipse.assistai.services;
+package com.github.gradusnikov.eclipse.assistai.network;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
