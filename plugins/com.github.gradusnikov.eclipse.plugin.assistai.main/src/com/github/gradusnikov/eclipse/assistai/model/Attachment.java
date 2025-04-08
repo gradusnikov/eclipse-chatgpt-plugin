@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.part;
+package com.github.gradusnikov.eclipse.assistai.model;
 
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jface.resource.ImageDescriptor;

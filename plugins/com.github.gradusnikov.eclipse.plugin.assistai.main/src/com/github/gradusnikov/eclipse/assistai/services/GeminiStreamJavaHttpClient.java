@@ -31,11 +31,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
+import com.github.gradusnikov.eclipse.assistai.model.Attachment;
 import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.model.Conversation;
 import com.github.gradusnikov.eclipse.assistai.model.Incoming;
 import com.github.gradusnikov.eclipse.assistai.model.ModelApiDescriptor;
-import com.github.gradusnikov.eclipse.assistai.part.Attachment;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 

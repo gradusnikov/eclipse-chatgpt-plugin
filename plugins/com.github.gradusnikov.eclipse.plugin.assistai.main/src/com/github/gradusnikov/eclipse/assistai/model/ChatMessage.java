@@ -6,8 +6,6 @@ import java.util.Objects;
 
 import org.apache.commons.lang3.StringUtils;
 
-import com.github.gradusnikov.eclipse.assistai.part.Attachment;
-
 /**
  * Represents a chat message with an ID, role, number of tokens, and the message
  * content.

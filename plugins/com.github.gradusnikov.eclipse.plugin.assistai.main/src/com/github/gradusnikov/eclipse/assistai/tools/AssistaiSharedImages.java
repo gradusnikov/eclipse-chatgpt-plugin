@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.part;
+package com.github.gradusnikov.eclipse.assistai.tools;
 
 import java.net.URI;
 import java.net.URISyntaxException;

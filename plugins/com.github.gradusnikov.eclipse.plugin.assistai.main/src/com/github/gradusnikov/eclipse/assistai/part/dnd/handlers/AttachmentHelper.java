@@ -12,8 +12,8 @@ import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.text.Document;
 import org.eclipse.swt.graphics.ImageData;
 
-import com.github.gradusnikov.eclipse.assistai.part.Attachment.FileContentAttachment;
 import com.github.gradusnikov.eclipse.assistai.tools.ContentTypeDetector;
+import com.github.gradusnikov.eclipse.assistai.model.Attachment.FileContentAttachment;
 import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 
 import jakarta.inject.Inject;
