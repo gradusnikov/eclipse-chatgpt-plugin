@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.part;
+package com.github.gradusnikov.eclipse.assistai.view;
 
 import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.Separator;

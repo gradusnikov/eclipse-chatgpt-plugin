@@ -14,7 +14,7 @@ import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming.Type;
-import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
+import com.github.gradusnikov.eclipse.assistai.view.ChatGPTPresenter;
 
 @Creatable
 @Singleton

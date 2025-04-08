@@ -38,7 +38,7 @@
     </elements>
   </fragments>
   <fragments xsi:type="fragment:StringModelFragment" xmi:id="_AQJWAM2tEe2ZG5Twjghs_w" featurename="descriptors" parentElementId="xpath:/">
-    <elements xsi:type="basic:PartDescriptor" xmi:id="_CF9oIM2tEe2ZG5Twjghs_w" elementId="assistai.partdescriptor.chatgptview" label="AI Chat" iconURI="platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/icons/assistai-16.png" category="Assist AI" closeable="true" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.part.ChatGPTViewPart">
+    <elements xsi:type="basic:PartDescriptor" xmi:id="_CF9oIM2tEe2ZG5Twjghs_w" elementId="assistai.partdescriptor.chatgptview" label="AI Chat" iconURI="platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/icons/assistai-16.png" category="Assist AI" closeable="true" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.view.ChatGPTViewPart">
       <tags>View</tags>
       <tags>categoryTag:Assist AI</tags>
     </elements>

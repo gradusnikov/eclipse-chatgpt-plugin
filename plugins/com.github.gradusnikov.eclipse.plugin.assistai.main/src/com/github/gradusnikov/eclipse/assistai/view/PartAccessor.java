@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.part;
+package com.github.gradusnikov.eclipse.assistai.view;
 
 import java.util.Optional;
 

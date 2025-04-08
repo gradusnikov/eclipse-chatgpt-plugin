@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.part;
+package com.github.gradusnikov.eclipse.assistai.view;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -60,10 +60,10 @@ import org.eclipse.ui.PlatformUI;
 
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment.UiVisitor;
-import com.github.gradusnikov.eclipse.assistai.part.dnd.DropManager;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptParser;
 import com.github.gradusnikov.eclipse.assistai.tools.AssistaiSharedImages;
+import com.github.gradusnikov.eclipse.assistai.view.dnd.DropManager;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;

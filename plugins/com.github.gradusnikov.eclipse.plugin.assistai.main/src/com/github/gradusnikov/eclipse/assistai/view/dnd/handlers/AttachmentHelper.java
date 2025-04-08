@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.part.dnd.handlers;
+package com.github.gradusnikov.eclipse.assistai.view.dnd.handlers;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,8 +13,8 @@ import org.eclipse.jface.text.Document;
 import org.eclipse.swt.graphics.ImageData;
 
 import com.github.gradusnikov.eclipse.assistai.tools.ContentTypeDetector;
+import com.github.gradusnikov.eclipse.assistai.view.ChatGPTPresenter;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment.FileContentAttachment;
-import com.github.gradusnikov.eclipse.assistai.part.ChatGPTPresenter;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;

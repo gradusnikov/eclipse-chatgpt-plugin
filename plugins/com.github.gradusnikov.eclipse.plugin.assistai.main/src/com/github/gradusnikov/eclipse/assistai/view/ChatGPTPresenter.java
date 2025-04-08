@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.part;
+package com.github.gradusnikov.eclipse.assistai.view;
 
 import static com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities.createPreview;
 

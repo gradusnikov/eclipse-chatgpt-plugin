@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.part.dnd;
+package com.github.gradusnikov.eclipse.assistai.view.dnd;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -12,7 +12,7 @@ import org.eclipse.swt.dnd.DropTargetEvent;
 import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.widgets.Control;
 
-import com.github.gradusnikov.eclipse.assistai.part.dnd.handlers.TransferHandlerFactory;
+import com.github.gradusnikov.eclipse.assistai.view.dnd.handlers.TransferHandlerFactory;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;

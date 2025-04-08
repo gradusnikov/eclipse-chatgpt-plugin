@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.part.dnd.handlers;
+package com.github.gradusnikov.eclipse.assistai.view.dnd.handlers;
 
 import java.io.IOException;
 import java.net.URI;
