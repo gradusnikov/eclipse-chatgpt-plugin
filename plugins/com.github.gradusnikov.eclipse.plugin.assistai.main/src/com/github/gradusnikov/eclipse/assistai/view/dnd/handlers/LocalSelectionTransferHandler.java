@@ -20,7 +20,7 @@ import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment.FileContentAttachment;
-import com.github.gradusnikov.eclipse.assistai.view.ChatGPTPresenter;
+import com.github.gradusnikov.eclipse.assistai.view.ChatViewPresenter;
 import com.google.common.collect.Sets;
 
 import jakarta.inject.Inject;
@@ -35,7 +35,7 @@ public class LocalSelectionTransferHandler implements ITransferHandler
     @Inject
     private ILog                  logger;
     @Inject
-    private ChatGPTPresenter      presenter;
+    private ChatViewPresenter      presenter;
 
     @Override
     public Transfer getTransferType()

@@ -67,7 +67,7 @@ import jakarta.inject.Singleton;
 
 @Creatable
 @Singleton
-public class ChatGPTPresenter
+public class ChatViewPresenter
 {
     @Inject
     private ILog                          logger;
@@ -297,7 +297,7 @@ public class ChatGPTPresenter
         } );
     }
 
-    public void applyToView( Consumer<? super ChatGPTViewPart> consumer )
+    public void applyToView( Consumer<? super ChatView> consumer )
     {
         partAccessor.findMessageView().ifPresent( consumer );
     }

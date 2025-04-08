@@ -5,7 +5,7 @@ import org.eclipse.swt.dnd.ImageTransfer;
 import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.graphics.ImageData;
 
-import com.github.gradusnikov.eclipse.assistai.view.ChatGPTPresenter;
+import com.github.gradusnikov.eclipse.assistai.view.ChatViewPresenter;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -16,7 +16,7 @@ public class ImageTransferHandler implements ITransferHandler
 {
     private static final ImageTransfer TRANSFER = ImageTransfer.getInstance();
     @Inject
-    private ChatGPTPresenter presenter;
+    private ChatViewPresenter presenter;
 
     @Override
     public Transfer getTransferType()

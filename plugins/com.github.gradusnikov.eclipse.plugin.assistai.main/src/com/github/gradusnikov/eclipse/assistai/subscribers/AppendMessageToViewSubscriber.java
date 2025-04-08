@@ -14,7 +14,7 @@ import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming.Type;
-import com.github.gradusnikov.eclipse.assistai.view.ChatGPTPresenter;
+import com.github.gradusnikov.eclipse.assistai.view.ChatViewPresenter;
 
 @Creatable
 @Singleton
@@ -25,7 +25,7 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
     
     private Flow.Subscription subscription;
     
-    private ChatGPTPresenter presenter;
+    private ChatViewPresenter presenter;
     
     private ChatMessage currentMessage;
     
@@ -37,7 +37,7 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
     {
     }
     
-    public void setPresenter(ChatGPTPresenter presenter)
+    public void setPresenter(ChatViewPresenter presenter)
     {
         this.presenter = presenter;
     }

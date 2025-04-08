@@ -68,7 +68,7 @@ import com.github.gradusnikov.eclipse.assistai.view.dnd.DropManager;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
-public class ChatGPTViewPart
+public class ChatView
 {
 
     private Browser              browser;
@@ -80,7 +80,7 @@ public class ChatGPTViewPart
     private ILog                 logger;
 
     @Inject
-    private ChatGPTPresenter     presenter;
+    private ChatViewPresenter     presenter;
 
     @Inject
     private DropManager          dropManager;
@@ -102,7 +102,7 @@ public class ChatGPTViewPart
 
 	private Menu modelMenu;
     
-    public ChatGPTViewPart()
+    public ChatView()
     {
     }
 

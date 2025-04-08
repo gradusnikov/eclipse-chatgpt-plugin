@@ -27,7 +27,7 @@
   <fragments xsi:type="fragment:StringModelFragment" xmi:id="_pVgfIIrOEeW7h_qdP9N9fw" featurename="menuContributions" parentElementId="xpath:/">
     <elements xsi:type="menu:MenuContribution" xmi:id="_BducUIrPEeW7h_qdP9N9fw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.menucontribution.1" positionInParent="after=additions" parentId="popup">
       <persistedState key="persistState" value="false"/>
-      <children xsi:type="menu:Menu" xmi:id="_Dtii0IrPEeW7h_qdP9N9fw" elementId="org.eclipse.pde.ui.templates.menu.e4handlers" label="Assist AI" iconURI="platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/icons/assistai-16.png" tooltip="" mnemonics=" CTRL + I">
+      <children xsi:type="menu:Menu" xmi:id="_Dtii0IrPEeW7h_qdP9N9fw" elementId="com.github.gradusnikov.eclipse.assistai.main.menu" label="Assist AI" iconURI="platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/icons/assistai-16.png" tooltip="" mnemonics=" CTRL + I">
         <children xsi:type="menu:HandledMenuItem" xmi:id="_s6Bw0PDVEe26l_NIXSJcoA" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handledmenuitem.0" label="Discuss" tooltip="Discuss with ChatGPT about the opened file" command="_eYD8MPDVEe26l_NIXSJcoA"/>
         <children xsi:type="menu:HandledMenuItem" xmi:id="_Dtii0YrPEeW7h_qdP9N9fw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handledmenuitem.1" label="Refactor" iconURI="" tooltip="Asks ChatGPT to refactor the selected code" command="_UCYfwIrOEeW7h_qdP9N9fw"/>
         <children xsi:type="menu:HandledMenuItem" xmi:id="_weYC8N9eEe2hsMR7OZZDNw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handledmenuitem.2" label="Document" tooltip="Asks ChatGPT to document class or method with JavaDoc" command="_TgvO8N9eEe2hsMR7OZZDNw"/>
@@ -38,7 +38,7 @@
     </elements>
   </fragments>
   <fragments xsi:type="fragment:StringModelFragment" xmi:id="_AQJWAM2tEe2ZG5Twjghs_w" featurename="descriptors" parentElementId="xpath:/">
-    <elements xsi:type="basic:PartDescriptor" xmi:id="_CF9oIM2tEe2ZG5Twjghs_w" elementId="assistai.partdescriptor.chatgptview" label="AI Chat" iconURI="platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/icons/assistai-16.png" category="Assist AI" closeable="true" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.view.ChatGPTViewPart">
+    <elements xsi:type="basic:PartDescriptor" xmi:id="_CF9oIM2tEe2ZG5Twjghs_w" elementId="com.github.gradusnikov.eclipse.assistai.view.ChatView" label="AI Chat" iconURI="platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/icons/assistai-16.png" category="Assist AI" closeable="true" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.view.ChatView">
       <tags>View</tags>
       <tags>categoryTag:Assist AI</tags>
     </elements>
