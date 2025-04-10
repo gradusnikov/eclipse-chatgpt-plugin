@@ -42,6 +42,7 @@ body {
 /* Ensure inline elements stay inline */
 .chat-bubble i, .chat-bubble em, .chat-bubble b, .chat-bubble strong, .chat-bubble span, .chat-bubble a {
   display: inline;
+  white-space: normal;
 }
 
 .chat-bubble pre, .chat-bubble pre span {
@@ -161,16 +162,21 @@ summary {
 }
 
 /* Make inline katex elements not wrap */
-.inline-katex, .inline-latex {
+.inline-katex, .inline-latex, 
+.inline-katex *, .inline-latex * {
     white-space: nowrap !important;
 }
 
 /* Center block katex elements */
 .block-katex, .block-latex {
-    white-space: nowrap !important;
-	display: block !important;
+    display: block !important;
     text-align: center !important;
     margin: 1em auto !important;
+    white-space: nowrap !important;
 }
 
+/* Apply nowrap to all descendants of block-katex/latex */
+.block-katex *, .block-latex * {
+    white-space: nowrap !important;
+}
 
