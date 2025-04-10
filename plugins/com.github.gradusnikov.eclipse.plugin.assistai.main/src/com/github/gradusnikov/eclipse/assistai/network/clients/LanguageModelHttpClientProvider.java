@@ -1,12 +1,12 @@
-package com.github.gradusnikov.eclipse.assistai.network;
+package com.github.gradusnikov.eclipse.assistai.network.clients;
 
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.github.gradusnikov.eclipse.assistai.subscribers.AppendMessageToViewSubscriber;
-import com.github.gradusnikov.eclipse.assistai.subscribers.FunctionCallSubscriber;
-import com.github.gradusnikov.eclipse.assistai.subscribers.PrintMessageSubscriber;
-import com.github.gradusnikov.eclipse.assistai.subscribers.PrintToFileMessageSubscriber;
+import com.github.gradusnikov.eclipse.assistai.network.subscribers.AppendMessageToViewSubscriber;
+import com.github.gradusnikov.eclipse.assistai.network.subscribers.FunctionCallSubscriber;
+import com.github.gradusnikov.eclipse.assistai.network.subscribers.PrintMessageSubscriber;
+import com.github.gradusnikov.eclipse.assistai.network.subscribers.PrintToFileMessageSubscriber;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Provider;

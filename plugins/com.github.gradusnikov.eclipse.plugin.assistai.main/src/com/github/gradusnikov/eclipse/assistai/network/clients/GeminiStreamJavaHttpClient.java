@@ -1,5 +1,5 @@
 
-package com.github.gradusnikov.eclipse.assistai.network;
+package com.github.gradusnikov.eclipse.assistai.network.clients;
 
 import java.net.URI;
 import java.net.http.HttpClient;

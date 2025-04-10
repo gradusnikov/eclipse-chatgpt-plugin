@@ -27,29 +27,44 @@ function updateFunctionCallSummaries() {
 function renderLatex() {
     // Convert block latex tags
     document.querySelectorAll('.block-latex').forEach(elem => {
-        let decodedLatex = atob(elem.innerHTML);
-        elem.outerHTML = '\\\[' + decodedLatex + '\\\]';
+        let latexString = '\[' + atob(elem.innerHTML) + '\]';
+        let latexHtml = katex.renderToString(latexString, {throwOnError: false});
+        // Create a temporary element to manipulate the generated HTML
+        let tempDiv = document.createElement('div');
+        tempDiv.innerHTML = latexHtml;
+        // Add block-katex class to the katex span
+        let katexSpan = tempDiv.querySelector('.katex');
+        if (katexSpan) {
+            katexSpan.classList.add('block-katex');
+        }
+        elem.outerHTML = tempDiv.innerHTML;
     });
     
     // Convert inline latex tags
     document.querySelectorAll('.inline-latex').forEach(elem => {
-        let decodedLatex = atob(elem.innerHTML);
-        elem.outerHTML = '\\\(' + decodedLatex + '\\\)';
+        let latexString = atob(elem.innerHTML);
+        let latexHtml = katex.renderToString(latexString, {throwOnError: false});
+        // Create a temporary element to manipulate the generated HTML
+        let tempDiv = document.createElement('div');
+        tempDiv.innerHTML = latexHtml;
+        // Add inline-katex class to the katex span
+        let katexSpan = tempDiv.querySelector('.katex');
+        if (katexSpan) {
+            katexSpan.classList.add('inline-katex');
+        }
+        elem.outerHTML = tempDiv.innerHTML;
     });
-    
-    MathJax.typeset();
 }
 
 function renderInlineCode() {
     document.querySelectorAll('.inline-code').forEach(elem => {
-        let decodedCode = atob(elem.innerHTML);
-        elem.outerHTML = '<code>' + decodedCode + '</code>';
+        elem.outerHTML = '<code>' + elem.innerHTML + '</code>';
     });
-    hljs.highlightAll();
 }
 
 function renderCode() {
   renderInlineCode();
   renderLatex();
-  updateFunctionCallSummaries(); 
+  updateFunctionCallSummaries();
+  hljs.highlightAll(); 
 }

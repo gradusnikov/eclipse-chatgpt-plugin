@@ -31,7 +31,7 @@ public class PartAccessor
     public Optional<ChatView> findMessageView() 
     {
         // Find the MessageView by element ID in the application model
-        return modelService.findElements(application, "assistai.partdescriptor.chatgptview", MPart.class)
+        return modelService.findElements(application, "com.github.gradusnikov.eclipse.assistai.view.ChatView", MPart.class)
                                            .stream()
                                            .findFirst()
                                            .map( mpart -> mpart.getObject() )

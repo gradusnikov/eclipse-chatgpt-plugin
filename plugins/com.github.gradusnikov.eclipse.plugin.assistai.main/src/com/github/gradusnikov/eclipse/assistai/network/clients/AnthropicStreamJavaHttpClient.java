@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.network;
+package com.github.gradusnikov.eclipse.assistai.network.clients;
 
 import java.io.BufferedReader;
 import java.io.IOException;

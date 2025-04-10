@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="pdfbox/commons-logging-1.2.jar"/>
+	<classpathentry exported="true" kind="lib" path="pdfbox/fontbox-2.0.27.jar"/>
 	<classpathentry exported="true" kind="lib" path="mcp/byte-buddy-1.14.9.jar"/>
 	<classpathentry exported="true" kind="lib" path="mcp/jakarta.servlet-api-6.1.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="mcp/mcp-0.8.0-SNAPSHOT.jar"/>

@@ -1,0 +1,19 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: AssistAI Eclipse Plugin
+Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.main;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Bundle-Vendor: Gradusnikov
+Automatic-Module-Name: com.github.gradusnikov.eclipse.plugin.assistai.main
+Bundle-RequiredExecutionEnvironment: JavaSE-17
+Require-Bundle: org.eclipse.ui,
+ org.eclipse.core.runtime,
+ org.eclipse.e4.ui.model.workbench,
+ org.eclipse.e4.core.di,
+ org.eclipse.e4.ui.di,
+ org.eclipse.e4.core.contexts
+Bundle-ClassPath: .,
+ lib/fontbox-2.0.27.jar,
+ lib/commons-logging-1.2.jar
+Export-Package: com.github.gradusnikov.eclipse.assistai.tools
+Bundle-ActivationPolicy: lazy

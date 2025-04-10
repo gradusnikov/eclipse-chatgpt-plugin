@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.subscribers;
+package com.github.gradusnikov.eclipse.assistai.network.subscribers;
 
 import java.io.IOException;
 import java.nio.file.Files;

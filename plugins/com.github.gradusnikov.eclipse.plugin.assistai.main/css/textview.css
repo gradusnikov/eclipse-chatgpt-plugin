@@ -42,10 +42,10 @@ body {
 /* Ensure inline elements stay inline */
 .chat-bubble i, .chat-bubble em, .chat-bubble b, .chat-bubble strong, .chat-bubble span, .chat-bubble a {
   display: inline;
-  white-space: normal;
 }
+
 .chat-bubble pre, .chat-bubble pre span {
-	white-space: pre;	
+  white-space: pre;	
 }
 /* Code formatting */
 code {
@@ -160,14 +160,17 @@ summary {
     margin: 10px 0;
 }
 
-.inline-latex {
-    display: inline-block;
+/* Make inline katex elements not wrap */
+.inline-katex, .inline-latex {
+    white-space: nowrap !important;
 }
 
-.block-latex {
-    display: block;
-    text-align: center;
-    margin: 1em 0;
+/* Center block katex elements */
+.block-katex, .block-latex {
+    white-space: nowrap !important;
+	display: block !important;
+    text-align: center !important;
+    margin: 1em auto !important;
 }
 
 

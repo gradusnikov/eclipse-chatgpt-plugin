@@ -1,20 +1,16 @@
 package com.github.gradusnikov.eclipse.assistai.view;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.commons.lang3.StringUtils;
-import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.ui.di.Focus;
 import org.eclipse.e4.ui.di.UISynchronize;
@@ -61,8 +57,10 @@ import org.eclipse.ui.PlatformUI;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment.UiVisitor;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
-import com.github.gradusnikov.eclipse.assistai.prompt.PromptParser;
+import com.github.gradusnikov.eclipse.assistai.prompt.MarkdownParser;
+import com.github.gradusnikov.eclipse.assistai.tools.AssistaiSharedFiles;
 import com.github.gradusnikov.eclipse.assistai.tools.AssistaiSharedImages;
+import com.github.gradusnikov.eclipse.assistai.tools.AssistaiSharedFonts;
 import com.github.gradusnikov.eclipse.assistai.view.dnd.DropManager;
 
 import jakarta.annotation.PostConstruct;
@@ -87,6 +85,12 @@ public class ChatView
 
     @Inject
     private AssistaiSharedImages sharedImages;
+    
+    @Inject
+    private AssistaiSharedFiles  sharedFiles;
+    
+    @Inject
+    private AssistaiSharedFonts sharedFonts;
     
     private LocalResourceManager resourceManager;
 
@@ -476,8 +480,10 @@ public class ChatView
     private void initializeChatView( Browser browser )
     {
         String htmlTemplate = """
+                <!DOCTYPE html>
                 <html>
                     <style>${css}</style>
+                    <style>${fonts}</style>
                     <script>${js}</script>
                     <body>
                             <div id="content">
@@ -486,14 +492,24 @@ public class ChatView
                 </html>
                 """;
 
-        String js = loadJavaScripts();
-        String css = loadCss();
-        htmlTemplate = htmlTemplate.replace( "${js}", js );
-        htmlTemplate = htmlTemplate.replace( "${css}", css );
+        String js    = loadJavaScripts();
+        String css   = loadCss();
+        String fonts = loadFonts();
+        htmlTemplate = htmlTemplate.replace( "${css}", css )
+                                   .replace( "${fonts}", fonts )
+                                   .replace( "${js}", js );
 
         // Initialize the browser with base HTML and CSS
         browser.setText( htmlTemplate );
     }
+
+
+
+    private String loadFonts()
+    {
+        return sharedFonts.loadFontsCss();
+    }
+
 
     /**
      * Loads the CSS files for the ChatGPTViewPart component.
@@ -503,22 +519,12 @@ public class ChatView
      */
     private String loadCss()
     {
-        StringBuilder css = new StringBuilder();
-        String[] cssFiles = { "textview.css", "dark.min.css", "fa6.all.min.css" };
-        for ( String file : cssFiles )
-        {
-            try (InputStream in = FileLocator.toFileURL( new URI( "platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/css/" + file ).toURL() )
-                    .openStream())
-            {
-                css.append( new String( in.readAllBytes(), StandardCharsets.UTF_8 ) );
-                css.append( "\n" );
-            }
-            catch ( IOException | URISyntaxException e )
-            {
-                throw new RuntimeException( e );
-            }
-        }
-        return css.toString();
+        String[] cssFiles = { "textview.css", "dark.min.css", "fa6.all.min.css", "katex.min.css" };
+        var cssContent = Arrays.stream( cssFiles )
+                               .map( file -> "css/" + file)
+                               .map( sharedFiles::readFile )
+                               .collect( Collectors.joining( "\n" ) );
+        return cssContent;
     }
 
     /**
@@ -529,28 +535,19 @@ public class ChatView
      */
     private String loadJavaScripts()
     {
-        String[] jsFiles = { "highlight.min.js", "MathJax/es5/tex-mml-svg.js", "textview.js" };
-        StringBuilder js = new StringBuilder();
-        for ( String file : jsFiles )
-        {
-            try (InputStream in = FileLocator.toFileURL( new URL( "platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/js/" + file ) )
-                    .openStream())
-            {
-                js.append( new String( in.readAllBytes(), StandardCharsets.UTF_8 ) );
-                js.append( "\n" );
-            }
-            catch ( IOException e )
-            {
-                throw new RuntimeException( e );
-            }
-        }
-        return js.toString();
+        String[] jsFiles = { "highlight.min.js", "textview.js", "katex.min.js" };
+        
+        var jsContent = Arrays.stream( jsFiles )
+                              .map( file -> "js/" + file)
+                              .map( sharedFiles::readFile )
+                              .collect( Collectors.joining( "\n\n" ) );
+        return jsContent;
     }
 
     public void setMessageHtml( String messageId, String messageBody )
     {
         uiSync.asyncExec( () -> {
-            PromptParser parser = new PromptParser( messageBody );
+            MarkdownParser parser = new MarkdownParser( messageBody );
 
             String fixedHtml = escapeHtmlQuotes( fixLineBreaks( parser.parseToHtml() ) );
             // inject and highlight html message
