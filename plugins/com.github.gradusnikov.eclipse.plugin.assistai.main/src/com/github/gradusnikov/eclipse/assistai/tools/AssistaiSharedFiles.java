@@ -16,7 +16,7 @@ import jakarta.inject.Singleton;
 @Singleton
 public class AssistaiSharedFiles
 {
-    private static final String baseURI = "platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main";
+    private static final String baseURI = "platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/";
     
     private final Map<String, String> cache = new HashMap<String, String>();
     
@@ -30,7 +30,7 @@ public class AssistaiSharedFiles
     
     private URI createURI( String platformRelativePath )
     {
-        var path =  platformRelativePath.startsWith( "/" ) ? platformRelativePath : "/" + platformRelativePath;
+        var path =  platformRelativePath.startsWith( "/" ) ? platformRelativePath.substring( 1 ) : platformRelativePath;
         return URI.create( baseURI + path );
         
     }

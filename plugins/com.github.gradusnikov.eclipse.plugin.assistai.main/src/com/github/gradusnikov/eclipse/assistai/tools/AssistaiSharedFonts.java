@@ -127,7 +127,6 @@ public class AssistaiSharedFonts
                     .map( this::readFontWithFontBox )
                     .map( this::toFontFaceCss )
                     .collect( Collectors.joining( "\n\n" ) );
-            System.out.println( css );        
             return css;
         }
         catch ( Exception e )
