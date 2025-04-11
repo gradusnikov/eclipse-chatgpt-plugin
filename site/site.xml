@@ -3,6 +3,5 @@
    <description name="AssistAI - a AI Chat plugin for Eclipse IDE" url="https://eclipse-chatgpt-plugin.lm.r.appspot.com">
       AssistAI - a AI chat plugin for Eclipse IDE
    </description>
-   <feature url="features/com.github.gradusnikov.eclipse.assistai_1.0.6.202503261556.jar" id="com.github.gradusnikov.eclipse.assistai" version="1.0.6.202503261556"/>
+   <feature url="features/com.github.gradusnikov.eclipse.assistai_1.0.6.202504111202.jar" id="com.github.gradusnikov.eclipse.assistai" version="1.0.6.202504111202"/>
 </site>
-
