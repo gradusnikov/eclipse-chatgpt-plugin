@@ -38,12 +38,12 @@ import org.osgi.framework.FrameworkUtil;
 import org.osgi.util.tracker.ServiceTracker;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
+import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeAnalysisService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ConsoleService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.GitService;
-import com.github.gradusnikov.eclipse.assistai.model.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.repository.PromptRepository;
 import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 

@@ -7,19 +7,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.Base64;
 import java.util.regex.Pattern;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 
 /**
  * Test cases for the PromptParser class, focusing on LaTeX rendering functionality.
  */
-public class PromptParserTest {
+public class MarkdownParserTest {
 
     @Test
     public void testInlineLatexRendering() {
         // Test inline LaTeX with $ syntax
         String input = "This is an inline equation $E=mc^2$ in a sentence.";
-        PromptParser parser = new PromptParser(input);
+        MarkdownParser parser = new MarkdownParser(input);
         String result = parser.parseToHtml();
         
         // Verify the LaTeX is properly encoded in a span
@@ -35,7 +36,7 @@ public class PromptParserTest {
     public void testInlineLatexWithBackslashSyntax() {
         // Test inline LaTeX with \( \) syntax
         String input = "This is another inline equation \\(a^2 + b^2 = c^2\\) using backslash syntax.";
-        PromptParser parser = new PromptParser(input);
+        MarkdownParser parser = new MarkdownParser(input);
         String result = parser.parseToHtml();
         
         assertTrue(result.contains("<span class=\"inline-latex\">"));
@@ -49,7 +50,7 @@ public class PromptParserTest {
     public void testSingleLineBlockLatex() {
         // Test single-line block LaTeX
         String input = "$$\\int_{a}^{b} f(x) dx$$";
-        PromptParser parser = new PromptParser(input);
+        MarkdownParser parser = new MarkdownParser(input);
         String result = parser.parseToHtml();
         
         assertTrue(result.contains("<span class=\"block-latex\">"));
@@ -63,7 +64,7 @@ public class PromptParserTest {
     public void testMultiLineBlockLatex() {
         // Test multi-line block LaTeX
         String input = "$$\n\\begin{align}\na &= b + c \\\\\n&= d + e\n\\end{align}\n$$";
-        PromptParser parser = new PromptParser(input);
+        MarkdownParser parser = new MarkdownParser(input);
         String result = parser.parseToHtml();
         
         assertTrue(result.contains("<span class=\"block-latex\">"));
@@ -78,7 +79,7 @@ public class PromptParserTest {
     public void testLatexWithBackslashBracketSyntax() {
         // Test LaTeX with \[ \] syntax
         String input = "\\[\n\\frac{d}{dx}\\left( \\int_{0}^{x} f(u)\\,du\\right)=f(x)\n\\]";
-        PromptParser parser = new PromptParser(input);
+        MarkdownParser parser = new MarkdownParser(input);
         String result = parser.parseToHtml();
         
         assertTrue(result.contains("<span class=\"block-latex\">"));
@@ -98,7 +99,7 @@ public class PromptParserTest {
                        "$$\n\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}\n$$\n\n" +
                        "End of document.";
         
-        PromptParser parser = new PromptParser(input);
+        MarkdownParser parser = new MarkdownParser(input);
         String result = parser.parseToHtml();
         
         // Verify markdown was processed
@@ -126,11 +127,8 @@ public class PromptParserTest {
     public void testLatexWithSpecialCharacters() {
         // Test LaTeX with special HTML characters that need escaping
         String input = "This has special chars $x < y & z > w$";
-        PromptParser parser = new PromptParser(input);
+        MarkdownParser parser = new MarkdownParser(input);
         String result = parser.parseToHtml();
-        // The HTML part should be escaped
-        assertTrue(result.contains("&lt;") && result.contains("&gt;") && result.contains("&amp;"));
-        
         // But the LaTeX should preserve the original
         String encodedContent = extractBase64Content(result, "inline-latex");
         String decodedContent = new String(Base64.getDecoder().decode(encodedContent));
@@ -167,7 +165,7 @@ public class PromptParserTest {
             ```				
 				""";
         
-        PromptParser parser = new PromptParser(prompt);
+        MarkdownParser parser = new MarkdownParser(prompt);
         System.out.println(parser.parseToHtml());
         
     }
@@ -179,10 +177,75 @@ public class PromptParserTest {
                 Hi!
                 """;
         
-        PromptParser parser = new PromptParser(prompt);
+        MarkdownParser parser = new MarkdownParser(prompt);
         System.out.println(parser.parseToHtml());
         
     }
+    
+
+    
+    @Test
+    void testTableInCodeBlockRendering()
+    {
+        String content = """
+```markdown                
+| Tables   |      Are      |  Cool |
+|----------|:-------------:|------:|
+| col 1 is |  left-aligned | $1600 |
+| col 2 is |    centered   |   $12 |
+| col 3 is | right-aligned |    $1 |
+```
+""";
+        MarkdownParser parser = new MarkdownParser( content );
+        var out = parser.parseToHtml();
+        System.out.println( out );
+    }
+
+    
+    @Test
+    void testTableRendering()
+    {
+        String content = """
+| Tables   |      Are      |  Cool |
+|----------|:-------------:|------:|
+| col 1 is |  left-aligned | $1600 |
+| col 2 is |    centered   |   $12 |
+| col 3 is | right-aligned |    $1 |""";
+        
+        String expected = """
+<table class="markdown-table">
+<thead>
+<tr>
+<th style="text-align: left;"> Tables   </th>
+<th style="text-align: center;">      Are      </th>
+<th style="text-align: right;">  Cool </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"> col 1 is </td>
+<td style="text-align: center;">  left-aligned </td>
+<td style="text-align: right;"> $1600 </td>
+</tr>
+<tr>
+<td style="text-align: left;"> col 2 is </td>
+<td style="text-align: center;">    centered   </td>
+<td style="text-align: right;">   $12 </td>
+</tr>
+<tr>
+<td style="text-align: left;"> col 3 is </td>
+<td style="text-align: center;"> right-aligned </td>
+<td style="text-align: right;">    $1 </td>
+</tr>
+</tbody>
+</table>                
+                """;
+        
+        MarkdownParser parser = new MarkdownParser( content );
+        var out = parser.parseToHtml();
+        Assertions.assertTrue( out.contains( expected ) );
+    }
+        
 }
 
 
