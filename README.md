@@ -23,12 +23,12 @@ AssistAI is an Eclipse IDE plugin that brings a Large Language Model (LLM) assis
 - Create contexts for the LLM that include source files or images 
 - Use the vision model to discuss a image content
 - Switch between defined LLMs
-- [NEW] Added support for interfacing with [Model Context Protocol (MPC)](https://modelcontextprotocol.io/introduction) servers - MCP servers can be used with both OpenAI compatible (gpt-4o, groq, LM studio) and Anthropic (Claude) LLMs
-- [NEW] Now supporting both OpenAI and Anthropic protocols - including function/tool calling.
+- [NEW] Added support for interfacing with [Model Context Protocol (MPC)](https://modelcontextprotocol.io/introduction) servers. The plugin is a MCP Client. You can interface your favorite MCP servers using **any** of the supported LLMs (not limited to Claude). 
 - [NEW] Now you can give control to LLM to modify your project files, access error logs, console output, and more... use Claude, sit back, vibe, and watch them tokens burn
+- [NEW] Discuss about math, or tabular data. The chat component now supports latex and table rendering
 
 
-You can also pose general questions to LLM, just like with the regular ChatGPT interface.
+You can also pose general questions to LLM, just like with the regular AI chatbot interface.
 
 ## Supported Models
 
@@ -92,6 +92,10 @@ Use the "Clear" button to reset the conversation context. Press the "Stop" butto
 
    ![Eclipse Coder](src/website/eclipse-coder.gif)
 
+1. Learn new things
+
+   <img src="src/website/latex-rendering.png" alt="Math rendering" style="zoom:50%;" />
+
 1. To discuss the class you're working on, select "Discuss" from the "Code Assist AI" context menu and ask any question about the code.
 
 ![Discuss with ChatGPT](src/website/how-it-works-discuss.gif)
@@ -140,7 +144,7 @@ The easiest way to install the plugin is to use the Eclipse Marketplace. Just dr
 Alternatively you can configure an update site:
 
 1. In Eclipse IDE, open *Help > Install new software*
-2. Click the *Add* button to open the "add repository" window, and input `AssistAI` as *Name* and `https://eclipse-chatgpt-plugin.lm.r.appspot.com/` as *Location*
+2. Click the *Add* button to open the "add repository" window, and input `AssistAI` as *Name* and `https://gradusnikov.github.io/eclipse-chatgpt-plugin/` as *Location*
 3. Click *Add*
 4. Back in *Install* window, choose *AssistAI* from the  *Work with:* list
 4. Select "Assist AI" from the plugin list and proceed to the next step by clicking the *Next* button
