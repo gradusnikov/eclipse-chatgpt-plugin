@@ -1,8 +1,9 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: assistai-dependencies
+Bundle-RequiredExecutionEnvironment: JavaSE-23
 Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.dependencies;singleton:=true
-Bundle-Version: 1.0.5.qualifier
+Bundle-Version: 1.0.6.qualifier
 Export-Package: com.fasterxml.jackson.core,
  com.fasterxml.jackson.core.type,
  com.fasterxml.jackson.databind,
