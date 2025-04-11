@@ -27,7 +27,7 @@ function updateFunctionCallSummaries() {
 function renderLatex() {
     // Convert block latex tags
     document.querySelectorAll('.block-latex').forEach(elem => {
-        let latexString = '\[' + atob(elem.innerHTML) + '\]';
+        let latexString = atob(elem.innerHTML);
         let latexHtml = katex.renderToString(latexString, {throwOnError: false});
         // Create a temporary element to manipulate the generated HTML
         let tempDiv = document.createElement('div');

@@ -1,7 +1,10 @@
 package com.github.gradusnikov.eclipse.assistai.prompt;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Scanner;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -21,7 +24,7 @@ public class MarkdownParser
      */
     private enum ParserState
     {
-        CODE_BLOCK, FUNCTION_CALL, TEXT_ATTACHMENT, LATEX_BLOCK
+        CODE_BLOCK, FUNCTION_CALL, TEXT_ATTACHMENT, LATEX_BLOCK, TABLE
     }
 
     private static final String  TATT_CONTEXTSTART                   = "<|ContextStart|>";
@@ -43,6 +46,10 @@ public class MarkdownParser
     private static final Pattern CODE_INLINE_PATTERN                 = Pattern.compile("`(.*?)`");
     private static final Pattern CODE_BLOCK_PATTERN                  = Pattern.compile( "^\\s*```([a-zA-Z0-9]*)\\s*$" );
     private static final Pattern FUNCTION_CALL_PATTERN               = Pattern.compile( "^\"function_call\".*" );
+    
+    // Table patterns
+    private static final Pattern TABLE_ROW_PATTERN                   = Pattern.compile( "^\\|(.*)\\|\\s*$" );
+    private static final Pattern TABLE_SEPARATOR_PATTERN             = Pattern.compile( "^\\|([:\\-\\| ]*)\\|\\s*$" );
     
     // Markdown patterns
     private static final Pattern HEADER_1_PATTERN                    = Pattern.compile( "^# (.*?)$" );
@@ -69,7 +76,58 @@ public class MarkdownParser
     private EnumSet<ParserState> state                               = EnumSet.noneOf( ParserState.class );
 
     private final String         prompt;
-
+    
+    private final MarkdownTable  table = new MarkdownTable();
+    
+    private class MarkdownTable
+    {
+        private List<String>   tableAlignments  = new ArrayList<>();
+        private List<String[]> tableRows        = new ArrayList<>();
+        private boolean hasHeader = false;
+        
+        public void addRow( String ... cells )
+        {
+            this.tableRows.add( cells );
+        }
+        public void setColumnFormatting( String ...formats )
+        {
+            tableAlignments.clear();
+            tableAlignments.addAll( Arrays.asList( formats ) );
+        }
+        public void clear()
+        {
+            tableAlignments.clear();
+            tableRows.clear();
+            hasHeader = false;
+        }
+        public boolean isEmpty()
+        {
+            return tableRows.isEmpty();
+        }
+        public void setHasHeader( boolean hasHeader )
+        {
+            this.hasHeader = hasHeader;
+        }
+        
+        public boolean hasHeader()
+        {
+            return hasHeader;
+        }
+        public String[] getRow( int i )
+        {
+            return tableRows.get( i );
+        }
+        public String getColumnFormat(int i)
+        {
+            return  i < tableAlignments.size() ? tableAlignments.get( i ) : "left";
+        }
+        public int size()
+        {
+            return tableRows.size();
+        }
+    }
+    
+    
     public MarkdownParser( String prompt )
     {
         this.prompt = prompt;
@@ -92,12 +150,33 @@ public class MarkdownParser
             while ( scanner.hasNext() )
             {
                 var line = scanner.next();
+                
                 var codeBlockMatcher = CODE_BLOCK_PATTERN.matcher( line );
                 var functionBlockMatcher = FUNCTION_CALL_PATTERN.matcher( line );
                 var latexMultilineBlockOpenMatcher = LATEX_MULTILINE_BLOCK_OPEN_PATTERN.matcher( line );
                 var latexSinglelineBlockOpenMatcher = LATEX_SINGLELINE_BLOCK_OPEN_PATTERN.matcher( line );
                 var latexCloseMatcher = LATEX_BLOCK_CLOSE_PATTERN.matcher( line );
-
+                var tableRowMatcher = TABLE_ROW_PATTERN.matcher( line );
+                var tableSeparatorMatcher = TABLE_SEPARATOR_PATTERN.matcher( line );
+                
+                // directly render code block content, skip other checks
+                boolean isCodeBlockEnd = CODE_BLOCK_PATTERN.matcher(line).matches();
+                if ( state.contains( ParserState.CODE_BLOCK ) && !isCodeBlockEnd )
+                {
+                    handleContent( out, line, !scanner.hasNext() );
+                    continue;
+                }
+                
+                // render table if next line is not a table row or is last line
+                boolean isTableRow = TABLE_ROW_PATTERN.matcher(line).matches();
+                boolean isTableSeparator = TABLE_SEPARATOR_PATTERN.matcher(line).matches();
+                if ( state.contains( ParserState.TABLE ) &&  ( (!isTableRow && !isTableSeparator)  ) )
+                {
+                    state.remove( ParserState.TABLE );
+                    renderTable( out, table );
+                    table.clear();
+                }
+                
                 if ( state.contains( ParserState.LATEX_BLOCK ) )
                 {
                     if ( latexCloseMatcher.find() )
@@ -138,10 +217,26 @@ public class MarkdownParser
                     latexBlockBuffer.append( latexLine );
                     flushLatexBlockBuffer( latexBlockBuffer, out );
                 }
+                else if ( tableSeparatorMatcher.find() && state.contains( ParserState.TABLE ) )
+                {
+                    handleTableSeparator( out, tableSeparatorMatcher.group( 1 ) );
+                }
+                else if ( tableRowMatcher.find() )
+                {
+                    var tableRow = tableRowMatcher.group(1);
+                    handleTableRow( out, tableRow );
+                }
                 else
                 {
                     handleContent( out, line, !scanner.hasNext() );
                 }
+            }
+            // handle any remaining table rows
+            if ( state.contains( ParserState.TABLE )  )
+            {
+                state.remove( ParserState.TABLE );
+                renderTable( out, table );
+                table.clear();
             }
 
             // Handle any remaining LaTeX buffer content
@@ -157,6 +252,100 @@ public class MarkdownParser
         }
         return out.toString();
     }
+
+    /**
+     * Handles a table row by parsing the cells and adding them to the table state.
+     * 
+     * @param matcher The matcher that matched a table row
+     */
+    private void handleTableRow( StringBuilder out, String rowContent )
+    {
+        if ( !state.contains( ParserState.TABLE ) )
+        {
+            // Start a new table
+            state.add( ParserState.TABLE );
+            table.clear();
+        }
+        String[] cells = rowContent.split( "\\|" );
+        table.addRow( cells );
+    }
+    
+    /**
+     * Handles a table separator row by parsing the alignment markers.
+     * 
+     * @param matcher The matcher that matched a table separator row
+     */
+    private void handleTableSeparator( StringBuilder out, String separatorContent )
+    {
+        table.setHasHeader( true );
+        String[] separators = separatorContent.split( "\\|" );
+        var formatting = Arrays.stream( separators )
+                               .map( String::trim )
+                               .map( separator -> 
+                                switch ( separator ) {
+                                    case String s when s.startsWith( ":" ) && s.endsWith( ":" ) ->  "center";
+                                    case String s when s.startsWith( ":" ) ->  "left";
+                                    case String s when s.endsWith( ":" ) ->  "right";
+                                    default -> "left"; 
+                                        })
+                               .toArray( String[]::new );
+        table.setColumnFormatting( formatting );
+    }
+
+    /**
+     * Renders the accumulated table data as HTML.
+     * 
+     * @param out The StringBuilder to append the HTML table to
+     */
+    private void renderTable(StringBuilder out, MarkdownTable table) {
+        
+        if (table.isEmpty()) 
+        {
+            return;
+        }
+        
+        out.append("<table class=\"markdown-table\">\n");
+        
+        // If we have a header row (determined by the presence of a separator row)
+        if (  table.hasHeader() ) {
+            // First row is the header
+            out.append("<thead>\n<tr>\n");
+            String[] headerCells = table.getRow(0);
+            for (int i = 0; i < headerCells.length; i++) 
+            {
+                String alignment = table.getColumnFormat(i);
+                String style = " style=\"text-align: " + alignment + ";\"";
+                out.append("<th" + style + ">")
+                   .append(convertLineToHtml(StringEscapeUtils.escapeHtml4(headerCells[i])))
+                   .append("</th>\n");
+            }
+            out.append("</tr>\n</thead>\n");
+        }
+        out.append("<tbody>\n");
+        
+        // Start from the appropriate row index:
+        // - If we have a header, start from row 1 (skip the header row)
+        // - If we don't have a header, start from row 0
+        int startRow = table.hasHeader() ? 1 : 0;
+        
+        for (int rowIndex = startRow; rowIndex < table.size(); rowIndex++) 
+        {
+            out.append("<tr>\n");
+            String[] cells = table.getRow(rowIndex);
+            
+            for (int i = 0; i < cells.length; i++) 
+            {
+                String alignment = table.getColumnFormat( i );
+                String style = " style=\"text-align: " + alignment + ";\"";
+                out.append("<td" + style + ">")
+                   .append(convertLineToHtml(StringEscapeUtils.escapeHtml4(cells[i])))
+                   .append("</td>\n");
+            }
+            out.append("</tr>\n");
+        }
+        out.append("</tbody>\n</table>\n");
+    }
+
 
     private void handleTextAttachmentStart( StringBuilder out, String line )
     {
@@ -445,6 +634,7 @@ public class MarkdownParser
                 String content = match.group(i);
                 if (content != null) 
                 {
+                    content = StringEscapeUtils.unescapeHtml4( content );
                     String base64Content = Base64.getEncoder().encodeToString(content.getBytes());
                     return "<span class=\"inline-latex\">" + base64Content + "</span>";
                 }

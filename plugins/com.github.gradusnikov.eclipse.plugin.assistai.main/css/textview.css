@@ -180,3 +180,49 @@ summary {
     white-space: nowrap !important;
 }
 
+/* Make inline katex elements not wrap */
+.inline-katex, .inline-latex, 
+.inline-katex *, .inline-latex * {
+    white-space: nowrap !important;
+}
+
+/* Center block katex elements */
+.block-katex, .block-latex {
+    display: block !important;
+    text-align: center !important;
+    margin: 1em auto !important;
+    white-space: nowrap !important;
+}
+
+/* Apply nowrap to all descendants of block-katex/latex */
+.block-katex *, .block-latex * {
+    white-space: nowrap !important;
+}
+
+/* Table styling */
+.markdown-table {
+  border-collapse: collapse;
+  margin: 15px 0;
+  width: 100%;
+  border: 1px solid #444c56;
+}
+
+.markdown-table th,
+.markdown-table td {
+  border: 1px solid #444c56;
+  padding: 8px 12px;
+}
+
+.markdown-table th {
+  background-color: #2d333b;
+  font-weight: bold;
+}
+
+.markdown-table tr:nth-child(even) {
+  background-color: #161b22;
+}
+
+.markdown-table tr:hover {
+  background-color: #2d333b;
+}
+
