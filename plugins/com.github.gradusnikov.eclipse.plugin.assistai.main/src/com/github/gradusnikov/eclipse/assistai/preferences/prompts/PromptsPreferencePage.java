@@ -27,7 +27,7 @@ public class PromptsPreferencePage extends PreferencePage implements IWorkbenchP
     {
         setPreferenceStore(Activator.getDefault().getPreferenceStore());
         setDescription("Prompts");
-        preferencePresenter = Activator.getDefault().getPromptsPreferncePresenter();
+        preferencePresenter = Activator.getDefault().getPromptsPreferencePresenter();
     }
     
     @Override

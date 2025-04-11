@@ -34,7 +34,7 @@ public class Activator extends AbstractUIPlugin
         return plugin;
     }
     
-    public PromptsPreferencePresenter getPromptsPreferncePresenter()
+    public PromptsPreferencePresenter getPromptsPreferencePresenter()
     {
         PromptsPreferencePresenter presenter = new PromptsPreferencePresenter( getDefault().getPreferenceStore() );
         return presenter;
