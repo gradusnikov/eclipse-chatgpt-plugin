@@ -11,37 +11,48 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import org.eclipse.core.runtime.ILog;
+import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;
 
+import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor.McpServerDescriptorWithStatus;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor.Status;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
+
 /**
  * Presenter for MCP Server preferences
  */
+@Creatable
+@Singleton
 public class McpServerPreferencePresenter
 {
 
     private static final int MCP_SERVER_PING_TIMEOUT_SECONDS = 1;
-    private final IPreferenceStore  preferenceStore;
     private final McpClientRetistry clientRetistry;
     private final ILog logger;
+    private IPreferenceStore  preferenceStore;
     
     private McpServerPreferencePage view;
 
-    public McpServerPreferencePresenter( IPreferenceStore preferenceStore, 
-                                         McpClientRetistry mcpClientRetistry,
+    @Inject
+    public McpServerPreferencePresenter( McpClientRetistry mcpClientRetistry,
                                          ILog logger
                                          )
     {
-        this.preferenceStore = preferenceStore;
         this.clientRetistry = mcpClientRetistry;
         this.logger = logger;
     }
-
+    @PostConstruct
+    public void init()
+    {
+        this.preferenceStore = Activator.getDefault().getPreferenceStore();
+    }
 
     /**
      * Get all defined MCP servers

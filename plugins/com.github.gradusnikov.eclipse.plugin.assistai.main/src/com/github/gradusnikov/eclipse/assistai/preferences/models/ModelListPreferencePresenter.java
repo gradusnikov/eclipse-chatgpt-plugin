@@ -1,8 +1,15 @@
 package com.github.gradusnikov.eclipse.assistai.preferences.models;
 
+import org.eclipse.e4.core.di.annotations.Creatable;
+
 import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepository;
 
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
+
+@Creatable
+@Singleton
 public class ModelListPreferencePresenter
 {
 
@@ -10,6 +17,7 @@ public class ModelListPreferencePresenter
     
     private ModelListPreferencePage view;
     
+    @Inject
     public ModelListPreferencePresenter( ModelApiDescriptorRepository repository )
     {
         this.repository = repository;

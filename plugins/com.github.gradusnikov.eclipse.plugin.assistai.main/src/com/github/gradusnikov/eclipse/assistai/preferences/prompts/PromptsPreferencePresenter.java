@@ -2,18 +2,25 @@ package com.github.gradusnikov.eclipse.assistai.preferences.prompts;
 
 import java.util.Arrays;
 
-import org.eclipse.jface.preference.IPreferenceStore;
+import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
+import com.github.gradusnikov.eclipse.assistai.repository.PromptRepository;
 
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
+
+@Creatable
+@Singleton
 public class PromptsPreferencePresenter
 {
     private PromptsPreferencePage view;
-    private IPreferenceStore preferenceStore;
+    private PromptRepository promptRepository;
     
-    public PromptsPreferencePresenter( IPreferenceStore preferenceStore )
+    @Inject
+    public PromptsPreferencePresenter( PromptRepository promptRepository )
     {
-        this.preferenceStore = preferenceStore;
+        this.promptRepository = promptRepository;
     }
     
     public void registerView( PromptsPreferencePage view )
@@ -36,26 +43,19 @@ public class PromptsPreferencePresenter
         }
         else
         {
-            var prompt = preferenceStore.getString( getPreferenceName( index ) );
+            var prompt = promptRepository.getPromptByIndex( index ); 
             view.setCurrentPrompt( prompt );
         }
     }
 
-    private String getPreferenceName( int index )
-    {
-        return Prompts.values()[index].preferenceName();
-    }
-
     public void savePrompt( int selectedIndex, String text )
     {
-        preferenceStore.setValue( getPreferenceName( selectedIndex ), text );
+        promptRepository.save( selectedIndex, text );
     }
 
     public void resetPrompt( int selectedIndex )
     {
-        var propertyName = getPreferenceName( selectedIndex );
-        var defaultValue = preferenceStore.getDefaultString( propertyName );
-        preferenceStore.setValue( propertyName, defaultValue );
+        var defaultValue = promptRepository.resetToDefault( selectedIndex );
         view.setCurrentPrompt( defaultValue );
     }
 
