@@ -26,6 +26,7 @@ AssistAI is an Eclipse IDE plugin that brings a Large Language Model (LLM) assis
 - [NEW] Added support for interfacing with [Model Context Protocol (MPC)](https://modelcontextprotocol.io/introduction) servers. The plugin is a MCP Client. You can interface your favorite MCP servers using **any** of the supported LLMs (not limited to Claude). 
 - [NEW] Now you can give control to LLM to modify your project files, access error logs, console output, and more... use Claude, sit back, vibe, and watch them tokens burn
 - [NEW] Discuss about math, or tabular data. The chat component now supports latex and table rendering
+- [NEW] Added tools that AI agents can use to execute and review JUnit tests
 
 
 You can also pose general questions to LLM, just like with the regular AI chatbot interface.
@@ -68,10 +69,16 @@ To use a local or third-party model, configure it using the OpenAI protocol form
 | eclipse-ide | getCurrentlyOpenedFile | Gets information about the currently active file in the Eclipse editor. |
 | eclipse-ide | getEditorSelection | Gets the currently selected text or lines in the active editor. |
 | eclipse-ide | getConsoleOutput | Retrieves the recent output from Eclipse console(s). |
+| eclipse-ide | runAllTests | Runs all tests in a specified project and returns the results. |
+| eclipse-ide | runPackageTests | Runs tests in a specific package and returns the results. |
+| eclipse-ide | runClassTests | Runs tests for a specific class and returns the results. |
+| eclipse-ide | runTestMethod | Runs a specific test method and returns the results. |
+| eclipse-ide | findTestClasses | Finds all test classes in a project. |
 | memory | think | Use this tool to think about something without obtaining new information or performing changes. |
 | webpage-reader | readWebPage | Reads the content of the given web site and returns its content as a markdown text. |
 | time | currentTime | Returns the current date and time in the following format: yyyy-MM-dd HH:mm:ss |
 | time | convertTimeZone | Converts time from one time zone to another. |
+
 
 
 ## Context
