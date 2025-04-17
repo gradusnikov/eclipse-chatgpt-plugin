@@ -12,6 +12,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ConsoleService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.JavaDocService;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.MavenService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ProjectService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ResourceService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.UnitTestService;
@@ -46,6 +47,9 @@ public class EclipseIntegrationsMcpServer
     
     @Inject
     private UnitTestService unitTestService;
+    
+    @Inject
+    private MavenService mavenService;
     
     
 	@Tool(name="formatCode", description="Formats code according to the current Eclipse formatter settings.", type="object")
@@ -176,5 +180,38 @@ public class EclipseIntegrationsMcpServer
             @ToolParam(name="projectName", description="The name of the project to search", required=true) String projectName) 
     {
         return unitTestService.findTestClasses(projectName);
+    }
+    
+    // Maven Service Tools
+    
+    @Tool(name="runMavenBuild", description="Runs a Maven build with the specified goals on a project.", type="object")
+    public String runMavenBuild(
+            @ToolParam(name="projectName", description="The name of the project to build", required=true) String projectName,
+            @ToolParam(name="goals", description="The Maven goals to execute (e.g., \"clean install\")", required=true) String goals,
+            @ToolParam(name="profiles", description="Optional Maven profiles to activate", required=false) String profiles,
+            @ToolParam(name="timeout", description="Maximum time in seconds to wait for build completion (0 for no timeout)", required=false) String timeout)
+    {
+        return mavenService.runMavenBuild(projectName, goals, profiles, 
+                Optional.ofNullable(timeout).map(Integer::parseInt).orElse(0));
+    }
+    
+    @Tool(name="getEffectivePom", description="Gets the effective POM for a Maven project.", type="object")
+    public String getEffectivePom(
+            @ToolParam(name="projectName", description="The name of the Maven project", required=true) String projectName)
+    {
+        return mavenService.getEffectivePom(projectName);
+    }
+    
+    @Tool(name="listMavenProjects", description="Lists all available Maven projects in the workspace.", type="object")
+    public String listMavenProjects()
+    {
+        return mavenService.listMavenProjects();
+    }
+    
+    @Tool(name="getProjectDependencies", description="Gets Maven project dependencies.", type="object")
+    public String getProjectDependencies(
+            @ToolParam(name="projectName", description="The name of the Maven project", required=true) String projectName)
+    {
+        return mavenService.getProjectDependencies(projectName);
     }
 }

@@ -33,7 +33,10 @@ Require-Bundle: org.eclipse.e4.ui.services,
  org.apache.commons.text;bundle-version="1.13.0",
  org.eclipse.debug.core,
  org.eclipse.jdt.junit,
- org.eclipse.jdt.launching
+ org.eclipse.jdt.launching,
+ org.eclipse.m2e.core,
+ org.eclipse.m2e.core.ui,
+ org.eclipse.m2e.maven.runtime
 Bundle-RequiredExecutionEnvironment: JavaSE-23
 Automatic-Module-Name: assistai.main
 Bundle-Classpath: .
@@ -49,6 +52,9 @@ Export-Package: com.github.gradusnikov.eclipse.assistai,
  com.github.gradusnikov.eclipse.assistai.network.clients,
  com.github.gradusnikov.eclipse.assistai.network.subscribers,
  com.github.gradusnikov.eclipse.assistai.preferences,
+ com.github.gradusnikov.eclipse.assistai.preferences.mcp,
+ com.github.gradusnikov.eclipse.assistai.preferences.models,
+ com.github.gradusnikov.eclipse.assistai.preferences.prompts,
  com.github.gradusnikov.eclipse.assistai.prompt,
  com.github.gradusnikov.eclipse.assistai.repository,
  com.github.gradusnikov.eclipse.assistai.tools,

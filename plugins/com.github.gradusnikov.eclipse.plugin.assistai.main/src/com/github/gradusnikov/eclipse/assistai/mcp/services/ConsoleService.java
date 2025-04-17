@@ -11,7 +11,9 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jface.text.IDocument;
+import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchWindow;
+import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.console.ConsolePlugin;
 import org.eclipse.ui.console.IConsole;
@@ -204,6 +206,34 @@ public class ConsoleService
     }
     
     /**
+     * Prints a message to a specified console.
+     * 
+     * @param consoleName The name of the console to print to
+     * @param message The message to print
+     */
+    public void println(String consoleName, String message)
+    {
+        if (consoleName == null || consoleName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Console name cannot be null or empty");
+        }
+        
+        if (message == null || message.isBlank() ) {
+            return;
+        }
+        sync.syncExec(() -> {
+            try {
+                // Get or create the console
+                MessageConsole console = findOrCreateConsole(consoleName);
+                
+                // Write to the console using MessageConsole's output stream
+                console.newMessageStream().println(message);
+            } catch (Exception e) {
+                logger.error("Error writing to console: " + e.getMessage(), e);
+            }
+        });
+    }
+    
+    /**
      * Extracts content from an IOConsole
      * 
      * @param ioConsole The console to extract content from
@@ -260,5 +290,82 @@ public class ConsoleService
         }
         
         return consoleText.toString();
+    }
+
+    /**
+     * Clears the content of a specified console.
+     * 
+     * @param consoleName The name of the console to clear
+     * @return A status message indicating the result of the operation
+     */
+    public void clear(String consoleName)
+    {
+        if (consoleName == null || consoleName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Console name cannot be null or empty");
+        }
+        
+        sync.syncExec(() -> {
+            try {
+                // Get or create the console
+                MessageConsole console = findOrCreateConsole(consoleName);
+                
+                // Clear the console by removing it and creating a new one
+                IConsoleManager consoleManager = ConsolePlugin.getDefault().getConsoleManager();
+                consoleManager.removeConsoles(new IConsole[] { console });
+                
+                // Create a new console with the same name
+                MessageConsole newConsole = new MessageConsole(consoleName, null);
+                consoleManager.addConsoles(new IConsole[] { newConsole });
+                
+                // Show the console view
+                try {
+                    IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+                    if (window != null && window.getActivePage() != null) {
+                        IConsoleView view = (IConsoleView) window.getActivePage().showView(IConsoleConstants.ID_CONSOLE_VIEW);
+                        view.display(newConsole);
+                    }
+                } catch (Exception e) {
+                    logger.error("Failed to show console view", e);
+                }
+                
+                logger.info("Console '" + consoleName + "' cleared successfully.");
+            } catch (Exception e) {
+                logger.error("Error clearing console: " + e.getMessage(), e);
+            }
+        });
+    }
+    /**
+     * Finds an existing console or creates a new one if it doesn't exist.
+     * 
+     * @param name The name of the console to find or create
+     * @return The found or created MessageConsole
+     * @throws PartInitException 
+     */
+    private MessageConsole findOrCreateConsole(String name) throws PartInitException {
+        // Get the console manager
+        ConsolePlugin plugin = ConsolePlugin.getDefault();
+        IConsoleManager conMan = plugin.getConsoleManager();
+        
+        // Try to find the console
+        IConsole[] existing = conMan.getConsoles();
+        for (IConsole console : existing) {
+            if (name.equals(console.getName()) && console instanceof MessageConsole messageConsole) {
+                return messageConsole;
+            }
+        }
+        
+        // No console found, create a new one
+        MessageConsole newConsole = new MessageConsole(name, null);
+        conMan.addConsoles(new IConsole[] { newConsole });
+        
+        // Show the console view
+        var page = Optional.ofNullable( PlatformUI.getWorkbench() )
+                 .map( IWorkbench::getActiveWorkbenchWindow )
+                 .map( IWorkbenchWindow::getActivePage )
+                 .orElseThrow( () -> new PartInitException("No active page available") );
+            IConsoleView view = (IConsoleView) page.showView(IConsoleConstants.ID_CONSOLE_VIEW);
+            view.display(newConsole);
+        
+        return newConsole;
     }
 }
