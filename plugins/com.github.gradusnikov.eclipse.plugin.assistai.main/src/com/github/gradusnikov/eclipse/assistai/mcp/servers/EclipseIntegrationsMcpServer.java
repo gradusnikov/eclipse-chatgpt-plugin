@@ -14,6 +14,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.JavaDocService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ProjectService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ResourceService;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.UnitTestService;
 
 import jakarta.inject.Inject;
 
@@ -42,6 +43,9 @@ public class EclipseIntegrationsMcpServer
     
     @Inject
     private CodeEditingService codeEditingService;
+    
+    @Inject
+    private UnitTestService unitTestService;
     
     
 	@Tool(name="formatCode", description="Formats code according to the current Eclipse formatter settings.", type="object")
@@ -127,5 +131,50 @@ public class EclipseIntegrationsMcpServer
             @ToolParam(name="includeAllConsoles", description="Whether to include output from all available consoles (default: false)", required=false) Boolean includeAllConsoles) 
     {
         return consoleService.getConsoleOutput( consoleName, Optional.ofNullable( maxLines ).map( Integer::parseInt ).orElse( 0 ), includeAllConsoles );
+    }
+    
+    // Unit Test Service Tools
+    
+    @Tool(name="runAllTests", description="Runs all tests in a specified project and returns the results.", type="object")
+    public String runAllTests(
+            @ToolParam(name="projectName", description="The name of the project containing the tests", required=true) String projectName,
+            @ToolParam(name="timeout", description="Maximum time in seconds to wait for test completion (default: 60)", required=false) String timeout) 
+    {
+        return unitTestService.runAllTests(projectName, Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60));
+    }
+    
+    @Tool(name="runPackageTests", description="Runs tests in a specific package and returns the results.", type="object")
+    public String runPackageTests(
+            @ToolParam(name="projectName", description="The name of the project containing the tests", required=true) String projectName,
+            @ToolParam(name="packageName", description="The fully qualified package name containing the tests", required=true) String packageName,
+            @ToolParam(name="timeout", description="Maximum time in seconds to wait for test completion (default: 60)", required=false) String timeout) 
+    {
+        return unitTestService.runPackageTests(projectName, packageName, Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60));
+    }
+    
+    @Tool(name="runClassTests", description="Runs tests for a specific class and returns the results.", type="object")
+    public String runClassTests(
+            @ToolParam(name="projectName", description="The name of the project containing the tests", required=true) String projectName,
+            @ToolParam(name="className", description="The fully qualified name of the test class", required=true) String className,
+            @ToolParam(name="timeout", description="Maximum time in seconds to wait for test completion (default: 60)", required=false) String timeout) 
+    {
+        return unitTestService.runClassTests(projectName, className, Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60));
+    }
+    
+    @Tool(name="runTestMethod", description="Runs a specific test method and returns the results.", type="object")
+    public String runTestMethod(
+            @ToolParam(name="projectName", description="The name of the project containing the tests", required=true) String projectName,
+            @ToolParam(name="className", description="The fully qualified name of the test class", required=true) String className,
+            @ToolParam(name="methodName", description="The name of the test method to run", required=true) String methodName,
+            @ToolParam(name="timeout", description="Maximum time in seconds to wait for test completion (default: 60)", required=false) String timeout) 
+    {
+        return unitTestService.runTestMethod(projectName, className, methodName, Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60));
+    }
+    
+    @Tool(name="findTestClasses", description="Finds all test classes in a project.", type="object")
+    public String findTestClasses(
+            @ToolParam(name="projectName", description="The name of the project to search", required=true) String projectName) 
+    {
+        return unitTestService.findTestClasses(projectName);
     }
 }
