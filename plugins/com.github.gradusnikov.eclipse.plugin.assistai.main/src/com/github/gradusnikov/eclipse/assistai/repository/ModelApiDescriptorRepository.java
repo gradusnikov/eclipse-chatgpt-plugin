@@ -1,5 +1,7 @@
 package com.github.gradusnikov.eclipse.assistai.repository;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -9,6 +11,9 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
@@ -37,7 +42,7 @@ public class ModelApiDescriptorRepository
 	public List<ModelApiDescriptor> listModelApiDescriptors()
 	{
         String modelsJson = preferenceStore.getString( PreferenceConstants.ASSISTAI_DEFINED_MODELS );
-        List<ModelApiDescriptor> models =  ModelApiDescriptorUtilities.fromJson( modelsJson );
+        List<ModelApiDescriptor> models =  fromJson( modelsJson );
         return models;
 	}
 	
@@ -115,7 +120,7 @@ public class ModelApiDescriptorRepository
 	
 	private void saveAll( List<ModelApiDescriptor> models )
 	{
-        String json = ModelApiDescriptorUtilities.toJson( models );
+        String json = toJson( models );
         preferenceStore.setValue( PreferenceConstants.ASSISTAI_DEFINED_MODELS, json );
         logger.info( "AI models updated" );
 	}
@@ -134,5 +139,51 @@ public class ModelApiDescriptorRepository
 		preferenceStore.setValue(PreferenceConstants.ASSISTAI_SELECTED_MODEL, modelId);
 		return getModelInUse();
 	}
+	
+	
+    public static String toJson( ModelApiDescriptor ... descriptors )
+    {
+        var list = Arrays.asList( descriptors );
+        return toJson( list );
+    }
+
+    public static List<ModelApiDescriptor> fromJson( String json )
+    {
+        ObjectMapper mapper = new ObjectMapper();
+        try
+        {
+            List<ModelApiDescriptor> values = mapper.readValue( json.getBytes(), new TypeReference<List<ModelApiDescriptor>>()
+            {
+            } );
+            return values;
+        }
+        catch ( IOException e )
+        {
+            throw new RuntimeException( e );
+        }
+    }
+
+    public static String toJson( List<ModelApiDescriptor> list )
+    {
+        ObjectMapper mapper = new ObjectMapper();
+        try
+        {
+            return mapper.writeValueAsString( list );
+        }
+        catch ( JsonProcessingException e )
+        {
+            throw new RuntimeException( e );
+        }
+    }
+    public void initializeDefaultDescriptors( ModelApiDescriptor ...apiDescriptors )
+    {
+        var modelsJson = toJson( apiDescriptors );
+        preferenceStore.setDefault( PreferenceConstants.ASSISTAI_DEFINED_MODELS, modelsJson );
+        
+    }
+    public void initializeDefaultDescriptorInUse( ModelApiDescriptor descriptor )
+    {
+        preferenceStore.setDefault( PreferenceConstants.ASSISTAI_SELECTED_MODEL, descriptor.uid() );
+    }
 
 }
