@@ -55,31 +55,31 @@ public class ChatMessageFactory
     
     private Supplier<String> fixErrorsPromptSupplier( )
     {
-        return () -> updatePromptText( promptRepository.getPrompt( Prompts.FIX_ERRORS.name() ) );
+        return () -> promptRepository.getPrompt( Prompts.FIX_ERRORS.name() );
     }
 
     private Supplier<String> discussCodePromptSupplier()
     {
-        return () -> updatePromptText( promptRepository.getPrompt( Prompts.DISCUSS.name() ) );
+        return () -> promptRepository.getPrompt( Prompts.DISCUSS.name() );
     }
 
     private Supplier<String> javaDocPromptSupplier()
     {
-        return () -> updatePromptText( promptRepository.getPrompt( Prompts.DOCUMENT.name() ) );
+        return () -> promptRepository.getPrompt( Prompts.DOCUMENT.name() );
     }
     private Supplier<String> refactorPromptSupplier()
     {
-        return () -> updatePromptText( promptRepository.getPrompt( Prompts.REFACTOR.name() ) );
+        return () -> promptRepository.getPrompt( Prompts.REFACTOR.name() );
     }
     private Supplier<String> unitTestSupplier( )
     {
-        return () -> updatePromptText( promptRepository.getPrompt( Prompts.TEST_CASE.name() ) );
+        return () -> promptRepository.getPrompt( Prompts.TEST_CASE.name() );
     }
 
     
     public ChatMessage createGenerateGitCommitCommentJob( )
     {
-        Supplier<String> promptSupplier  =  () -> updatePromptText( promptRepository.getPrompt( Prompts.GIT_COMMENT.name() ) );
+        Supplier<String> promptSupplier  =  () -> promptRepository.getPrompt( Prompts.GIT_COMMENT.name() );
         
         return createUserChatMessage( promptSupplier );
     }
@@ -87,7 +87,7 @@ public class ChatMessageFactory
     public ChatMessage createUserChatMessage( Supplier<String> promptSupplier )
     {
         ChatMessage message = new ChatMessage( UUID.randomUUID().toString(), "user" );
-        message.setContent( promptSupplier.get() );
+        message.setContent( updatePromptText( promptSupplier.get() ) );
         return message;        
     }
     

@@ -1,5 +1,9 @@
 package com.github.gradusnikov.eclipse.assistai.repository;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;
@@ -75,4 +79,28 @@ public class PromptRepository
         preferenceStore.setValue( propertyName, defaultValue );
         return defaultValue;
     }
+
+    public List<String> findMatchingCommands( String group )
+    {
+        return Arrays.stream( Prompts.values() )
+                     .map( Prompts::getCommandName )
+                     .filter( commandName -> commandName.startsWith( group ) )
+                     .toList();
+    }
+    public Optional<Prompts> findPromptByCommandName( String name )
+    {
+        return Arrays.stream( Prompts.values() )
+                     .filter( prompt -> prompt.getCommandName().equals( name ) )
+                     .findFirst();
+    }
+    public List<String> listCommands()
+    {
+        return Arrays.stream( Prompts.values() ).map( Prompts::getCommandName ).toList();
+    }
+    
+    public List<Prompts> getAllPrompts()
+    {
+        return Arrays.stream( Prompts.values() ).toList();
+    }
 }
+

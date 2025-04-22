@@ -31,7 +31,7 @@ public class PromptsPreferencePresenter
     
     private void initializeView()
     {
-        String[] prompts = Arrays.stream( Prompts.values() ).map( Prompts::getDescription ).toArray( String[]::new );
+        String[] prompts = Arrays.stream( Prompts.values() ).map( Prompts::getCommandName ).toArray( String[]::new );
         view.setPrompts( prompts );
     }
     

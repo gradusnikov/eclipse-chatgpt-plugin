@@ -10,9 +10,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
@@ -21,8 +26,8 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.jobs.IJobManager;
 import org.eclipse.core.runtime.jobs.Job;
-import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.wizard.Wizard;
@@ -41,23 +46,21 @@ import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.dialogs.WizardNewFileCreationPage;
-import org.osgi.service.prefs.BackingStoreException;
-import org.osgi.service.prefs.Preferences;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
+import com.github.gradusnikov.eclipse.assistai.chat.Attachment.FileContentAttachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
-import com.github.gradusnikov.eclipse.assistai.chat.Attachment.FileContentAttachment;
 import com.github.gradusnikov.eclipse.assistai.jobs.AssistAIJobConstants;
 import com.github.gradusnikov.eclipse.assistai.jobs.SendConversationJob;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.network.subscribers.AppendMessageToViewSubscriber;
-import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageUtilities;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepository;
+import com.github.gradusnikov.eclipse.assistai.repository.PromptRepository;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
 import jakarta.annotation.PostConstruct;
@@ -98,6 +101,12 @@ public class ChatViewPresenter
     
     @Inject
     private ModelApiDescriptorRepository modelReposotiry;
+    
+    @Inject
+    private PromptRepository promptRepository;
+    
+    @Inject
+    private UISynchronize uiSync;
     
     
     private IPreferenceStore preferences;
@@ -140,11 +149,13 @@ public class ChatViewPresenter
     {
         ChatMessage message = createUserMessage( text );
         conversation.add( message );
+        ChatMessage displayedMessage = createUserMessage( "" );
+        displayedMessage.setContent( text );
         applyToView( part -> {
             part.clearUserInput();
             part.clearAttachments();
             part.appendMessage( message.getId(), message.getRole() );
-            String content = ChatMessageUtilities.toMarkdownContent( message );
+            String content = ChatMessageUtilities.toMarkdownContent( displayedMessage );
             part.setMessageHtml( message.getId(), content );
             attachments.clear();
         } );
@@ -153,7 +164,18 @@ public class ChatViewPresenter
 
     private ChatMessage createUserMessage( String userMessage )
     {
-        ChatMessage message = chatMessageFactory.createUserChatMessage( () -> userMessage );
+        Pattern commandPattern = Pattern.compile("^/(\\S+)");
+        Matcher commandMatcher = commandPattern.matcher( userMessage );
+        Supplier<String> supplier = () -> userMessage;
+        if ( commandMatcher.find() )
+        {
+            supplier = () -> promptRepository.findPromptByCommandName( commandMatcher.group( 1 ) )
+                                             .map( chatMessageFactory::createUserChatMessage )
+                                             .map( ChatMessage::getContent)
+                                             .orElse( userMessage );
+        }
+        
+        ChatMessage message = chatMessageFactory.createUserChatMessage( supplier );
         message.setAttachments( attachments );
         return message;
     }
@@ -250,7 +272,7 @@ public class ChatViewPresenter
         // update view
         applyToView( messageView -> {
             messageView.appendMessage( message.getId(), message.getRole() );
-            messageView.setMessageHtml( message.getId(), type.getDescription() );
+            messageView.setMessageHtml( message.getId(), "/" + type.getCommandName() );
         } );
 
         // schedule message
@@ -266,7 +288,7 @@ public class ChatViewPresenter
             return;
         }
         
-        display.asyncExec( () -> {
+        uiSync.asyncExec( () -> {
             FileDialog fileDialog = new FileDialog( display.getActiveShell(), SWT.OPEN );
             fileDialog.setText( "Select an Image" );
 
@@ -325,7 +347,7 @@ public class ChatViewPresenter
 
 
     public void onInsertCode(String codeBlock) {
-        Display.getDefault().asyncExec(() -> {
+       uiSync.asyncExec(() -> {
             try 
             {
                 Optional.ofNullable(PlatformUI.getWorkbench())
@@ -374,7 +396,7 @@ public class ChatViewPresenter
     }
 
     public void onDiffCode(String codeBlock) {
-        Display.getDefault().asyncExec(() -> {
+        uiSync.asyncExec(() -> {
             try {
                 Optional.ofNullable(PlatformUI.getWorkbench())
                     .map(workbench -> workbench.getActiveWorkbenchWindow())
@@ -420,7 +442,7 @@ public class ChatViewPresenter
 
     public void onNewFile(String codeBlock, String lang) 
     {
-        Display.getDefault().asyncExec(() -> {
+        uiSync.asyncExec(() -> {
             try 
             {
                 IProject project = Optional.ofNullable( PlatformUI.getWorkbench() )
@@ -558,5 +580,14 @@ public class ChatViewPresenter
 	public void onViewVisible() 
 	{
 		initializeAvailableModels();
+		updateAutocomplete();
 	}
+
+    public void updateAutocomplete()
+    {
+        Map<String, String> mappings = promptRepository.getAllPrompts()
+                                                       .stream()
+                                                       .collect( Collectors.toMap( Prompts::getCommandName, Prompts::getDescription ) );
+        applyToView( view -> view.setAutocompleteModel( mappings  ) );
+    }
 }

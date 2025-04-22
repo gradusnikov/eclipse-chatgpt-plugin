@@ -2,7 +2,9 @@ package com.github.gradusnikov.eclipse.assistai.view;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -14,6 +16,13 @@ import org.apache.commons.lang3.StringUtils;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.ui.di.Focus;
 import org.eclipse.e4.ui.di.UISynchronize;
+import org.eclipse.jface.bindings.keys.KeyStroke;
+import org.eclipse.jface.fieldassist.ContentProposalAdapter;
+import org.eclipse.jface.fieldassist.ControlDecoration;
+import org.eclipse.jface.fieldassist.FieldDecorationRegistry;
+import org.eclipse.jface.fieldassist.IContentProposal;
+import org.eclipse.jface.fieldassist.IContentProposalProvider;
+import org.eclipse.jface.fieldassist.TextContentAdapter;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.resource.LocalResourceManager;
@@ -25,6 +34,9 @@ import org.eclipse.swt.custom.ScrolledComposite;
 import org.eclipse.swt.dnd.Clipboard;
 import org.eclipse.swt.dnd.ImageTransfer;
 import org.eclipse.swt.dnd.TextTransfer;
+import org.eclipse.swt.events.KeyAdapter;
+import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.MenuAdapter;
 import org.eclipse.swt.events.MenuEvent;
 import org.eclipse.swt.events.MouseAdapter;
@@ -33,6 +45,8 @@ import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.TraverseEvent;
 import org.eclipse.swt.events.TraverseListener;
+import org.eclipse.swt.events.VerifyEvent;
+import org.eclipse.swt.events.VerifyListener;
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.GC;
 import org.eclipse.swt.graphics.Image;
@@ -105,11 +119,19 @@ public class ChatView
 	private ToolBar  actionToolBar;
 
 	private Menu modelMenu;
+	
+	private Map<String, String> autocompleteModel;
     
     public ChatView()
     {
+        autocompleteModel = new LinkedHashMap<>();
     }
-
+    
+    public void setAutocompleteModel( Map<String, String> map )
+    {
+        autocompleteModel.clear();
+        autocompleteModel.putAll( map );
+    }
     
     @Focus
     public void setFocus()
@@ -166,6 +188,7 @@ public class ChatView
         // Create the text input area
         inputArea = createUserInput(inputContainer);
         inputArea.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        setupAutocomplete( inputArea );
         
         
         // Create button bar at the bottom with model selector on left, action buttons on right
@@ -196,6 +219,98 @@ public class ChatView
         dropManager.registerDropTarget( controls );
 
         clearAttachments();
+    }
+
+    public void setupAutocomplete(Text textField) {
+        // Create a custom content proposal provider that filters commands starting with "/"
+        IContentProposalProvider proposalProvider = new IContentProposalProvider() {
+            @Override
+            public IContentProposal[] getProposals(String contents, int position) {
+                // Check if we're working with a command (starts with /)
+                if (contents.startsWith("/")) {
+                    String prefix = contents.substring(1); // Remove the / for matching
+                    
+                    // Get matching commands from your repository
+                    List<String> matchingCommands = autocompleteModel.keySet()
+                                                                     .stream()
+                                                                     .filter( s -> s.startsWith( prefix ) )
+                                                                     .collect( Collectors.toList() );
+                    
+                    // Convert to IContentProposal objects
+                    return matchingCommands.stream()
+                            .map(cmd -> new CommandContentProposal(cmd))
+                            .toArray(IContentProposal[]::new);
+                }
+                return new IContentProposal[0];
+            }
+        };
+        
+        // Create the ContentProposalAdapter with null keystroke (we'll handle Tab manually)
+        ContentProposalAdapter adapter = new ContentProposalAdapter(
+                textField,                 // The control to add autocomplete to
+                new TextContentAdapter(),  // Adapter to apply proposals to the text field
+                proposalProvider,          // Our custom proposal provider
+                null,                      // No key activation - we'll handle Tab manually
+                null);                     // No auto-activation characters
+        
+        // Configure the adapter behavior
+        adapter.setProposalAcceptanceStyle(ContentProposalAdapter.PROPOSAL_REPLACE);
+        adapter.setPopupSize(new Point(300, 200)); // Set popup size
+        
+        // Add a listener to handle Tab key for showing proposals
+        textField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.keyCode == SWT.TAB && textField.getText().startsWith("/")) {
+                    // Show the content proposal popup
+                    adapter.openProposalPopup();
+                    e.doit = false; // Consume the event to prevent tab focus change
+                }
+            }
+        });
+        
+        // Add a verify listener to handle Tab when typing (optional)
+        textField.addVerifyListener(new VerifyListener() {
+            @Override
+            public void verifyText(VerifyEvent e) {
+                // If Tab is pressed and there's a single match, apply it directly
+                if (e.character == SWT.TAB && textField.getText().startsWith("/")) {
+                    e.doit = false; // Prevent the tab character from being inserted
+                    
+                    // This will be handled by the KeyListener above
+                }
+            }
+        });
+    }
+
+
+    // Custom content proposal implementation
+    class CommandContentProposal implements IContentProposal {
+        private String command;
+        
+        public CommandContentProposal(String command) {
+            this.command = command;
+        }
+        
+        @Override
+        public String getContent() {
+            return "/" + command;  // Add the slash prefix back
+        }
+        
+        @Override
+        public int getCursorPosition() {
+            return getContent().length();  // Place cursor at the end
+        }
+        
+        @Override
+        public String getLabel() {
+            return "/" + command;  // What's shown in the dropdown
+        }
+        
+        @Override
+        public String getDescription() {
+            return autocompleteModel.get( command );
+        }
     }
 
     private Composite createAttachmentsPanel( Composite parent )
