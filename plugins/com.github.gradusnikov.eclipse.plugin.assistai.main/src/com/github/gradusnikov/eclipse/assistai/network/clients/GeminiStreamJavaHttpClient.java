@@ -5,7 +5,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -244,7 +243,13 @@ public class GeminiStreamJavaHttpClient implements LanguageModelClient
         try
         {
             var userMessage = new LinkedHashMap<String, Object>();
-            userMessage.put("role", message.getRole());
+            // in Gemini API, it's not "assistant" but "model" role
+            var role = message.getRole();
+            if ( role.contentEquals( "assistant" ) )
+            {
+                role = "model";
+            }
+            userMessage.put("role", role );
             
             // Handle function calls
             if (model.functionCalling() && Objects.nonNull(message.getFunctionCall()))
