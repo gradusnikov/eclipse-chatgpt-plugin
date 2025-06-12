@@ -1,1 +1,11 @@
 bin/
+
+.classpath
+.project
+.settings
+
+**/*.jar
+**/.project
+**/.settings
+**/.classpath
+**/target

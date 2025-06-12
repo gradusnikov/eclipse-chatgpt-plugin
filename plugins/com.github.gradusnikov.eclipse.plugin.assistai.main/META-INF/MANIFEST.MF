@@ -19,7 +19,6 @@ Require-Bundle: org.eclipse.e4.ui.services,
  org.eclipse.jdt.ui,
  org.apache.commons.lang3;bundle-version="3.17.0",
  org.eclipse.core.resources,
- com.github.gradusnikov.eclipse.plugin.assistai.dependencies;bundle-version="1.0.6",
  org.eclipse.jgit,
  org.eclipse.egit.core,
  org.eclipse.compare,
@@ -39,7 +38,9 @@ Require-Bundle: org.eclipse.e4.ui.services,
  org.eclipse.m2e.maven.runtime
 Bundle-RequiredExecutionEnvironment: JavaSE-21
 Automatic-Module-Name: assistai.main
-Bundle-Classpath: .
+Bundle-Classpath: .,
+ target/classes/,
+ codingagent/codingagent-1.0.6.jar
 Bundle-ActivationPolicy: lazy
 Export-Package: com.github.gradusnikov.eclipse.assistai,
  com.github.gradusnikov.eclipse.assistai.chat,
