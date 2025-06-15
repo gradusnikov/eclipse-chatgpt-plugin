@@ -1,0 +1,56 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	
+	<parent>
+		<groupId>com.github.gradusnikov.eclipse.assistai</groupId>
+		<artifactId>parent</artifactId>
+		<version>1.0.6</version>		
+	</parent>
+
+	<artifactId>com.github.gradusnikov.eclipse.plugin.assistai.main</artifactId>
+	<packaging>eclipse-plugin</packaging>
+	<version>1.0.6-SNAPSHOT</version>
+	
+	<properties>
+		<tycho.version>4.0.10</tycho.version>
+		<junit-jupiter-version>5.11.0</junit-jupiter-version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<java.version>21</java.version>
+		<codingagentdir>${project.basedir}/codingagent/codingagent-1.0.6.jar</codingagentdir>
+	</properties>
+
+	<dependencies>
+		<dependency>
+            <groupId>com.github.gradusnikov.eclipse.assistai</groupId>
+            <artifactId>codingagent</artifactId>
+            <version>1.0.6</version>                   
+        </dependency>
+
+		<dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>${junit-jupiter-version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>${junit-jupiter-version}</version>
+            <scope>test</scope>
+        </dependency>
+        
+        <!-- https://mvnrepository.com/artifact/org.hamcrest/hamcrest-library -->
+		<dependency>
+		    <groupId>org.hamcrest</groupId>
+		    <artifactId>hamcrest-library</artifactId>
+		    <version>3.0</version>
+		    <scope>test</scope>
+		</dependency>
+
+	</dependencies>
+
+	
+</project>
+
