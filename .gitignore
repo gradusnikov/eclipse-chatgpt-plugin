@@ -3,9 +3,10 @@ bin/
 .classpath
 .project
 .settings
+target/
 
 **/*.jar
 **/.project
 **/.settings
 **/.classpath
-**/target
+**/target/

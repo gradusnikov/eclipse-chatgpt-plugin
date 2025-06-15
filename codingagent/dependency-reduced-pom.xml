@@ -25,6 +25,7 @@
         <artifactId>maven-jar-plugin</artifactId>
         <version>2.3.1</version>
         <configuration>
+          <outputDirectory>target</outputDirectory>
           <outputDirectory>../plugins/com.github.gradusnikov.eclipse.plugin.assistai.main/codingagent</outputDirectory>
         </configuration>
       </plugin>

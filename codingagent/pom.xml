@@ -100,6 +100,13 @@
 			<version>${junit-jupiter-version}</version>
 			<scope>test</scope>
 		</dependency>
+		
+		<!-- https://mvnrepository.com/artifact/jakarta.inject/jakarta.inject-api -->
+		<dependency>
+		    <groupId>jakarta.inject</groupId>
+		    <artifactId>jakarta.inject-api</artifactId>
+		    <version>2.0.1</version>
+		</dependency>
 
 	</dependencies>
 
@@ -123,6 +130,7 @@
 		        <artifactId>maven-jar-plugin</artifactId>
 		        <version>2.3.1</version>
 		        <configuration>
+		          <outputDirectory>target</outputDirectory>
 		          <outputDirectory>../plugins/com.github.gradusnikov.eclipse.plugin.assistai.main/codingagent</outputDirectory>
 		        </configuration>
       		</plugin>
