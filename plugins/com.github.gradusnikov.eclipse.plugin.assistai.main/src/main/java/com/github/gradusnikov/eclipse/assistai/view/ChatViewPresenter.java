@@ -58,11 +58,11 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.network.subscribers.AppendMessageToViewSubscriber;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageUtilities;
-import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepository;
 import com.github.gradusnikov.eclipse.assistai.repository.PromptRepository;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
+import codingagent.models.Prompts;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.inject.Provider;

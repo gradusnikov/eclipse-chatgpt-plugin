@@ -1,5 +1,6 @@
 package codingagent.factory;
 
+import codingagent.models.AutoCompletingModel;
 import codingagent.models.ModelApiDescriptor;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
@@ -14,9 +15,9 @@ public class OllamaFactory implements ModelFactoryAdapter {
 	public ChatLanguageModel buildChat(ModelApiDescriptor apiDescriptor) {
 		OllamaChatModelBuilder builder = OllamaChatModel.builder()
 				.baseUrl(apiDescriptor.apiUrl())
-				.modelName(apiDescriptor.modelName());
-
+				.modelName(apiDescriptor.modelName())
+				.temperature(0.9);
+		
 		return builder.build();
-	}
-
+	}	
 }

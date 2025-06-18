@@ -1,14 +1,16 @@
-package com.github.gradusnikov.eclipse.assistai.prompt;
+package codingagent.models;
 
 public enum Prompts
 {
     SYSTEM("system", "system-prompt.md", "System prompt tells the LLM how to behave"),
+    AUTOCOMPLETE("autocomplete", "autocomplete-prompt.md", "Autocomplete prompt"),
     DISCUSS("discuss", "discuss-prompt.md", "Discuss the content of the currently opened file"),
     DOCUMENT("doc","document-prompt.md", "Document the selected type or method"),
     FIX_ERRORS("fix", "fix-errors-prompt.md", "Fix errors in the currently opened file"),
     GIT_COMMENT("git_comment","gitcomment-prompt.md", "Generate a git comment"),
     REFACTOR("refactor", "refactor-prompt.md", "Refactor current selection or currently opened file"),
     TEST_CASE("junit", "testcase-prompt.md", "Create a JUnit test case for current file or selection");
+	
 
     private final String fileName;
     private final String commandName;

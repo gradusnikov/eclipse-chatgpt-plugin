@@ -11,6 +11,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.repository.PromptRepository;
 
+import codingagent.models.Prompts;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 

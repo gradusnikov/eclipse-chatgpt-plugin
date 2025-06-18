@@ -5,9 +5,9 @@ import org.eclipse.e4.ui.services.IServiceConstants;
 import org.eclipse.swt.widgets.Shell;
 
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
-import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.view.ChatViewPresenter;
 
+import codingagent.models.Prompts;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 
