@@ -1,15 +1,15 @@
-package com.github.gradusnikov.eclipse.assistai.preferences.models;
+package codingagent.models;
 
 /**
- * 
+ * Api Descriptor
  */
 public record ModelApiDescriptor(
          String uid,
          String apiType,
          String apiUrl,
          String apiKey,
-         String modelName,
+         String modelName,         
          int temperature,
          boolean vision,
          boolean functionCalling
-         ) {} 
+         ) {}  

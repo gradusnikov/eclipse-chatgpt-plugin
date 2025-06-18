@@ -31,6 +31,8 @@ import org.eclipse.ui.IWorkbenchPreferencePage;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
 
+import codingagent.models.ModelApiDescriptor;
+
 
 public class ModelListPreferencePage extends PreferencePage implements IWorkbenchPreferencePage
 {

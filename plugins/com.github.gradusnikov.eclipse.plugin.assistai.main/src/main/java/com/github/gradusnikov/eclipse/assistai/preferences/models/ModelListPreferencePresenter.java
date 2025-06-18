@@ -7,6 +7,7 @@ import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepo
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
+import codingagent.models.ModelApiDescriptor; 
 
 @Creatable
 @Singleton
