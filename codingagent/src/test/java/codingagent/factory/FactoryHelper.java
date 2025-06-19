@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import codingagent.models.ModelApiDescriptor;
 import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.openai.OpenAiChatModelName;
 
 public class FactoryHelper {
 	public static final String DEFAULT_LOCALHOST_URL = "http://localhost:11434";
@@ -12,8 +13,21 @@ public class FactoryHelper {
 	public static final String DEFAULT_OLLAMA_MODEL = "llama3.2:3b";
 
 	public static ModelApiDescriptor buildApi() {
+				
 		ModelApiDescriptor api = new ModelApiDescriptor(UUID.randomUUID().toString(), ModelFactories.OLLAMA.name(),
-				DEFAULT_LOCALHOST_URL, null, DEFAULT_OLLAMA_MODEL, 0, false, true);
+				DEFAULT_LOCALHOST_URL, null, DEFAULT_OLLAMA_MODEL, 0, false, true);		
+		
+		
+		/*
+		ModelApiDescriptor api = new ModelApiDescriptor(UUID.randomUUID().toString(), ModelFactories.MISTRAL.name(),
+				"default_url", System.getenv("MISTRAL_AI_API_KEY"), DEFAULT_OLLAMA_MODEL, 0, false, true);
+				*/
+		
+		/*
+		ModelApiDescriptor api = new ModelApiDescriptor(UUID.randomUUID().toString(), ModelFactories.OPENAI.name(),
+				"default_url", System.getenv("OPENAI_KEY"), "gpt-4.1-nano", 0, false, true);
+
+						*/
 		return api;
 	}
 	

@@ -1,16 +1,12 @@
 package codingagent.models;
 
-import static org.junit.jupiter.api.Assertions.*;
-
-import java.util.List;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
 import codingagent.factory.FactoryHelper;
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
-import dev.langchain4j.model.output.Response;
 
 class AutoCompletingModelTest {
 
@@ -32,10 +28,10 @@ class AutoCompletingModelTest {
 				}
 				""", 8);
 
-		/*assertEquals("You are assisting system with Java code autocompletion.\n" + "\n", autoCompleting.buildSystemText());
+		assertEquals(AutoCompletingModel.SYSTEM_ROLE + "\n" + "\n", autoCompleting.buildSystemText());
 		assertEquals(
-				"""
-				Below is a snippet of Java code that is incomplete. Please provide suggestions to replace {rowToCompleting}
+				AutoCompletingModel.SAMPLE_ACTION_PROMT_INTRODUCE +
+				"""				
 				```java
 				package codingagent.factory;
 				
@@ -44,31 +40,36 @@ class AutoCompletingModelTest {
 						int a = 10;
 						int b = 20;
 						int sum = a + b;
-				
-				{rowToCompleting}
+						// Printing the sum
+						Syste{suggest here}
 					}
 				}
-				
-				```
-				
-				Bellow the row to complete in place of {rowToCompleting} which start with "		Sy".
-				Call the callback method "callToComplete"
-				""",
-				autoCompleting.buildUserText());
-				*/
+
+				``` 
+ 		 		""" + AutoCompletingModel.SAMPLE_ACTION_PROMT_INSTRUCTION,
+				autoCompleting.buildUserText());				
 		
 		System.out.println(autoCompleting.buildSystemText());
 		System.out.println(autoCompleting.buildUserText());
 
 		ChatLanguageModel model = FactoryHelper.buildChatLanguageModel();
 		
-		
 
-		Response<AiMessage> responses = model.generate(autoCompleting.buildMessages(), autoCompleting.buildCallback());
-		 
-		assertTrue(responses.content().toolExecutionRequests().size() >=  1);
+		String expect = "System.out.println";
+		int countSuccess = 0;
+		int countTry = 20;
+		for(int x=0;x < countTry;x++) {
+			String suggested =  autoCompleting.suggest(model);
+			System.out.println("Suggested:" + suggested);
+			if(suggested != null && suggested.trim().startsWith(expect)) {
+				countSuccess++;
+			}
+		}
 		
-		System.out.println(responses.content().toolExecutionRequests().get(0).arguments());
+		double ratio = ((double)countSuccess)/countTry;
+		System.out.println(ratio);
+		assertTrue(ratio >= 0.6, "Success ratio :" + ratio);
+		
 		
 	}
 

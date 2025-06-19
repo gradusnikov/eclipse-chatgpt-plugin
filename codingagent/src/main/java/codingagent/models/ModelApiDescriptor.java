@@ -12,4 +12,4 @@ public record ModelApiDescriptor(
          int temperature,
          boolean vision,
          boolean functionCalling
-         ) {}  
+         ) {}

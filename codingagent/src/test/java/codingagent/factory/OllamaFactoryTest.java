@@ -2,12 +2,8 @@ package codingagent.factory;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.UUID;
-
 import org.junit.jupiter.api.Test;
 
-import codingagent.models.ModelApiDescriptor;
-import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 
 class OllamaFactoryTest {

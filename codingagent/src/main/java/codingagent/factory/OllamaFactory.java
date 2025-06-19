@@ -16,7 +16,7 @@ public class OllamaFactory implements ModelFactoryAdapter {
 		OllamaChatModelBuilder builder = OllamaChatModel.builder()
 				.baseUrl(apiDescriptor.apiUrl())
 				.modelName(apiDescriptor.modelName())
-				.temperature(0.9);
+				.temperature(1.0);
 		
 		return builder.build();
 	}	

@@ -1,9 +1,13 @@
 package codingagent.factory;
 
 public enum ModelFactories {
-	OLLAMA(new OllamaFactory());
+	OLLAMA(new OllamaFactory()),
+	MISTRAL(new MistralFactory()),
+	OPENAI(new OpenAiFactory())
+	;
+	
 		
-	private final ModelFactoryAdapter factory;
+	private ModelFactoryAdapter factory;
 	
 	ModelFactories(ModelFactoryAdapter factory) {
 		this.factory = factory;
