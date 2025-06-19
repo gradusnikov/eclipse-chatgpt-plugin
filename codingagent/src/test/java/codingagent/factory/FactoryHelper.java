@@ -10,7 +10,7 @@ public class FactoryHelper {
 	public static final String DEFAULT_LOCALHOST_URL = "http://localhost:11434";
 
 	// Gemma:2b is really fast to load but it's not best model
-	public static final String DEFAULT_OLLAMA_MODEL = "llama3.2:3b";
+	public static final String DEFAULT_OLLAMA_MODEL = "qwen3:8b";
 
 	public static ModelApiDescriptor buildApi() {
 				

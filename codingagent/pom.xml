@@ -34,6 +34,18 @@
 		</dependency>
 		
 		<dependency>
+		    <groupId>dev.langchain4j</groupId>
+		    <artifactId>langchain4j-mistral-ai</artifactId>
+		    <version>0.36.2</version>
+		</dependency>
+		
+		<dependency>
+		    <groupId>dev.langchain4j</groupId>
+		    <artifactId>langchain4j-open-ai</artifactId>
+		    <version>0.36.2</version>
+		</dependency>
+		
+		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-text</artifactId>
 			<version>1.13.1</version>
