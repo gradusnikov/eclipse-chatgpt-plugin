@@ -25,10 +25,11 @@ public class PromptContextValueProvider
     private static final String CONSOLE_OUTPUT = "consoleOutput";
     private static final String ERRORS = "errors";
     private static final String SELECTED_CONTENT = "selectedContent";
-    private static final String CURRENT_FILE_CONTENT = "currentFileContent";
+    private static final String CURRENT_FILE_CONTENT = "currentFileContent";            
+    private static final String CURRENT_FILE_CONTENT_WITH_SUGGEST_HERE = "currentFileContentWithSuggestHere";
     private static final String CURRENT_FILE_PATH = "currentFilePath";
     private static final String CURRENT_FILE_NAME = "currentFileName";
-    private static final String CURRENT_PROJECT_NAME = "currentProjectName";
+    private static final String CURRENT_PROJECT_NAME = "currentProjectName";    
     
     @Inject
     ILog logger;
@@ -51,6 +52,7 @@ public class PromptContextValueProvider
             case CURRENT_PROJECT_NAME -> safeGetString( () -> editorService.getCurrentlyOpenedFile().map( IFile::getProject ).map(IProject::getName).orElse( "" ) );
 	        case CURRENT_FILE_PATH -> safeGetString( () -> editorService.getCurrentlyOpenedFile().map( IFile::getProjectRelativePath ).map(IPath::toString).orElse( "" ) );
             case CURRENT_FILE_NAME -> safeGetString( () -> editorService.getCurrentlyOpenedFile().map( IFile::getName ).orElse( "" ) );
+            case CURRENT_FILE_CONTENT_WITH_SUGGEST_HERE -> safeGetString(() -> editorService.getCurrentlyOpenedFileContentWithSuggestMark());             
 	        case CURRENT_FILE_CONTENT -> safeGetString(() -> editorService.getCurrentlyOpenedFileContent() );
 	        case SELECTED_CONTENT -> safeGetString(() -> editorService.getEditorSelection() );
 	        case ERRORS -> safeGetString( () -> codeAnalysisService.getCompilationErrors( getContextValue(CURRENT_PROJECT_NAME), "ERROR", -1 ) );

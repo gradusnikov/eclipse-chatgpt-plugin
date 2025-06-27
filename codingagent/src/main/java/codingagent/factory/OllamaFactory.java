@@ -1,6 +1,5 @@
 package codingagent.factory;
 
-import codingagent.models.AutoCompletingModel;
 import codingagent.models.ModelApiDescriptor;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;

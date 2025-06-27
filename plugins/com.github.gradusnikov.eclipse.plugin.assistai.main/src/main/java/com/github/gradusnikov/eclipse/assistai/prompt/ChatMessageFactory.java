@@ -19,6 +19,8 @@ import jakarta.inject.Singleton;
 @Singleton
 public class ChatMessageFactory
 {
+	
+	public static ChatMessageFactory INSTANCE; 	
     
 	@Inject
 	private PromptContextValueProvider contextValues;
@@ -28,8 +30,9 @@ public class ChatMessageFactory
 	
     public ChatMessageFactory()
     {
-        
+    	INSTANCE = this;
     }
+    
     public ChatMessage createAssistantChatMessage( String text )
     {
         ChatMessage message = new ChatMessage( UUID.randomUUID().toString(), "assistant" );
@@ -38,46 +41,11 @@ public class ChatMessageFactory
 
     }
     
-    public ChatMessage createUserChatMessage( Prompts type)
-    {
-        Supplier<String> promptSupplier =
-            switch ( type )
-            {
-                case DOCUMENT   -> javaDocPromptSupplier();
-                case TEST_CASE  -> unitTestSupplier();
-                case REFACTOR   -> refactorPromptSupplier(); 
-                case DISCUSS    -> discussCodePromptSupplier();
-                case FIX_ERRORS -> fixErrorsPromptSupplier( );
-                default ->
-                    throw new IllegalArgumentException();
-            };
-        return createUserChatMessage( promptSupplier );
-    }
-    
-    private Supplier<String> fixErrorsPromptSupplier( )
-    {
-        return () -> promptRepository.getPrompt( Prompts.FIX_ERRORS.name() );
-    }
-
-    private Supplier<String> discussCodePromptSupplier()
-    {
-        return () -> promptRepository.getPrompt( Prompts.DISCUSS.name() );
-    }
-
-    private Supplier<String> javaDocPromptSupplier()
-    {
-        return () -> promptRepository.getPrompt( Prompts.DOCUMENT.name() );
-    }
-    private Supplier<String> refactorPromptSupplier()
-    {
-        return () -> promptRepository.getPrompt( Prompts.REFACTOR.name() );
-    }
-    private Supplier<String> unitTestSupplier( )
-    {
-        return () -> promptRepository.getPrompt( Prompts.TEST_CASE.name() );
-    }
-
-    
+	public ChatMessage createUserChatMessage(Prompts type) {
+		return createUserChatMessage(() -> promptRepository.getPrompt(type.name()));
+	}
+       
+   
     public ChatMessage createGenerateGitCommitCommentJob( )
     {
         Supplier<String> promptSupplier  =  () -> promptRepository.getPrompt( Prompts.GIT_COMMENT.name() );

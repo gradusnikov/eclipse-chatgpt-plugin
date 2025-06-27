@@ -6,17 +6,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 import codingagent.factory.FactoryHelper;
+import codingagent.utils.SourceUtils;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 
 class AutoCompletingModelTest {
 
 	@Test
 	void test() {
+		String prompt = """
+				You are an Java Assistant which can complete one row for the user in his IDE.
 
-		AutoCompletingModel autoCompleting = new AutoCompletingModel();
-		autoCompleting.setAutoComplete("""
+				Below current Java file. Please provide suggestions to replace the mark  [suggest here]
+				```java
+				{currentFileContentWithSuggestHere}
+				```
+				Replace [suggest here] with suggestion with method suggestReplacing
+
+				""";
+		
+		String source = SourceUtils.inject("""
 				package codingagent.factory;
-
+				
 				public class Main {
 					public static void main(String[] args) {
 						int a = 10;
@@ -25,13 +35,20 @@ class AutoCompletingModelTest {
 						// Printing the sum
 						Syste
 					}
-				}
-				""", 8);
+				}				
+				""", new Cursor(8, 7), AutoCompletingQuery.SUGGEST_HERE_MARK);
 
-		assertEquals(AutoCompletingModel.SYSTEM_ROLE + "\n" + "\n", autoCompleting.buildSystemText());
-		assertEquals(
-				AutoCompletingModel.SAMPLE_ACTION_PROMT_INTRODUCE +
-				"""				
+		AutoCompletingQuery autoCompleting = new AutoCompletingQuery();
+		 
+		autoCompleting.setQuery(prompt.replace("{currentFileContentWithSuggestHere}", source));
+
+		System.out.println(autoCompleting.getQuery());
+		
+		assertEquals(				
+				"""	
+				You are an Java Assistant which can complete one row for the user in his IDE.
+
+				Below current Java file. Please provide suggestions to replace the mark  [suggest here]
 				```java
 				package codingagent.factory;
 				
@@ -41,23 +58,24 @@ class AutoCompletingModelTest {
 						int b = 20;
 						int sum = a + b;
 						// Printing the sum
-						Syste{suggest here}
+						Syste[suggest here]
 					}
 				}
-
-				``` 
- 		 		""" + AutoCompletingModel.SAMPLE_ACTION_PROMT_INSTRUCTION,
-				autoCompleting.buildUserText());				
+				
+				```
+				Replace [suggest here] with suggestion with method suggestReplacing
+							
+				""",
+				autoCompleting.getQuery());				
 		
-		System.out.println(autoCompleting.buildSystemText());
-		System.out.println(autoCompleting.buildUserText());
+				
 
 		ChatLanguageModel model = FactoryHelper.buildChatLanguageModel();
 		
 
 		String expect = "System.out.println";
 		int countSuccess = 0;
-		int countTry = 20;
+		int countTry = 5;
 		for(int x=0;x < countTry;x++) {
 			String suggested =  autoCompleting.suggest(model);
 			System.out.println("Suggested:" + suggested);

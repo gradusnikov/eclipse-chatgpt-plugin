@@ -7,6 +7,7 @@ import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
+import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepository;
 
 import codingagent.models.ModelApiDescriptor;
@@ -17,12 +18,14 @@ import jakarta.inject.Singleton;
 @Singleton
 public class LanguageModelClientConfiguration 
 {
+	public static LanguageModelClientConfiguration INSTANCE;
     private final ModelApiDescriptorRepository repository;
     
     @Inject
     public LanguageModelClientConfiguration( ModelApiDescriptorRepository repository )
     {
         this.repository = repository;
+        INSTANCE = this;
     }
     
     public Optional<ModelApiDescriptor> getSelectedModel()

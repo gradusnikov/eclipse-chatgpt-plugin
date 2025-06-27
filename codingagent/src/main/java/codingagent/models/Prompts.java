@@ -11,6 +11,7 @@ public enum Prompts
     REFACTOR("refactor", "refactor-prompt.md", "Refactor current selection or currently opened file"),
     TEST_CASE("junit", "testcase-prompt.md", "Create a JUnit test case for current file or selection");
 	
+	
 
     private final String fileName;
     private final String commandName;
