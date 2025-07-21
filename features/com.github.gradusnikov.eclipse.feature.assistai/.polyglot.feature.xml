@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.github.gradusnikov.eclipse.assistai</groupId>
+    <artifactId>features</artifactId>
+    <version>1.0.6-SNAPSHOT</version>
+    <relativePath>../.polyglot.pom.tycho</relativePath>
+  </parent>
+  <artifactId>com.github.gradusnikov.eclipse.assistai</artifactId>
+  <version>1.0.6-SNAPSHOT</version>
+  <packaging>eclipse-feature</packaging>
+  <name>[feature] Assist AI</name>
+  <organization>
+    <name>WojciechGradkowski</name>
+  </organization>
+</project>

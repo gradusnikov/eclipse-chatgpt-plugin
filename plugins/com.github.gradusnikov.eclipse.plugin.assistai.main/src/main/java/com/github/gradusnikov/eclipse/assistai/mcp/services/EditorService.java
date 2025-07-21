@@ -18,12 +18,10 @@ import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
+import com.github.gradusnikov.eclipse.assistai.compare.JavaNode;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceFormatter;
 import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 
-import codingagent.models.AutoCompletingQuery;
-import codingagent.models.Cursor;
-import codingagent.utils.SourceUtils;
 import jakarta.inject.Inject;
 
 
@@ -56,7 +54,7 @@ public class EditorService
      * 
      * @return A formatted string containing file information and content
      */
-    public String getCurrentlyOpenedFileContent()
+	public String getCurrentlyOpenedFileContent()
     {
         return uiSync.syncCall( () -> {
 	        final StringBuilder result = new StringBuilder();
@@ -84,28 +82,33 @@ public class EditorService
 	 * @return A formatted string containing file information and content
 	 * @throws Exception 
 	 */
-	public String getCurrentlyOpenedFileContentWithSuggestMark() throws Exception {
+	public String getCursorOffset() throws Exception {
+		ITextEditor textEditor = getActiveTextEditorOrThrow();					
+		return getCursor(textEditor);
+	}
+
+	/**
+	 * Gets information about the currently active file in the Eclipse editor.
+	 * 
+	 * @return A formatted string containing file information and content
+	 * @throws Exception 
+	 */
+	public String getCurrentEditorContent() throws Exception {
 		ITextEditor textEditor = getActiveTextEditorOrThrow();
 		IDocument document = textEditor.getDocumentProvider().getDocument(textEditor.getEditorInput());
-		String source = document.get();
-		Cursor cursor = getCursor(textEditor);
-		return SourceUtils.inject(source, cursor, AutoCompletingQuery.SUGGEST_HERE_MARK);
+		return document.get();		
 	}
 
 
-
-	private Cursor getCursor(ITextEditor textEditor) {
+	private String getCursor(ITextEditor textEditor) {
 		// Get the selection provider		
         ISelectionProvider selectionProvider = textEditor.getSelectionProvider();        
         if (selectionProvider != null) {
             // Get the current text selection
-            ITextSelection textSelection = (ITextSelection) selectionProvider.getSelection();
-
-            
+            ITextSelection textSelection = (ITextSelection) selectionProvider.getSelection();            
             if (textSelection != null) {
-                // Return the current line number
-            	
-                return new Cursor(textSelection.getStartLine(), textSelection.getOffset()); 
+                // Return the current line number            	
+                return String.valueOf(textSelection.getOffset()); 
             }
         }
 		return null;
@@ -194,6 +197,16 @@ public class EditorService
                        .map( IWorkbenchWindow::getActivePage)
                        .map( IWorkbenchPage::getActiveEditor);
     }
+    
+    
+    public JavaNode getCompilationUnitFromCurrentJavaEditor() throws Exception {
+    	ITextEditor textEditor = getActiveTextEditorOrThrow();
+		IDocument document = textEditor.getDocumentProvider().getDocument(textEditor.getEditorInput());
+        // Get the compilation unit from the Java editor
+		return new JavaNode(document);
+    }
+    
+    
 
     
 }

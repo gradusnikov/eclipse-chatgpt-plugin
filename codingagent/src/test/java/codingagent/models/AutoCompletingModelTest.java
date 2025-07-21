@@ -1,30 +1,19 @@
 package codingagent.models;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
 import codingagent.factory.FactoryHelper;
-import codingagent.utils.SourceUtils;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 
 class AutoCompletingModelTest {
 
 	@Test
-	void test() {
-		String prompt = """
-				You are an Java Assistant which can complete one row for the user in his IDE.
-
-				Below current Java file. Please provide suggestions to replace the mark  [suggest here]
-				```java
-				{currentFileContentWithSuggestHere}
-				```
-				Replace [suggest here] with suggestion with method suggestReplacing
-
-				""";
-		
-		String source = SourceUtils.inject("""
+	void test() {		
+		String sourceToCompelte  = """
 				package codingagent.factory;
 				
 				public class Main {
@@ -36,59 +25,56 @@ class AutoCompletingModelTest {
 						Syste
 					}
 				}				
-				""", new Cursor(8, 7), AutoCompletingQuery.SUGGEST_HERE_MARK);
-
-		AutoCompletingQuery autoCompleting = new AutoCompletingQuery();
-		 
-		autoCompleting.setQuery(prompt.replace("{currentFileContentWithSuggestHere}", source));
-
-		System.out.println(autoCompleting.getQuery());
-		
-		assertEquals(				
-				"""	
-				You are an Java Assistant which can complete one row for the user in his IDE.
-
-				Below current Java file. Please provide suggestions to replace the mark  [suggest here]
-				```java
+				""";
+		String lexem = "Syste";
+		String expect = "m.out.println";
+		double expectRatio = 0.6;			
+		suggestTest(sourceToCompelte, lexem, expect, expectRatio);
+	}
+	
+	@Test
+	void test2() {		
+		String sourceToCompelte  = """
 				package codingagent.factory;
 				
 				public class Main {
 					public static void main(String[] args) {
-						int a = 10;
-						int b = 20;
-						int sum = a + b;
-						// Printing the sum
-						Syste[suggest here]
-					}
-				}
-				
-				```
-				Replace [suggest here] with suggestion with method suggestReplacing
-							
-				""",
-				autoCompleting.getQuery());				
-		
-				
+						List<String> names = List.of("Jérôme", "Hugo", "Marie", "Raphael");
+						// Sort and print names
+						Syste
+						}
+				}				
+				""";
+		String lexem = "// Sort and print names\n";
+		String expect = "println";
+		double expectRatio = 0.6;			
+		suggestTest(sourceToCompelte, lexem, expect, expectRatio);
+	}
 
+	private void suggestTest(String sourceToCompelte, String lexem, String expect, double expectRatio) {
+		int cursorOffset = sourceToCompelte.indexOf(lexem) + lexem.length();		
+		AutoCompletingQuery query = new AutoCompletingQuery();
+		query.completeThePrompt(
+				Map.of(ChatModelQuery.SOURCE_FILE_CONTENT, sourceToCompelte,
+				ChatModelQuery.EDITOR_CURSOR_OFFSET, "" + cursorOffset));		
+		
 		ChatLanguageModel model = FactoryHelper.buildChatLanguageModel();
 		
-
-		String expect = "System.out.println";
+		System.out.println("Prompt:" + query.getPrompt());
+		
 		int countSuccess = 0;
-		int countTry = 5;
+		int countTry = 10;
 		for(int x=0;x < countTry;x++) {
-			String suggested =  autoCompleting.suggest(model);
+			String suggested =  query.execute(model);
 			System.out.println("Suggested:" + suggested);
-			if(suggested != null && suggested.trim().startsWith(expect)) {
+			if(suggested != null && suggested.indexOf(expect) >= 0) {
 				countSuccess++;
 			}
 		}
 		
 		double ratio = ((double)countSuccess)/countTry;
 		System.out.println(ratio);
-		assertTrue(ratio >= 0.6, "Success ratio :" + ratio);
-		
-		
+		assertTrue(ratio >= expectRatio, "Success ratio :" + ratio);
 	}
 
 }

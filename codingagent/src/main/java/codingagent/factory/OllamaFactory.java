@@ -12,10 +12,12 @@ public class OllamaFactory implements ModelFactoryAdapter {
 
 	@Override
 	public ChatLanguageModel buildChat(ModelApiDescriptor apiDescriptor) {
-		OllamaChatModelBuilder builder = OllamaChatModel.builder()
-				.baseUrl(apiDescriptor.apiUrl())
+		OllamaChatModelBuilder builder = OllamaChatModel.builder()			
+				.baseUrl(apiDescriptor.apiUrl())				
 				.modelName(apiDescriptor.modelName())
 				.temperature(1.0);
+		
+		
 		
 		return builder.build();
 	}	

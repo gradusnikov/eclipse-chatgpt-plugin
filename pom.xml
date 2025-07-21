@@ -6,7 +6,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.github.gradusnikov.eclipse.assistai</groupId>
 	<artifactId>parent</artifactId>
-	<version>1.0.6</version>
+	<version>1.0.6-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<modules>
 		<module>codingagent</module>

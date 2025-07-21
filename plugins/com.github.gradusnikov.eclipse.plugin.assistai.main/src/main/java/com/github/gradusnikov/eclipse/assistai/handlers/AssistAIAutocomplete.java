@@ -2,10 +2,13 @@ package com.github.gradusnikov.eclipse.assistai.handlers;
 
 import org.eclipse.e4.core.di.annotations.Execute;
 import org.eclipse.e4.ui.services.IServiceConstants;
-import org.eclipse.jface.dialogs.MessageDialog;
-import org.eclipse.swt.widgets.Display;
+import org.eclipse.jdt.internal.core.DocumentAdapter;
 import org.eclipse.swt.widgets.Shell;
 
+import com.github.gradusnikov.eclipse.assistai.compare.CompareJavaFilesAction;
+import com.github.gradusnikov.eclipse.assistai.compare.JavaNode;
+import com.github.gradusnikov.eclipse.assistai.compare.SourceMemoryBuffer;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
 import com.github.gradusnikov.eclipse.assistai.network.clients.LanguageModelClientConfiguration;
 
 import codingagent.factory.ModelFactories;
@@ -17,47 +20,35 @@ import dev.langchain4j.model.chat.ChatLanguageModel;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 
-public class AssistAIAutocomplete extends AssistAIHandlerTemplate
-{
-    
-	@Inject
-    private LanguageModelClientConfiguration configuration;
-	
-    public AssistAIAutocomplete()
-    {
-        super( Prompts.AUTOCOMPLETE );
-    }
-    
-    @Execute
-    public void execute(@Named(IServiceConstants.ACTIVE_SHELL) Shell s)
-    {
-        var message = chatMessageFactory.createUserChatMessage( type );
-        
-        AutoCompletingQuery query = new AutoCompletingQuery();
-        query.setQuery(message.getContent());
-        //
-        
-        // Get the active shell
-        Shell shell = Display.getDefault().getActiveShell();
+public class AssistAIAutocomplete extends AssistAIHandlerTemplate {
 
-        // Display the information dialog
-        MessageDialog.openInformation(
-            shell,
-            "Information", // Title of the dialog
-            query.getQuery()
-        );
-        
-        ModelApiDescriptor modelApiDescriptor = configuration.getSelectedModel().get();
-        ModelFactoryAdapter modelFactory = ModelFactories.valueOf( modelApiDescriptor.apiType()).getFactory();
-        ChatLanguageModel model = modelFactory.buildChat(modelApiDescriptor);
-        String suggested = query.suggest(model);
-        
-        MessageDialog.openInformation(
-                shell,
-                "Information", // Title of the dialog
-                suggested
-            );
-        
-    }
-    
+	@Inject
+	private LanguageModelClientConfiguration configuration;
+
+	@Inject
+	private EditorService editorService;
+
+	public AssistAIAutocomplete() {
+		super(Prompts.AUTOCOMPLETE);
+	}
+
+	@Execute
+	public void execute(@Named(IServiceConstants.ACTIVE_SHELL) Shell s) {
+		JavaNode javaSource;
+		try {
+			javaSource = editorService.getCompilationUnitFromCurrentJavaEditor();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+		AutoCompletingQuery query = (AutoCompletingQuery) chatMessageFactory.createQuery(type);
+	
+		ModelApiDescriptor modelApiDescriptor = configuration.getSelectedModel().get();
+		ModelFactoryAdapter modelFactory = ModelFactories.valueOf(modelApiDescriptor.apiType()).getFactory();
+		ChatLanguageModel model = modelFactory.buildChat(modelApiDescriptor);
+		query.execute(model);
+		String resultSourceFile = query.getSourceFile();
+
+		CompareJavaFilesAction.showCompareView(javaSource, new JavaNode(new DocumentAdapter(new SourceMemoryBuffer(resultSourceFile))));
+	}
+
 }

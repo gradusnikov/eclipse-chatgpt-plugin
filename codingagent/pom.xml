@@ -6,11 +6,12 @@
 	<parent>
 		<groupId>com.github.gradusnikov.eclipse.assistai</groupId>
 		<artifactId>parent</artifactId>
-		<version>1.0.6</version>
+		<version>1.0.6-SNAPSHOT</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 	
 	<artifactId>codingagent</artifactId>	
+	<version>1.0.6</version>
 
 	<properties>		
 		<junit-jupiter-version>5.11.0</junit-jupiter-version>
