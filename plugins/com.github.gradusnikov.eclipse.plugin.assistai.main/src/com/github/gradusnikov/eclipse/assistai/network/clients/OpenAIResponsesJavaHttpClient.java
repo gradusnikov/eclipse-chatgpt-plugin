@@ -67,9 +67,6 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
-    // Store previous response ID for stateful conversations
-    private String previousResponseId;
-    
     public OpenAIResponsesJavaHttpClient()
     {
         publisher = new SubmissionPublisher<>();
@@ -88,21 +85,6 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
         publisher.subscribe(subscriber);
     }
     
-    /**
-     * Set the previous response ID for stateful conversations
-     */
-    public void setPreviousResponseId(String previousResponseId)
-    {
-        this.previousResponseId = previousResponseId;
-    }
-    
-    /**
-     * Get the current previous response ID
-     */
-    public String getPreviousResponseId()
-    {
-        return previousResponseId;
-    }
     
     /**
      * Creates a function call output object for the Responses API
@@ -171,10 +153,7 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
                 requestBody.put("tools", tools);
                 
                 // Tool choice configuration
-                var toolChoice = getToolChoice(model);
-                if (toolChoice != null) {
-                    requestBody.put("tool_choice", toolChoice);
-                }
+                requestBody.put("tool_choice", "auto");
                 
                 // Parallel tool calls (default true)
                 requestBody.put("parallel_tool_calls", false); // TODO: handle parallel calls
@@ -188,13 +167,10 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
             // Streaming
             requestBody.put("stream", true);
             
-            // Previous response ID for stateful conversations
-            if (previousResponseId != null && !previousResponseId.isBlank()) {
-                requestBody.put("previous_response_id", previousResponseId);
-            }
-            
             // Storage (default true for Responses API)
-            requestBody.put("store", true);
+            // we don't want to store the conversation and use previous_response_id
+            // each time a whole conversation context is sent
+            requestBody.put("store", false);
             
             return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(requestBody);
         }
@@ -310,90 +286,16 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
     {
         var tools = new ArrayList<Map<String, Object>>();
         
-        // Add built-in OpenAI tools
-        tools.addAll(getBuiltInTools());
-        
         // Add MCP tools if function calling is enabled
-        if (model.functionCalling()) {
-            for (var client : mcpClientRegistry.listEnabledveClients().entrySet()) {
+        if ( model.functionCalling() ) 
+        {
+            for (var client : mcpClientRegistry.listEnabledveClients().entrySet()) 
+            {
                 tools.addAll(convertMcpToolsToResponses(client.getKey(), client.getValue()));
             }
         }
         
         return tools;
-    }
-    
-    /**
-     * Gets built-in OpenAI tools
-     */
-    private List<Map<String, Object>> getBuiltInTools()
-    {
-        var tools = new ArrayList<Map<String, Object>>();
-        
-        // Add web search tool (if enabled in preferences)
-        if (preferenceStore.getBoolean("openai.responses.enable_web_search")) {
-            tools.add(Map.of("type", "web_search_preview"));
-        }
-        
-        // Add file search tool (if enabled)
-        if (preferenceStore.getBoolean("openai.responses.enable_file_search")) {
-            tools.add(Map.of("type", "file_search"));
-        }
-        
-        // Add code interpreter tool (if enabled)
-        if (preferenceStore.getBoolean("openai.responses.enable_code_interpreter")) {
-            tools.add(Map.of("type", "code_interpreter"));
-        }
-        
-        // Add custom tools with grammar constraints
-        tools.addAll(getCustomTools());
-        
-        return tools;
-    }
-    
-    /**
-     * Gets custom tools with grammar constraints
-     */
-    private List<Map<String, Object>> getCustomTools()
-    {
-        var tools = new ArrayList<Map<String, Object>>();
-        
-        // Example: Add a code execution custom tool
-        var codeExecTool = new LinkedHashMap<String, Object>();
-        codeExecTool.put("type", "custom");
-        codeExecTool.put("name", "code_exec");
-        codeExecTool.put("description", "Executes arbitrary Python code and returns the result.");
-        
-        // Optional: Add grammar constraints
-        // var format = Map.of(
-        //     "type", "grammar",
-        //     "syntax", "regex",
-        //     "definition", "^[a-zA-Z0-9\\s\\n\\(\\)\\[\\]\\{\\}\\.\\,\\;\\:\\+\\-\\*\\/\\=\\<\\>\\!\\&\\|\\%\\$\\#\\@\\^\\~\\`\\'\\\"\\\\]{1,1000}$"
-        // );
-        // codeExecTool.put("format", format);
-        
-        tools.add(codeExecTool);
-        
-        return tools;
-    }
-    
-    /**
-     * Gets tool choice configuration
-     */
-    private Object getToolChoice(ModelApiDescriptor model)
-    {
-        // Default to "auto" - let model decide when to use tools
-        String toolChoicePref = preferenceStore.getString("openai.responses.tool_choice");
-        
-        switch (toolChoicePref) {
-            case "required":
-                return "required";
-            case "none":
-                return "none";
-            case "auto":
-            default:
-                return "auto";
-        }
     }
     
     /**
@@ -520,8 +422,8 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
             
             state = switch ( eventType )
             {
-                case "response.output_text.delta" -> state.update( jsonNode );
-                case "response.function_call_arguments.delta" -> state.update( jsonNode );
+                // response.output_text.delta  or response.output_text, or function_call_arguments.delta
+                case String s when s.contains( ".delta" ) -> state.update( jsonNode );
                 default -> state;
             };
             
