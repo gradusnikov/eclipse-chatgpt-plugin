@@ -164,7 +164,10 @@ public class OpenAIStreamJavaHttpClient implements LanguageModelClient
         try
         {
             var userMessage = new LinkedHashMap<String,Object>();
-            userMessage.put("role", message.getRole());
+            // Supported values are: 'assistant', 'system', 'developer', and 'user'.
+            var role = message.getRole().equals( "function" ) ? "user" : message.getRole();
+            userMessage.put("role", role);
+            
             if ( model.functionCalling() )
             {
                 // function call results

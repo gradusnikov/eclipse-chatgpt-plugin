@@ -19,6 +19,8 @@ public class LanguageModelHttpClientProvider
     @Inject
     private Provider<OpenAIStreamJavaHttpClient> openaiClientProvider;
     @Inject
+    private Provider<OpenAIResponsesJavaHttpClient> openaiResponsesClientProvider;
+    @Inject
     private Provider<AnthropicStreamJavaHttpClient> anthropicClientProvider;
     @Inject
     private AppendMessageToViewSubscriber appendMessageToViewSubscriber;
@@ -48,6 +50,7 @@ public class LanguageModelHttpClientProvider
         	case String s when s.contains("anthropic") -> anthropicClientProvider;
         	case String s when s.contains("deepseek")  -> deepseekClientProvider;
         	case String s when s.contains("googleapis") -> geminiClientProvider;
+        	case String s when s.contains("/v1/responses") -> openaiResponsesClientProvider;
         	default -> openaiClientProvider; 
         };
         

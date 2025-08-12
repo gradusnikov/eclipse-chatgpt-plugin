@@ -74,7 +74,8 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
             // 1. append assistant request to call a function to the conversation
             ObjectMapper mapper = new ObjectMapper();
             // -- convert JSON to FuncationCall object
-            var functionCall = mapper.readValue( json.replace( "\"function_call\" : ","" ), FunctionCall.class );
+            var functionCallJson = json.substring( Math.max(0, json.indexOf( "{" )), json.length() );
+            var functionCall = mapper.readValue( functionCallJson, FunctionCall.class );
             
             ExecuteFunctionCallJob job = executeFunctionCallJobProvider.get();
             job.setFunctionCall( functionCall );
