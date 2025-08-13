@@ -36,6 +36,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
+import com.github.gradusnikov.eclipse.assistai.tools.JsonUtils;
 
 import io.modelcontextprotocol.client.McpSyncClient;
 import jakarta.inject.Inject;
@@ -130,77 +131,63 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
      */
     private String getRequestBody(Conversation prompt, ModelApiDescriptor model)
     {
-        try
-        {
-            var requestBody = new LinkedHashMap<String, Object>();
-            
-            // Basic parameters
-            requestBody.put("model", model.modelName());
-            
-            // Instructions (system prompt)
-            var systemPrompt = preferenceStore.getString(Prompts.SYSTEM.preferenceName());
-            if (!systemPrompt.isBlank()) {
-                requestBody.put("instructions", systemPrompt);
-            }
-            
-            // Input - can be string or array of messages
-            var input = buildInput(prompt, model);
-            requestBody.put("input", input);
-            
-            // Tools - both built-in and MCP tools
-            var tools = buildTools(model);
-            if (!tools.isEmpty()) {
-                requestBody.put("tools", tools);
-                
-                // Tool choice configuration
-                requestBody.put("tool_choice", "auto");
-                
-                // Parallel tool calls (default true)
-                requestBody.put("parallel_tool_calls", false); // TODO: handle parallel calls
-            }
-            
-            // Model-specific parameters
-            if (!model.modelName().matches("^o1(-.*)?")) {
-                requestBody.put("temperature", model.temperature() / 10.0);
-            }
-            
-            // Streaming
-            requestBody.put("stream", true);
-            
-            // Storage (default true for Responses API)
-            // we don't want to store the conversation and use previous_response_id
-            // each time a whole conversation context is sent
-            requestBody.put("store", false);
-            
-            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(requestBody);
+        var requestBody = new LinkedHashMap<String, Object>();
+        
+        // Basic parameters
+        requestBody.put("model", model.modelName());
+        
+        // Instructions (system prompt)
+        var systemPrompt = preferenceStore.getString(Prompts.SYSTEM.preferenceName());
+        if (!systemPrompt.isBlank()) {
+            requestBody.put("instructions", systemPrompt);
         }
-        catch (JsonProcessingException e)
-        {
-            throw new RuntimeException(e);
+        
+        // Input - can be string or array of messages
+        var input = buildInput(prompt, model);
+        requestBody.put("input", input);
+        
+        // Tools - both built-in and MCP tools
+        var tools = buildTools(model);
+        if (!tools.isEmpty()) {
+            requestBody.put("tools", tools);
+            
+            // Tool choice configuration
+            requestBody.put("tool_choice", "auto");
+            
+            // Parallel tool calls (default true)
+            requestBody.put("parallel_tool_calls", false); // TODO: handle parallel calls
         }
+        
+        // Model-specific parameters
+        if (!model.modelName().matches("^o1(-.*)?")) {
+            requestBody.put("temperature", model.temperature() / 10.0);
+        }
+        
+        // Streaming
+        requestBody.put("stream", true);
+        
+        // Storage (default true for Responses API)
+        // we don't want to store the conversation and use previous_response_id
+        // each time a whole conversation context is sent
+        requestBody.put("store", false);
+        
+        return JsonUtils.toPrettyJsonString(requestBody);
     }
     
     /**
      * Builds the input field - can be a string or array of messages
      */
-    private Object buildInput(Conversation prompt, ModelApiDescriptor model)
+    private List<Map<String, Object>> buildInput(Conversation prompt, ModelApiDescriptor model)
     {
         var messages = prompt.messages();
         if (messages.isEmpty()) {
-            return "";
-        }
-        
-        // If single user message, can use string format
-        if (messages.size() == 1 && "user".equals(messages.get(0).getRole())) {
-            var message = messages.get(0);
-            return buildMessageContent(message, model);
+            return new ArrayList<Map<String,Object>>();
         }
         
         // Otherwise use array format
-        var inputMessages = new ArrayList<Map<String, Object>>();
-        for (var message : messages) {
-            inputMessages.add(toInputMessage(message, model));
-        }
+        var inputMessages = messages.stream()
+                                    .map( message -> toInputMessage(message, model) )
+                                    .collect( Collectors.toList());
         return inputMessages;
     }
     
@@ -210,13 +197,29 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
     private Map<String, Object> toInputMessage(ChatMessage message, ModelApiDescriptor model)
     {
         var inputMessage = new LinkedHashMap<String, Object>();
-        // Supported values are: 'assistant', 'system', 'developer', and 'user'.
-        var role = message.getRole().equals( "function" ) ? "user" : message.getRole();
-        inputMessage.put("role", role);
         
-        // Handle content based on message type
-        var content = buildMessageContent(message, model);
-        inputMessage.put("content", content);
+        if ( "assistant".equals( message.getRole() ) && Objects.nonNull( message.getFunctionCall() ) )
+        {
+            inputMessage.put("type", "function_call");
+            inputMessage.put("call_id", message.getFunctionCall().id() );
+            inputMessage.put( "name", message.getFunctionCall().name()  );
+            inputMessage.put("arguments", JsonUtils.toJsonString( message.getFunctionCall().arguments() ) );
+            
+        }
+        else if ( "function".equals( message.getRole() ) ) 
+        {
+            inputMessage.put("type", "function_call_output");
+            inputMessage.put("call_id", message.getFunctionCall().id() );
+            inputMessage.put("output", message.getContent() );
+        }
+        else
+        {
+            inputMessage.put("role", message.getRole());
+            // Handle content based on message type
+            var content = buildMessageContent(message, model);
+            inputMessage.put("content", content);
+        }
+        
         
         return inputMessage;
     }
