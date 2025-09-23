@@ -171,7 +171,7 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
         // each time a whole conversation context is sent
         requestBody.put("store", false);
         
-        return JsonUtils.toPrettyJsonString(requestBody);
+        return JsonUtils.toJsonString(requestBody);
     }
     
     /**
