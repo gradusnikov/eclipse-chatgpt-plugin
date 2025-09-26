@@ -23,6 +23,9 @@ public class LanguageModelHttpClientProvider
     @Inject
     private Provider<AnthropicStreamJavaHttpClient> anthropicClientProvider;
     @Inject
+    private Provider<GrokStreamJavaHttpClient> grokClientProvider;
+    
+    @Inject
     private AppendMessageToViewSubscriber appendMessageToViewSubscriber;
     @Inject
     private FunctionCallSubscriber functionCallSubscriber;
@@ -51,6 +54,7 @@ public class LanguageModelHttpClientProvider
         	case String s when s.contains("deepseek")  -> deepseekClientProvider;
         	case String s when s.contains("googleapis") -> geminiClientProvider;
         	case String s when s.contains("/v1/responses") -> openaiResponsesClientProvider;
+            case String s when s.contains("api.x.ai/v1/chat/completions") -> grokClientProvider;
         	default -> openaiClientProvider; 
         };
         
