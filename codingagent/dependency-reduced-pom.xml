@@ -3,10 +3,11 @@
   <parent>
     <artifactId>parent</artifactId>
     <groupId>com.github.gradusnikov.eclipse.assistai</groupId>
-    <version>1.0.6</version>
+    <version>1.0.6-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <artifactId>codingagent</artifactId>
+  <version>1.0.6</version>
   <build>
     <plugins>
       <plugin>

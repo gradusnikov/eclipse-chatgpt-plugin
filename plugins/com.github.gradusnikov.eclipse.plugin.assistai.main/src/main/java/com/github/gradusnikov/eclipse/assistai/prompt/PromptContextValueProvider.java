@@ -15,6 +15,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.GitService;
 import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 
+import codingagent.models.ChatModelQuery;
 import jakarta.inject.Inject;
 
 @Creatable
@@ -25,10 +26,10 @@ public class PromptContextValueProvider
     private static final String CONSOLE_OUTPUT = "consoleOutput";
     private static final String ERRORS = "errors";
     private static final String SELECTED_CONTENT = "selectedContent";
-    private static final String CURRENT_FILE_CONTENT = "currentFileContent";
+    private static final String CURRENT_FILE_CONTENT = "currentFileContent";                
     private static final String CURRENT_FILE_PATH = "currentFilePath";
     private static final String CURRENT_FILE_NAME = "currentFileName";
-    private static final String CURRENT_PROJECT_NAME = "currentProjectName";
+    private static final String CURRENT_PROJECT_NAME = "currentProjectName";    
     
     @Inject
     ILog logger;
@@ -50,7 +51,9 @@ public class PromptContextValueProvider
 	    return switch (  key ) {
             case CURRENT_PROJECT_NAME -> safeGetString( () -> editorService.getCurrentlyOpenedFile().map( IFile::getProject ).map(IProject::getName).orElse( "" ) );
 	        case CURRENT_FILE_PATH -> safeGetString( () -> editorService.getCurrentlyOpenedFile().map( IFile::getProjectRelativePath ).map(IPath::toString).orElse( "" ) );
-            case CURRENT_FILE_NAME -> safeGetString( () -> editorService.getCurrentlyOpenedFile().map( IFile::getName ).orElse( "" ) );
+            case CURRENT_FILE_NAME -> safeGetString( () -> editorService.getCurrentlyOpenedFile().map( IFile::getName ).orElse( "" ) );                        
+            case ChatModelQuery.EDITOR_CURSOR_OFFSET -> safeGetString(() -> editorService.getCursorOffset());
+            case ChatModelQuery.SOURCE_FILE_CONTENT -> safeGetString(() -> editorService.getCurrentEditorContent());
 	        case CURRENT_FILE_CONTENT -> safeGetString(() -> editorService.getCurrentlyOpenedFileContent() );
 	        case SELECTED_CONTENT -> safeGetString(() -> editorService.getEditorSelection() );
 	        case ERRORS -> safeGetString( () -> codeAnalysisService.getCompilationErrors( getContextValue(CURRENT_PROJECT_NAME), "ERROR", -1 ) );

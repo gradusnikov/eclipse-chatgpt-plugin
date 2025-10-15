@@ -2,6 +2,7 @@ package com.github.gradusnikov.eclipse.assistai.preferences.models;
 
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.eclipse.e4.core.contexts.IEclipseContext;
@@ -31,6 +32,8 @@ import org.eclipse.ui.IWorkbenchPreferencePage;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
 
+import codingagent.models.ModelApiDescriptor;
+
 
 public class ModelListPreferencePage extends PreferencePage implements IWorkbenchPreferencePage
 {
@@ -41,6 +44,8 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
     private Table      modelTable;
 
     private Text       apiUrl;
+    
+    private Text       apiType;
 
     private Text       apiKey;
 
@@ -121,8 +126,8 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
     {
         int selectedIndex = modelTable.getSelectionIndex();
         ModelApiDescriptor updatedModel = new ModelApiDescriptor(
-                "",
-                "openai", 
+                UUID.randomUUID().toString(),
+                apiType.getText(), 
                 apiUrl.getText(), 
                 apiKey.getText(), 
                 modelName.getText(),
@@ -166,6 +171,9 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         form.setLayout( formLayout );
 
         apiUrl = addTextField( form, "API Url:");
+        
+        // TODO replace by select
+        apiType = addTextField( form, "API Type:");
         apiKey = addTextField( form, "API Key:");
         modelName = addTextField( form, "Model Name:");
         withVision = addCheckField( form, "With Vision:");
@@ -252,6 +260,7 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
     {
         uiSync.asyncExec( () -> {
             apiUrl.setText( modelApiDescriptor.apiUrl() );
+            apiType.setText(modelApiDescriptor.apiType() );
             apiKey.setText( modelApiDescriptor.apiKey() );
             modelName.setText( modelApiDescriptor.modelName() );
             withTemperature.setSelection( modelApiDescriptor.temperature() );
@@ -265,6 +274,7 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
     {
         uiSync.asyncExec( () -> {
             apiUrl.setText( "" );
+            apiType.setText("" );
             apiKey.setText( "" );
             modelName.setText( "" );
             withTemperature.setSelection( 0 );

@@ -16,8 +16,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
-import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 
+import codingagent.models.ModelApiDescriptor;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
@@ -119,7 +119,7 @@ public class ModelApiDescriptorRepository
 	}
 	
 	private void saveAll( List<ModelApiDescriptor> models )
-	{
+	{ 
         String json = toJson( models );
         preferenceStore.setValue( PreferenceConstants.ASSISTAI_DEFINED_MODELS, json );
         logger.info( "AI models updated" );

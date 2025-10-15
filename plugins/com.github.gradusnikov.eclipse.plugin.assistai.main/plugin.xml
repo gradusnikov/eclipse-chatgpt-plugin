@@ -42,6 +42,5 @@
       <initializer
             class="com.github.gradusnikov.eclipse.assistai.preferences.PreferenceInitializer">
       </initializer>
-   </extension>
-
+   </extension>	
 </plugin>

@@ -9,6 +9,7 @@
     <elements xsi:type="commands:Command" xmi:id="_eYD8MPDVEe26l_NIXSJcoA" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.command.3" commandName="Discuss" description="Ask ChatGPT do discuss the code"/>
     <elements xsi:type="commands:Command" xmi:id="_tMtMsPELEe2go8AypQomeQ" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.command.4" commandName="Fix Errors" description="Asks ChatGPT  to fix errors"/>
     <elements xsi:type="commands:Command" xmi:id="_Y1hcQPPsEe2JjYfRC0o-vw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.command.5" commandName="Git Comment" description="Asks ChatGPT to generate a meaningful git commit comment "/>
+    <elements xsi:type="commands:Command" xmi:id="AutocompleteCommand" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.command.6" commandName="Autocomplete" description="Autocomplete"/>
   </fragments>
   <fragments xsi:type="fragment:StringModelFragment" xmi:id="_fW12kIrOEeW7h_qdP9N9fw" featurename="handlers" parentElementId="xpath:/">
     <elements xsi:type="commands:Handler" xmi:id="_k2L0IIrOEeW7h_qdP9N9fw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handler.0" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAICodeRefactorHandler" command="_UCYfwIrOEeW7h_qdP9N9fw">
@@ -23,6 +24,7 @@
     <elements xsi:type="commands:Handler" xmi:id="_l4PJEPDVEe26l_NIXSJcoA" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handler.3" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAIDiscussCodeHandler" command="_eYD8MPDVEe26l_NIXSJcoA"/>
     <elements xsi:type="commands:Handler" xmi:id="_x-SFUPELEe2go8AypQomeQ" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handler.4" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAIFixErrorsHandler" command="_tMtMsPELEe2go8AypQomeQ"/>
     <elements xsi:type="commands:Handler" xmi:id="_naVwkPPsEe2JjYfRC0o-vw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handler.5" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAiGenerateGitCommentHandler" command="_Y1hcQPPsEe2JjYfRC0o-vw"/>
+    <elements xsi:type="commands:Handler" xmi:id="AutocompleteHandler" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handler.6" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.handlers.AssistAIAutocomplete" command="AutocompleteCommand"/>
   </fragments>
   <fragments xsi:type="fragment:StringModelFragment" xmi:id="_pVgfIIrOEeW7h_qdP9N9fw" featurename="menuContributions" parentElementId="xpath:/">
     <elements xsi:type="menu:MenuContribution" xmi:id="_BducUIrPEeW7h_qdP9N9fw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.menucontribution.1" positionInParent="after=additions" parentId="popup">
@@ -34,6 +36,7 @@
         <children xsi:type="menu:HandledMenuItem" xmi:id="_HlM0MOtKEe2Z7LAQxNqxLg" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handledmenuitem.3" label="JUnit test case" tooltip="Asks ChatGPT to generate a JUnit Test Case" command="_zB4hIOtJEe2Z7LAQxNqxLg"/>
         <children xsi:type="menu:HandledMenuItem" xmi:id="_1bS-wPELEe2go8AypQomeQ" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handledmenuitem.4" label="Fix errors" tooltip="Asks ChatGPT to fix errors" command="_tMtMsPELEe2go8AypQomeQ"/>
         <children xsi:type="menu:HandledMenuItem" xmi:id="_6yXVMPPsEe2JjYfRC0o-vw" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handledmenuitem.5" label="Git Comment" tooltip="Asks ChatGPT to generate a meaningful git commit comment" command="_Y1hcQPPsEe2JjYfRC0o-vw"/>
+        <children xsi:type="menu:HandledMenuItem" xmi:id="AutocompleteHandledMenuItem" elementId="com.github.gradusnikov.eclipse.plugin.assistai.main.handledmenuitem.6" label="Autocomplete" tooltip="Autocomplete" command="AutocompleteCommand"/>
       </children>
     </elements>
   </fragments>

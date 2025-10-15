@@ -6,11 +6,12 @@
 	<parent>
 		<groupId>com.github.gradusnikov.eclipse.assistai</groupId>
 		<artifactId>parent</artifactId>
-		<version>1.0.6</version>
+		<version>1.0.6-SNAPSHOT</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 	
 	<artifactId>codingagent</artifactId>	
+	<version>1.0.6</version>
 
 	<properties>		
 		<junit-jupiter-version>5.11.0</junit-jupiter-version>
@@ -19,6 +20,32 @@
 	</properties>
 
 	<dependencies>
+	
+	     <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j</artifactId>
+            <version>0.36.2</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/dev.langchain4j/langchain4j-ollama -->
+		<dependency>
+		    <groupId>dev.langchain4j</groupId>
+		    <artifactId>langchain4j-ollama</artifactId>
+		    <version>0.36.2</version>
+		</dependency>
+		
+		<dependency>
+		    <groupId>dev.langchain4j</groupId>
+		    <artifactId>langchain4j-mistral-ai</artifactId>
+		    <version>0.36.2</version>
+		</dependency>
+		
+		<dependency>
+		    <groupId>dev.langchain4j</groupId>
+		    <artifactId>langchain4j-open-ai</artifactId>
+		    <version>0.36.2</version>
+		</dependency>
+		
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-text</artifactId>

@@ -6,8 +6,10 @@ import java.util.Optional;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.ITextSelection;
 import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.ISelectionProvider;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.IWorkbench;
@@ -16,6 +18,7 @@ import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
+import com.github.gradusnikov.eclipse.assistai.compare.JavaNode;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceFormatter;
 import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 
@@ -51,7 +54,7 @@ public class EditorService
      * 
      * @return A formatted string containing file information and content
      */
-    public String getCurrentlyOpenedFileContent()
+	public String getCurrentlyOpenedFileContent()
     {
         return uiSync.syncCall( () -> {
 	        final StringBuilder result = new StringBuilder();
@@ -72,6 +75,44 @@ public class EditorService
 	        return result.toString();
         });
     }
+    
+	/**
+	 * Gets information about the currently active file in the Eclipse editor.
+	 * 
+	 * @return A formatted string containing file information and content
+	 * @throws Exception 
+	 */
+	public String getCursorOffset() throws Exception {
+		ITextEditor textEditor = getActiveTextEditorOrThrow();					
+		return getCursor(textEditor);
+	}
+
+	/**
+	 * Gets information about the currently active file in the Eclipse editor.
+	 * 
+	 * @return A formatted string containing file information and content
+	 * @throws Exception 
+	 */
+	public String getCurrentEditorContent() throws Exception {
+		ITextEditor textEditor = getActiveTextEditorOrThrow();
+		IDocument document = textEditor.getDocumentProvider().getDocument(textEditor.getEditorInput());
+		return document.get();		
+	}
+
+
+	private String getCursor(ITextEditor textEditor) {
+		// Get the selection provider		
+        ISelectionProvider selectionProvider = textEditor.getSelectionProvider();        
+        if (selectionProvider != null) {
+            // Get the current text selection
+            ITextSelection textSelection = (ITextSelection) selectionProvider.getSelection();            
+            if (textSelection != null) {
+                // Return the current line number            	
+                return String.valueOf(textSelection.getOffset()); 
+            }
+        }
+		return null;
+	}
 
     /**
      * Gets the currently selected text or lines in the active editor.
@@ -84,13 +125,7 @@ public class EditorService
             final StringBuilder result = new StringBuilder();
             try 
             {
-                IEditorPart editor = getActiveEditor().orElseThrow( () ->  new Exception("No active editor found. Please open a file.") );
-                
-                // Get the selection from the editor
-                if (!(editor instanceof ITextEditor textEditor)) 
-                {
-                    throw new RuntimeException("The current selection is not a text selection.");
-                }
+            	ITextEditor textEditor = getActiveTextEditorOrThrow();
                 ISelection selection = textEditor.getSelectionProvider().getSelection();
                 
                 if (selection.isEmpty()) 
@@ -134,6 +169,25 @@ public class EditorService
             return result.toString();
         } );
     }
+
+
+
+	private ITextEditor getActiveTextEditorOrThrow() throws Exception {
+		IEditorPart editor = getActiveEditorOrThrow();
+		
+		// Get the selection from the editor
+		if (!(editor instanceof ITextEditor textEditor)) 
+		{
+		    throw new RuntimeException("The current selection is not a text selection.");
+		}
+		return textEditor;
+	}
+
+
+
+	private IEditorPart getActiveEditorOrThrow() throws Exception {
+		return getActiveEditor().orElseThrow( () ->  new Exception("No active editor found. Please open a file.") );
+	}
     
     
     public Optional<IEditorPart> getActiveEditor()
@@ -143,5 +197,16 @@ public class EditorService
                        .map( IWorkbenchWindow::getActivePage)
                        .map( IWorkbenchPage::getActiveEditor);
     }
+    
+    
+    public JavaNode getCompilationUnitFromCurrentJavaEditor() throws Exception {
+    	ITextEditor textEditor = getActiveTextEditorOrThrow();
+		IDocument document = textEditor.getDocumentProvider().getDocument(textEditor.getEditorInput());
+        // Get the compilation unit from the Java editor
+		return new JavaNode(document);
+    }
+    
+    
 
+    
 }

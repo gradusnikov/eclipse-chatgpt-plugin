@@ -34,10 +34,10 @@ import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
-import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
-import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
+import codingagent.models.ModelApiDescriptor;
+import codingagent.models.Prompts;
 import io.modelcontextprotocol.client.McpSyncClient;
 import jakarta.inject.Inject;
 
@@ -261,12 +261,12 @@ public class OpenAIStreamJavaHttpClient implements LanguageModelClient
     {
     	return () ->  {
     		
-            var model = configuration.getSelectedModel().orElseThrow();
+            codingagent.models.ModelApiDescriptor model = configuration.getSelectedModel().orElseThrow();
     	    
     	    HttpClient client = HttpClient.newBuilder()
     		                              .connectTimeout( Duration.ofSeconds(configuration.getConnectionTimoutSeconds()) )
     		                              .build();
-    		
+    		 
     		String requestBody = getRequestBody(prompt, model);
             HttpRequest request = HttpRequest.newBuilder().uri(URI.create(model.apiUrl()))
                     .timeout( Duration.ofSeconds( configuration.getRequestTimoutSeconds() ) )
