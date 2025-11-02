@@ -5,10 +5,10 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
-import jakarta.inject.Singleton;
-
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.e4.core.di.annotations.Creatable;
+
+import jakarta.inject.Singleton;
 
 /**
  * A singleton class responsible for loading prompt text from resource files and applying substitutions.

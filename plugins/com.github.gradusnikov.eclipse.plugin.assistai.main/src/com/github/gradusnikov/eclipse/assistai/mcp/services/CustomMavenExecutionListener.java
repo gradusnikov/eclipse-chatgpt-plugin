@@ -3,7 +3,6 @@ package com.github.gradusnikov.eclipse.assistai.mcp.services;
 import org.apache.maven.execution.ExecutionEvent;
 import org.apache.maven.plugin.MojoExecution;
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.m2e.core.embedder.MonitorExecutionListener;
 
 /**

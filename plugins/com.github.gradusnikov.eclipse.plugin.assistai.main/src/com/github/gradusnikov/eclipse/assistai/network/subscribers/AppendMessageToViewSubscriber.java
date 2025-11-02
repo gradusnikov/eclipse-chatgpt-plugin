@@ -4,17 +4,16 @@ import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 
-import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
-
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
-import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming.Type;
 import com.github.gradusnikov.eclipse.assistai.view.ChatViewPresenter;
+
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
 @Creatable
 @Singleton

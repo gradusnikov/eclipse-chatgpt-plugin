@@ -4,9 +4,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
-import jakarta.inject.Singleton;
-
 import org.eclipse.e4.core.di.annotations.Creatable;
+
+import jakarta.inject.Singleton;
 
 @Creatable
 @Singleton

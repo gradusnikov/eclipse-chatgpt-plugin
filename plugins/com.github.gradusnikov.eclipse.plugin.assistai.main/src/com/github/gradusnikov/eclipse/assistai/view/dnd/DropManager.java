@@ -1,15 +1,11 @@
 package com.github.gradusnikov.eclipse.assistai.view.dnd;
 
-import java.util.ArrayList;
-import java.util.Collection;
-
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.swt.dnd.DND;
 import org.eclipse.swt.dnd.DropTarget;
 import org.eclipse.swt.dnd.DropTargetAdapter;
 import org.eclipse.swt.dnd.DropTargetEvent;
-import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.widgets.Control;
 
 import com.github.gradusnikov.eclipse.assistai.view.dnd.handlers.TransferHandlerFactory;

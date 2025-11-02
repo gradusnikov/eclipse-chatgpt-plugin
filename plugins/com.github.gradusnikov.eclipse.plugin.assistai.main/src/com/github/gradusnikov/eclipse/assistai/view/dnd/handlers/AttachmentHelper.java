@@ -12,9 +12,9 @@ import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.text.Document;
 import org.eclipse.swt.graphics.ImageData;
 
+import com.github.gradusnikov.eclipse.assistai.chat.Attachment.FileContentAttachment;
 import com.github.gradusnikov.eclipse.assistai.tools.ContentTypeDetector;
 import com.github.gradusnikov.eclipse.assistai.view.ChatViewPresenter;
-import com.github.gradusnikov.eclipse.assistai.chat.Attachment.FileContentAttachment;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;

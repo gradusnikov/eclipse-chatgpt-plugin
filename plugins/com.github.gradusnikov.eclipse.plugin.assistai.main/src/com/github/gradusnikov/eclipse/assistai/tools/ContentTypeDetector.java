@@ -3,7 +3,6 @@ package com.github.gradusnikov.eclipse.assistai.tools;
 import java.io.File;
 import java.io.InputStream;
 import java.net.URL;
-import java.nio.file.Files;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.tika.Tika;

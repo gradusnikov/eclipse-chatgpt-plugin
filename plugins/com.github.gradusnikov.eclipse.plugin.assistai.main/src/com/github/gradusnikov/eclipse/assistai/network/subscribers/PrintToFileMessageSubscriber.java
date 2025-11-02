@@ -8,13 +8,13 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 
-import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
-
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
+
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
 @Creatable
 @Singleton
