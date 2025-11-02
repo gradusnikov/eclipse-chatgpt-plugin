@@ -1,19 +1,20 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.servers;
 
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
-import jakarta.inject.Inject;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.Tool;
 import com.github.gradusnikov.eclipse.assistai.mcp.ToolParam;
 import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
+
+import jakarta.inject.Inject;
 
 @Creatable
 @McpServer(name = "webpage-reader")

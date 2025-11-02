@@ -3,9 +3,6 @@ package com.github.gradusnikov.eclipse.assistai.network.subscribers;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 
-import jakarta.inject.Inject;
-import jakarta.inject.Provider;
-
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
@@ -13,6 +10,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.gradusnikov.eclipse.assistai.chat.FunctionCall;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.jobs.ExecuteFunctionCallJob;
+
+import jakarta.inject.Inject;
+import jakarta.inject.Provider;
 
 @Creatable
 public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>

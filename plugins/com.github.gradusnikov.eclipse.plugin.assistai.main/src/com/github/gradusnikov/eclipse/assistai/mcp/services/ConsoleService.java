@@ -24,7 +24,6 @@ import org.eclipse.ui.console.IOConsole;
 import org.eclipse.ui.console.MessageConsole;
 import org.eclipse.ui.console.TextConsole;
 
-
 import jakarta.inject.Inject;
 
 /**

@@ -2,13 +2,13 @@ package com.github.gradusnikov.eclipse.assistai.view;
 
 import java.util.Optional;
 
-import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
-
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.model.application.MApplication;
 import org.eclipse.e4.ui.model.application.ui.basic.MPart;
 import org.eclipse.e4.ui.workbench.modeling.EModelService;
+
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
 /**
  * Provides access to the ChatGPTViewPart within the application model.

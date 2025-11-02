@@ -6,7 +6,6 @@ import java.nio.file.Path;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
-import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
@@ -16,7 +15,6 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
 import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
 
 /**
  * Service interface for resource-related operations including
