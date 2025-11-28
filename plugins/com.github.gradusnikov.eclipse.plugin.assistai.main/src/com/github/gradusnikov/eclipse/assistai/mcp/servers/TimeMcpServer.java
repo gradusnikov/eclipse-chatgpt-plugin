@@ -7,9 +7,9 @@ import java.util.Optional;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.github.gradusnikov.eclipse.assistai.mcp.McpServer;
-import com.github.gradusnikov.eclipse.assistai.mcp.Tool;
-import com.github.gradusnikov.eclipse.assistai.mcp.ToolParam;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
 
 @Creatable
 @McpServer(name = "time")

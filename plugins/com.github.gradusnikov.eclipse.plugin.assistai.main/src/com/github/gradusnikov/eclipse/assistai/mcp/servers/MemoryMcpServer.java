@@ -1,8 +1,8 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.servers;
 
-import com.github.gradusnikov.eclipse.assistai.mcp.McpServer;
-import com.github.gradusnikov.eclipse.assistai.mcp.Tool;
-import com.github.gradusnikov.eclipse.assistai.mcp.ToolParam;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
 
 @McpServer(name="memory")
 public class MemoryMcpServer

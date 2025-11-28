@@ -10,9 +10,9 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 
-import com.github.gradusnikov.eclipse.assistai.mcp.McpServer;
-import com.github.gradusnikov.eclipse.assistai.mcp.Tool;
-import com.github.gradusnikov.eclipse.assistai.mcp.ToolParam;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
 import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
 
 @Creatable

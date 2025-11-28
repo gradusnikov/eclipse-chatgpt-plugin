@@ -15,6 +15,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.gradusnikov.eclipse.assistai.mcp.InMemoryTransport.TransportPair;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
 
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
@@ -57,12 +58,12 @@ public class McpClientServerFactory
     /**
      * Creates a synchronized MCP client-server pair that communicate through an
      * in-memory transport. The server implementation must be annotated with
-     * {@link com.github.gradusnikov.eclipse.assistai.mcp.McpServer}.
+     * {@link com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer}.
      * 
-     * @param serverImplementation An object whose class is annotated with {@link com.github.gradusnikov.eclipse.assistai.mcp.McpServer}
-     *                            and contains methods annotated with {@link com.github.gradusnikov.eclipse.assistai.mcp.Tool}
+     * @param serverImplementation An object whose class is annotated with {@link com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer}
+     *                            and contains methods annotated with {@link com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool}
      * @return A record containing the synchronized client and server
-     * @throws IllegalArgumentException If the serverImplementation is not annotated with {@link com.github.gradusnikov.eclipse.assistai.mcp.McpServer}
+     * @throws IllegalArgumentException If the serverImplementation is not annotated with {@link com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer}
      */
     public InMemorySyncClientServer creteInMemorySyncClientServer( Object serverImplementation )
     {
@@ -92,7 +93,7 @@ public class McpClientServerFactory
 
     private McpSchema.Implementation createImplementationInfo( Object serverImplementation )
     {
-        var mcpServerAnnotation = Optional.ofNullable( serverImplementation.getClass().getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.McpServer.class ) )
+        var mcpServerAnnotation = Optional.ofNullable( serverImplementation.getClass().getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer.class ) )
                                           .orElseThrow( () -> new IllegalArgumentException( "Not MCP server" ) );
         
         var serverName = mcpServerAnnotation.name();
@@ -205,7 +206,7 @@ public class McpClientServerFactory
     
     /**
      * Extracts tool definitions from methods annotated with
-     * {@link com.github.gradusnikov.eclipse.assistai.mcp.Tool}.
+     * {@link com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool}.
      * <p>
      * This method processes the annotations on methods and their parameters to
      * create MCP tool definitions that can be registered with an MCP server.
@@ -219,7 +220,7 @@ public class McpClientServerFactory
         
         for ( Method method : methods )
         {
-            var toolAnnotation = method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.Tool.class );
+            var toolAnnotation = method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool.class );
             if ( toolAnnotation != null )
             {
                 var properties = new LinkedHashMap<String, Object>();

@@ -16,9 +16,9 @@ import org.jsoup.select.Elements;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.github.gradusnikov.eclipse.assistai.mcp.McpServer;
-import com.github.gradusnikov.eclipse.assistai.mcp.Tool;
-import com.github.gradusnikov.eclipse.assistai.mcp.ToolParam;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
 
 @Creatable
 @McpServer(name="duck-duck-search")

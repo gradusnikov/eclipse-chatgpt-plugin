@@ -11,6 +11,9 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
+
 public class ToolExecutor
 {
     Object functions;
@@ -29,7 +32,7 @@ public class ToolExecutor
     public Method[] getFunctions()
     {
         return Arrays.stream( functions.getClass().getDeclaredMethods() )
-                .filter( method -> Objects.nonNull( method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.Tool.class ) ) )
+                .filter( method -> Objects.nonNull( method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool.class ) ) )
                 .toArray( Method[]::new );
     }
     
@@ -38,7 +41,7 @@ public class ToolExecutor
     public CompletableFuture<Object> call( String name, Map<String, Object> args )
     {
         Method method = getFunctionCallbackByName( name ).orElseThrow( () -> new RuntimeException("Tool " + name + " not found!" ) ); 
-        method.getAnnotationsByType( com.github.gradusnikov.eclipse.assistai.mcp.ToolParam.class );
+        method.getAnnotationsByType( com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam.class );
         Object[] argValues = mapArguments( method, args );
         CompletableFuture<Object> future = CompletableFuture.supplyAsync( () -> invokeMethod( method, argValues ) );
         return future;
@@ -118,7 +121,7 @@ public class ToolExecutor
      */
     public static String toParamName( Parameter parameter )
     {
-        return Optional.ofNullable( parameter.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.ToolParam.class ) )
+        return Optional.ofNullable( parameter.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam.class ) )
                     .map( ToolParam::name )
                     .filter( Predicate.not( String::isBlank ) )
                     .orElse( parameter.getName() );
@@ -131,7 +134,7 @@ public class ToolExecutor
      */
     public static String toFunctionName( Method method )
     {
-        return Optional.ofNullable( method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.Tool.class ) )
+        return Optional.ofNullable( method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool.class ) )
                 .map( Tool::name )
                 .filter( Predicate.not(String::isBlank))
                 .orElse( method.getName() );

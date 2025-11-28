@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.mcp;
+package com.github.gradusnikov.eclipse.assistai.mcp.annotations;
 
 import static java.lang.annotation.ElementType.METHOD;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;

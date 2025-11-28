@@ -6,8 +6,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.github.gradusnikov.eclipse.assistai.mcp.McpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
 
 public class McpServerBuiltins
 {
