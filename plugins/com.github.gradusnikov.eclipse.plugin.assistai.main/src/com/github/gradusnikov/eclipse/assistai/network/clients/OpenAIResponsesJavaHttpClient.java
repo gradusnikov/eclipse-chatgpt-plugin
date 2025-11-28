@@ -292,7 +292,7 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
         // Add MCP tools if function calling is enabled
         if ( model.functionCalling() ) 
         {
-            for (var client : mcpClientRegistry.listEnabledveClients().entrySet()) 
+            for (var client : mcpClientRegistry.listEnabledClients().entrySet()) 
             {
                 tools.addAll(convertMcpToolsToResponses(client.getKey(), client.getValue()));
             }

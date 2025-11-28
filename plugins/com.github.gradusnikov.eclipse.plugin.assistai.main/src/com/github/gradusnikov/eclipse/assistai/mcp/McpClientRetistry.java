@@ -1,11 +1,15 @@
 
 package com.github.gradusnikov.eclipse.assistai.mcp;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -19,14 +23,9 @@ import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.workbench.lifecycle.PostWorkbenchClose;
-import org.eclipse.jface.preference.IPreferenceStore;
 
-import com.fasterxml.jackson.core.JacksonException;
-import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpClientServerFactory.InMemorySyncClientServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.McpServerBuiltins;
-import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
-import com.github.gradusnikov.eclipse.assistai.preferences.mcp.McpServerDescriptorUtilities;
 import com.github.gradusnikov.eclipse.assistai.tools.EclipseVariableUtilities;
 import com.google.common.base.Predicates;
 
@@ -34,7 +33,6 @@ import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
-import io.modelcontextprotocol.json.McpJsonMapperSupplier;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapperSupplier;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpClientTransport;
@@ -48,7 +46,7 @@ import jakarta.inject.Singleton;
 public class McpClientRetistry
 {
 
-    private IPreferenceStore           preferenceStore;
+    
 
     private Map<String, McpSyncClient> clients = new HashMap<>();
 
@@ -60,6 +58,9 @@ public class McpClientRetistry
     @Inject
     private McpClientServerFactory     factory;
 
+    @Inject
+    private McpServerRepository        mcpServerRepository;
+    
     @Inject
     private IEclipseContext            eclipseContext;
 
@@ -80,9 +81,7 @@ public class McpClientRetistry
     @PostConstruct
     public void init()
     {
-        preferenceStore = Activator.getDefault().getPreferenceStore();
-
-        var stored = getStoredServers();
+        var stored = mcpServerRepository.listStoredServers();
         var builtin = McpServerBuiltins.listBuiltInImplementations();
 
         initializeBuiltInServers( stored, builtin );
@@ -209,16 +208,7 @@ public class McpClientRetistry
 	    return commandParts;
 	}
 
-	/**
-     * Retrieves all defined MCP servers from preferences.
-     *
-     * @return A list of MCP server descriptors.
-     */
-    public List<McpServerDescriptor> getStoredServers()
-    {
-        String serversJson = preferenceStore.getString( PreferenceConstants.ASSISTAI_DEFINED_MCP_SERVERS );
-        return McpServerDescriptorUtilities.fromJson( serversJson );
-    }
+
 
     /**
      * Adds a client to the registry.
@@ -243,10 +233,10 @@ public class McpClientRetistry
         return clients;
     }
     
-    public Map<String, McpSyncClient> listEnabledveClients()
+    public Map<String, McpSyncClient> listEnabledClients()
     {
     	// map server name to its enabled status
-    	Map<String, Boolean> enabled =  getStoredServers().stream()
+    	Map<String, Boolean> enabled = mcpServerRepository.listStoredServers().stream()
     													  .collect( Collectors.toMap(McpServerDescriptor::name, McpServerDescriptor::enabled));
     	// return only enabled
     	return clients.entrySet().stream()

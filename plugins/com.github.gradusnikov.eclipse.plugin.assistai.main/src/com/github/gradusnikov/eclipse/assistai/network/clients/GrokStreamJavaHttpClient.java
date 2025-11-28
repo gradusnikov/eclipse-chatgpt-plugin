@@ -131,7 +131,7 @@ public class GrokStreamJavaHttpClient implements LanguageModelClient {
             // Add tools if function calling is enabled
             if (model.functionCalling()) {
                 ArrayNode tools = objectMapper.createArrayNode();
-                for (var client : mcpClientRegistry.listEnabledveClients().entrySet()) {
+                for (var client : mcpClientRegistry.listEnabledClients().entrySet()) {
                     tools.addAll(clientToolsToJson(client.getKey(), client.getValue()));
                 }
                 if (!tools.isEmpty()) {

@@ -197,7 +197,7 @@ public class GeminiStreamJavaHttpClient implements LanguageModelClient
             {
                 List<Map<String, Object>> allFunctionDeclarations = new ArrayList<>();
                 
-                for (var client : mcpClientRegistry.listEnabledveClients().entrySet())
+                for (var client : mcpClientRegistry.listEnabledClients().entrySet())
                 {
                     try {
                         var functionDeclarations = clientToolsToJson(client.getKey(), client.getValue());
