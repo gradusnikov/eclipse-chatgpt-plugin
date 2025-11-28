@@ -60,5 +60,6 @@ Export-Package: com.github.gradusnikov.eclipse.assistai,
  com.github.gradusnikov.eclipse.assistai.tools,
  com.github.gradusnikov.eclipse.assistai.view,
  com.github.gradusnikov.eclipse.assistai.view.dnd,
- com.github.gradusnikov.eclipse.assistai.view.dnd.handlers
+ com.github.gradusnikov.eclipse.assistai.view.dnd.handlers,
+ com.github.gradusnikov.eclipse.plugin.assistai.mcp
 

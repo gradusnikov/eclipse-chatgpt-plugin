@@ -20,9 +20,9 @@ import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures;
-import io.modelcontextprotocol.server.McpServerFeatures.SyncToolRegistration;
+import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.server.McpSyncServer;
-import io.modelcontextprotocol.spec.ClientMcpTransport;
+import io.modelcontextprotocol.spec.McpClientTransport;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.Tool;
@@ -80,7 +80,7 @@ public class McpClientServerFactory
             logger.warn( "No tools found in " + serverImplementation.getClass() );
         }
         
-        var toolRegistrations = createToolRegistrations( executor, tools );
+        var toolRegistrations = createToolSpecifications( executor, tools );
 
         McpSyncServer server = buildServer( info, transports, toolRegistrations );
         
@@ -109,7 +109,7 @@ public class McpClientServerFactory
      */
     private McpSyncClient buildClient( McpSchema.Implementation info, TransportPair transports )
     {
-        ClientMcpTransport clientTransport = transports.getClientTransport();
+        McpClientTransport clientTransport = transports.getClientTransport();
         McpSyncClient client = McpClient.sync( clientTransport ).clientInfo( info ).build();
         return client;
     }
@@ -122,7 +122,7 @@ public class McpClientServerFactory
      * @param toolRegistrations List of tool registrations to be exposed by the server
      * @return A synchronized MCP server
      */
-    private McpSyncServer buildServer( McpSchema.Implementation info, TransportPair transports, List<SyncToolRegistration> toolRegistrations )
+    private McpSyncServer buildServer( McpSchema.Implementation info, TransportPair transports, List<SyncToolSpecification> toolRegistrations )
     {
         McpSchema.ServerCapabilities capabilities = McpSchema.ServerCapabilities.builder()
                 .logging()
@@ -147,14 +147,14 @@ public class McpClientServerFactory
      * @param tools List of tool definitions
      * @return List of tool registrations
      */
-    private List<SyncToolRegistration> createToolRegistrations( ToolExecutor executor, List<McpSchema.Tool> tools )
+    private List<SyncToolSpecification> createToolSpecifications( ToolExecutor executor, List<McpSchema.Tool> tools )
     {
-        var toolRegistrations = tools.stream().map( tool -> {
-            return new McpServerFeatures.SyncToolRegistration( tool, args -> {
-                return executeCallTool( executor, tool, args );
-            } );
-        } ).collect( Collectors.toList() );
-        return toolRegistrations;
+        return tools.stream().map( tool -> 
+                McpServerFeatures.SyncToolSpecification.builder()
+                    .tool( tool )
+                    .callHandler( (exchange, request) ->  executeCallTool( executor, tool, request.arguments() ) )
+                    .build()
+            ).collect( Collectors.toList() );
     }
 
 
@@ -191,17 +191,16 @@ public class McpClientServerFactory
     {
         // TODO: support other content types
         var content = new McpSchema.TextContent( 
-                List.of( McpSchema.Role.ASSISTANT ), 
-                0.0,
+                new McpSchema.Annotations( List.of( McpSchema.Role.ASSISTANT ), 0.0 ),
                 Optional.ofNullable( result ).map( Object::toString ).orElse( "" ) );
-        return new McpSchema.CallToolResult( List.of( content ), false );
+        return McpSchema.CallToolResult.builder().addContent( content ).isError( false ).build();
     }
     
     public CallToolResult createErrorResult( Exception e )
     {
         var cause = ExceptionUtils.getRootCauseMessage( e );
         var content = new McpSchema.TextContent( "Error: " + cause );
-        return new McpSchema.CallToolResult( List.of( content ), true );
+        return McpSchema.CallToolResult.builder().addContent( content ).isError( true ).build();
     }
     
     /**
@@ -242,8 +241,16 @@ public class McpClientServerFactory
                         }
                     }
                 }
-                McpSchema.JsonSchema schema = new McpSchema.JsonSchema( toolAnnotation.type(), properties, required, false );
-                McpSchema.Tool tool = new McpSchema.Tool( toolAnnotation.name(), toolAnnotation.description(), schema );
+                McpSchema.JsonSchema schema = new McpSchema.JsonSchema( toolAnnotation.type(), properties, required, false, null, null );
+                McpSchema.Tool tool = new McpSchema.Tool( toolAnnotation.name(), 
+                                                          toolAnnotation.name(), // title
+                                                          toolAnnotation.description(), 
+                                                          schema, 
+                                                          null, //outputSchema
+                                                          null, //tool annotations
+                                                          null // tool meta 
+                                                          );
+//                McpSchema.Tool tool = new McpSchema.Tool( toolAnnotation.name(), toolAnnotation.description(), schema, null, null, null );
                 tools.add( tool );
             }
         }

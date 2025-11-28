@@ -1,6 +1,10 @@
 
 package com.github.gradusnikov.eclipse.assistai.mcp;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -17,6 +21,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.workbench.lifecycle.PostWorkbenchClose;
 import org.eclipse.jface.preference.IPreferenceStore;
 
+import com.fasterxml.jackson.core.JacksonException;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpClientServerFactory.InMemorySyncClientServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.McpServerBuiltins;
@@ -29,8 +34,10 @@ import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
+import io.modelcontextprotocol.json.McpJsonMapperSupplier;
+import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapperSupplier;
 import io.modelcontextprotocol.server.McpSyncServer;
-import io.modelcontextprotocol.spec.ClientMcpTransport;
+import io.modelcontextprotocol.spec.McpClientTransport;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -95,7 +102,18 @@ public class McpClientRetistry
         }
         catch ( InterruptedException | ExecutionException | TimeoutException e )
         {
-            logger.error( "Failed to initialize MCP client: " + client.getKey()  );
+            String errorStackTrace = "";
+            try (ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
+                 PrintStream errorStream = new PrintStream( errorOut ) ) 
+            {
+                
+                e.printStackTrace(errorStream);
+                errorStackTrace += errorOut.toString();
+            }
+            catch ( IOException ignore )
+            {
+            }
+            logger.error( "Failed to initialize MCP client: " + client.getKey() + ". Exception: \n" + errorStackTrace );
         }
     }
     
@@ -163,8 +181,9 @@ public class McpClientRetistry
                     .args(args)
                     .env(resolvedEnvVars)
                     .build();
-    
-            ClientMcpTransport mcpTransport = new StdioClientTransport(stdioParameters);
+            JacksonMcpJsonMapperSupplier jsonMapperSupplier = new JacksonMcpJsonMapperSupplier();
+            
+            McpClientTransport mcpTransport = new StdioClientTransport(stdioParameters, jsonMapperSupplier.get() );
             McpSyncClient client = McpClient.sync(mcpTransport).build();
             addClient(userMcp.name(), client);
         }

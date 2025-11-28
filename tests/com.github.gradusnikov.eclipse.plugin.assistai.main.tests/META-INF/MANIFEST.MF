@@ -12,4 +12,9 @@ Require-Bundle: junit-jupiter-api,
 Automatic-Module-Name: com.github.gradusnikov.eclipse.plugin.assistai.main.tests
 Bundle-RequiredExecutionEnvironment: JavaSE-23
 Import-Package: org.eclipse.core.runtime,
- org.hamcrest;version="2.2.0"
+ org.hamcrest;version="2.2.0",
+ jakarta.servlet;version="6.1.0",
+ jakarta.servlet.http;version="6.1.0",
+ org.apache.catalina;resolution:=optional,
+ org.apache.catalina.startup;resolution:=optional,
+ org.apache.tomcat.util.descriptor.web;resolution:=optional
