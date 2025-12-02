@@ -3,9 +3,12 @@ package com.github.gradusnikov.eclipse.plugin.assistai.mcp.transport;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.time.Duration;
@@ -14,6 +17,8 @@ import java.util.Map;
 import org.apache.catalina.Context;
 import org.apache.catalina.LifecycleException;
 import org.apache.catalina.startup.Tomcat;
+import org.apache.tomcat.util.net.SSLHostConfig;
+import org.apache.tomcat.util.net.SSLHostConfigCertificate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +44,8 @@ import jakarta.servlet.Servlet;
  * claude mcp get
  * claude "Using test tool perform the following operation: 2+2"
  * claude mcp remove test
+ * claude mcp add-json calculator '{"type":"http","url":"http://172.24.208.1:8125/mcp/calculator","headers":{"Authorization":"Bearer test-secret-token-12345"}}'
+ * </code>
  * <p>
  * Reference: https://code.claude.com/docs/en/mcp
  */
@@ -48,9 +55,11 @@ public class SdkHttpStreamingTest
     static Logger logger = LoggerFactory.getLogger( SdkHttpStreamingTest.class );
     
     private static final String MCP_ENDPOINT = "/mcp/calculator";
-    // Bind to all interfaces (0.0.0.0) to allow WSL access
-    private static final String HOST = "0.0.0.0";
-    private static final int PORT = findAvailablePort(8123);
+    // Bind to all interfaces to allow WSL access
+    private static final String HOST = "localhost";
+    private static final int PORT = findAvailablePort(8125);
+    private static final String BEARER_TOKEN = "test-secret-token-12345";
+    private static final boolean USE_HTTPS = false; // Set to true to enable HTTPS
     
     private Tomcat tomcat;
     private McpSyncServer mcpServer;
@@ -128,7 +137,7 @@ public class SdkHttpStreamingTest
                 .logging()
                 .build();
         
-        transportProvider = HttpServletStreamableServerTransportProvider.builder()
+        var transportProvider = HttpServletStreamableServerTransportProvider.builder()
                 .jsonMapper(jsonMapperSupplier.get())
                 .keepAliveInterval(Duration.ofSeconds(10))
                 .mcpEndpoint(MCP_ENDPOINT)
@@ -142,13 +151,14 @@ public class SdkHttpStreamingTest
                 .tools(syncToolSpecification)
                 .build();
         
-        // Start Tomcat with the transport provider as servlet
-        tomcat = createTomcatServer("", PORT, transportProvider);
+        // Start Tomcat with the transport provider as servlet (with authentication and HTTPS if enabled)
+        tomcat = createTomcatServer("", PORT, transportProvider, true, USE_HTTPS);
         tomcat.start();
         assertTrue(tomcat.getServer().getState().isAvailable());
-        logger.info( "Tomcat MCP Server started at http://{}:{}{}", HOST, PORT, MCP_ENDPOINT );
-        logger.info( "Access from Windows: http://localhost:{}{}", PORT, MCP_ENDPOINT );
-        logger.info( "Access from WSL: http://{}:{}{}", getWindowsIPForWSL(), PORT, MCP_ENDPOINT );
+        String protocol = USE_HTTPS ? "https" : "http";
+        logger.info( "Tomcat MCP Server started at {}://{}:{}{}", protocol, HOST, PORT, MCP_ENDPOINT );
+        logger.info( "Access from Windows: {}://localhost:{}{}", protocol, PORT, MCP_ENDPOINT );
+        logger.info( "Access from WSL: {}://{}:{}{}", protocol, getWindowsIPForWSL(), PORT, MCP_ENDPOINT );
         System.in.read();
     }
     
@@ -170,9 +180,12 @@ public class SdkHttpStreamingTest
     @Test
     public void testToolCall() throws Exception
     {
-        // Create MCP client
-        var clientTransport = HttpClientStreamableHttpTransport.builder("http://" + HOST + ":" + PORT)
+        // Create MCP client with Bearer token authentication
+        var clientTransport = HttpClientStreamableHttpTransport.builder(getBaseUrl())
                 .endpoint(MCP_ENDPOINT)
+                .httpRequestCustomizer((requestBuilder, method, uri, body, context) -> {
+                    requestBuilder.header("Authorization", "Bearer " + BEARER_TOKEN);
+                })
                 .build();
         
         var client = McpClient.sync(clientTransport)
@@ -221,17 +234,205 @@ public class SdkHttpStreamingTest
         client.close();
     }
     
-    private static Tomcat createTomcatServer(String contextPath, int port, Servlet servlet)
+    @Test
+    public void testUnauthorizedAccess() throws Exception
+    {
+        // Create MCP client WITHOUT authorization header
+        var clientTransport = HttpClientStreamableHttpTransport.builder(getBaseUrl())
+                .endpoint(MCP_ENDPOINT)
+                .build();
+        
+        var client = McpClient.sync(clientTransport)
+                .requestTimeout(Duration.ofSeconds(10))
+                .build();
+        
+        // This should fail with 401 Unauthorized
+        Exception exception = assertThrows(Exception.class, () -> {
+            client.initialize();
+        });
+        
+        logger.info("Expected authentication failure: {}", exception.getMessage());
+        // Verify it's an auth error (the exact exception type may vary)
+        assertTrue(exception.getMessage().contains("401") || 
+                   exception.getMessage().contains("Unauthorized") ||
+                   exception.getCause() != null);
+        
+        client.close();
+    }
+    
+    @Test
+    public void testInvalidToken() throws Exception
+    {
+        // Create MCP client with WRONG token
+        var clientTransport = HttpClientStreamableHttpTransport.builder(getBaseUrl())
+                .endpoint(MCP_ENDPOINT)
+                .httpRequestCustomizer((requestBuilder, method, uri, body, context) -> {
+                    requestBuilder.header("Authorization", "Bearer wrong-token-12345");
+                })
+                .build();
+        
+        var client = McpClient.sync(clientTransport)
+                .requestTimeout(Duration.ofSeconds(10))
+                .build();
+        
+        // This should fail with 401 Unauthorized
+        Exception exception = assertThrows(Exception.class, () -> {
+            client.initialize();
+        });
+        
+        logger.info("Expected authentication failure with wrong token: {}", exception.getMessage());
+        assertTrue(exception.getMessage().contains("401") || 
+                   exception.getMessage().contains("Unauthorized") ||
+                   exception.getCause() != null);
+        
+        client.close();
+    }
+    
+    /**
+     * Returns the base URL for the server (http or https based on USE_HTTPS).
+     */
+    private static String getBaseUrl()
+    {
+        String protocol = USE_HTTPS ? "https" : "http";
+        return protocol + "://" + HOST + ":" + PORT;
+    }
+    
+    /**
+     * Extracts keystore from JAR resources to a temporary file.
+     * Tomcat requires a file path, so we need to extract from classpath.
+     */
+    private static File extractKeystoreFromJar() throws IOException
+    {
+        // Load keystore from classpath
+        try (InputStream keystoreStream = SdkHttpStreamingTest.class
+                .getResourceAsStream("/test/resources/ssl/test-keystore.jks")) {
+            
+            if (keystoreStream == null) {
+                throw new IOException("Keystore not found in classpath: /ssl/test-keystore.jks");
+            }
+            
+            // Create temporary file
+            File tempKeystore = File.createTempFile("keystore", ".jks");
+            tempKeystore.deleteOnExit();
+            
+            // Copy keystore content to temporary file using NIO
+            java.nio.file.Files.copy(
+                keystoreStream, 
+                tempKeystore.toPath(), 
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
+            
+            logger.debug("Extracted keystore to: {}", tempKeystore.getAbsolutePath());
+            return tempKeystore;
+        }
+    }
+    
+    /**
+     * Creates an SSL context using the test truststore.
+     * This properly validates certificates signed by our test CA.
+     */
+    private static javax.net.ssl.SSLContext createSSLContextWithTruststore() throws Exception
+    {
+        // Load the truststore from classpath
+        try (InputStream truststoreStream = SdkHttpStreamingTest.class
+                .getResourceAsStream("/test/resources/ssl/test-truststore.jks")) {
+            
+            if (truststoreStream == null) {
+                throw new IOException("Truststore not found in classpath: /test/resources/ssl/test-truststore.jks");
+            }
+            
+            // Load truststore
+            java.security.KeyStore truststore = java.security.KeyStore.getInstance("JKS");
+            truststore.load(truststoreStream, "changeit".toCharArray());
+            
+            // Create TrustManagerFactory
+            javax.net.ssl.TrustManagerFactory tmf = 
+                javax.net.ssl.TrustManagerFactory.getInstance(
+                    javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(truststore);
+            
+            // Create SSLContext
+            javax.net.ssl.SSLContext sslContext = javax.net.ssl.SSLContext.getInstance("TLS");
+            sslContext.init(null, tmf.getTrustManagers(), new java.security.SecureRandom());
+            
+            return sslContext;
+        }
+    }
+    
+    /**
+     * Creates an HttpClient configured with our test truststore.
+     */
+    private static java.net.http.HttpClient createHttpClientWithTruststore() throws Exception
+    {
+        if (!USE_HTTPS) {
+            // If not using HTTPS, return default client
+            return java.net.http.HttpClient.newHttpClient();
+        }
+        
+        return java.net.http.HttpClient.newBuilder()
+                .sslContext(createSSLContextWithTruststore())
+                .build();
+    }
+    
+    private static Tomcat createTomcatServer(String contextPath, int port, Servlet servlet, boolean useAuth, boolean useHttps)
     {
         var tomcat = new Tomcat();
         tomcat.setPort(port);
-        
         tomcat.setHostname(HOST);
 
         String baseDir = System.getProperty("java.io.tmpdir");
         tomcat.setBaseDir(baseDir);
 
+        // Configure HTTPS if enabled
+        if (useHttps) {
+            try {
+                File keystoreFile = extractKeystoreFromJar();
+                String keystorePassword = "changeit";
+                
+                // Create new HTTPS connector
+                var httpsConnector = new org.apache.catalina.connector.Connector();
+                httpsConnector.setPort(port);
+                httpsConnector.setScheme("https");
+                httpsConnector.setSecure(true);
+                httpsConnector.setProperty("SSLEnabled", "true");
+                
+                
+                SSLHostConfig sslConfig = new SSLHostConfig();
+
+                SSLHostConfigCertificate certConfig = new SSLHostConfigCertificate(sslConfig, SSLHostConfigCertificate.Type.RSA);
+                certConfig.setCertificateKeystoreFile(keystoreFile.toString());
+                certConfig.setCertificateKeystorePassword(keystorePassword);
+                certConfig.setCertificateKeyAlias("tomcat");
+                sslConfig.addCertificate(certConfig);
+
+                httpsConnector.addSslHostConfig(sslConfig);
+                
+                // Set as the primary connector and add to service
+                tomcat.setConnector(httpsConnector);
+                
+                logger.info("HTTPS enabled with keystore: {}", keystoreFile.getAbsolutePath());
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to configure HTTPS", e);
+            }
+        }
+
         Context context = tomcat.addContext(contextPath, baseDir);
+
+        // Add authentication filter if enabled
+        if (useAuth) {
+            var authFilter = new BearerTokenAuthenticationFilter(BEARER_TOKEN);
+            var filterDef = new org.apache.tomcat.util.descriptor.web.FilterDef();
+            filterDef.setFilterName("authFilter");
+            filterDef.setFilter(authFilter);
+            context.addFilterDef(filterDef);
+
+            var filterMap = new org.apache.tomcat.util.descriptor.web.FilterMap();
+            filterMap.setFilterName("authFilter");
+            filterMap.addURLPattern("/*");
+            context.addFilterMap(filterMap);
+
+            logger.info("Bearer token authentication enabled");
+        }
 
         // Add transport servlet to Tomcat
         org.apache.catalina.Wrapper wrapper = context.createWrapper();

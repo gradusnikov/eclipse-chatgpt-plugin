@@ -2,6 +2,7 @@ package com.github.gradusnikov.eclipse.assistai.repository;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.eclipse.core.runtime.ILog;
@@ -11,7 +12,6 @@ import org.eclipse.jface.preference.IPreferenceStore;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 
-import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
@@ -22,12 +22,16 @@ public class PromptRepository
     @Inject
     ILog logger;
     
-    private IPreferenceStore preferenceStore;
-    
-    @PostConstruct
-    public void init()
+    @Inject
+    public PromptRepository( ILog logger )
     {
-        preferenceStore = Activator.getDefault().getPreferenceStore();
+        Objects.requireNonNull( logger );
+        this.logger = logger;
+    }
+    
+    public IPreferenceStore getPreferenceStore()
+    {
+        return Activator.getDefault().getPreferenceStore();
     }
     
     public String getPrompt( String key )
@@ -35,13 +39,13 @@ public class PromptRepository
         try
         {
             var prompt = Prompts.valueOf( key );
-            return preferenceStore.getString( prompt.preferenceName() );
+            return getPreferenceStore().getString( prompt.preferenceName() );
         }
         catch ( Exception e )
         {
-            if ( preferenceStore.contains( key ) )
+            if ( getPreferenceStore().contains( key ) )
             {
-                return preferenceStore.getString( key );
+                return getPreferenceStore().getString( key );
             }
             logger.error(e.getMessage(), e);
             return "";
@@ -53,12 +57,12 @@ public class PromptRepository
     }
     public void setPrompt( String key, String promptText )
     {
-        preferenceStore.setValue( key, promptText );
+        getPreferenceStore().setValue( key, promptText );
     }
 
     public String getPromptByIndex( int index )
     {
-        var prompt = preferenceStore.getString( getPreferenceName( index ) );
+        var prompt = getPreferenceStore().getString( getPreferenceName( index ) );
         return prompt;
     }
     
@@ -69,14 +73,14 @@ public class PromptRepository
 
     public void save( int selectedIndex, String text )
     {
-        preferenceStore.setValue( getPreferenceName( selectedIndex ), text );
+        getPreferenceStore().setValue( getPreferenceName( selectedIndex ), text );
     }
 
     public String resetToDefault( int selectedIndex )
     {
         var propertyName = getPreferenceName( selectedIndex );
-        var defaultValue = preferenceStore.getDefaultString( propertyName );
-        preferenceStore.setValue( propertyName, defaultValue );
+        var defaultValue = getPreferenceStore().getDefaultString( propertyName );
+        getPreferenceStore().setValue( propertyName, defaultValue );
         return defaultValue;
     }
 

@@ -31,12 +31,13 @@ public class Activator extends AbstractUIPlugin
     
     public PromptsPreferencePresenter getPromptsPreferencePresenter()
     {
-        return make ( PromptsPreferencePresenter.class );
+        return  make ( PromptsPreferencePresenter.class );
     }
     
     public ModelListPreferencePresenter getModelsPreferencePresenter()
     {
         return make ( ModelListPreferencePresenter.class );
+       
     }
 
     public McpServerPreferencePresenter getMCPServerPreferencePresenter() 

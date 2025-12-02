@@ -9,7 +9,7 @@
 	<classpathentry exported="true" kind="lib" path="mcp/jakarta.servlet-api-6.1.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="mcp/mcp-json-0.17.0-SNAPSHOT.jar"/>
 	<classpathentry exported="true" kind="lib" path="mcp/mcp-json-jackson2-0.17.0-SNAPSHOT.jar"/>
-	<classpathentry exported="true" kind="lib" path="mcp/mcp-core-0.17.0-SNAPSHOT.jar"/>
+	<classpathentry exported="true" kind="lib" path="mcp/mcp-core-0.17.0-SNAPSHOT.jar" sourcepath="E:/devel/3rd-party/java-sdk/mcp-core/src/main/java"/>
 	<classpathentry exported="true" kind="lib" path="mcp/byte-buddy-1.14.9.jar"/>
 	<classpathentry exported="true" kind="lib" path="mcp/reactive-streams-1.0.4.jar"/>
 	<classpathentry exported="true" kind="lib" path="mcp/reactor-core-3.7.0.jar"/>

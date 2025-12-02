@@ -24,8 +24,6 @@ Require-Bundle: org.eclipse.e4.ui.services,
  org.eclipse.egit.core,
  org.eclipse.compare,
  org.eclipse.ui.editors,
- jakarta.annotation-api;bundle-version="2.1.1",
- jakarta.inject.jakarta.inject-api;bundle-version="2.0.1",
  org.apache.commons.commons-io;bundle-version="2.18.0",
  org.eclipse.ui.ide,
  org.eclipse.ui.console,
@@ -36,7 +34,9 @@ Require-Bundle: org.eclipse.e4.ui.services,
  org.eclipse.jdt.launching,
  org.eclipse.m2e.core,
  org.eclipse.m2e.core.ui,
- org.eclipse.m2e.maven.runtime
+ org.eclipse.m2e.maven.runtime,
+ jakarta.annotation-api;bundle-version="2.1.1",
+ jakarta.inject.jakarta.inject-api;bundle-version="2.0.1"
 Bundle-RequiredExecutionEnvironment: JavaSE-21
 Automatic-Module-Name: assistai.main
 Bundle-Classpath: .

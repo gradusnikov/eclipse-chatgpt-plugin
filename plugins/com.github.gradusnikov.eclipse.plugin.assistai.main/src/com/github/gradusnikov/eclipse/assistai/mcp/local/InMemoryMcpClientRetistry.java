@@ -1,5 +1,5 @@
 
-package com.github.gradusnikov.eclipse.assistai.mcp;
+package com.github.gradusnikov.eclipse.assistai.mcp.local;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -19,13 +18,12 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.eclipse.core.runtime.ILog;
-import org.eclipse.e4.core.contexts.ContextInjectionFactory;
-import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.workbench.lifecycle.PostWorkbenchClose;
 
-import com.github.gradusnikov.eclipse.assistai.mcp.McpClientServerFactory.InMemorySyncClientServer;
-import com.github.gradusnikov.eclipse.assistai.mcp.servers.McpServerBuiltins;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServerRepository;
+import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryClientServerFactory.InMemorySyncClientServer;
 import com.github.gradusnikov.eclipse.assistai.tools.EclipseVariableUtilities;
 import com.google.common.base.Predicates;
 
@@ -43,11 +41,8 @@ import jakarta.inject.Singleton;
 
 @Creatable
 @Singleton
-public class McpClientRetistry
+public class InMemoryMcpClientRetistry
 {
-
-    
-
     private Map<String, McpSyncClient> clients = new HashMap<>();
 
     private List<McpSyncServer>        servers = new ArrayList<>();
@@ -56,13 +51,10 @@ public class McpClientRetistry
     private ILog                       logger;
 
     @Inject
-    private McpClientServerFactory     factory;
+    private InMemoryClientServerFactory     factory;
 
     @Inject
     private McpServerRepository        mcpServerRepository;
-    
-    @Inject
-    private IEclipseContext            eclipseContext;
 
     /**
      * Handles the shutdown process by closing all MCP clients gracefully.
@@ -82,7 +74,7 @@ public class McpClientRetistry
     public void init()
     {
         var stored = mcpServerRepository.listStoredServers();
-        var builtin = McpServerBuiltins.listBuiltInImplementations();
+        var builtin = mcpServerRepository.listBuiltInServers();
 
         initializeBuiltInServers( stored, builtin );
         initializeUserDefinedServers( stored );
@@ -135,11 +127,9 @@ public class McpClientRetistry
 
             if ( updated.enabled() )
             {
-                var clazz = McpServerBuiltins.findImplementation( updated.name() );
-                var implementation = ContextInjectionFactory.make( clazz, eclipseContext );
-                Objects.requireNonNull( implementation, "No actual object of class " + clazz + " found!" );
+                var implementation = mcpServerRepository.makeImplementation( updated.name() );
 
-                InMemorySyncClientServer  clientServerPair = factory.creteInMemorySyncClientServer( implementation );
+                InMemorySyncClientServer  clientServerPair = factory.creteInMemorySyncClientServerPair( implementation );
                 addClient( updated.name(), clientServerPair.client() );
                 servers.add( clientServerPair.server() );
             }

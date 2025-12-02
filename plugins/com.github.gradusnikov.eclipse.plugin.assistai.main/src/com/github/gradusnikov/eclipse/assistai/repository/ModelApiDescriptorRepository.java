@@ -3,6 +3,7 @@ package com.github.gradusnikov.eclipse.assistai.repository;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -18,30 +19,30 @@ import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 
-import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
 @Creatable
 public class ModelApiDescriptorRepository 
 {
 	@Inject
-	ILog logger; 
+	private final ILog logger; 
 
-	private IPreferenceStore preferenceStore;
 	
-	public ModelApiDescriptorRepository()
+	@Inject
+	public ModelApiDescriptorRepository( ILog logger )
 	{
+		Objects.requireNonNull( logger );
+		this.logger = logger;
 		
 	}
-	@PostConstruct
-	public void init()
+	public IPreferenceStore getPreferenceStore()
 	{
-		preferenceStore = Activator.getDefault().getPreferenceStore();
+	    return Activator.getDefault().getPreferenceStore();
 	}
 	
 	public List<ModelApiDescriptor> listModelApiDescriptors()
 	{
-        String modelsJson = preferenceStore.getString( PreferenceConstants.ASSISTAI_DEFINED_MODELS );
+        String modelsJson = getPreferenceStore().getString( PreferenceConstants.ASSISTAI_DEFINED_MODELS );
         List<ModelApiDescriptor> models =  fromJson( modelsJson );
         return models;
 	}
@@ -99,7 +100,7 @@ public class ModelApiDescriptorRepository
 	
 	public List<ModelApiDescriptor> setToDefault() 
 	{
-        preferenceStore.setToDefault( PreferenceConstants.ASSISTAI_DEFINED_MODELS );
+	    getPreferenceStore().setToDefault( PreferenceConstants.ASSISTAI_DEFINED_MODELS );
         return listModelApiDescriptors();
 	}
 	public Optional<ModelApiDescriptor> findByIndex(int selectedIndex) 
@@ -121,13 +122,13 @@ public class ModelApiDescriptorRepository
 	private void saveAll( List<ModelApiDescriptor> models )
 	{
         String json = toJson( models );
-        preferenceStore.setValue( PreferenceConstants.ASSISTAI_DEFINED_MODELS, json );
+        getPreferenceStore().setValue( PreferenceConstants.ASSISTAI_DEFINED_MODELS, json );
         logger.info( "AI models updated" );
 	}
 	
 	public ModelApiDescriptor getModelInUse()
 	{
-        String currentModel = preferenceStore.getString( PreferenceConstants.ASSISTAI_SELECTED_MODEL );
+        String currentModel = getPreferenceStore().getString( PreferenceConstants.ASSISTAI_SELECTED_MODEL );
         var models = listModelApiDescriptors();
         return models.isEmpty() 
         			? null 
@@ -136,7 +137,7 @@ public class ModelApiDescriptorRepository
 	}
 	public ModelApiDescriptor setModelInUse(String modelId) 
 	{
-		preferenceStore.setValue(PreferenceConstants.ASSISTAI_SELECTED_MODEL, modelId);
+	    getPreferenceStore().setValue(PreferenceConstants.ASSISTAI_SELECTED_MODEL, modelId);
 		return getModelInUse();
 	}
 	
@@ -178,12 +179,12 @@ public class ModelApiDescriptorRepository
     public void initializeDefaultDescriptors( ModelApiDescriptor ...apiDescriptors )
     {
         var modelsJson = toJson( apiDescriptors );
-        preferenceStore.setDefault( PreferenceConstants.ASSISTAI_DEFINED_MODELS, modelsJson );
+        getPreferenceStore().setDefault( PreferenceConstants.ASSISTAI_DEFINED_MODELS, modelsJson );
         
     }
     public void initializeDefaultDescriptorInUse( ModelApiDescriptor descriptor )
     {
-        preferenceStore.setDefault( PreferenceConstants.ASSISTAI_SELECTED_MODEL, descriptor.uid() );
+        getPreferenceStore().setDefault( PreferenceConstants.ASSISTAI_SELECTED_MODEL, descriptor.uid() );
     }
 
 }

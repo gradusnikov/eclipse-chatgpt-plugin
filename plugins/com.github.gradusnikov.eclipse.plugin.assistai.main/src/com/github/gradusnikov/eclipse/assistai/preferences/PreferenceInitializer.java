@@ -5,7 +5,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
-import com.github.gradusnikov.eclipse.assistai.mcp.servers.McpServerBuiltins;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServerRepository;
 import com.github.gradusnikov.eclipse.assistai.preferences.mcp.McpServerDescriptorUtilities;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
@@ -25,9 +25,12 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
     @Inject
     private ModelApiDescriptorRepository modelApiDescriptorRepository;
     
+    private McpServerRepository mcpServerRepository;
+    
     public void init()
     {
         modelApiDescriptorRepository = Activator.getDefault().getModelApiDescriptorRepository();
+        mcpServerRepository = Activator.getDefault().make( McpServerRepository.class );
     }
     
     public void initializeDefaultPreferences()
@@ -47,7 +50,7 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
         modelApiDescriptorRepository.initializeDefaultDescriptors( gpt4, claude, groq, deepseek, gemini );
         modelApiDescriptorRepository.initializeDefaultDescriptorInUse( gpt4 );
         
-        var descriptors = McpServerBuiltins.listBuiltInImplementations();
+        var descriptors = mcpServerRepository.listBuiltInServers();
         
         String mcpServersJson = McpServerDescriptorUtilities.toJson( descriptors );
         store.setDefault(PreferenceConstants.ASSISTAI_DEFINED_MCP_SERVERS, mcpServersJson);

@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.mcp.servers;
+package com.github.gradusnikov.eclipse.assistai.mcp;
 
 import java.util.Collections;
 import java.util.List;
@@ -6,10 +6,21 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
-import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
+import org.eclipse.e4.core.di.annotations.Creatable;
 
-public class McpServerBuiltins
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.servers.DuckDuckSearchMcpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseCodeEditingMcpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseIntegrationsMcpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.servers.MemoryMcpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.servers.ReadWebPageMcpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.servers.TimeMcpServer;
+
+import jakarta.inject.Singleton;
+
+@Creatable
+@Singleton
+class McpServerBuiltins
 {
     
     public static final Class<?>[] BUILT_IN_MCP_SERVERS = {
@@ -21,14 +32,14 @@ public class McpServerBuiltins
             EclipseCodeEditingMcpServer.class
     };
     
-    public static List<McpServerDescriptor> listBuiltInImplementations()
+    public List<McpServerDescriptor> listBuiltInImplementations()
     {
         return Stream.of( BUILT_IN_MCP_SERVERS )
-                      .map( McpServerBuiltins::toBuiltInMcpServerDescriptor )
+                      .map( this::toBuiltInMcpServerDescriptor )
                       .collect( Collectors.toList() );        
     }
     
-    private static McpServerDescriptor toBuiltInMcpServerDescriptor( Class<?> clazz )
+    private McpServerDescriptor toBuiltInMcpServerDescriptor( Class<?> clazz )
     {
         String serverName = clazz.getAnnotation( McpServer.class ).name();
         return new McpServerDescriptor( serverName, 
@@ -39,7 +50,7 @@ public class McpServerBuiltins
                 true );
     }
 
-    public static Class<?> findImplementation( String name )
+    public Class<?> findImplementation( String name )
     {
         Objects.requireNonNull( name );
         return Stream.of( BUILT_IN_MCP_SERVERS )

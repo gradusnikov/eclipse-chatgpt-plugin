@@ -12,16 +12,13 @@ import java.util.stream.Collectors;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
-import org.eclipse.jface.preference.IPreferenceStore;
 
-import com.github.gradusnikov.eclipse.assistai.Activator;
-import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor.McpServerDescriptorWithStatus;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor.Status;
-import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
+import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpServerRepository;
 
-import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
@@ -34,35 +31,25 @@ public class McpServerPreferencePresenter
 {
 
     private static final int MCP_SERVER_PING_TIMEOUT_SECONDS = 1;
-    private final McpClientRetistry clientRetistry;
+    private final InMemoryMcpClientRetistry clientRetistry;
+    private final McpServerRepository mcpServerRepository;
     private final ILog logger;
-    private IPreferenceStore  preferenceStore;
     
     private McpServerPreferencePage view;
 
     @Inject
-    public McpServerPreferencePresenter( McpClientRetistry mcpClientRetistry,
+    public McpServerPreferencePresenter( InMemoryMcpClientRetistry mcpClientRetistry,
+                                         McpServerRepository mcpServerRepository,
                                          ILog logger
                                          )
     {
+        Objects.requireNonNull( mcpClientRetistry );
+        Objects.requireNonNull( mcpServerRepository );
+        Objects.requireNonNull( logger );
+        
         this.clientRetistry = mcpClientRetistry;
+        this.mcpServerRepository = mcpServerRepository;
         this.logger = logger;
-    }
-    @PostConstruct
-    public void init()
-    {
-        this.preferenceStore = Activator.getDefault().getPreferenceStore();
-    }
-
-    /**
-     * Get all defined MCP servers
-     * 
-     * @return list of MCP server descriptors
-     */
-    public List<McpServerDescriptor> getServers()
-    {
-        String serversJson = preferenceStore.getString( PreferenceConstants.ASSISTAI_DEFINED_MCP_SERVERS );
-        return McpServerDescriptorUtilities.fromJson( serversJson );
     }
     
     /**
@@ -71,7 +58,7 @@ public class McpServerPreferencePresenter
      * @return list of MCP server descriptors
      */
     public List<McpServerDescriptorWithStatus> getServersWithStatus() {
-        var servers = getServers();
+        var servers = mcpServerRepository.listStoredServers();
         var list = servers.stream().map(server -> {
             try 
             {
@@ -105,7 +92,7 @@ public class McpServerPreferencePresenter
      */
     public Optional<McpServerDescriptor> getServerAt( int index )
     {
-        var servers = getServers();
+        var servers = mcpServerRepository.listStoredServers();
         return index >= 0 && index < servers.size() ? Optional.of( servers.get( index ) ) : Optional.empty();
     }
 
@@ -129,7 +116,7 @@ public class McpServerPreferencePresenter
      */
     public void toggleServerEnabled( int serverIndex, boolean enabled )
     {
-        var servers = getServers();
+        var servers = mcpServerRepository.listStoredServers();
         if ( serverIndex >= 0 && serverIndex < servers.size() )
         {
             McpServerDescriptor server = servers.get( serverIndex );
@@ -140,7 +127,7 @@ public class McpServerPreferencePresenter
                                                                    enabled, 
                                                                    server.builtIn() );
             servers.set( serverIndex, updated );
-            save( servers );
+            mcpServerRepository.save( servers );
 //            view.showServers( getServersWithStatus() );
         }
     }
@@ -153,14 +140,14 @@ public class McpServerPreferencePresenter
      */
     public void removeServer( int selectedIndex )
     {
-        var servers = getServers();
+        var servers = mcpServerRepository.listStoredServers();
         if ( selectedIndex >= 0 && selectedIndex < servers.size() )
         {
             McpServerDescriptor server = servers.get( selectedIndex );
             if ( !server.builtIn() )
             {
                 servers.remove( selectedIndex );
-                save( servers );
+                mcpServerRepository.save( servers );
                 clientRetistry.restart();
                 view.showServers( getServersWithStatus() );
                 view.clearServerDetails();
@@ -169,18 +156,7 @@ public class McpServerPreferencePresenter
         }
     }
 
-    /**
-     * Save the list of servers
-     * 
-     * @param servers
-     *            the servers to save
-     */
-    public void save( List<McpServerDescriptor> servers )
-    {
-        String json = McpServerDescriptorUtilities.toJson( servers );
-        preferenceStore.setValue( PreferenceConstants.ASSISTAI_DEFINED_MCP_SERVERS, json );
-        logger.info( "updated" );
-    }
+
 
     /**
      * Save a server
@@ -192,7 +168,7 @@ public class McpServerPreferencePresenter
      */
     public void saveServer( int selectedIndex, McpServerDescriptor updatedServerStub )
     {
-        List<McpServerDescriptor> storedDescriptors = getServers();
+        List<McpServerDescriptor> storedDescriptors = mcpServerRepository.listStoredServers();
 
         // Check for duplicate name
         boolean nameExists = storedDescriptors.stream()
@@ -228,7 +204,7 @@ public class McpServerPreferencePresenter
                                                                false );
 
         update.accept( toStore );
-        save( storedDescriptors );
+        mcpServerRepository.save( storedDescriptors );
         clientRetistry.restart();
         view.showServers( getServersWithStatus() );
         view.clearServerDetails();
@@ -242,7 +218,7 @@ public class McpServerPreferencePresenter
      */
     public void setSelectedServer( int selectedIndex )
     {
-        var servers = getServers();
+        var servers = mcpServerRepository.listStoredServers();
         if ( selectedIndex >= 0 && selectedIndex < servers.size() )
         {
             var selected = servers.get( selectedIndex );
@@ -275,7 +251,7 @@ public class McpServerPreferencePresenter
      */
     public void onPerformDefaults()
     {
-        preferenceStore.setToDefault( PreferenceConstants.ASSISTAI_DEFINED_MCP_SERVERS );
+        mcpServerRepository.setToDefault();
         clientRetistry.restart();
         view.showServers( getServersWithStatus() );
         view.clearServerDetails();

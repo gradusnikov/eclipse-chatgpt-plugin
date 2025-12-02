@@ -23,7 +23,6 @@ Export-Package:
  io.modelcontextprotocol.server.transport,
  io.modelcontextprotocol.spec,
  io.modelcontextprotocol.util,
- jakarta.annotation,
  jakarta.servlet,
  jakarta.servlet.http,
  org.apache.catalina,
@@ -31,10 +30,12 @@ Export-Package:
  org.apache.catalina.core,
  org.apache.catalina.startup,
  org.apache.catalina.util,
+ org.apache.catalina.webresources,
  org.apache.fontbox.ttf,
  org.apache.tika,
  org.apache.tika.parser.txt,
  org.apache.tomcat.util.descriptor.web,
+ org.apache.tomcat.util.net,
  org.jsoup,
  org.jsoup.nodes,
  org.jsoup.select,
@@ -132,4 +133,6 @@ Bundle-Vendor: Wojciech Gradkowski
 Require-Bundle: slf4j.api;bundle-version="2.0.16",
  slf4j.simple;bundle-version="2.0.16",
  org.apache.commons.commons-io;bundle-version="2.16.1"
+Import-Package: jakarta.servlet;version="[6.0.0,7.0.0)",
+ jakarta.servlet.http;version="[6.0.0,7.0.0)"
 Automatic-Module-Name: assistai.dependencies

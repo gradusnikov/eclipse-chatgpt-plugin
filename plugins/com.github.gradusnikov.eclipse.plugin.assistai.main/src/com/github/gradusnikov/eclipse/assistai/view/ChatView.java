@@ -1,5 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.view;
 
+import java.awt.Desktop.Action;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -7,19 +8,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.core.runtime.ILog;
+import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.Focus;
 import org.eclipse.e4.ui.di.UISynchronize;
-import org.eclipse.jface.bindings.keys.KeyStroke;
 import org.eclipse.jface.fieldassist.ContentProposalAdapter;
-import org.eclipse.jface.fieldassist.ControlDecoration;
-import org.eclipse.jface.fieldassist.FieldDecorationRegistry;
 import org.eclipse.jface.fieldassist.IContentProposal;
 import org.eclipse.jface.fieldassist.IContentProposalProvider;
 import org.eclipse.jface.fieldassist.TextContentAdapter;
@@ -36,7 +33,6 @@ import org.eclipse.swt.dnd.ImageTransfer;
 import org.eclipse.swt.dnd.TextTransfer;
 import org.eclipse.swt.events.KeyAdapter;
 import org.eclipse.swt.events.KeyEvent;
-import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.MenuAdapter;
 import org.eclipse.swt.events.MenuEvent;
 import org.eclipse.swt.events.MouseAdapter;
@@ -68,35 +64,36 @@ import org.eclipse.swt.widgets.ToolItem;
 import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.PlatformUI;
 
+import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment.UiVisitor;
+import com.github.gradusnikov.eclipse.assistai.mcp.http.HttpMcpServerRegistry;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.MarkdownParser;
 import com.github.gradusnikov.eclipse.assistai.tools.AssistaiSharedFiles;
-import com.github.gradusnikov.eclipse.assistai.tools.AssistaiSharedImages;
 import com.github.gradusnikov.eclipse.assistai.tools.AssistaiSharedFonts;
+import com.github.gradusnikov.eclipse.assistai.tools.AssistaiSharedImages;
 import com.github.gradusnikov.eclipse.assistai.view.dnd.DropManager;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
+@Creatable
 public class ChatView
 {
 
-    private Browser              browser;
-
     @Inject
     private UISynchronize        uiSync;
-
+    
     @Inject
     private ILog                 logger;
-
+    
     @Inject
     private ChatViewPresenter     presenter;
-
+    
     @Inject
     private DropManager          dropManager;
-
+    
     @Inject
     private AssistaiSharedImages sharedImages;
     
@@ -105,6 +102,8 @@ public class ChatView
     
     @Inject
     private AssistaiSharedFonts sharedFonts;
+
+    private Browser              browser;
     
     private LocalResourceManager resourceManager;
 

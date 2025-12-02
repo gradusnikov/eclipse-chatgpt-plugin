@@ -19,7 +19,7 @@ import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.FunctionCall;
-import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
+import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
@@ -44,7 +44,7 @@ public class ExecuteFunctionCallJob extends Job
     private Conversation                  conversation;
 
     @Inject
-    private McpClientRetistry             mcpClientRetistry;
+    private InMemoryMcpClientRetistry             mcpClientRetistry;
 
     private FunctionCall                  functionCall;
 

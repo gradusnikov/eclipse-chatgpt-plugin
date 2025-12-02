@@ -35,7 +35,7 @@ import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
-import com.github.gradusnikov.eclipse.assistai.mcp.McpClientRetistry;
+import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
@@ -61,7 +61,7 @@ public class DeepSeekStreamJavaHttpClient implements LanguageModelClient
     private LanguageModelClientConfiguration configuration;
     
     @Inject
-    private McpClientRetistry mcpClientRegistry;
+    private InMemoryMcpClientRetistry mcpClientRegistry;
     
     private IPreferenceStore preferenceStore;
     

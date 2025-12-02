@@ -43,5 +43,8 @@
             class="com.github.gradusnikov.eclipse.assistai.preferences.PreferenceInitializer">
       </initializer>
    </extension>
+	<extension point="org.eclipse.ui.startup">
+	    <startup class="com.github.gradusnikov.eclipse.assistai.PluginStartup"/>
+	</extension>   
 
 </plugin>

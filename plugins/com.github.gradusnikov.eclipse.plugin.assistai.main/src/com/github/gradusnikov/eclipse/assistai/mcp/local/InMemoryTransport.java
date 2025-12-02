@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.mcp;
+package com.github.gradusnikov.eclipse.assistai.mcp.local;
 
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -61,7 +61,7 @@ public class InMemoryTransport
      * 
      * @return A pair containing client and server transports
      */
-    public static TransportPair createTransportPair() {
+    public static TransportPair createEntangledTransportPair() {
         McpJsonMapperSupplier jsonMapperSupplier = new JacksonMcpJsonMapperSupplier();
         return createTransportPair(jsonMapperSupplier.get());
     }
