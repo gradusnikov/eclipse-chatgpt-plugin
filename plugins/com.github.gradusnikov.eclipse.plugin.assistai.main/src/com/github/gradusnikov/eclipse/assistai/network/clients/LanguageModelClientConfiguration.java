@@ -30,13 +30,13 @@ public class LanguageModelClientConfiguration
         return Optional.ofNullable( repository.getModelInUse() );
     }
     
-    public int getConnectionTimoutSeconds()
+    public int getConnectionTimeoutSeconds()
     {
         IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
         return Integer.parseInt( prefernceStore.getString(PreferenceConstants.ASSISTAI_CONNECTION_TIMEOUT_SECONDS) );
     }
     
-    public int getRequestTimoutSeconds()
+    public int getRequestTimeoutSeconds()
     {
         IPreferenceStore prefernceStore = Activator.getDefault().getPreferenceStore();
         return Integer.parseInt( prefernceStore.getString(PreferenceConstants.ASSISTAI_REQUEST_TIMEOUT_SECONDS) );

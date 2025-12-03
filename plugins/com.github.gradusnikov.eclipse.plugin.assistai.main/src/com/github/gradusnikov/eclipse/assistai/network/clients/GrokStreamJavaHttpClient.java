@@ -254,12 +254,12 @@ public class GrokStreamJavaHttpClient implements LanguageModelClient {
             var model = configuration.getSelectedModel().orElseThrow();
 
             HttpClient client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
+                .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimeoutSeconds()))
                 .build();
             String requestBody = getRequestBody(prompt, model);
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(model.apiUrl()))
-                .timeout(Duration.ofSeconds(configuration.getRequestTimoutSeconds()))
+                .timeout(Duration.ofSeconds(configuration.getRequestTimeoutSeconds()))
                 .version(HttpClient.Version.HTTP_1_1)
                 .header("Authorization", "Bearer " + model.apiKey())
                 .header("Content-Type", "application/json")
