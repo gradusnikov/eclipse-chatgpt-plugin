@@ -190,6 +190,115 @@ To enable the filesystem MCP (e.g., [filesystem](https://github.com/modelcontext
 - The `${workspace_loc}` variable specifies the workspace folder accessible to the MCP. When using WSL, this path is automatically converted to a Unix-style path for compatibility.  Other eclipse variables are available (`${project_loc}`, etc.)
 - **Security Warning:** Use MCP servers cautiously, as they grant LLMs access to read or modify sensitive data in your project directory, which could be accidentally altered or deleted by the LLM.
 
+### HTTP MCP Server - Exposing Eclipse Tools to External Clients
+
+AssistAI now supports exposing its internal MCP servers (eclipse-ide, eclipse-coder, etc.) as HTTP endpoints. This allows external AI clients like Claude Desktop, Cursor, or any other MCP-compatible application to use Eclipse IDE capabilities remotely.
+
+#### Enabling the HTTP MCP Server
+
+1. **Open the Preferences**  
+   Navigate to *Window > Preferences > Assist AI > HTTP MCP Server*.
+
+2. **Configure the Server**  
+   - Check **Enable HTTP MCP Server**
+   - Set **Hostname** (default: `localhost`)
+   - Set **Port** (default: `8124`)
+   - Click **Generate** to create a new authentication token, or use an existing one
+   - Click **Apply** to start the server
+
+3. **Verify Server Status**  
+   The **Server Status** section will show "HTTP Server is running" when active.
+
+4. **View Enabled Endpoints**  
+   The **Enabled Endpoints** section displays all available MCP servers exposed via HTTP:
+   - `http://localhost:8124/mcp/eclipse-ide`
+   - `http://localhost:8124/mcp/eclipse-coder`
+   - `http://localhost:8124/mcp/duck-duck-search`
+   - `http://localhost:8124/mcp/webpage-reader`
+   - `http://localhost:8124/mcp/time`
+   - `http://localhost:8124/mcp/memory`
+
+#### Integrating with Claude Desktop
+
+To connect Claude Desktop to your Eclipse HTTP MCP Server:
+
+1. **Locate Claude Configuration File**  
+   Open the Claude Desktop configuration file:
+   - Windows: `%APPDATA%\Roaming\Claude\claude_desktop_config.json`
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Linux: `~/.config/Claude/claude_desktop_config.json`
+
+2. **Add MCP Server Configuration**  
+   Add entries for each Eclipse MCP server you want to use:
+
+   ```json
+   {
+     "mcpServers": {
+       "eclipse-ide": {
+         "command": "wsl",
+         "args": [
+           "npx", "-y", "mcp-remote", "http://172.24.208.1:8124/mcp/eclipse-ide", "--allow-http"
+         ]
+       },
+       "eclipse-coder": {
+         "command": "wsl",
+         "args": [
+           "npx", "-y", "mcp-remote", "http://172.24.208.1:8124/mcp/eclipse-coder", "--allow-http"
+         ]
+       }
+     }
+   }
+   ```
+
+   **Notes:**
+   - Replace `172.24.208.1:8124` with your actual hostname and port
+   - Use `wsl` command on Windows to run npx through WSL
+   - On macOS/Linux, use `"command": "npx"` directly
+   - The `--allow-http` flag is required for non-HTTPS connections
+   - Add authentication header if using auth token (see below)
+
+3. **Using Authentication Token**  
+   If you configured an authentication token in Eclipse, add it to the args:
+
+   ```json
+   {
+     "mcpServers": {
+       "eclipse-coder": {
+         "command": "wsl",
+         "args": [
+           "npx", "-y", "mcp-remote", "http://172.24.208.1:8124/mcp/eclipse-coder", 
+           "--allow-http",
+           "--header", "Authorization: Bearer de34508b-e69b-4d93-8910-470c61c9f098"
+         ]
+       }
+     }
+   }
+   ```
+
+4. **Restart Claude Desktop**  
+   Close and reopen Claude Desktop for the changes to take effect.
+
+#### Use Cases
+
+With HTTP MCP Server enabled, external AI clients can:
+
+- **Read and modify Eclipse project files** using `eclipse-coder` tools
+- **Access project structure and properties** using `eclipse-ide` tools
+- **Run and analyze JUnit tests** in your Eclipse workspace
+- **Read compilation errors** and get context about your code
+- **Format code** according to Eclipse formatter settings
+- **Access JavaDoc and source code** for better context understanding
+
+This feature enables powerful AI-assisted development workflows where Claude or other AI assistants can directly interact with your Eclipse IDE environment.
+
+#### Security Considerations
+
+- **Local Network Only:** By default, the server binds to `localhost`. Only expose to external networks if necessary.
+- **Authentication Token:** Always use an authentication token when exposing the server beyond localhost.
+- **Firewall Rules:** Ensure your firewall allows connections only from trusted sources.
+- **HTTPS:** Consider using a reverse proxy with HTTPS for production use.
+- **Access Control:** The AI client will have full access to all tools exposed by the enabled MCP servers.
+
 
 ### Add ChatGPT View
 
