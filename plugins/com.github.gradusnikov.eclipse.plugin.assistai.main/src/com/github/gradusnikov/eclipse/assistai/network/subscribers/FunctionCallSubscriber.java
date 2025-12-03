@@ -24,6 +24,7 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
     
     private Subscription subscription;
     private final StringBuffer jsonBuffer;
+    ObjectMapper mapper = new ObjectMapper();
     
     public FunctionCallSubscriber()
     {
@@ -58,7 +59,7 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
     public void onComplete()
     {
         String json = jsonBuffer.toString();
-    
+
         if ( !json.startsWith( "\"function_call\"" ) )
         {
             subscription.request(1);
@@ -66,21 +67,18 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
         }
         try
         {
-            // Wrap the accumulated content in a proper JSON object
-            String wrappedJson;
-            if ( json.endsWith( ":" ) ) 
+            if ( json.trim().endsWith( ":" ) ) 
             {
-                // If it ends with colon, add empty object and close
-                wrappedJson = "{" + json + "{}}";
+                json += "{}";
             }
-            else
-            {
-                // Otherwise just wrap and close
-                wrappedJson = "{" + json + "}";
-            }
+            json += "\n}";
+            // 1. append assistant request to call a function to the conversation
+            // -- convert JSON to FuncationCall object
+            var functionCallJson = json.substring( Math.max(0, json.indexOf( "{" )), json.length() );
             
-            ObjectMapper mapper = new ObjectMapper();
-            var functionCall = mapper.readValue( wrappedJson, FunctionCall.class );
+            logger.info( "Function call json:\n" + functionCallJson  );
+            
+            var functionCall = mapper.readValue( functionCallJson, FunctionCall.class );
             
             ExecuteFunctionCallJob job = executeFunctionCallJobProvider.get();
             job.setFunctionCall( functionCall );
@@ -89,12 +87,8 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
         }
         catch ( Exception e )
         {
-            logger.error( "Failed to parse function call JSON: " + jsonBuffer.toString(), e );
+            logger.error( e.getMessage(), e );
         }
         subscription.request(1);
     }
-
-
-    
-
 }
