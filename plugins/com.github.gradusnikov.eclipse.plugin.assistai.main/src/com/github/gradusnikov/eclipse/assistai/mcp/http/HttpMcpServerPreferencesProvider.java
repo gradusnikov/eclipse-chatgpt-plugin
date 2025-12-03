@@ -43,4 +43,14 @@ public class HttpMcpServerPreferencesProvider
         preferenceStore.setValue(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_ENABLED, enabled);
     }
 
+    public void resetToDefaults()
+    {
+        IPreferenceStore preferenceStore = Activator.getDefault().getPreferenceStore();
+        
+        preferenceStore.setToDefault(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_HOSTNAME);
+        preferenceStore.setToDefault(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_PORT);
+        preferenceStore.setToDefault(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN);
+        preferenceStore.setToDefault(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_ENABLED);
+    }
+
 }

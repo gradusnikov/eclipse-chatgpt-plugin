@@ -101,7 +101,7 @@ public class McpHttpServerPreferencePresenter
     public void onPerformDefaults()
     {
         // Set default values
-        savePreferences(8881, "localhost", generateToken(), false);
+        preferencesProvider.resetToDefaults();
         initializeView( view );
     }
 
