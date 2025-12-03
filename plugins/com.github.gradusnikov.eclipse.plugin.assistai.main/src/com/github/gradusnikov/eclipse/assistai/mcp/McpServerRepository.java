@@ -4,11 +4,8 @@ import java.util.List;
 import java.util.Objects;
 
 import org.eclipse.core.runtime.ILog;
-import org.eclipse.e4.core.contexts.ContextInjectionFactory;
-import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;
-import org.eclipse.swt.widgets.Display;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;

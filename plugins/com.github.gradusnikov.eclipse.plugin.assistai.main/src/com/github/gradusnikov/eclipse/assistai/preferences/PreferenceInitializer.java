@@ -4,6 +4,8 @@ import org.eclipse.core.runtime.preferences.AbstractPreferenceInitializer;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;
 
+import java.util.UUID;
+
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerRepository;
 import com.github.gradusnikov.eclipse.assistai.preferences.mcp.McpServerDescriptorUtilities;
@@ -54,6 +56,12 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
         
         String mcpServersJson = McpServerDescriptorUtilities.toJson( descriptors );
         store.setDefault(PreferenceConstants.ASSISTAI_DEFINED_MCP_SERVERS, mcpServersJson);
+
+        // Initialize HTTP MCP Server defaults
+        store.setDefault(PreferenceConstants.ASSISTAI_MCP_HTTP_HOSTNAME, "localhost");
+        store.setDefault(PreferenceConstants.ASSISTAI_MCP_HTTP_PORT, 8080);
+        store.setDefault(PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN, UUID.randomUUID().toString());
+        store.setDefault(PreferenceConstants.ASSISTAI_MCP_HTTP_ENABLED, false);
 
         PromptLoader promptLoader = new PromptLoader();
         for ( Prompts prompt : Prompts.values() )

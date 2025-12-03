@@ -8,6 +8,7 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 
+import com.github.gradusnikov.eclipse.assistai.preferences.mcp.McpHttpServerPreferencePresenter;
 import com.github.gradusnikov.eclipse.assistai.preferences.mcp.McpServerPreferencePresenter;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelListPreferencePresenter;
 import com.github.gradusnikov.eclipse.assistai.preferences.prompts.PromptsPreferencePresenter;
@@ -40,11 +41,16 @@ public class Activator extends AbstractUIPlugin
        
     }
 
-    public McpServerPreferencePresenter getMCPServerPreferencePresenter() 
+    public McpServerPreferencePresenter getMCPServerPreferencePresenter()
     {
         return make( McpServerPreferencePresenter.class );
-    }    
-    
+    }
+
+    public McpHttpServerPreferencePresenter getHttpMcpServerPreferencePresenter()
+    {
+        return make( McpHttpServerPreferencePresenter.class );
+    }
+
     public ModelApiDescriptorRepository getModelApiDescriptorRepository()
     {
         return make( ModelApiDescriptorRepository.class );

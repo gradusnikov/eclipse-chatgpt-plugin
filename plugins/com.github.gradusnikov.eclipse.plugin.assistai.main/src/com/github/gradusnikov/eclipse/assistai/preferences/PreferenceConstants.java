@@ -13,4 +13,10 @@ public class PreferenceConstants
     // MCP Server preferences
     public static final String ASSISTAI_DEFINED_MCP_SERVERS = "AssistAIDefinedMCPServers";
     public static final String ASSISTAI_SELECTED_MCP_SERVER = "AssistAISelectedMCPServer";
+    
+    // MCP Http
+    public static final String ASSISTAI_MCP_HTTP_HOSTNAME = "AssistAIMcpHttpHostname";
+    public static final String ASSISTAI_MCP_HTTP_PORT = "AssistAIMcpHttpPort";
+    public static final String ASSISTAI_MCP_HTTP_AUTH_TOKEN = "AssistAIMcpHttpToken";
+    public static final String ASSISTAI_MCP_HTTP_ENABLED = "AssistAIMcpHttpEnabled";
 }

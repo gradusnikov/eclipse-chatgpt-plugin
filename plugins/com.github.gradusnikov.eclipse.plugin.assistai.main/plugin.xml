@@ -36,6 +36,12 @@
             category="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
             class="com.github.gradusnikov.eclipse.assistai.preferences.mcp.McpServerPreferencePage">
         </page>
+        <page
+            id="com.github.gradusnikov.eclipse.assistai.preferences.McpHttpServerPreferencePage"
+            name="HTTP MCP Server"
+            category="com.github.gradusnikov.eclipse.assistai.preferences.OpenAIPreferencePage"
+            class="com.github.gradusnikov.eclipse.assistai.preferences.mcp.McpHttpServerPreferencePage">
+        </page>
    </extension>
    <extension
          point="org.eclipse.core.runtime.preferences">

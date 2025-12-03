@@ -58,7 +58,7 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
     public void onComplete()
     {
         String json = jsonBuffer.toString();
-
+    
         if ( !json.startsWith( "\"function_call\"" ) )
         {
             subscription.request(1);
@@ -66,16 +66,21 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
         }
         try
         {
+            // Wrap the accumulated content in a proper JSON object
+            String wrappedJson;
             if ( json.endsWith( ":" ) ) 
             {
-                json += "{}";
+                // If it ends with colon, add empty object and close
+                wrappedJson = "{" + json + "{}}";
             }
-            json += "}";
-            // 1. append assistant request to call a function to the conversation
+            else
+            {
+                // Otherwise just wrap and close
+                wrappedJson = "{" + json + "}";
+            }
+            
             ObjectMapper mapper = new ObjectMapper();
-            // -- convert JSON to FuncationCall object
-            var functionCallJson = json.substring( Math.max(0, json.indexOf( "{" )), json.length() );
-            var functionCall = mapper.readValue( functionCallJson, FunctionCall.class );
+            var functionCall = mapper.readValue( wrappedJson, FunctionCall.class );
             
             ExecuteFunctionCallJob job = executeFunctionCallJobProvider.get();
             job.setFunctionCall( functionCall );
@@ -84,7 +89,7 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
         }
         catch ( Exception e )
         {
-            logger.error( e.getMessage(), e );
+            logger.error( "Failed to parse function call JSON: " + jsonBuffer.toString(), e );
         }
         subscription.request(1);
     }
