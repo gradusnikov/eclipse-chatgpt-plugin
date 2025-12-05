@@ -1,6 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.network.subscribers;
 
-import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 
@@ -36,7 +36,7 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
     public void onSubscribe( Subscription subscription )
     {
         this.subscription = subscription;
-        jsonBuffer.setLength( 0 );
+        jsonBuffer.setLength(0);
         subscription.request(1);
     }
 
@@ -45,7 +45,7 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
     {
         if ( Incoming.Type.FUNCTION_CALL == item.type() )
         {
-            jsonBuffer.append( item.payload() );
+            jsonBuffer.append(item.payload());
         }
         subscription.request(1);
     }
@@ -53,15 +53,15 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
     @Override
     public void onError( Throwable throwable )
     {
-        jsonBuffer.setLength( 0 );
+        jsonBuffer.setLength(0);
     }
 
     @Override
     public void onComplete()
     {
         String json = jsonBuffer.toString();
-    
-        if ( !json.startsWith( "\"function_call\"" ) )
+        
+        if (!json.startsWith("\"function_call\""))
         {
             subscription.request(1);
             return;
@@ -74,30 +74,43 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
             
             for (String part : parts)
             {
-                if( part.isBlank() ) continue;
+                if (part.isBlank()) continue;
                 
                 // Find the start of the JSON object
                 int startIdx = part.indexOf('{');
                 if (startIdx == -1) continue;
                 
-                String functionCallJson = toValidFunctionCallJson( part, startIdx );
+                String functionCallJson = toValidFunctionCallJson(part, startIdx);
                 
-                logger.info( "Function call json:\n" + functionCallJson  );
+                logger.info("Function call json:\n" + functionCallJson);
                 
-                var functionCall = mapper.readValue( functionCallJson, FunctionCall.class );
+                // Parse JSON manually to extract fields
+                var jsonNode = mapper.readTree(functionCallJson);
+                String id = jsonNode.has("id") ? jsonNode.get("id").asText() : null;
+                String name = jsonNode.get("name").asText();
+                @SuppressWarnings("unchecked")
+                Map<String, Object> arguments = mapper.convertValue(
+                    jsonNode.has("arguments") ? jsonNode.get("arguments") : mapper.createObjectNode(), 
+                    Map.class
+                );
+                String thoughtSignature = jsonNode.has("thoughtSignature") ? jsonNode.get("thoughtSignature").asText() : null;
                 
-                scheduleFunctionCall( functionCall );
-                logger.info("Job scheduled: " + functionCall.id() );
+                var functionCall = new FunctionCall(id, name, arguments, thoughtSignature);
+                
+                scheduleFunctionCall(functionCall);
+                logger.info("Job scheduled: " + functionCall.id());
             }
         }
-        catch ( Exception e )
+        catch (Exception e)
         {
-            logger.error( e.getMessage(), e );
+            logger.error(e.getMessage(), e);
         }
+        
+        jsonBuffer.setLength(0);
         subscription.request(1);
     }
-
-    private String toValidFunctionCallJson( String part, int startIdx )
+    
+    private String toValidFunctionCallJson(String part, int startIdx)
     {
         // Extract everything from { onwards
         String functionCallJson = part.substring(startIdx);

@@ -271,10 +271,16 @@ public class GeminiStreamJavaHttpClient implements LanguageModelClient
                 {
                     // Function call from assistant
                     var functionCall = message.getFunctionCall();
-                    userMessage.put("parts", List.of(Map.of("functionCall", Map.of(
-                            "name", functionCall.name(),
-                            "args", functionCall.arguments()
-                    ))));
+                    var fcMap = new LinkedHashMap<String, Object>();
+                    fcMap.put("name", functionCall.name());
+                    fcMap.put("args", functionCall.arguments());
+                    
+                    var partMap = new LinkedHashMap<String, Object>();
+                    partMap.put("functionCall", fcMap);
+                    if (functionCall.thoughtSignature() != null) {
+                        partMap.put("thoughtSignature", functionCall.thoughtSignature());
+                    }
+                    userMessage.put("parts", List.of(partMap));
                 }
                 else {
                     // Regular content
@@ -452,9 +458,18 @@ public class GeminiStreamJavaHttpClient implements LanguageModelClient
                                             var functionCall = part.get("functionCall");
                                             String functionName = functionCall.get("name").asText();
                                             
-                                            // Submit function call name
-                                            publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL, 
-                                                    String.format("\"function_call\" : { \n \"name\": \"%s\",\n \"arguments\" :", functionName)));
+                                            // Submit function call name and thoughtSignature
+                                            StringBuilder fcJson = new StringBuilder();
+                                            fcJson.append("\"function_call\" : { \n \"name\": \"").append(functionName).append("\"");
+                                            
+                                            // Add thoughtSignature if present
+                                            if (part.has("thoughtSignature")) {
+                                                String thoughtSig = part.get("thoughtSignature").asText();
+                                                fcJson.append(",\n \"thoughtSignature\": \"").append(thoughtSig).append("\"");
+                                            }
+                                            
+                                            fcJson.append(",\n \"arguments\" :");
+                                            publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL, fcJson.toString()));
                                             
                                             // Submit function call arguments
                                             if (functionCall.has("args")) {
