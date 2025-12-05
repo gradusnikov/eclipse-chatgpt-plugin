@@ -212,6 +212,7 @@ public class ChatView
         createReplayToolItem(actionToolBar);
         createClearChatToolItem(actionToolBar);
         createStopToolItem(actionToolBar);
+        createSendToolItem(actionToolBar);
 
         // Sets the initial weight ratio: 75% browser, 25% controls
         sashForm.setWeights( new int[] { 70, 30 } );
@@ -367,6 +368,38 @@ public class ChatView
     }
     
     /**
+     * Creates a toolbar item that allows the user to send the message.
+     * 
+     * @param toolbar The parent toolbar
+     * @return The created toolbar item
+     */
+    private ToolItem createSendToolItem(ToolBar toolbar) {
+        ToolItem item = new ToolItem(toolbar, SWT.PUSH);
+        
+        try {
+            // Use the forward/send icon
+            Image sendIcon = PlatformUI.getWorkbench().getSharedImages().getImage(ISharedImages.IMG_TOOL_FORWARD);
+            item.setImage(sendIcon);
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+        }
+        
+        item.setToolTipText("Send message (Ctrl+Enter)");
+        
+        item.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                String text = inputArea.getText().trim();
+                if (!text.isEmpty()) {
+                    presenter.onSendUserMessage(text);
+                }
+            }
+        });
+        
+        return item;
+    }
+    
+    /**
      * Creates a toolbar item that allows the user to replay the last conversation
      * using a different model.
      * 
@@ -470,32 +503,20 @@ public class ChatView
         Text inputArea = new Text( parent, SWT.BORDER | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL );
         
         // Set a prompt message
-        inputArea.setMessage("Type a message or question here... (Press Enter to send)");
+        inputArea.setMessage("Type a message or question here... (Press Ctrl+Enter to send)");
         
-        // Add a listener for Enter key to send the message
-        inputArea.addTraverseListener( new TraverseListener()
-        {
-            public void keyTraversed( TraverseEvent e )
-            {
-                if ( e.detail == SWT.TRAVERSE_RETURN && ( e.stateMask & SWT.MODIFIER_MASK ) == 0 )
-                {
+        // Add a key listener to handle Ctrl+Enter to send the message
+        inputArea.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.keyCode == SWT.CR && (e.stateMask & SWT.CTRL) != 0) {
+                    e.doit = false; // Prevent default behavior
                     // Only send if there's actual text to send
                     String text = inputArea.getText().trim();
                     if (!text.isEmpty()) {
                         presenter.onSendUserMessage( text );
                     }
                 }
-            }
-        } );
-        
-        // Add a key listener to handle Shift+Enter for newlines
-        inputArea.addListener(SWT.KeyDown, event -> {
-            // If Shift+Enter is pressed, insert a newline instead of sending
-            if (event.keyCode == SWT.CR && (event.stateMask & SWT.SHIFT) != 0) {
-                int caretPosition = inputArea.getCaretPosition();
-                inputArea.insert("\n");
-                inputArea.setSelection(caretPosition + 1);
-                event.doit = false; // Prevent default behavior
             }
         });
         
