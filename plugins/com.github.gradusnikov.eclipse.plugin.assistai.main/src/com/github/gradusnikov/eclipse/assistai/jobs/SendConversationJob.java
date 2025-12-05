@@ -26,7 +26,7 @@ public class SendConversationJob extends Job
     
     public SendConversationJob()
     {
-        super( AssistAIJobConstants.JOB_PREFIX + " ask ChatGPT for help");
+        super( AssistAIJobConstants.JOB_PREFIX + " is working." );
         setRule(new AssistAIJobRule());
     }
 	
@@ -34,11 +34,11 @@ public class SendConversationJob extends Job
 	@Override
 	protected IStatus run(IProgressMonitor progressMonitor) 
 	{
-	    var openAIClient = clientProvider.get();
-	    openAIClient.setCancelProvider(() -> progressMonitor.isCanceled()); 
+	    var aiClient = clientProvider.get();
+	    aiClient.setCancelProvider(() -> progressMonitor.isCanceled()); 
 	    
         // Get the runnable from the client
-        Runnable task = openAIClient.run(conversation);
+        Runnable task = aiClient.run(conversation);
         try
         {
         	task.run();
