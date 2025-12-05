@@ -4,9 +4,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
-import jakarta.inject.Singleton;
-
 import org.eclipse.e4.core.di.annotations.Creatable;
+
+import jakarta.inject.Singleton;
 
 @Creatable
 @Singleton
@@ -33,7 +33,16 @@ public class Conversation
     {
         return conversation;
     }
-
+    
+    public void removeMessageById( String messageId )
+    {
+        conversation.stream()
+                    .filter( message -> messageId.equals( message.getId() ) )
+                    .findFirst()
+                    .ifPresent( messageToRemove -> conversation.remove( messageToRemove ) );
+        
+    }
+    
     public Optional<ChatMessage> removeLastMessage()
     {
         ChatMessage removed = !conversation.isEmpty() ? conversation.remove( conversation.size() - 1 ) : null;

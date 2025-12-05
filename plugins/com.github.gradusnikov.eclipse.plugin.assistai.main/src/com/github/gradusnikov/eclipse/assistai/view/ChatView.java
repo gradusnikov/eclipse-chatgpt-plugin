@@ -1,6 +1,5 @@
 package com.github.gradusnikov.eclipse.assistai.view;
 
-import java.awt.Desktop.Action;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -39,8 +38,6 @@ import org.eclipse.swt.events.MouseAdapter;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
-import org.eclipse.swt.events.TraverseEvent;
-import org.eclipse.swt.events.TraverseListener;
 import org.eclipse.swt.events.VerifyEvent;
 import org.eclipse.swt.events.VerifyListener;
 import org.eclipse.swt.graphics.Color;
@@ -64,10 +61,8 @@ import org.eclipse.swt.widgets.ToolItem;
 import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.PlatformUI;
 
-import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment.UiVisitor;
-import com.github.gradusnikov.eclipse.assistai.mcp.http.HttpMcpServerRegistry;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.MarkdownParser;
 import com.github.gradusnikov.eclipse.assistai.tools.AssistaiSharedFiles;
@@ -613,6 +608,7 @@ public class ChatView
         new InsertCodeFunction( browser, "eclipseInsertCode" );
         new NewFileFunction( browser, "eclipseNewFile" );
         new ScrollInteractionFunction( browser, "eclipseScrollInteraction" );
+        new RemoveMessageFunction( browser, "eclipseRemoveMessage" );
     }
 
     private void initializeChatView( Browser browser )
@@ -689,7 +685,7 @@ public class ChatView
 
             String fixedHtml = escapeHtmlQuotes( fixLineBreaks( parser.parseToHtml() ) );
             // inject and highlight html message
-            browser.execute( "document.getElementById(\"message-" + messageId + "\").innerHTML = '" + fixedHtml + "';renderCode();" );
+            browser.execute( "var target = document.getElementById(\"message-content-" + messageId + "\") || document.getElementById(\"message-" + messageId + "\"); if (target) { target.innerHTML = '" + fixedHtml + "'; } renderCode();" );
             // Scroll down only if auto-scroll is enabled
             if ( autoScrollEnabled )
             {
@@ -730,9 +726,25 @@ public class ChatView
         String cssClass = "user".equals( role ) ? "chat-bubble me" : "chat-bubble you";
         uiSync.asyncExec( () -> {
             browser.execute( """
-                    node = document.createElement("div");
+                    var node = document.createElement("div");
                     node.setAttribute("id", "message-${id}");
                     node.setAttribute("class", "${cssClass}");
+                    
+                    var toolbar = document.createElement('div');
+                    toolbar.setAttribute('class', 'message-toolbar');
+                    
+                    var trash = document.createElement('i');
+                    trash.setAttribute('class', 'fa-solid fa-trash');
+                    trash.onclick = function() { window.eclipseRemoveMessage('${id}'); };
+                    
+                    toolbar.appendChild(trash);
+                    
+                    var content = document.createElement('div');
+                    content.setAttribute('id', 'message-content-${id}');
+                    
+                    node.appendChild(toolbar);
+                    node.appendChild(content);
+                    
                     document.getElementById("content").appendChild(node);
                     	""".replace( "${id}", messageId ).replace( "${cssClass}", cssClass ) );
             // Scroll down only if auto-scroll is enabled
@@ -1116,6 +1128,24 @@ public class ChatView
      * allowing the browser to notify Java when the user scrolls. It is invoked 
      * from JavaScript when the scroll position changes.
      */
+    private class RemoveMessageFunction extends BrowserFunction
+    {
+        public RemoveMessageFunction( Browser browser, String name )
+        {
+            super( browser, name );
+        }
+        @Override
+        public Object function( Object[] arguments )
+        {
+            if ( arguments.length > 0 && arguments[0] instanceof String )
+            {
+                String messageId = (String) arguments[0];
+                presenter.onRemoveMessage( messageId );
+            }
+            return null;
+        }
+    }
+    
     private class ScrollInteractionFunction extends BrowserFunction
     {
         public ScrollInteractionFunction( Browser browser, String name )

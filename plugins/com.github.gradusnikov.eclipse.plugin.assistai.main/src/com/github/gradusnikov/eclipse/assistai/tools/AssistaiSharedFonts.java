@@ -32,8 +32,11 @@ public class AssistaiSharedFonts
         var fontStyle  = "normal";
         var fontFamily = Paths.get(path).getFileName().toString()
                                 .replaceFirst("\\.[^.]+$", "")
-                                .replaceAll("[-_](Regular|Bold|Italic|BoldItalic)$", "");
+                                .replaceAll("[-_](Regular|Bold|Italic|BoldItalic|Solid|Light|Thin|Duotone|Brands)$", "");
         var format = Files.getFileExtension(Paths.get(path).getFileName().toString());
+        if ("ttf".equalsIgnoreCase(format)) {
+            format = "truetype";
+        }
         
         // Infer style from filename
         String filename = Paths.get(path).getFileName().toString();
@@ -45,6 +48,15 @@ public class AssistaiSharedFonts
         {
             fontWeight = "bold";
         }
+        if ( filename.contains( "solid" ) )
+        {
+            fontWeight = "900";
+        }
+        if ( filename.contains( "regular" ) )
+        {
+            fontWeight = "400";
+        }
+
         try 
         {
             var fontData       = sharedFiles.readResourceBytes(path);
@@ -59,6 +71,8 @@ public class AssistaiSharedFonts
                 if (name != null && !name.isEmpty()) 
                 {
                     fontFamily = name;
+                    // normalize family name
+                    fontFamily = fontFamily.replaceAll("\\s+(Regular|Solid|Light|Thin|Duotone|Brands)$", "");
                 }
                 // Additional metadata could be extracted here
                 ttf.close();

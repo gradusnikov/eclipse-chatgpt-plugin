@@ -582,7 +582,15 @@ public class ChatViewPresenter
 		initializeAvailableModels();
 		updateAutocomplete();
 	}
-
+	
+	public void onRemoveMessage(String messageId )
+	{
+	    this.conversation.removeMessageById( messageId );
+	    applyToView( view -> {
+	        view.removeMessage( messageId );
+	    } );
+	}
+	
     public void updateAutocomplete()
     {
         Map<String, String> mappings = promptRepository.getAllPrompts()
