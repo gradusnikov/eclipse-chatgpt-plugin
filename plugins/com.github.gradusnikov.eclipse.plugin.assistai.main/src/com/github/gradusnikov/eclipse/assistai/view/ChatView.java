@@ -120,6 +120,8 @@ public class ChatView
 	private Menu modelMenu;
 	
 	private Map<String, String> autocompleteModel;
+	
+	private boolean autoScrollEnabled = true;
     
     public ChatView()
     {
@@ -589,6 +591,7 @@ public class ChatView
         new DiffCodeFunction( browser, "eclipseDiffCode" );
         new InsertCodeFunction( browser, "eclipseInsertCode" );
         new NewFileFunction( browser, "eclipseNewFile" );
+        new ScrollInteractionFunction( browser, "eclipseScrollInteraction" );
     }
 
     private void initializeChatView( Browser browser )
@@ -666,8 +669,11 @@ public class ChatView
             String fixedHtml = escapeHtmlQuotes( fixLineBreaks( parser.parseToHtml() ) );
             // inject and highlight html message
             browser.execute( "document.getElementById(\"message-" + messageId + "\").innerHTML = '" + fixedHtml + "';renderCode();" );
-            // Scroll down
-            browser.execute( "window.scrollTo(0, document.body.scrollHeight);" );
+            // Scroll down only if auto-scroll is enabled
+            if ( autoScrollEnabled )
+            {
+                browser.execute( "window.scrollTo(0, document.body.scrollHeight);" );
+            }
         } );
     }
 
@@ -708,9 +714,11 @@ public class ChatView
                     node.setAttribute("class", "${cssClass}");
                     document.getElementById("content").appendChild(node);
                     	""".replace( "${id}", messageId ).replace( "${cssClass}", cssClass ) );
-            browser.execute(
-                    // Scroll down
-                    "window.scrollTo(0, document.body.scrollHeight);" );
+            // Scroll down only if auto-scroll is enabled
+            if ( autoScrollEnabled )
+            {
+                browser.execute( "window.scrollTo(0, document.body.scrollHeight);" );
+            }
         } );
     }
 
@@ -1077,6 +1085,28 @@ public class ChatView
                 String codeBlock = (String) arguments[0];
                 String lang      = (String) arguments[1];
                 presenter.onNewFile( codeBlock, lang );
+            }
+            return null;
+        }
+    }
+    
+    /**
+     * This function establishes a JavaScript-to-Java callback for the browser,
+     * allowing the browser to notify Java when the user scrolls. It is invoked 
+     * from JavaScript when the scroll position changes.
+     */
+    private class ScrollInteractionFunction extends BrowserFunction
+    {
+        public ScrollInteractionFunction( Browser browser, String name )
+        {
+            super( browser, name );
+        }
+        @Override
+        public Object function( Object[] arguments )
+        {
+            if ( arguments.length > 0 && arguments[0] instanceof Boolean )
+            {
+                autoScrollEnabled = (Boolean) arguments[0];
             }
             return null;
         }

@@ -68,3 +68,39 @@ function renderCode() {
   updateFunctionCallSummaries();
   hljs.highlightAll(); 
 }
+
+// Scroll interaction tracking
+let isUserScrolling = false;
+let scrollTimeout = null;
+
+window.addEventListener('scroll', function() {
+    // Check if user is near the bottom (within 100px)
+    const isNearBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - 100);
+    
+    if (!isNearBottom) {
+        isUserScrolling = true;
+        if (typeof eclipseScrollInteraction !== 'undefined') {
+            eclipseScrollInteraction(false);
+        }
+    } else {
+        isUserScrolling = false;
+        if (typeof eclipseScrollInteraction !== 'undefined') {
+            eclipseScrollInteraction(true);
+        }
+    }
+    
+    // Clear existing timeout
+    if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+    }
+    
+    // Reset after 2 seconds of no scrolling if at bottom
+    scrollTimeout = setTimeout(function() {
+        if (isNearBottom) {
+            isUserScrolling = false;
+            if (typeof eclipseScrollInteraction !== 'undefined') {
+                eclipseScrollInteraction(true);
+            }
+        }
+    }, 2000);
+});
