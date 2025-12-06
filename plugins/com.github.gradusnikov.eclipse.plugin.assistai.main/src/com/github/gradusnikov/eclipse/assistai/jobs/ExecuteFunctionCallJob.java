@@ -16,9 +16,13 @@ import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
+import com.github.gradusnikov.eclipse.assistai.chat.CachedResource;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.FunctionCall;
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceCache;
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceResultSerializer;
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceToolResult;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 
 import io.modelcontextprotocol.spec.McpSchema;
@@ -45,6 +49,9 @@ public class ExecuteFunctionCallJob extends Job
 
     @Inject
     private InMemoryMcpClientRetistry             mcpClientRetistry;
+
+    @Inject
+    private ResourceCache                 resourceCache;
 
     private FunctionCall                  functionCall;
 
@@ -161,10 +168,13 @@ public class ExecuteFunctionCallJob extends Job
         var contentParts = Optional.ofNullable( result.content() ).orElse( Collections.emptyList() );
         for ( McpSchema.Content content : contentParts )
         {
-            // TODO: add support for images and other content types
             switch ( content.type() )
             {
-                case "text" -> textContent.append( ((McpSchema.TextContent) content).text() ).append( "\n" );
+                case "text" -> {
+                    String text = ((McpSchema.TextContent) content).text();
+                    // Check if this is a cacheable resource result
+                    textContent.append( processPossibleResourceResult( text ) ).append( "\n" );
+                }
                 default -> logger.error( "Unsupported result content type: " + content.type() );
                     
             }
@@ -174,6 +184,48 @@ public class ExecuteFunctionCallJob extends Job
         resultMessage.setFunctionCall( functionCall );
 
         return resultMessage;
+    }
+    
+    /**
+     * Processes text that might be a serialized ResourceToolResult.
+     * If it is, caches the resource and returns a reference.
+     * Otherwise, returns the text unchanged.
+     */
+    private String processPossibleResourceResult( String text )
+    {
+        // Check if this is a serialized resource result
+        if ( !ResourceResultSerializer.isResourceResult( text ) )
+        {
+            return text;
+        }
+        
+        ResourceToolResult resourceResult = ResourceResultSerializer.deserialize( text );
+        if ( resourceResult == null || !resourceResult.isCacheable() )
+        {
+            // Deserialization failed or not cacheable, return original content
+            return resourceResult != null ? resourceResult.content() : text;
+        }
+        
+        // Cache the resource
+        CachedResource cached = resourceCache.put( resourceResult );
+        
+        if ( cached != null )
+        {
+            // Return a reference instead of full content
+            logger.info( "Cached resource: " + cached.descriptor().uri() + " (v" + cached.version() + ")" );
+            return String.format( 
+                "[Resource cached: %s (version %d, ~%d tokens)]\n" +
+                "Content available in <resources> block at top of context.",
+                cached.descriptor().uri(),
+                cached.version(),
+                cached.estimateTokens()
+            );
+        }
+        else
+        {
+            // Caching failed, return full content
+            return resourceResult.content();
+        }
     }
 
     private void scheduleConversationSending()

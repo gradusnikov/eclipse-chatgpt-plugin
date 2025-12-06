@@ -93,6 +93,10 @@ If you're not satisfied with the results, you can ask follow-up questions to LLM
 
 Use the "Clear" button to reset the conversation context. Press the "Stop" button to halt LLM's response generation.
 
+### Smart Resource Caching
+
+AssistAI remembers the files you've asked it to look at during a conversation. When you ask LLM to read the same file multiple times (for example, while iterating on code changes), it automatically keeps only the latest version—so LLM always sees your current code, not outdated copies. The plugin also detects when you edit files in Eclipse and refreshes its cache automatically. This means faster responses, lower token usage, and no confusion from LLM seeing old versions of your code mixed with new ones. Just remember save the file!
+
 ## Usage Examples
 
 1. Vibe-coding ;)

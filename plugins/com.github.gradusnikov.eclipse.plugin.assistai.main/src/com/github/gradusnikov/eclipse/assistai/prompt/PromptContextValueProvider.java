@@ -9,6 +9,7 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeAnalysisService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ConsoleService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
@@ -42,6 +43,8 @@ public class PromptContextValueProvider
 	private ConsoleService consoleService;
 	@Inject
 	private GitService gitService;
+	@Inject
+	private ResourceCache resourceCache;
 	
 	public String getContextValue( String key )
 	{

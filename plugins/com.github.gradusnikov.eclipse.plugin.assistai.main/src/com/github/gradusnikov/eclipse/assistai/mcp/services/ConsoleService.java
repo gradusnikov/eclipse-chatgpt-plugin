@@ -24,6 +24,8 @@ import org.eclipse.ui.console.IOConsole;
 import org.eclipse.ui.console.MessageConsole;
 import org.eclipse.ui.console.TextConsole;
 
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceToolResult;
+
 
 import jakarta.inject.Inject;
 
@@ -48,6 +50,19 @@ public class ConsoleService
      */
     public String getConsoleOutput(String consoleName, Integer maxLines, Boolean includeAllConsoles)
     {
+        return getConsoleOutputWithResource(consoleName, maxLines, includeAllConsoles).content();
+    }
+    
+    /**
+     * Retrieves the recent output from Eclipse console(s) with resource metadata for caching.
+     * 
+     * @param consoleName Name of the specific console to retrieve (optional)
+     * @param maxLines Maximum number of lines to retrieve
+     * @param includeAllConsoles Whether to include output from all available consoles
+     * @return ResourceToolResult containing console output and descriptor
+     */
+    public ResourceToolResult getConsoleOutputWithResource(String consoleName, Integer maxLines, Boolean includeAllConsoles)
+    {
         // Validate and set default values
         if (maxLines == null || maxLines < 1) 
         {
@@ -67,7 +82,12 @@ public class ConsoleService
         
         sync.syncExec(() -> readConsoleOutput(result, consoleName, finalMaxLines, finalIncludeAllConsoles) );
         
-        return result.toString();
+        // Determine the console name for the resource descriptor
+        String resourceConsoleName = consoleName != null && !consoleName.trim().isEmpty() 
+            ? consoleName 
+            : (finalIncludeAllConsoles ? "All Consoles" : "Active Console");
+        
+        return ResourceToolResult.forConsole(resourceConsoleName, result.toString(), "getConsoleOutput");
     }
 
 	private void readConsoleOutput(StringBuilder result, String consoleName, final int finalMaxLines, final boolean finalIncludeAllConsoles ) 

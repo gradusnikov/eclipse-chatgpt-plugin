@@ -13,6 +13,7 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceToolResult;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
 import jakarta.inject.Inject;
@@ -77,4 +78,63 @@ public class ResourceService {
             
         }        
     
+    /**
+     * Reads the content of a text resource with resource metadata for caching.
+     * 
+     * @param projectName The name of the project containing the resource
+     * @param filePath The path to the resource file relative to the project root
+     * @return ResourceToolResult with content and cacheable descriptor,
+     *         or a transient result if there was an error
+     */
+    public ResourceToolResult readProjectResourceWithResource(String projectName, String filePath) {
+        final String toolName = "readProjectResource";
+        
+        // Get the project
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+        if (project == null || !project.exists()) {
+            return ResourceToolResult.transientResult(
+                "Error: Project '" + projectName + "' not found.", 
+                toolName
+            );
+        }
+        
+        if (!project.isOpen()) {
+            return ResourceToolResult.transientResult(
+                "Error: Project '" + projectName + "' is closed.", 
+                toolName
+            );
+        }
+        
+        // Get the resource
+        IPath path = IPath.fromPath(Path.of(filePath));
+        IFile file = project.getFile(path);
+        
+        if (!file.exists()) {
+            return ResourceToolResult.transientResult(
+                "Error: File '" + filePath + "' does not exist in project '" + projectName + "'.", 
+                toolName
+            );
+        }
+        
+        try {
+            String lang = ResourceUtilities.getResourceFileType(file);
+            
+            // Prepare the response
+            StringBuilder content = new StringBuilder();
+            content.append("# Content of ").append(filePath).append(" in project ").append(projectName).append("\n\n");
+            content.append("```").append(lang).append("\n");
+            content.append(ResourceUtilities.readFileContent(file));
+            content.append("\n```\n");
+            
+            // Return cacheable result with IFile reference
+            return ResourceToolResult.fromFile(file, content.toString(), toolName);
+            
+        } catch (IOException | CoreException e) {
+            logger.error("Error reading resource: " + e.getMessage(), e);
+            return ResourceToolResult.transientResult(
+                "Error reading file: " + e.getMessage(), 
+                toolName
+            );
+        }
+    }
 }

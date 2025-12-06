@@ -33,6 +33,7 @@ import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
@@ -60,6 +61,9 @@ public class GeminiStreamJavaHttpClient implements LanguageModelClient
     
     @Inject
     private InMemoryMcpClientRetistry mcpClientRegistry;
+    
+    @Inject
+    private ResourceCache resourceCache;
     
     private IPreferenceStore preferenceStore;
     
@@ -158,9 +162,17 @@ public class GeminiStreamJavaHttpClient implements LanguageModelClient
             var messages = new ArrayList<Map<String, Object>>();
     
             // Add system message if provided
+            // note gemini does not support system messages
             String systemPrompt = preferenceStore.getString(Prompts.SYSTEM.preferenceName());
+            
+            // Inject cached resources block at the beginning of system prompt
+            String resourcesBlock = resourceCache.toContextBlock();
+            if (!resourcesBlock.isEmpty()) 
+            {
+                systemPrompt = resourcesBlock + "\n\n" + systemPrompt;
+            }
+            
             if (!systemPrompt.isEmpty()) {
-                // note gemini does not support system messages
                 ChatMessage systemMessage = new ChatMessage( UUID.randomUUID().toString(), "user");
                 systemMessage.setContent(systemPrompt);
                 messages.add(toJsonPayload(systemMessage, model));

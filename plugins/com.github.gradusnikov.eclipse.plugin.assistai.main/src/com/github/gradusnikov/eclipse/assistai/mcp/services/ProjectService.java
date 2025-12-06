@@ -26,6 +26,8 @@ import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
 
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceToolResult;
+
 import jakarta.inject.Inject;
 
 /**
@@ -695,5 +697,47 @@ public class ProjectService {
         }
         
         return count;
+    }
+    
+    /**
+     * Gets the project layout with resource metadata for caching.
+     * 
+     * @param projectName The name of the project to analyze
+     * @return ResourceToolResult with layout content and cacheable descriptor,
+     *         or a transient result if there was an error
+     */
+    public ResourceToolResult getProjectLayoutWithResource(String projectName) {
+        final String toolName = "getProjectLayout";
+        
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+        if (project == null || !project.exists()) {
+            return ResourceToolResult.transientResult(
+                "Project '" + projectName + "' not found.", 
+                toolName
+            );
+        }
+        
+        if (!project.isOpen()) {
+            return ResourceToolResult.transientResult(
+                "Project '" + projectName + "' is closed.", 
+                toolName
+            );
+        }
+        
+        try {
+            StringBuilder result = new StringBuilder();
+            result.append("# Project Structure: ").append(projectName).append("\n\n");
+            collectResourcesForLLM(project, 0, result);
+            
+            // Return cacheable result for project layout
+            return ResourceToolResult.forProjectLayout(projectName, result.toString(), toolName);
+            
+        } catch (CoreException e) {
+            logger.error(e.getMessage(), e);
+            return ResourceToolResult.transientResult(
+                "Error retrieving project layout: " + e.getMessage(), 
+                toolName
+            );
+        }
     }
 }

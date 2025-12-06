@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 @Creatable
@@ -13,6 +14,9 @@ import jakarta.inject.Singleton;
 public class Conversation
 {
     public List<ChatMessage> conversation = new LinkedList<>();
+    
+    @Inject
+    private ResourceCache resourceCache;
 
     public int size()
     {
@@ -22,6 +26,10 @@ public class Conversation
     public void clear()
     {
         conversation.clear();
+        // Clear the resource cache when conversation is reset
+        if (resourceCache != null) {
+            resourceCache.clear();
+        }
     }
     
     public synchronized void add(ChatMessage message)

@@ -32,6 +32,7 @@ import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
@@ -63,6 +64,9 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
     
     @Inject
     private InMemoryMcpClientRetistry mcpClientRegistry;
+    
+    @Inject
+    private ResourceCache resourceCache;
     
     private IPreferenceStore preferenceStore;
     
@@ -138,6 +142,14 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
         
         // Instructions (system prompt)
         var systemPrompt = preferenceStore.getString(Prompts.SYSTEM.preferenceName());
+        
+        // Inject cached resources block at the beginning of system prompt
+        String resourcesBlock = resourceCache.toContextBlock();
+        if (!resourcesBlock.isEmpty()) 
+        {
+            systemPrompt = resourcesBlock + "\n\n" + systemPrompt;
+        }
+        
         if (!systemPrompt.isBlank()) {
             requestBody.put("instructions", systemPrompt);
         }

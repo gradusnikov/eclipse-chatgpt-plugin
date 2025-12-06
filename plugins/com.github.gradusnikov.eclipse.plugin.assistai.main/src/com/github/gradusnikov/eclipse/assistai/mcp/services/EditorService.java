@@ -16,6 +16,7 @@ import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceToolResult;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceFormatter;
 import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 
@@ -53,23 +54,35 @@ public class EditorService
      */
     public String getCurrentlyOpenedFileContent()
     {
+        return getCurrentlyOpenedFileContentWithResource().content();
+    }
+    
+    /**
+     * Gets information about the currently active file with resource metadata for caching.
+     * 
+     * @return ResourceToolResult containing file content and descriptor
+     */
+    public ResourceToolResult getCurrentlyOpenedFileContentWithResource()
+    {
         return uiSync.syncCall( () -> {
-	        final StringBuilder result = new StringBuilder();
 	        try 
 	        {
 	            IFile file = getCurrentlyOpenedFile().orElseThrow( () ->  new RuntimeException("No active editor found or editor input not available.") );
-	            // Get file information
+	            
+	            final StringBuilder result = new StringBuilder();
 	            result.append("# Currently Opened File:\n\n");
-	            // Get the file path
                 ResourceFormatter resourceFormatter = new ResourceFormatter(file);
                 result.append(resourceFormatter.formatFile());
+                
+                return ResourceToolResult.fromFile(file, result.toString(), "getCurrentlyOpenedFile");
 	        } 
 	        catch (Exception e)
 	        {
-	        	throw new RuntimeException(e);
+	        	return ResourceToolResult.transientResult(
+	        	    "Error: " + e.getMessage(), 
+	        	    "getCurrentlyOpenedFile"
+	        	);
 	        }
-	        
-	        return result.toString();
         });
     }
 

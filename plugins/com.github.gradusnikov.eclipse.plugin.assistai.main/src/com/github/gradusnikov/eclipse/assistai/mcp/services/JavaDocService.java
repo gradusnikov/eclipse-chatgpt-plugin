@@ -24,6 +24,8 @@ import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jface.text.Document;
 import org.eclipse.ui.editors.text.TextFileDocumentProvider;
 
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceDescriptor;
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceToolResult;
 import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
 
 import jakarta.inject.Inject;
@@ -205,5 +207,57 @@ public class JavaDocService {
             return null;
         }
         return null;
+    }
+    
+    /**
+     * Retrieves the source code with resource metadata for caching.
+     * Returns a ResourceToolResult containing both the source and its descriptor.
+     *
+     * @param fullyQualifiedClassName The fully qualified name of the class.
+     * @return ResourceToolResult with source content and cacheable descriptor, 
+     *         or a transient result if source is not available.
+     */
+    public ResourceToolResult getSourceWithResource(String fullyQualifiedClassName) {
+        final String toolName = "getSource";
+        
+        for (IJavaProject javaProject : getAvailableJavaProjects()) {
+            try {
+                IType type = javaProject.findType(fullyQualifiedClassName);
+                if (type == null) {
+                    continue;
+                }
+                
+                // Get the resource (file) for this type
+                IResource resource = type.getCorrespondingResource();
+                if (resource == null) {
+                    resource = type.getResource();
+                }
+                if (resource == null) {
+                    resource = type.getUnderlyingResource();
+                }
+                
+                // Check if the resource is a file
+                if (resource instanceof IFile file) {
+                    TextFileDocumentProvider provider = new TextFileDocumentProvider();
+                    provider.connect(file);
+                    Document document = (Document) provider.getDocument(file);
+                    String content = document.get();
+                    provider.disconnect(file);
+                    
+                    if (content != null && !content.isBlank()) {
+                        // Create resource-aware result with IType info
+                        return ResourceToolResult.fromJavaType(type, content, toolName);
+                    }
+                }
+            } catch (Exception e) {
+                logger.error(e.getMessage(), e);
+            }
+        }
+        
+        // Source not available - return transient (non-cacheable) result
+        return ResourceToolResult.transientResult(
+            "Source is not available for " + fullyQualifiedClassName, 
+            toolName
+        );
     }
 }

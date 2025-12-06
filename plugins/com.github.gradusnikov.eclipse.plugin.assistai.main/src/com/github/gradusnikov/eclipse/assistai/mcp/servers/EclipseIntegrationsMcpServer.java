@@ -4,6 +4,8 @@ import java.util.Optional;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceResultSerializer;
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceToolResult;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
@@ -71,7 +73,9 @@ public class EclipseIntegrationsMcpServer
     public String getSource(
             @ToolParam(name="fullyQualifiedClassName", description="A fully qualified class name of the Java class", required=true) String fullyQualifiedClassName)
     {
-        return javaDocService.getSource(fullyQualifiedClassName);
+        // Use resource-aware method and serialize for caching
+        ResourceToolResult result = javaDocService.getSourceWithResource(fullyQualifiedClassName);
+        return ResourceResultSerializer.serialize(result);
     }
 
     @Tool(name="getProjectProperties", description="Retrieves the properties and configuration of a specified project.", type="object")
@@ -85,7 +89,9 @@ public class EclipseIntegrationsMcpServer
     public String getProjectLayout(
             @ToolParam(name="projectName", description="The name of the project to analyze", required=true) String projectName)
     {
-        return projectService.getProjectLayout( projectName );
+        // Use resource-aware method and serialize for caching
+        ResourceToolResult result = projectService.getProjectLayoutWithResource(projectName);
+        return ResourceResultSerializer.serialize(result);
     }
     @Tool(name="getMethodCallHierarchy", description="Retrieves the call hierarchy (callers) for a specified method to understand how it's used in the codebase.", type="object")
     public String getMethodCallHierarchy(
@@ -110,7 +116,9 @@ public class EclipseIntegrationsMcpServer
             @ToolParam(name="projectName", description="The name of the project containing the resource", required=true) String projectName,
             @ToolParam(name="resourcePath", description="The path to the resource relative to the project root", required=true) String resourcePath) 
     {
-        return resourceService.readProjectResource( projectName, resourcePath );
+        // Use resource-aware method and serialize for caching
+        ResourceToolResult result = resourceService.readProjectResourceWithResource(projectName, resourcePath);
+        return ResourceResultSerializer.serialize(result);
     }
 
     @Tool(name="listProjects", description="List all available projects in the workspace with their detected natures (Java, C/C++, Python, etc.).", type="object")
@@ -121,7 +129,9 @@ public class EclipseIntegrationsMcpServer
     @Tool(name="getCurrentlyOpenedFile", description="Gets information about the currently active file in the Eclipse editor.", type="object")
     public String getCurrentlyOpenedFile() 
     {
-        return editorService.getCurrentlyOpenedFileContent();
+        // Use resource-aware method and serialize for caching
+        ResourceToolResult result = editorService.getCurrentlyOpenedFileContentWithResource();
+        return ResourceResultSerializer.serialize(result);
     }
     @Tool(name="getEditorSelection", description="Gets the currently selected text or lines in the active editor.", type="object")
     public String getEditorSelection() 
@@ -134,7 +144,13 @@ public class EclipseIntegrationsMcpServer
             @ToolParam(name="maxLines", description="Maximum number of lines to retrieve (default: 100)", required=false) String  maxLines,
             @ToolParam(name="includeAllConsoles", description="Whether to include output from all available consoles (default: false)", required=false) Boolean includeAllConsoles) 
     {
-        return consoleService.getConsoleOutput( consoleName, Optional.ofNullable( maxLines ).map( Integer::parseInt ).orElse( 0 ), includeAllConsoles );
+        // Use resource-aware method and serialize for caching
+        ResourceToolResult result = consoleService.getConsoleOutputWithResource(
+            consoleName, 
+            Optional.ofNullable( maxLines ).map( Integer::parseInt ).orElse( 0 ), 
+            includeAllConsoles
+        );
+        return ResourceResultSerializer.serialize(result);
     }
     
     // Unit Test Service Tools
