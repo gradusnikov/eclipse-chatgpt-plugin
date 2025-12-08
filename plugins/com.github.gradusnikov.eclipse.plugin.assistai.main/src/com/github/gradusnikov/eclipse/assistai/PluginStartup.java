@@ -1,5 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai;
 
+import org.eclipse.core.runtime.ILog;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IStartup;
 import org.eclipse.ui.IWorkbenchWindow;
@@ -21,7 +22,8 @@ public class PluginStartup implements IStartup
         try {
             IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
             if (window != null) {
-                System.err.println("Initializing HTTP MCP Server Registry on UI thread");
+                ILog logger = Activator.getDefault().getLog();
+                logger.info("Initializing HTTP MCP Server Registry on UI thread");
                 Activator.getDefault().make(HttpMcpServerRegistry.class);
             } else {
                 // Window exists but not active yet, retry

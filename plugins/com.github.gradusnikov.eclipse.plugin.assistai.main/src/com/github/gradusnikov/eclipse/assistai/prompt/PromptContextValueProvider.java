@@ -43,8 +43,6 @@ public class PromptContextValueProvider
 	private ConsoleService consoleService;
 	@Inject
 	private GitService gitService;
-	@Inject
-	private ResourceCache resourceCache;
 	
 	public String getContextValue( String key )
 	{

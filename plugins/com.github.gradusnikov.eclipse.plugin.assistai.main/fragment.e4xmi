@@ -42,5 +42,9 @@
       <tags>View</tags>
       <tags>categoryTag:Assist AI</tags>
     </elements>
+    <elements xsi:type="basic:PartDescriptor" xmi:id="_ResourcesViewDescriptor001" elementId="com.github.gradusnikov.eclipse.assistai.view.ResourcesView" label="AI Resources" iconURI="platform:/plugin/com.github.gradusnikov.eclipse.plugin.assistai.main/icons/assistai-16.png" category="Assist AI" closeable="true" contributionURI="bundleclass://com.github.gradusnikov.eclipse.plugin.assistai.main/com.github.gradusnikov.eclipse.assistai.view.ResourcesView">
+      <tags>View</tags>
+      <tags>categoryTag:Assist AI</tags>
+    </elements>
   </fragments>
 </fragment:ModelFragments>

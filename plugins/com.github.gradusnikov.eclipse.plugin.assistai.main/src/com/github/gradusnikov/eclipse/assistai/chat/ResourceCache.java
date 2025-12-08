@@ -3,6 +3,7 @@ package com.github.gradusnikov.eclipse.assistai.chat;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -11,11 +12,11 @@ import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.resources.IResourceChangeListener;
 import org.eclipse.core.resources.IResourceDelta;
-import org.eclipse.core.resources.IResourceDeltaVisitor;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
+import org.eclipse.core.runtime.ListenerList;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import jakarta.annotation.PostConstruct;
@@ -26,13 +27,6 @@ import jakarta.inject.Singleton;
 /**
  * Cache for resources accessed during conversation.
  * 
- * Key features:
- * - Uses Eclipse-native resource identifiers (IPath, URI)
- * - Listens to workspace changes to invalidate stale entries
- * - Provides XML block for injection into LLM context
- * - Implements LRU eviction when limits are exceeded
- * 
- * Thread-safe: all mutating operations are synchronized.
  */
 @Creatable
 @Singleton
@@ -44,8 +38,7 @@ public class ResourceCache implements IResourceChangeListener {
     /** Maximum total tokens across all cached resources */
     private static final int MAX_TOTAL_TOKENS = 100_000;
     
-    @Inject
-    private ILog logger;
+    private final ILog logger;
     
     // LinkedHashMap with access-order for LRU behavior
     private final Map<URI, CachedResource> resources = new LinkedHashMap<>(16, 0.75f, true);
@@ -53,15 +46,22 @@ public class ResourceCache implements IResourceChangeListener {
     // Track workspace paths for change detection
     private final Map<IPath, URI> workspacePathIndex = new LinkedHashMap<>();
     
-    // Flag to track if listener is registered
-    private boolean listenerRegistered = false;
+    // Listeners for cache change events
+    private final ListenerList<IResourceCacheListener> cacheListeners = new ListenerList<>();
     
-    public ResourceCache() {
-        // Default constructor for DI
+    private boolean listenerRegistered;
+    
+    
+    @Inject
+    public ResourceCache(ILog logger ) 
+    {
+        Objects.requireNonNull( logger );
+        this.logger = logger;
     }
     
     @PostConstruct
-    public void init() {
+    public void init() 
+    {
         registerWorkspaceListener();
     }
     
@@ -69,21 +69,22 @@ public class ResourceCache implements IResourceChangeListener {
      * Registers the workspace change listener.
      * Safe to call multiple times.
      */
-    public synchronized void registerWorkspaceListener() {
-        if (!listenerRegistered) {
+    public synchronized void registerWorkspaceListener() 
+    {
+        if (!listenerRegistered) 
+        {
             ResourcesPlugin.getWorkspace().addResourceChangeListener(
                 this, 
                 IResourceChangeEvent.POST_CHANGE
             );
             listenerRegistered = true;
-            if (logger != null) {
-                logger.info("ResourceCache: Workspace listener registered");
-            }
+            logger.info("ResourcesPresenter: Workspace listener registered");
         }
     }
     
     @PreDestroy
-    public void dispose() {
+    public void dispose() 
+    {
         unregisterWorkspaceListener();
     }
     
@@ -99,6 +100,7 @@ public class ResourceCache implements IResourceChangeListener {
             }
         }
     }
+
     
     /**
      * Adds or updates a resource in the cache.
@@ -129,13 +131,15 @@ public class ResourceCache implements IResourceChangeListener {
         resources.put(uri, cached);
         
         // Index by workspace path for change detection
-        if (descriptor.workspacePath() != null) {
+        if (descriptor.workspacePath() != null) 
+        {
             workspacePathIndex.put(descriptor.workspacePath(), uri);
         }
         
-        if (logger != null) {
-            logger.info("ResourceCache: Cached " + uri + " (v" + newVersion + ", ~" + cached.estimateTokens() + " tokens)");
-        }
+        // Fire cache event
+        fireCacheEvent(new ResourceCacheEvent(this, ResourceCacheEvent.Type.ADDED, cached));
+        
+        logger.info("ResourceCache: Cached " + uri + " (v" + newVersion + ", ~" + cached.estimateTokens() + " tokens)");
         
         return cached;
     }
@@ -187,11 +191,12 @@ public class ResourceCache implements IResourceChangeListener {
      */
     public synchronized void remove(URI uri) {
         CachedResource removed = resources.remove(uri);
-        if (removed != null && removed.descriptor().workspacePath() != null) {
-            workspacePathIndex.remove(removed.descriptor().workspacePath());
-            if (logger != null) {
-                logger.info("ResourceCache: Removed " + uri);
+        if (removed != null) {
+            if (removed.descriptor().workspacePath() != null) {
+                workspacePathIndex.remove(removed.descriptor().workspacePath());
             }
+            fireCacheEvent(new ResourceCacheEvent(this, ResourceCacheEvent.Type.REMOVED, removed));
+            logger.info("ResourceCache: Removed " + uri);
         }
     }
     
@@ -201,11 +206,13 @@ public class ResourceCache implements IResourceChangeListener {
      */
     public synchronized void invalidate(IPath workspacePath) {
         URI uri = workspacePathIndex.remove(workspacePath);
-        if (uri != null) {
-            resources.remove(uri);
-            if (logger != null) {
-                logger.info("ResourceCache: Invalidated " + workspacePath);
+        if (uri != null) 
+        {
+            CachedResource removed = resources.remove(uri);
+            if (removed != null) {
+                fireCacheEvent(new ResourceCacheEvent(this, ResourceCacheEvent.Type.INVALIDATED, removed));
             }
+            logger.info("ResourceCache: Invalidated " + workspacePath);
         }
     }
     
@@ -216,9 +223,8 @@ public class ResourceCache implements IResourceChangeListener {
         int count = resources.size();
         resources.clear();
         workspacePathIndex.clear();
-        if (logger != null) {
-            logger.info("ResourceCache: Cleared " + count + " resources");
-        }
+        fireCacheEvent(new ResourceCacheEvent(this, ResourceCacheEvent.Type.CLEARED, null));
+        logger.info("ResourceCache: Cleared " + count + " resources");
     }
     
     /**
@@ -324,59 +330,92 @@ public class ResourceCache implements IResourceChangeListener {
                 workspacePathIndex.remove(evicted.descriptor().workspacePath());
             }
             
-            if (logger != null) {
-                logger.info("ResourceCache: Evicted LRU resource " + entry.getKey());
-            }
+            logger.info("ResourceCache: Evicted LRU resource " + entry.getKey());
         }
     }
     
-    // --- IResourceChangeListener ---
+    public void resourceChanged( IPath path )
+    {
+        if ( workspacePathIndex.containsKey( path ) )
+        {
+            invalidate(path);
+        }
+    }
+
+    public void resourceRemoved( IPath path )
+    {
+        if ( workspacePathIndex.containsKey( path ) )
+        {
+            invalidate(path);
+        }
+    }
     
     @Override
-    public void resourceChanged(IResourceChangeEvent event) {
-        if (event.getDelta() == null) {
+    public void resourceChanged( IResourceChangeEvent event )
+    {
+        if (event.getDelta() == null) 
+        {
             return;
         }
         
-        try {
-            event.getDelta().accept(new IResourceDeltaVisitor() {
-                @Override
-                public boolean visit(IResourceDelta delta) throws CoreException {
+        try 
+        {
+            event.getDelta().accept( delta -> {
                     IResource resource = delta.getResource();
                     
                     // Only care about file changes
-                    if (!(resource instanceof IFile)) {
+                    if (!(resource instanceof IFile)) 
+                    {
                         return true; // Continue visiting children
                     }
                     
                     IPath path = resource.getFullPath();
-                    
-                    // Check if this file is in our cache
-                    if (workspacePathIndex.containsKey(path)) {
-                        switch (delta.getKind()) {
-                            case IResourceDelta.CHANGED:
-                                // Content changed - invalidate cache
-                                if ((delta.getFlags() & IResourceDelta.CONTENT) != 0) {
-                                    invalidate(path);
-                                }
-                                break;
-                            case IResourceDelta.REMOVED:
-                                // File deleted - remove from cache
-                                invalidate(path);
-                                break;
-                            default:
-                                // ADDED - no action needed (not in cache yet)
-                                break;
-                        }
+
+                    switch (delta.getKind()) {
+                        case IResourceDelta.CHANGED:
+                            // Content changed - invalidate cache
+                            if ((delta.getFlags() & IResourceDelta.CONTENT) != 0) {
+                                invalidate( path );
+                            }
+                            break;
+                        case IResourceDelta.REMOVED:
+                            // File deleted - remove from cache
+                            invalidate( path );
+                            break;
+                        default:
+                            // ADDED - no action needed (not in cache yet)
+                            break;
                     }
-                    
+
                     return true;
-                }
             });
-        } catch (CoreException e) {
-            if (logger != null) {
-                logger.error("ResourceCache: Error processing resource change", e);
+        }
+        catch (CoreException e) 
+        {
+            logger.error("ResourceCache: Error processing resource change", e);
+        }
+    }
+    
+    /**
+     * Fires a cache event to all registered listeners.
+     */
+    private void fireCacheEvent(ResourceCacheEvent event) {
+        for (IResourceCacheListener listener : cacheListeners) {
+            try {
+                listener.cacheChanged(event);
+            } catch (Exception e) {
+                logger.error("Error notifying cache listener", e);
             }
         }
     }
+
+    
+    public void addCacheListener(IResourceCacheListener listener) {
+        cacheListeners.add(listener);
+    }
+    
+    public void removeCacheListener(IResourceCacheListener listener) {
+        cacheListeners.remove(listener);
+    }
+
 }
