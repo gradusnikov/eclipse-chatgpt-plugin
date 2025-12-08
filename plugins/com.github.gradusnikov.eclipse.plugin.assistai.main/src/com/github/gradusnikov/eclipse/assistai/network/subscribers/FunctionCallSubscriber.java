@@ -115,13 +115,15 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
         // Extract everything from { onwards
         String functionCallJson = part.substring(startIdx);
         
-        // Ensure the JSON object is properly closed
-        int braceCount = 0;
-        for (char c : functionCallJson.toCharArray())
+        // Find where this JSON object ends using proper JSON-aware parsing
+        int endIdx = findJsonObjectEnd(functionCallJson);
+        if (endIdx > 0 && endIdx < functionCallJson.length())
         {
-            if (c == '{') braceCount++;
-            else if (c == '}') braceCount--;
+            functionCallJson = functionCallJson.substring(0, endIdx);
         }
+        
+        // Count braces outside of string literals to check if JSON is complete
+        int braceCount = countUnmatchedBraces(functionCallJson);
         
         // Add missing closing braces
         while (braceCount > 0)
@@ -133,6 +135,99 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
         // Handle incomplete arguments: "arguments" : followed by } or whitespace then }
         functionCallJson = functionCallJson.replaceAll("\"arguments\"\\s*:\\s*([\\r\\n\\s]*)}", "\"arguments\" : {}$1}");
         return functionCallJson;
+    }
+    
+    /**
+     * Finds the end index of a JSON object, properly handling nested objects and string literals.
+     * Returns the index after the closing brace of the top-level object.
+     */
+    private int findJsonObjectEnd(String json)
+    {
+        int braceCount = 0;
+        boolean inString = false;
+        boolean escape = false;
+        
+        for (int i = 0; i < json.length(); i++)
+        {
+            char c = json.charAt(i);
+            
+            if (escape)
+            {
+                escape = false;
+                continue;
+            }
+            
+            if (c == '\\' && inString)
+            {
+                escape = true;
+                continue;
+            }
+            
+            if (c == '"')
+            {
+                inString = !inString;
+                continue;
+            }
+            
+            if (!inString)
+            {
+                if (c == '{')
+                {
+                    braceCount++;
+                }
+                else if (c == '}')
+                {
+                    braceCount--;
+                    if (braceCount == 0)
+                    {
+                        return i + 1;
+                    }
+                }
+            }
+        }
+        
+        return json.length();
+    }
+    
+    /**
+     * Counts unmatched opening braces, properly ignoring braces inside string literals.
+     */
+    private int countUnmatchedBraces(String json)
+    {
+        int braceCount = 0;
+        boolean inString = false;
+        boolean escape = false;
+        
+        for (int i = 0; i < json.length(); i++)
+        {
+            char c = json.charAt(i);
+            
+            if (escape)
+            {
+                escape = false;
+                continue;
+            }
+            
+            if (c == '\\' && inString)
+            {
+                escape = true;
+                continue;
+            }
+            
+            if (c == '"')
+            {
+                inString = !inString;
+                continue;
+            }
+            
+            if (!inString)
+            {
+                if (c == '{') braceCount++;
+                else if (c == '}') braceCount--;
+            }
+        }
+        
+        return braceCount;
     }
     
     private void scheduleFunctionCall( FunctionCall functionCall )
