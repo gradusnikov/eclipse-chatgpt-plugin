@@ -57,6 +57,7 @@ public class ResourceCache implements IResourceChangeListener {
     {
         Objects.requireNonNull( logger );
         this.logger = logger;
+        logger.info("ResourceCache created with instance ID: " + System.identityHashCode(this));
     }
     
     @PostConstruct
@@ -245,6 +246,7 @@ public class ResourceCache implements IResourceChangeListener {
      * Returns all cached resources (copy).
      */
     public synchronized Map<URI, CachedResource> getAll() {
+        logger.info("ResourceCache.getAll() called on instance " + System.identityHashCode(this) + ", returning " + resources.size() + " resources");
         return new LinkedHashMap<>(resources);
     }
     
@@ -306,16 +308,29 @@ public class ResourceCache implements IResourceChangeListener {
     
     // --- Eviction ---
     
-    private void evictIfNecessary(int newResourceTokens) {
+    /**
+     * Evicts resources if necessary to make room for a new resource.
+     * Returns true if the resource can be added, false if it's too large.
+     */
+    private boolean evictIfNecessary(int newResourceTokens) {
+        // If the new resource alone exceeds the limit, don't evict everything
+        // Just log a warning and allow it (but don't evict other resources for it)
+        if (newResourceTokens > MAX_TOTAL_TOKENS) {
+            logger.warn("ResourceCache: New resource exceeds token limit (" + newResourceTokens + " > " + MAX_TOTAL_TOKENS + "), adding anyway without evicting others");
+            return true;
+        }
+        
         // Evict by count
         while (resources.size() >= MAX_RESOURCES) {
             evictOldest();
         }
         
-        // Evict by total tokens
+        // Evict by total tokens - but only if adding won't still exceed the limit
         while (estimateTotalTokens() + newResourceTokens > MAX_TOTAL_TOKENS && !resources.isEmpty()) {
             evictOldest();
         }
+        
+        return true;
     }
     
     private void evictOldest() {

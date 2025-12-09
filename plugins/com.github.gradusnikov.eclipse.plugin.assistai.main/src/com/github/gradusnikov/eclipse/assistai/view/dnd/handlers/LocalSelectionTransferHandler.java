@@ -1,31 +1,24 @@
 package com.github.gradusnikov.eclipse.assistai.view.dnd.handlers;
 
-import java.io.IOException;
-import java.nio.file.Files;
-
+import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
-import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.ILog;
-import org.eclipse.core.runtime.Platform;
-import org.eclipse.core.runtime.content.IContentTypeManager;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jdt.core.ICompilationUnit;
-import org.eclipse.jdt.core.ISourceReference;
-import org.eclipse.jdt.ui.JavaUI;
-import org.eclipse.jface.text.Document;
-import org.eclipse.jface.text.ITextSelection;
+import org.eclipse.jdt.core.IJavaElement;
+import org.eclipse.jdt.core.IPackageFragment;
+import org.eclipse.jdt.core.IPackageFragmentRoot;
 import org.eclipse.jface.viewers.ITreeSelection;
 import org.eclipse.swt.dnd.Transfer;
-import org.eclipse.swt.graphics.ImageData;
-import org.eclipse.ui.texteditor.ITextEditor;
-
-import com.github.gradusnikov.eclipse.assistai.chat.Attachment.FileContentAttachment;
-import com.github.gradusnikov.eclipse.assistai.view.ChatViewPresenter;
-import com.google.common.collect.Sets;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
+/**
+ * Handles drag and drop from workspace views (Package Explorer, Project Explorer, etc.)
+ * Adds dropped resources to the ResourceCache instead of rendering attachments in ChatView.
+ */
 @Creatable
 @Singleton
 public class LocalSelectionTransferHandler implements ITransferHandler
@@ -33,9 +26,10 @@ public class LocalSelectionTransferHandler implements ITransferHandler
     private static final Transfer TRANSFER = org.eclipse.jface.util.LocalSelectionTransfer.getTransfer();
 
     @Inject
-    private ILog                  logger;
+    private ILog logger;
+    
     @Inject
-    private ChatViewPresenter      presenter;
+    private ResourceCacheHelper resourceCacheHelper;
 
     @Override
     public Transfer getTransferType()
@@ -44,114 +38,104 @@ public class LocalSelectionTransferHandler implements ITransferHandler
     }
 
     @Override
-    public void handleTransfer( Object data )
+    public void handleTransfer(Object data)
     {
-        if ( data != null && data instanceof ITreeSelection )
+        if (data instanceof ITreeSelection selection)
         {
-            ITreeSelection selection = (ITreeSelection) data;
-            for( var treePath : selection.getPaths() )
+            for (var treePath : selection.getPaths())
             {
                 Object lastElement = treePath.getLastSegment();
-                
-                if ( lastElement instanceof IFile )
-                {
-                    handleFile( (IFile) lastElement );
-                }
-                else if ( lastElement instanceof ICompilationUnit )
-                {
-                    handleCompilationUnit( (ICompilationUnit) lastElement );
-                }
-                
+                handleElement(lastElement);
             }
         }
-        
     }
 
-    private void handleFile( IFile file )
+    private void handleElement(Object element)
+    {
+        if (element instanceof IFile file)
+        {
+            resourceCacheHelper.addWorkspaceFile(file);
+        }
+        else if (element instanceof IContainer container)
+        {
+            resourceCacheHelper.addWorkspaceContainer(container);
+        }
+        else if (element instanceof ICompilationUnit compilationUnit)
+        {
+            handleCompilationUnit(compilationUnit);
+        }
+        else if (element instanceof IPackageFragment packageFragment)
+        {
+            handlePackageFragment(packageFragment);
+        }
+        else if (element instanceof IPackageFragmentRoot packageRoot)
+        {
+            handlePackageFragmentRoot(packageRoot);
+        }
+        else if (element instanceof IJavaElement javaElement)
+        {
+            // Handle other Java elements by getting their underlying resource
+            IResource resource = javaElement.getResource();
+            if (resource instanceof IFile file)
+            {
+                resourceCacheHelper.addWorkspaceFile(file);
+            }
+            else if (resource instanceof IContainer container)
+            {
+                resourceCacheHelper.addWorkspaceContainer(container);
+            }
+        }
+        else
+        {
+            logger.warn("Unsupported element type for DnD: " + (element != null ? element.getClass().getName() : "null"));
+        }
+    }
+
+    private void handleCompilationUnit(ICompilationUnit compilationUnit)
     {
         try
         {
-            if ( isTextFile( file ) )
+            IResource resource = compilationUnit.getResource();
+            if (resource instanceof IFile file)
             {
-                var documentText = new String( Files.readAllBytes( file.getLocation().toFile().toPath() ), file.getCharset() );
-                Document document = new Document(documentText);
-                presenter.onAttachmentAdded( new FileContentAttachment( file.getFullPath().toString(), 1, document.getNumberOfLines(), documentText ) );
-            }
-            else if ( isImageFile( file ) )
-            {
-                ImageData imageData = new ImageData(  file.getLocation().toFile().toString() );
-                presenter.onAttachmentAdded( imageData );
-                
+                resourceCacheHelper.addWorkspaceFile(file);
             }
         }
-        catch ( CoreException | IOException  e )
+        catch (Exception e)
         {
-            logger.error( e.getMessage(), e );
+            logger.error("Error handling compilation unit: " + e.getMessage(), e);
         }
     }
 
-    private void handleCompilationUnit( ICompilationUnit compilationUnit )
+    private void handlePackageFragment(IPackageFragment packageFragment)
     {
         try
         {
-            int[] lineRange = getSelectedLineNumbers( compilationUnit );
-            presenter.onAttachmentAdded( new FileContentAttachment( compilationUnit.getPath().toString(), lineRange[0], lineRange[1], compilationUnit.getAdapter( ISourceReference.class ).getSource() ) );
-        }
-        catch ( Exception e )
-        {
-            logger.error( e.getMessage(), e );
-        }
-    }
-
-    private boolean isTextFile( IFile file ) throws CoreException
-    {
-        boolean textFile = false;
-        var contentDescription = file.getContentDescription();
-        if ( contentDescription != null )
-        {
-            var contentType = contentDescription.getContentType();
-            if ( contentType.isKindOf( Platform.getContentTypeManager().getContentType( IContentTypeManager.CT_TEXT ) ) )
+            IResource resource = packageFragment.getResource();
+            if (resource instanceof IContainer container)
             {
-                textFile = true;
+                resourceCacheHelper.addWorkspaceContainer(container);
             }
         }
-        return textFile;
-    }
-    private boolean isImageFile( IFile file ) throws CoreException
-    {
-        var supported = Sets.newHashSet( "jpg", "jpeg", "png" );
-        return supported.contains(  file.getFileExtension().toLowerCase() );
+        catch (Exception e)
+        {
+            logger.error("Error handling package fragment: " + e.getMessage(), e);
+        }
     }
 
-
-    private int[] getSelectedLineNumbers( ICompilationUnit compilationUnit )
+    private void handlePackageFragmentRoot(IPackageFragmentRoot packageRoot)
     {
         try
         {
-            // Obtain the IEditorPart for the compilation unit
-            var editorPart = JavaUI.openInEditor( compilationUnit );
-            if ( editorPart instanceof ITextEditor )
+            IResource resource = packageRoot.getResource();
+            if (resource instanceof IContainer container)
             {
-                ITextEditor textEditor = (ITextEditor) editorPart;
-                // Get the editor's selection provider
-                var selectionProvider = textEditor.getSelectionProvider();
-                // Obtain the selection
-                var selection = selectionProvider.getSelection();
-                if ( selection instanceof ITextSelection )
-                {
-                    var textSelection = (ITextSelection) selection;
-                    // Get the start and end line numbers
-                    int startLine = textSelection.getStartLine();
-                    int endLine = textSelection.getEndLine();
-                    return new int[] { startLine + 1, endLine + 1 }; 
-                }
+                resourceCacheHelper.addWorkspaceContainer(container);
             }
         }
-        catch ( Exception e )
+        catch (Exception e)
         {
-            logger.error( e.getMessage(), e );
+            logger.error("Error handling package fragment root: " + e.getMessage(), e);
         }
-    
-        return new int[] { -1, -1 }; 
     }
 }

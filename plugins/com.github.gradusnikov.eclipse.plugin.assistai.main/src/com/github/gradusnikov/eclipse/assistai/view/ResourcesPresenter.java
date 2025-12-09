@@ -73,6 +73,7 @@ public class ResourcesPresenter implements IResourceCacheListener
         this.logger = logger;
         this.uiSync = uiSync;
         
+        logger.info("ResourcesPresenter initialized with ResourceCache instance: " + System.identityHashCode(resourceCache));
         resourceCache.addCacheListener(this);
     }
 
@@ -96,7 +97,9 @@ public class ResourcesPresenter implements IResourceCacheListener
     @Override
     public void cacheChanged(ResourceCacheEvent event)
     {
-        logger.info("ResourcesPresenter: Cache changed - " + event.getType());
+        logger.info("ResourcesPresenter: Cache changed - " + event.getType() + 
+            " (cache instance: " + System.identityHashCode(resourceCache) + 
+            ", cache size: " + resourceCache.size() + ")");
         refreshView();
     }
     
@@ -113,6 +116,13 @@ public class ResourcesPresenter implements IResourceCacheListener
         
         Map<ResourceType, List<ResourceNode>> treeModel = buildTreeModel();
         String stats = resourceCache.getStats();
+        
+        // Debug: log the model contents
+        logger.info("ResourcesPresenter.refreshView() - Model contains types: " + 
+            treeModel.entrySet().stream()
+                .filter(e -> !e.getValue().isEmpty())
+                .map(e -> e.getKey() + "(" + e.getValue().size() + ")")
+                .collect(java.util.stream.Collectors.joining(", ")));
         
         uiSync.asyncExec(() -> {
             if (view != null)

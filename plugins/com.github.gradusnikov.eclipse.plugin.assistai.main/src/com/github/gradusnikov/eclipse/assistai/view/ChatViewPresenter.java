@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -52,6 +53,9 @@ import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment.FileContentAttachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
+import com.github.gradusnikov.eclipse.assistai.chat.IResourceCacheListener;
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceCache;
+import com.github.gradusnikov.eclipse.assistai.chat.ResourceCacheEvent;
 import com.github.gradusnikov.eclipse.assistai.jobs.AssistAIJobConstants;
 import com.github.gradusnikov.eclipse.assistai.jobs.SendConversationJob;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
@@ -62,6 +66,7 @@ import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepository;
 import com.github.gradusnikov.eclipse.assistai.repository.PromptRepository;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
+import com.github.gradusnikov.eclipse.assistai.view.ChatView.NotificationType;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
@@ -70,7 +75,7 @@ import jakarta.inject.Singleton;
 
 @Creatable
 @Singleton
-public class ChatViewPresenter
+public class ChatViewPresenter implements IResourceCacheListener
 {
     @Inject
     private ILog                          logger;
@@ -108,6 +113,9 @@ public class ChatViewPresenter
     @Inject
     private UISynchronize uiSync;
     
+    @Inject
+    private ResourceCache resourceCache;
+    
     
     private IPreferenceStore preferences;
     
@@ -120,8 +128,25 @@ public class ChatViewPresenter
     {
         preferences = Activator.getDefault().getPreferenceStore();
     	appendMessageToViewSubscriber.setPresenter( this );
+        resourceCache.addCacheListener(this);
         
         initializeAvailableModels();
+    }
+    
+    @Override
+    public void cacheChanged(ResourceCacheEvent event)
+    {
+        if (event.getType() == ResourceCacheEvent.Type.ADDED && event.getResource() != null)
+        {
+            String resourceName = event.getResource().descriptor().displayName();
+            applyToView(view -> {
+                view.showNotification(
+                    "Resource added: " + resourceName,
+                    Duration.ofSeconds(3),
+                    NotificationType.INFO
+                );
+            });
+        }
     }
 
 	private void initializeAvailableModels() {
@@ -531,19 +556,6 @@ public class ChatViewPresenter
         
         modelReposotiry.setModelInUse( modelId );
         initializeAvailableModels();
-        
-//        ChatMessage message = chatMessageFactory.createAssistantChatMessage(
-//                "Model changed to **" + modelInUse.modelName() + "**. New messages will use this model.");
-//        
-//        partAccessor.findMessageView().ifPresent(messageView -> {
-//            messageView.appendMessage(message.getId(), message.getRole());
-//            messageView.setMessageHtml(message.getId(), message.getContent());
-//            
-//            // Auto-hide this message after a few seconds
-//            Display.getDefault().timerExec(5000, () -> {
-//                messageView.removeMessage(message.getId());
-//            });
-//        });
     }
     
     /**

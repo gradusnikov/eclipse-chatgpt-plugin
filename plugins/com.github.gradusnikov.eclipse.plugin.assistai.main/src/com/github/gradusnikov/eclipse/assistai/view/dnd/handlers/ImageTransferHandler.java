@@ -10,11 +10,17 @@ import com.github.gradusnikov.eclipse.assistai.view.ChatViewPresenter;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
+/**
+ * Handles drag and drop of images (e.g., from clipboard or other applications).
+ * Images are added as Attachments (not to ResourceCache) because LLMs have
+ * dedicated vision APIs for handling images.
+ */
 @Creatable
 @Singleton
 public class ImageTransferHandler implements ITransferHandler
 {
     private static final ImageTransfer TRANSFER = ImageTransfer.getInstance();
+    
     @Inject
     private ChatViewPresenter presenter;
 
@@ -25,12 +31,12 @@ public class ImageTransferHandler implements ITransferHandler
     }
 
     @Override
-    public void handleTransfer( Object data )
+    public void handleTransfer(Object data)
     {
-        if ( data instanceof ImageData )
+        if (data instanceof ImageData imageData)
         {
-            ImageData image = (ImageData) data;
-            presenter.onAttachmentAdded( image );
+            // Use the Attachment system for images - LLMs have dedicated vision APIs
+            presenter.onAttachmentAdded(imageData);
         }
     }
 }

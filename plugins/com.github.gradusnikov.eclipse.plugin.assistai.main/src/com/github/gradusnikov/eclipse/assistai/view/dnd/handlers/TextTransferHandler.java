@@ -1,9 +1,5 @@
 package com.github.gradusnikov.eclipse.assistai.view.dnd.handlers;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.swt.dnd.TextTransfer;
@@ -12,6 +8,10 @@ import org.eclipse.swt.dnd.Transfer;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
+/**
+ * Handles drag and drop of plain text (e.g., from other applications).
+ * Adds dropped text to the ResourceCache instead of rendering attachments in ChatView.
+ */
 @Creatable
 @Singleton
 public class TextTransferHandler implements ITransferHandler
@@ -19,10 +19,10 @@ public class TextTransferHandler implements ITransferHandler
     private static final TextTransfer TRANSFER = TextTransfer.getInstance();
     
     @Inject
-    private AttachmentHelper attachmentHandler;
+    private ResourceCacheHelper resourceCacheHelper;
 
     @Inject
-    private ILog                      logger;
+    private ILog logger;
 
     @Override
     public Transfer getTransferType()
@@ -31,16 +31,12 @@ public class TextTransferHandler implements ITransferHandler
     }
 
     @Override
-    public void handleTransfer( Object data )
+    public void handleTransfer(Object data)
     {
-        try
+        if (data instanceof String text && !text.isBlank())
         {
-            attachmentHandler.handleText( "unknown", new ByteArrayInputStream( ( (String) data ).getBytes( StandardCharsets.UTF_8 ) ) );
-        }
-        catch ( IOException e )
-        {
-            logger.error( e.getMessage(), e );
+            String name = "dropped_text_" + System.currentTimeMillis();
+            resourceCacheHelper.addTextContent(name, text);
         }
     }
-
 }
