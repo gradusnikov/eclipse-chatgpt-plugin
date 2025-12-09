@@ -24,8 +24,7 @@ import org.eclipse.ui.console.IOConsole;
 import org.eclipse.ui.console.MessageConsole;
 import org.eclipse.ui.console.TextConsole;
 
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceToolResult;
-
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
 
 import jakarta.inject.Inject;
 

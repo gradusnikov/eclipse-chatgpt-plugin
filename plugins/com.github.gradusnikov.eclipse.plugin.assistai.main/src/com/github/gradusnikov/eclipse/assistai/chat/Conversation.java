@@ -6,6 +6,8 @@ import java.util.Optional;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
+
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 

@@ -9,11 +9,11 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeAnalysisService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ConsoleService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.GitService;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 
 import jakarta.inject.Inject;

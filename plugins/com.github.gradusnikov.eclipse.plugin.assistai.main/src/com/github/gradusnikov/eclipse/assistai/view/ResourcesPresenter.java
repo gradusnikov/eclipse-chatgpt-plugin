@@ -20,12 +20,12 @@ import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.ide.IDE;
 
-import com.github.gradusnikov.eclipse.assistai.chat.CachedResource;
-import com.github.gradusnikov.eclipse.assistai.chat.IResourceCacheListener;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceCache;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceCacheEvent;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceDescriptor;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceDescriptor.ResourceType;
+import com.github.gradusnikov.eclipse.assistai.resources.CachedResource;
+import com.github.gradusnikov.eclipse.assistai.resources.IResourceCacheListener;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceCacheEvent;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor.ResourceType;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;

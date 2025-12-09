@@ -4,8 +4,6 @@ import java.util.Optional;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceResultSerializer;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceToolResult;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
@@ -18,6 +16,8 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.MavenService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ProjectService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ResourceService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.UnitTestService;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceResultSerializer;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
 
 import jakarta.inject.Inject;
 

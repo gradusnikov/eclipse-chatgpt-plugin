@@ -26,7 +26,7 @@ import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
 
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceToolResult;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
 
 import jakarta.inject.Inject;
 

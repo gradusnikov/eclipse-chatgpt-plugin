@@ -19,9 +19,9 @@ import org.eclipse.core.runtime.content.IContentTypeManager;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.swt.graphics.ImageData;
 
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceCache;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceDescriptor;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceDescriptor.ResourceType;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor.ResourceType;
 import com.github.gradusnikov.eclipse.assistai.tools.ContentTypeDetector;
 import com.github.gradusnikov.eclipse.assistai.view.ChatViewPresenter;
 import com.google.common.collect.Sets;

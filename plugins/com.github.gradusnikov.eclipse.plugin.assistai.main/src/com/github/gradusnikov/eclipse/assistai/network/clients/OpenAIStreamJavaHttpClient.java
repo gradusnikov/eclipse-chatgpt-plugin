@@ -33,10 +33,10 @@ import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
 import io.modelcontextprotocol.client.McpSyncClient;

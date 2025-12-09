@@ -24,8 +24,8 @@ import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jface.text.Document;
 import org.eclipse.ui.editors.text.TextFileDocumentProvider;
 
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceDescriptor;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceToolResult;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
 import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
 
 import jakarta.inject.Inject;

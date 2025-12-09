@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.chat;
+package com.github.gradusnikov.eclipse.assistai.resources;
 
 import java.util.EventObject;
 

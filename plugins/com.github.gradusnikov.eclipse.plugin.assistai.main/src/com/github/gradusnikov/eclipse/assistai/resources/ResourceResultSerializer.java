@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.chat;
+package com.github.gradusnikov.eclipse.assistai.resources;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

@@ -16,7 +16,7 @@ import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceToolResult;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceFormatter;
 import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 

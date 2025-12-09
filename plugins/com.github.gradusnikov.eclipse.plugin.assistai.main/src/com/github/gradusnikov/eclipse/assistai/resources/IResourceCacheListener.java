@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.chat;
+package com.github.gradusnikov.eclipse.assistai.resources;
 
 /**
  * Listener for cache events (resources added/removed).

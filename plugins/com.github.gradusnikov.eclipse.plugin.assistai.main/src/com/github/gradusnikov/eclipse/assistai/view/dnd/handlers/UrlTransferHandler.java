@@ -16,9 +16,9 @@ import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.dnd.URLTransfer;
 import org.eclipse.swt.graphics.ImageData;
 
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceCache;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceDescriptor;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceDescriptor.ResourceType;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor.ResourceType;
 import com.github.gradusnikov.eclipse.assistai.tools.ContentTypeDetector;
 import com.github.gradusnikov.eclipse.assistai.view.ChatViewPresenter;
 

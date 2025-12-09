@@ -24,7 +24,7 @@ import org.eclipse.swt.widgets.ToolItem;
 import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.PlatformUI;
 
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceDescriptor.ResourceType;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor.ResourceType;
 import com.github.gradusnikov.eclipse.assistai.view.ResourcesPresenter.ResourceNode;
 
 import jakarta.annotation.PostConstruct;

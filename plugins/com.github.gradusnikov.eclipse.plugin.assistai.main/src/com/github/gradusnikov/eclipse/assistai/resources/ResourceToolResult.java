@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.chat;
+package com.github.gradusnikov.eclipse.assistai.resources;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IPath;

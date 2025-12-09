@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.chat;
+package com.github.gradusnikov.eclipse.assistai.resources;
 
 import java.net.URI;
 import java.util.LinkedHashMap;

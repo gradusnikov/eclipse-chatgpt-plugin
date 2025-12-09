@@ -16,14 +16,14 @@ import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
-import com.github.gradusnikov.eclipse.assistai.chat.CachedResource;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.FunctionCall;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceCache;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceResultSerializer;
-import com.github.gradusnikov.eclipse.assistai.chat.ResourceToolResult;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
+import com.github.gradusnikov.eclipse.assistai.resources.CachedResource;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceResultSerializer;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
 
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
