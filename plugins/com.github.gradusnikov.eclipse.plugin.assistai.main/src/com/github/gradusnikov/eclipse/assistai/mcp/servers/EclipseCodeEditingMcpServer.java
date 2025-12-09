@@ -28,12 +28,12 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.createFileAndOpen(projectName, filePath, content);
     }
 
-    @Tool(name="insertIntoFile", description="Insert content into a file at a specified line position, using 1-based line indexing.", type="object")
+    @Tool(name="insertIntoFile", description="Insert content into a file at a specified line position, using 1-based line indexing. The new content will be inserted BEFORE the specified line, and existing content at that line and below will be shifted down.", type="object")
     public String insertIntoFile(
         @ToolParam(name = "projectName", description = "The name of the project containing the file", required = true) String projectName,
         @ToolParam(name = "filePath", description = "The path to the file relative to the project root. Do not include project name!", required = true) String filePath,
         @ToolParam(name = "content", description = "The content to insert into the file", required = true) String content,
-        @ToolParam(name = "line", description = "The line number to which to insert the text (1-based index)", required = false) String line) 
+        @ToolParam(name = "line", description = "The line number before which to insert the text (1-based index). Existing content at this line and below will be shifted down. Use line=1 to insert at the beginning of the file.", required = false) String line) 
     {
         int lineNum = Optional.ofNullable(line).map(Integer::parseInt).orElse(0);
         return codeEditingService.insertIntoFile(projectName, filePath, content, lineNum);
@@ -119,5 +119,43 @@ public class EclipseCodeEditingMcpServer
         @ToolParam(name="directoryPath", description="The path of directories to create, relative to the project root. Do not include project name!", required=true) String directoryPath) 
     {
         return codeEditingService.createDirectories(projectName, directoryPath);
+    }
+    
+    @Tool(name="renameFile", description="Renames a file in the specified project.", type="object")
+    public String renameFile(
+        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
+        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
+        @ToolParam(name="newFileName", description="The new name for the file", required=true) String newFileName) 
+    {
+        return codeEditingService.renameFile(projectName, filePath, newFileName);
+    }
+
+    @Tool(name="deleteFile", description="Deletes a file from the specified project.", type="object")
+    public String deleteFile(
+        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
+        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath) 
+    {
+        return codeEditingService.deleteFile(projectName, filePath);
+    }
+
+    @Tool(name="replaceFileContent", description="Replaces the entire content of a file with new content.", type="object")
+    public String replaceFileContent(
+        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
+        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
+        @ToolParam(name="content", description="The new content to write to the file", required=true) String content) 
+    {
+        return codeEditingService.replaceFileContent(projectName, filePath, content);
+    }
+
+    @Tool(name="deleteLinesInFile", description="Deletes a range of lines in a file, using 1-based line indexing.", type="object")
+    public String deleteLinesInFile(
+        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
+        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
+        @ToolParam(name="startLine", description="The line number to start deletion from (1-based index)", required=true) String startLine,
+        @ToolParam(name="endLine", description="The line number to end deletion at (inclusive, 1-based index)", required=true) String endLine) 
+    {
+        int startLineNum = Integer.parseInt(startLine);
+        int endLineNum = Integer.parseInt(endLine);
+        return codeEditingService.deleteLinesInFile(projectName, filePath, startLineNum, endLineNum);
     }
 }

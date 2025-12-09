@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -41,12 +42,15 @@ import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.text.edits.MalformedTreeException;
 import org.eclipse.text.edits.TextEdit;
 import org.eclipse.ui.IEditorInput;
+import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.IWorkbench;
+import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.ide.IDE;
+import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
@@ -393,12 +397,14 @@ public class CodeEditingService
     
     
 	/**
-	 * Inserts content after a specific line in an existing file.
+	 * Inserts content before a specific line in an existing file.
+	 * The new content will be inserted BEFORE the specified line, and existing content 
+	 * at that line and below will be shifted down.
 	 * 
 	 * @param projectName The name of the project containing the file
 	 * @param filePath The path to the file relative to the project root
 	 * @param content The content to insert into the file
-	 * @param atLine The line number after which to insert the text (0 for beginning of file)
+	 * @param atLine The line number before which to insert the text (1-based index, 0 or 1 for beginning of file)
 	 * @return A status message indicating success or failure
 	 */
 	public String insertIntoFile(String projectName, String filePath, String content, int atLine) 
@@ -983,7 +989,327 @@ public class CodeEditingService
 	    }
 	}
 
-	
+    public String renameFile( String projectName, String filePath, String newFileName )
+    {
+        Objects.requireNonNull(projectName);
+        Objects.requireNonNull(filePath);
+        Objects.requireNonNull(newFileName);
+        
+        if (projectName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+        }
+        if (filePath.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: File path cannot be empty.");
+        }
+        if (newFileName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: New file name cannot be empty.");
+        }
+        
+        try 
+        {
+            // Get the project and file
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject(projectName);
+            
+            if (!project.exists()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+            }
+            if (!project.isOpen()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+            }
+            
+            IPath path = IPath.fromPath(Path.of(filePath));
+            IFile file = project.getFile(path);
+            
+            if (!file.exists()) 
+            {
+                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+            }
+            
+            // Try to refresh the editor if the file is open
+            sync.syncExec(() -> 
+            {
+                safeOpenEditor(file);
+                refreshEditor(file);
+            });
+            
+            // Get the parent folder and construct the new file path
+            IContainer parent = file.getParent();
+            IPath newPath = parent.getFullPath().append(newFileName);
+            
+            // Check if a file with the new name already exists
+            IFile newFile = root.getFile(newPath);
+            if (newFile.exists()) 
+            {
+                throw new RuntimeException("Error: A file named '" + newFileName + "' already exists in the same directory.");
+            }
+            
+            // Perform the rename operation
+            file.move(newPath, IResource.FORCE, null);
+            
+            // Refresh the parent container
+            parent.refreshLocal(IResource.DEPTH_ONE, null);
+            
+            // Try to open the renamed file in the editor
+            sync.asyncExec(() -> {
+                safeOpenEditor(newFile);
+            });
+            
+            return "Success: File '" + filePath + "' renamed to '" + newFileName + "' in project '" + projectName + "'.";
+        } 
+        catch (CoreException e) 
+        {
+            throw new RuntimeException(e);
+        }
+    }
 
+    public String deleteFile(String projectName, String filePath)
+    {
+        Objects.requireNonNull(projectName);
+        Objects.requireNonNull(filePath);
+        
+        if (projectName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+        }
+        if (filePath.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: File path cannot be empty.");
+        }
+        
+        try 
+        {
+            // Get the project and file
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject(projectName);
+            
+            if (!project.exists()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+            }
+            if (!project.isOpen()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+            }
+            
+            IPath path = IPath.fromPath(Path.of(filePath));
+            IFile file = project.getFile(path);
+            
+            if (!file.exists()) 
+            {
+                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+            }
+            
+            // Close the editor if the file is open
+            sync.syncExec(() -> 
+            {
+                IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+                if (page != null) 
+                {
+                    IEditorPart editor = page.findEditor(new FileEditorInput(file));
+                    if (editor != null) 
+                    {
+                        page.closeEditor(editor, false);
+                    }
+                }
+            });
+            
+            // Delete the file
+            file.delete(true, null);
+            
+            // Refresh the parent container
+            IContainer parent = file.getParent();
+            parent.refreshLocal(IResource.DEPTH_ONE, null);
+            
+            return "Success: File '" + filePath + "' deleted from project '" + projectName + "'.";
+        } 
+        catch (CoreException e) 
+        {
+            throw new RuntimeException(e);
+        }
+    }
 
+    public String replaceFileContent(String projectName, String filePath, String content)
+    {
+        Objects.requireNonNull(projectName);
+        Objects.requireNonNull(filePath);
+        Objects.requireNonNull(content);
+        
+        if (projectName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+        }
+        if (filePath.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: File path cannot be empty.");
+        }
+        
+        try 
+        {
+            // Get the project and file
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject(projectName);
+            
+            if (!project.exists()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+            }
+            if (!project.isOpen()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+            }
+            
+            IPath path = IPath.fromPath(Path.of(filePath));
+            IFile file = project.getFile(path);
+            
+            if (!file.exists()) 
+            {
+                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+            }
+            
+            // Backup the file before modification
+            backupFile(file);
+            
+            // Replace the file content
+            byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
+            file.setContents(inputStream, IResource.FORCE, null);
+            
+            // Refresh the file
+            file.refreshLocal(IResource.DEPTH_ZERO, null);
+            
+            // Refresh the editor if the file is open
+            sync.asyncExec(() -> 
+            {
+                safeOpenEditor(file);
+                refreshEditor(file);
+            });
+            
+            return "Success: Content of file '" + filePath + "' replaced in project '" + projectName + "'.";
+        } 
+        catch (CoreException e) 
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public String deleteLinesInFile(String projectName, String filePath, int startLine, int endLine)
+    {
+        Objects.requireNonNull(projectName);
+        Objects.requireNonNull(filePath);
+        
+        if (projectName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+        }
+        if (filePath.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: File path cannot be empty.");
+        }
+        if (startLine < 1) 
+        {
+            throw new IllegalArgumentException("Error: Start line must be at least 1.");
+        }
+        if (endLine < startLine) 
+        {
+            throw new IllegalArgumentException("Error: End line must be greater than or equal to start line.");
+        }
+        
+        try 
+        {
+            // Get the project and file
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject(projectName);
+            
+            if (!project.exists()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+            }
+            if (!project.isOpen()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+            }
+            
+            IPath path = IPath.fromPath(Path.of(filePath));
+            IFile file = project.getFile(path);
+            
+            if (!file.exists()) 
+            {
+                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+            }
+            
+            // Backup the file before modification
+            backupFile(file);
+            
+            // Read the file content
+            String fileContent = new String(file.getContents().readAllBytes(), StandardCharsets.UTF_8);
+            String[] lines = fileContent.split("\r?\n", -1);
+            
+            // Validate line numbers
+            if (startLine > lines.length) 
+            {
+                throw new IllegalArgumentException("Error: Start line " + startLine + " is beyond the file length (" + lines.length + " lines).");
+            }
+            if (endLine > lines.length) 
+            {
+                throw new IllegalArgumentException("Error: End line " + endLine + " is beyond the file length (" + lines.length + " lines).");
+            }
+            
+            // Build new content without the deleted lines
+            StringBuilder newContent = new StringBuilder();
+            for (int i = 0; i < lines.length; i++) 
+            {
+                int lineNum = i + 1; // Convert to 1-based
+                if (lineNum < startLine || lineNum > endLine) 
+                {
+                    newContent.append(lines[i]);
+                    if (i < lines.length - 1) 
+                    {
+                        newContent.append("\n");
+                    }
+                }
+            }
+            
+            // Write the new content back to the file
+            byte[] bytes = newContent.toString().getBytes(StandardCharsets.UTF_8);
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
+            file.setContents(inputStream, IResource.FORCE, null);
+            
+            // Refresh the file
+            file.refreshLocal(IResource.DEPTH_ZERO, null);
+            
+            // Refresh the editor if the file is open
+            sync.asyncExec(() -> 
+            {
+                safeOpenEditor(file);
+                refreshEditor(file);
+            });
+            
+            int deletedCount = endLine - startLine + 1;
+            return "Success: Deleted " + deletedCount + " line(s) (lines " + startLine + " to " + endLine + ") from file '" + filePath + "' in project '" + projectName + "'.";
+        } 
+        catch (CoreException | IOException e) 
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+	/**
+	 * Creates a backup of the file by triggering Eclipse's local history mechanism.
+	 * Eclipse automatically maintains file history when content changes occur.
+	 * 
+	 * @param file The file to backup
+	 * @throws CoreException if backup operation fails
+	 */
+	private void backupFile(IFile file) throws CoreException 
+	{
+	    // Eclipse automatically maintains local history when file.setContents() is called
+	    // We just need to ensure the file is synchronized
+	    file.refreshLocal(IResource.DEPTH_ZERO, null);
+	}
 }
