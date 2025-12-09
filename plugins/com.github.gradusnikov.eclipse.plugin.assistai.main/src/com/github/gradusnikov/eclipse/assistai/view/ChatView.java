@@ -1,5 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.view;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -117,6 +118,12 @@ public class ChatView
 	private Map<String, String> autocompleteModel;
 	
 	private boolean autoScrollEnabled = true;
+	
+	private int notificationIdCounter = 0;
+	
+	public enum NotificationType {
+		INFO, WARNING, ERROR
+	}
     
     public ChatView()
     {
@@ -620,6 +627,7 @@ public class ChatView
                     <style>${fonts}</style>
                     <script>${js}</script>
                     <body>
+                            <div id="notification-container"></div>
                             <div id="content">
                             </div>
                     </body>
@@ -1162,4 +1170,76 @@ public class ChatView
             return null;
         }
     }
+
+	/**
+	 * Shows a notification bar at the top of the browser window.
+	 * Multiple notifications can be displayed simultaneously and will stack vertically.
+	 * Each notification includes an icon, message, and close button.
+	 * 
+	 * @param message The notification message to display
+	 * @param duration The duration to show the notification
+	 * @param type The type of notification (INFO, WARNING, ERROR)
+	 */
+	public void showNotification(String message, Duration duration, NotificationType type) {
+	    uiSync.asyncExec(() -> {
+	        String notificationId = "notification-" + (notificationIdCounter++);
+	        
+	        // Determine icon and color based on type
+	        String icon, bgColor, textColor;
+	        switch (type) {
+	            case INFO:
+	                icon = "fa-solid fa-circle-info";
+	                bgColor = "#1f6feb";
+	                textColor = "#ffffff";
+	                break;
+	            case WARNING:
+	                icon = "fa-solid fa-triangle-exclamation";
+	                bgColor = "#d29922";
+	                textColor = "#000000";
+	                break;
+	            case ERROR:
+	                icon = "fa-solid fa-circle-xmark";
+	                bgColor = "#da3633";
+	                textColor = "#ffffff";
+	                break;
+	            default:
+	                icon = "fa-solid fa-circle-info";
+	                bgColor = "#1f6feb";
+	                textColor = "#ffffff";
+	        }
+	        
+	        // Escape message for JavaScript
+	        String escapedMessage = escapeJavaScript(message);
+	        
+	        // Call JavaScript function to create notification
+	        browser.execute(String.format(
+	            "showNotification('%s', '%s', '%s', '%s', '%s');",
+	            notificationId, icon, bgColor, textColor, escapedMessage
+	        ));
+	        
+	        // Schedule removal after duration
+	        if (duration.toMillis()  > 0) {
+	            Display.getDefault().timerExec((int) duration.toMillis(), () -> {
+	                uiSync.asyncExec(() -> {
+	                    browser.execute(String.format("removeNotification('%s');", notificationId));
+	                });
+	            });
+	        }
+	    });
+	}
+	
+	/**
+	 * Escapes special characters in a string for safe use in JavaScript.
+	 * 
+	 * @param text The text to escape
+	 * @return The escaped text safe for JavaScript strings
+	 */
+	private String escapeJavaScript(String text) {
+	    return text.replace("\\", "\\\\")
+	               .replace("'", "\\'")
+	               .replace("\"", "\\\"")
+	               .replace("\n", "\\n")
+	               .replace("\r", "\\r")
+	               .replace("\t", "\\t");
+	}
 }

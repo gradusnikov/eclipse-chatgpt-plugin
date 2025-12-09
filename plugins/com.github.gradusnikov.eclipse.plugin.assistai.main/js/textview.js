@@ -104,3 +104,28 @@ window.addEventListener('scroll', function() {
         }
     }, 2000);
 });
+
+// Notification system
+function showNotification(notificationId, icon, bgColor, textColor, message) {
+    var container = document.getElementById('notification-container');
+    var notification = document.createElement('div');
+    notification.id = notificationId;
+    notification.className = 'notification';
+    notification.style.backgroundColor = bgColor;
+    notification.style.color = textColor;
+    notification.innerHTML = '<i class="' + icon + '"></i><span class="notification-message">' + message + '</span><i class="fa-solid fa-xmark notification-close"></i>';
+    
+    // Add close button handler
+    notification.querySelector('.notification-close').onclick = function() {
+        notification.remove();
+    };
+    
+    container.appendChild(notification);
+}
+
+function removeNotification(notificationId) {
+    var notification = document.getElementById(notificationId);
+    if (notification) {
+        notification.remove();
+    }
+}
