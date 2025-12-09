@@ -15,6 +15,10 @@ body {
   padding: 0;
 }
 
+li {
+    margin-left: 1em;
+}
+
 /* Chat container */
 #content {
   display: block;
