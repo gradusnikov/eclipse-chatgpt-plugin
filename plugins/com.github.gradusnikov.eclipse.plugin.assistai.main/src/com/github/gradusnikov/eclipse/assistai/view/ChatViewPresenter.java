@@ -603,6 +603,17 @@ public class ChatViewPresenter implements IResourceCacheListener
 	    } );
 	}
 	
+	public void onRemoveAttachment( int index )
+	{
+	    if ( index >= 0 && index < attachments.size() )
+	    {
+	        attachments.remove( index );
+	        applyToView( view -> {
+	            view.setAttachments( attachments );
+	        } );
+	    }
+	}
+	
     public void updateAutocomplete()
     {
         Map<String, String> mappings = promptRepository.getAllPrompts()

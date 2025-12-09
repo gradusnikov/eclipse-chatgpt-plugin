@@ -7,7 +7,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -20,7 +19,6 @@ import org.eclipse.jface.fieldassist.ContentProposalAdapter;
 import org.eclipse.jface.fieldassist.IContentProposal;
 import org.eclipse.jface.fieldassist.IContentProposalProvider;
 import org.eclipse.jface.fieldassist.TextContentAdapter;
-import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.resource.LocalResourceManager;
 import org.eclipse.swt.SWT;
@@ -101,8 +99,6 @@ public class ChatView
 
     private Browser              browser;
     
-    private LocalResourceManager resourceManager;
-
     private Text                 inputArea;
 
     private ScrolledComposite    scrolledComposite;
@@ -120,6 +116,7 @@ public class ChatView
 	private boolean autoScrollEnabled = true;
 	
 	private int notificationIdCounter = 0;
+
 	
 	public enum NotificationType {
 		INFO, WARNING, ERROR
@@ -156,8 +153,6 @@ public class ChatView
     @PostConstruct
     public void createControls( Composite parent )
     {
-        resourceManager = new LocalResourceManager( JFaceResources.getResources() );
-
         SashForm sashForm = new SashForm( parent, SWT.VERTICAL );
         sashForm.setLayoutData( new GridData( SWT.FILL, SWT.FILL, true, true ) );
 
@@ -322,16 +317,63 @@ public class ChatView
         Composite attachmentsPanel = new Composite( parent, SWT.NONE );
         attachmentsPanel.setLayout( new GridLayout( 1, false ) ); // One column
 
-        scrolledComposite = new ScrolledComposite( attachmentsPanel, SWT.H_SCROLL );
-        scrolledComposite.setLayoutData( new GridData( SWT.FILL, SWT.FILL, true, false ) );
+        scrolledComposite = new ScrolledComposite( attachmentsPanel, SWT.H_SCROLL | SWT.V_SCROLL );
+        GridData scrolledData = new GridData( SWT.FILL, SWT.FILL, true, false );
+        scrolledData.heightHint = 0; // Initially hidden
+        scrolledComposite.setLayoutData( scrolledData );
         scrolledComposite.setExpandHorizontal( true );
         scrolledComposite.setExpandVertical( true );
 
         imagesContainer = new Composite( scrolledComposite, SWT.NONE );
-        imagesContainer.setLayout( new RowLayout( SWT.HORIZONTAL ) );
+        RowLayout rowLayout = new RowLayout( SWT.HORIZONTAL );
+        rowLayout.spacing = 8;
+        rowLayout.marginTop = 4;
+        rowLayout.marginBottom = 4;
+        rowLayout.marginLeft = 4;
+        rowLayout.marginRight = 4;
+        rowLayout.wrap = true;
+        imagesContainer.setLayout( rowLayout );
 
         scrolledComposite.setContent( imagesContainer );
         scrolledComposite.setMinSize( imagesContainer.computeSize( SWT.DEFAULT, SWT.DEFAULT ) );
+
+        // Add key listener to imagesContainer for DELETE key
+        imagesContainer.addKeyListener( new KeyAdapter()
+        {
+            @Override
+            public void keyPressed( KeyEvent e )
+            {
+                if ( e.keyCode == SWT.DEL || e.keyCode == SWT.BS )
+                {
+                    // Collect indices of all selected thumbnails (in reverse order for safe removal)
+                    java.util.List<Integer> selectedIndices = new java.util.ArrayList<>();
+                    for ( var child : imagesContainer.getChildren() )
+                    {
+                        if ( child instanceof Label )
+                        {
+                            Boolean selected = (Boolean) child.getData( "selected" );
+                            if ( selected != null && selected )
+                            {
+                                Integer index = (Integer) child.getData( "attachmentIndex" );
+                                if ( index != null )
+                                {
+                                    selectedIndices.add( index );
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Sort in reverse order so we remove from highest index first
+                    selectedIndices.sort( java.util.Collections.reverseOrder() );
+                    
+                    // Remove all selected attachments
+                    for ( int index : selectedIndices )
+                    {
+                        presenter.onRemoveAttachment( index );
+                    }
+                }
+            }
+        } );
 
         return attachmentsPanel;
     }
@@ -806,6 +848,16 @@ public class ChatView
             }
 
             imagesContainer.setLayout( new RowLayout( SWT.HORIZONTAL ) );
+            RowLayout rowLayout = (RowLayout) imagesContainer.getLayout();
+            rowLayout.spacing = 8;
+            rowLayout.marginTop = 4;
+            rowLayout.marginBottom = 4;
+            rowLayout.marginLeft = 4;
+            rowLayout.marginRight = 4;
+//            rowLayout.wrap = true;
+//            rowLayout.center = true;  // Center items vertically
+//            rowLayout.pack = false;   // Don't pack - use available space
+//            rowLayout.justify = true; // Justify items horizontally
 
             if ( attachments.isEmpty() )
             {
@@ -822,8 +874,18 @@ public class ChatView
                     attachment.accept( attachmentVisitor );
                 }
                 scrolledComposite.setVisible( true );
-                imagesContainer.setSize( imagesContainer.computeSize( SWT.DEFAULT, SWT.DEFAULT ) );
-                ( (GridData) scrolledComposite.getLayoutData() ).heightHint = SWT.DEFAULT;
+                
+                // Calculate optimal height based on content (max 2 rows of thumbnails)
+                int thumbnailSize = 96; // Square thumbnail size
+                int spacing = 8;
+                int margin = 8; // top + bottom margin
+                int maxHeight = (thumbnailSize + spacing) * 2 + margin;
+                
+                Point size = imagesContainer.computeSize( SWT.DEFAULT, SWT.DEFAULT );
+                imagesContainer.setSize( size );
+                scrolledComposite.setMinSize( size );
+                
+                ( (GridData) scrolledComposite.getLayoutData() ).heightHint = Math.min( size.y + margin, maxHeight );
             }
             // Refresh the layout
             updateLayout( imagesContainer );
@@ -916,85 +978,153 @@ public class ChatView
 	    } );
 	}
 
-	private Image createSelectedImage( Image originalImage )
-	{
-	    // Create a new image that is a copy of the original
-	    Image tintedImage = new Image( Display.getCurrent(), originalImage.getBounds() );
-	
-	    // Create a GC to draw on the tintedImage
-	    GC gc = new GC( tintedImage );
-	
-	    // Draw the original image onto the new image
-	    gc.drawImage( originalImage, 0, 0 );
-	
-	    // Set alpha value for the overlay (128 is half-transparent)
-	    gc.setAlpha( 128 );
-	
-	    // Get the system selection color
-	    Color selectionColor = Display.getCurrent().getSystemColor( SWT.COLOR_LIST_SELECTION );
-	
-	    // Fill the image with the selection color overlay
-	    gc.setBackground( selectionColor );
-	    gc.fillRectangle( tintedImage.getBounds() );
-	
-	    // Dispose the GC to free up system resources
-	    gc.dispose();
-	
-	    return tintedImage;
-	}
-
 	private class AttachmentVisitor implements UiVisitor
     {
-        private Label imageLabel;
+        private static final int THUMBNAIL_SIZE = 96;
+        private static final int BORDER_WIDTH = 2;
 
         @Override
         public void add( ImageData preview, String caption )
         {
-            imageLabel = new Label( imagesContainer, SWT.NONE );
-            // initially nothing is selected
+            Display display = Display.getCurrent();
+            
+            // Create the thumbnail image with border baked in
+            Image thumbnailImage = createThumbnailWithBorder( preview, display, false );
+            Image selectedThumbnailImage = createThumbnailWithBorder( preview, display, true );
+            
+            // Track selection state
+            final boolean[] isSelected = { false };
+            
+            // Create a simple Label for the thumbnail
+            Label imageLabel = new Label( imagesContainer, SWT.NONE );
+            imageLabel.setImage( thumbnailImage );
+            
+            // Store attachment index
+            int attachmentIndex = imagesContainer.getChildren().length - 1;
+            imageLabel.setData( "attachmentIndex", attachmentIndex );
             imageLabel.setData( "selected", false );
-            imageLabel.setToolTipText( caption );
-
-            ImageDescriptor imageDescriptor;
-            imageDescriptor = Optional.ofNullable( preview )
-            						  .map( id -> ImageDescriptor.createFromImageDataProvider( zoom -> id ) )
-            						  .orElse(sharedImages.getImageDescriptor("folder")  );
-
-            Image scaledImage = resourceManager.createImageWithDefault( imageDescriptor );
-            Image selectedImage = createSelectedImage( scaledImage );
-
-            imageLabel.setImage( scaledImage );
-
-            imageLabel.addDisposeListener( l -> {
-                resourceManager.destroy( imageDescriptor );
-                selectedImage.dispose();
-            } );
-
-            // Add mouse listener to handle selection
+            imageLabel.setData( "normalImage", thumbnailImage );
+            imageLabel.setData( "selectedImage", selectedThumbnailImage );
+            
+            if ( caption != null )
+            {
+                imageLabel.setToolTipText( caption );
+            }
+            
+            // Mouse click for selection (supports multi-select with Ctrl)
             imageLabel.addMouseListener( new MouseAdapter()
             {
                 @Override
                 public void mouseUp( MouseEvent e )
                 {
-                    boolean isSelected = (boolean) imageLabel.getData( "selected" );
-                    imageLabel.setData( "selected", !isSelected );
-
-                    if ( isSelected )
+                    boolean ctrlPressed = (e.stateMask & SWT.CTRL) != 0;
+                    
+                    if ( !ctrlPressed )
                     {
-                        imageLabel.setImage( scaledImage );
+                        // Without Ctrl, deselect all other thumbnails first
+                        for ( var child : imagesContainer.getChildren() )
+                        {
+                            if ( child instanceof Label && child != imageLabel )
+                            {
+                                Boolean wasSelected = (Boolean) child.getData( "selected" );
+                                if ( wasSelected != null && wasSelected )
+                                {
+                                    child.setData( "selected", false );
+                                    ((Label) child).setImage( (Image) child.getData( "normalImage" ) );
+                                }
+                            }
+                        }
                     }
-                    else
-                    {
-                        // If it was not selected, apply an overlay
-                        Image selectedImage = createSelectedImage( scaledImage );
-                        imageLabel.setImage( selectedImage );
-                        // Dispose the tinted image when the label is
-                        // disposed
-                        imageLabel.addDisposeListener( l -> selectedImage.dispose() );
-                    }
-                    imagesContainer.layout();
+                    
+                    // Toggle selection on this thumbnail
+                    isSelected[0] = !isSelected[0];
+                    imageLabel.setData( "selected", isSelected[0] );
+                    imageLabel.setImage( isSelected[0] ? selectedThumbnailImage : thumbnailImage );
+                    
+                    // Set focus to the container to receive key events
+                    imagesContainer.setFocus();
                 }
             } );
+            
+            // Dispose resources when label is disposed
+            imageLabel.addDisposeListener( e -> {
+                if ( thumbnailImage != null && !thumbnailImage.isDisposed() )
+                {
+                    thumbnailImage.dispose();
+                }
+                if ( selectedThumbnailImage != null && !selectedThumbnailImage.isDisposed() )
+                {
+                    selectedThumbnailImage.dispose();
+                }
+            } );
+        }
+        
+        /**
+         * Creates a thumbnail image with border baked in, using high-quality scaling.
+         */
+        private Image createThumbnailWithBorder( ImageData sourceData, Display display, boolean selected )
+        {
+            int borderWidth = selected ? 3 : BORDER_WIDTH;
+            Color borderColor = selected ? new Color( display, 0, 120, 215 ) : new Color( display, 128, 128, 128 );
+            Color bgColor = imagesContainer.getBackground();
+            
+            // Create the final image
+            Image result = new Image( display, THUMBNAIL_SIZE, THUMBNAIL_SIZE );
+            GC gc = new GC( result );
+            
+            try
+            {
+                // Enable high-quality rendering
+                gc.setAntialias( SWT.ON );
+                gc.setInterpolation( SWT.HIGH );
+                gc.setAdvanced( true );
+                
+                // Fill with parent background
+                gc.setBackground( bgColor );
+                gc.fillRectangle( 0, 0, THUMBNAIL_SIZE, THUMBNAIL_SIZE );
+                
+                // Draw border
+                gc.setBackground( borderColor );
+                gc.fillRectangle( 0, 0, THUMBNAIL_SIZE, THUMBNAIL_SIZE );
+                
+                // Calculate inner area
+                int innerSize = THUMBNAIL_SIZE - borderWidth * 2;
+                
+                if ( sourceData != null )
+                {
+                    // Center crop coordinates
+                    int srcWidth = sourceData.width;
+                    int srcHeight = sourceData.height;
+                    int cropSize = Math.min( srcWidth, srcHeight );
+                    int cropX = (srcWidth - cropSize) / 2;
+                    int cropY = (srcHeight - cropSize) / 2;
+                    
+                    // Create source image
+                    Image sourceImage = new Image( display, sourceData );
+                    
+                    // Draw scaled image in the inner area
+                    gc.drawImage( sourceImage, 
+                            cropX, cropY, cropSize, cropSize,  // source rectangle (center crop)
+                            borderWidth, borderWidth, innerSize, innerSize );  // destination rectangle
+                    
+                    sourceImage.dispose();
+                }
+                else
+                {
+                    // No image - fill inner area with dark grey
+                    Color fillColor = new Color( display, 60, 60, 60 );
+                    gc.setBackground( fillColor );
+                    gc.fillRectangle( borderWidth, borderWidth, innerSize, innerSize );
+                    fillColor.dispose();
+                }
+            }
+            finally
+            {
+                gc.dispose();
+                borderColor.dispose();
+            }
+            
+            return result;
         }
     }
 
@@ -1016,7 +1146,7 @@ public class ChatView
 			return switch( descriptor.apiUrl() ) {
 				case String s when s.contains( "anthropic" ) -> sharedImages.getImage("claude-ai-icon-16");
 				case String s when s.contains( "openai" ) -> sharedImages.getImage("chatgpt-icon-16");
-				case String s when s.contains( "grok" ) -> sharedImages.getImage("grok-icon-16");
+				case String s when s.contains( "grok" ) || s.contains( "x.ai" ) -> sharedImages.getImage("grok-icon-16");
 				case String s when s.contains( "google" ) -> sharedImages.getImage("google-gemini-icon-16");
 				case String s when s.contains( "deepseek" ) -> sharedImages.getImage("deepseek-logo-icon-16");
 				default -> sharedImages.getImage("assistai-16");
@@ -1175,6 +1305,18 @@ public class ChatView
 	 * Shows a notification bar at the top of the browser window.
 	 * Multiple notifications can be displayed simultaneously and will stack vertically.
 	 * Each notification includes an icon, message, and close button.
+	 * 
+	 * Example usage:
+	 * <pre>
+	 * // Show an info notification for 5 seconds
+	 * showNotification("Operation completed successfully", 5000, NotificationType.INFO);
+	 * 
+	 * // Show a warning that stays until manually closed
+	 * showNotification("Please check your settings", 0, NotificationType.WARNING);
+	 * 
+	 * // Show an error for 10 seconds
+	 * showNotification("Failed to connect to server", 10000, NotificationType.ERROR);
+	 * </pre>
 	 * 
 	 * @param message The notification message to display
 	 * @param duration The duration to show the notification
