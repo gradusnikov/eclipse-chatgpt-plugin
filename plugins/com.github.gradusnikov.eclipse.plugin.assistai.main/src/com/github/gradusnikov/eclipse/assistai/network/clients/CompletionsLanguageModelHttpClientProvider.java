@@ -5,8 +5,8 @@ import java.util.Optional;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 
+import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptorRepository;
 import com.github.gradusnikov.eclipse.assistai.network.subscribers.PrintMessageSubscriber;
-import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepository;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Provider;
@@ -49,7 +49,7 @@ public class CompletionsLanguageModelHttpClientProvider extends AbstractLanguage
     @Override
     public LanguageModelClient get()
     {
-        var modelApiDescriptor = Optional.ofNullable( modelApiDescriptorRepository.getChatModelInUse() )
+        var modelApiDescriptor = Optional.ofNullable( modelApiDescriptorRepository.getCompletionsModelInUse()  )
                 .orElseThrow( () -> new IllegalArgumentException("Model not selected") );
         LanguageModelClient client = createClient( modelApiDescriptor );
         client.subscribe( printMessageSubscriber );
