@@ -23,10 +23,13 @@ AssistAI is an Eclipse IDE plugin that brings a Large Language Model (LLM) assis
 - Create contexts for the LLM that include source files or images 
 - Use the vision model to discuss a image content
 - Switch between defined LLMs
-- [NEW] Added support for interfacing with [Model Context Protocol (MPC)](https://modelcontextprotocol.io/introduction) servers. The plugin is a MCP Client. You can interface your favorite MCP servers using **any** of the supported LLMs (not limited to Claude). 
-- [NEW] Now you can give control to LLM to modify your project files, access error logs, console output, and more... use Claude, sit back, vibe, and watch them tokens burn
-- [NEW] Discuss about math, or tabular data. The chat component now supports latex and table rendering
-- [NEW] Added tools that AI agents can use to execute and review JUnit tests
+- Added support for interfacing with [Model Context Protocol (MPC)](https://modelcontextprotocol.io/introduction) servers. The plugin is a MCP Client. You can interface your favorite MCP servers using **any** of the supported LLMs (not limited to Claude). 
+- Now you can give control to LLM to modify your project files, access error logs, console output, and more... use Claude, sit back, vibe, and watch them tokens burn
+- Discuss about math, or tabular data. The chat component now supports latex and table rendering
+- Added tools that AI agents can use to execute and review JUnit tests
+- [NEW] The AssistAI plugin is now a MCP Server accessible via HTTP. This means that you can configure Claude Code or Claude Desktop client to directly interact with your Eclipse IDE via MCP - this way you can let Claude use it's own planning, search tools and system tools, and still maintain the code by Eclipse (history, etc.). It also means that you don't need Claude API keys when using Claude Desktop.
+- [NEW] New cached resource management and smart resource caching - LLM always sees the current version of files that are attached to the context (always up to date, no multiple copies)
+- [NEW] In-text code completion with Alt+/ 
 
 
 You can also pose general questions to LLM, just like with the regular AI chatbot interface.
@@ -37,11 +40,12 @@ AssistAI supports multiple LLM providers through different API protocols:
 
 | Provider | Protocol | Sample Models | MCP / tools | Vision | Notes |
 |----------|----------|--------------|----------------|--------|-------|
-| OpenAI | OpenAI API | gpt-4o, gpt-4-turbo, gpt-3.5-turbo | ✅ | ✅ | Default integration |
-| Anthropic | Claude API | claude-3-7-sonnet, claude-3-5-sonnet, claude-3-opus | ✅ | ✅ | Native Claude API integration |
+| OpenAI | OpenAI API | gpt-5 | ✅ | ✅ | Default integration |
+| Anthropic | Claude API | claude-sonnet-4-5-20250929 | ✅ | ✅ | Native Claude API integration |
 | Groq | OpenAI API | qwen-qwq-32b, llama3-70b-8192 | ✅ | ✅ | Uses OpenAI-compatible API |
 | DeepSeek | DeepSeek API | deepseek-chat | ✅ | ❌ | Specialized integration |
-| Google | Gemini API | gemini-2.0-flash, gemini-1.5-pro | ✅ | ✅ | Specialized integration |
+| Google | Gemini API | gemini-2.5-flash, gemini-3-pro-preview | ✅ | ✅ | Specialized integration |
+| Grok | Grok API | grok-4, grok-code-fast | ✅ | ✅ | Specialized integration |
 | Local/Self-hosted | OpenAI API | Any local model via Ollama, LM Studio, etc. | Varies | Varies | Configure with OpenAI-compatible endpoint |
 | Other 3rd party | OpenAI API | Various models from providers like Together.ai, Anyscale, etc. | Varies | Varies | Use OpenAI-compatible settings |
 
@@ -92,6 +96,8 @@ The plugin leverages the OpenAI API to send predefined prompts to the LLM. These
 If you're not satisfied with the results, you can ask follow-up questions to LLM. Your inquiries, along with the complete conversation history, will be sent to LLM, ensuring more precise answers.
 
 Use the "Clear" button to reset the conversation context. Press the "Stop" button to halt LLM's response generation.
+
+Current LLM context resources are accessible with the *View > AssistAI > AI Resources*
 
 ### Smart Resource Caching
 
