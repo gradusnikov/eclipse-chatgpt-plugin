@@ -8,7 +8,8 @@ public enum Prompts
     FIX_ERRORS("fix", "fix-errors-prompt.md", "Fix errors in the currently opened file"),
     GIT_COMMENT("git_comment","gitcomment-prompt.md", "Generate a git comment"),
     REFACTOR("refactor", "refactor-prompt.md", "Refactor current selection or currently opened file"),
-    TEST_CASE("junit", "testcase-prompt.md", "Create a JUnit test case for current file or selection");
+    TEST_CASE("junit", "testcase-prompt.md", "Create a JUnit test case for current file or selection"),
+    COMPLETION("complete", "completion-prompt.md", "Complete code at cursor position");
 
     private final String fileName;
     private final String commandName;

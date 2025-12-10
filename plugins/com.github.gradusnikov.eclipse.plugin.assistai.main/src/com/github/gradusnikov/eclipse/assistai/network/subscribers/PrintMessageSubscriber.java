@@ -10,7 +10,7 @@ import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import jakarta.inject.Singleton;
 
 @Creatable
-@Singleton
+//@Singleton
 public class PrintMessageSubscriber implements Flow.Subscriber<Incoming>
 {
     private Flow.Subscription subscription;

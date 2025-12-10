@@ -47,7 +47,7 @@ import jakarta.inject.Inject;
  * This class allows subscribing to responses received from the Gemini API and processes the chat completions.
  */
 @Creatable
-public class GeminiStreamJavaHttpClient implements LanguageModelClient
+public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
 {
     private SubmissionPublisher<Incoming> publisher;
     
@@ -71,7 +71,6 @@ public class GeminiStreamJavaHttpClient implements LanguageModelClient
 
     public GeminiStreamJavaHttpClient()
     {
-        publisher = new SubmissionPublisher<>();
         preferenceStore = Activator.getDefault().getPreferenceStore();
     }
     
@@ -401,8 +400,13 @@ public class GeminiStreamJavaHttpClient implements LanguageModelClient
     public Runnable run(Conversation prompt)
     {
         return () -> {
-            var model = configuration.getSelectedModel().orElseThrow();
-            
+            // Create a fresh publisher for this request
+            // Use a synchronous executor (Runnable::run) to ensure chunks are delivered 
+            // immediately as they arrive, rather than being batched by the ForkJoinPool.
+            // This is critical for streaming use cases where the caller expects to receive
+            // each chunk as it arrives from the API.
+            publisher = new SubmissionPublisher<>(Runnable::run, Flow.defaultBufferSize());
+
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
                     .build();

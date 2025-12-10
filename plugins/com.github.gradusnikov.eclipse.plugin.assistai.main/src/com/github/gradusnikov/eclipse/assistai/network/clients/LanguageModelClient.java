@@ -5,11 +5,24 @@ import java.util.function.Supplier;
 
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
+import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 
 public interface LanguageModelClient
 {
-
+    
     void setCancelProvider( Supplier<Boolean> isCancelled );
+
+    /**
+     * Sets the model to use for requests.
+     * This allows overriding the default model from configuration.
+     * 
+     * @param model the model descriptor to use
+     */
+    default void setModel( ModelApiDescriptor model )
+    {
+        // Default implementation does nothing - clients that support
+        // model override should implement this method
+    }
 
     /**
      * Subscribes a given Flow.Subscriber to receive String data from OpenAI API responses.

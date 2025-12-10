@@ -17,17 +17,9 @@ import jakarta.inject.Singleton;
 @Singleton
 public class LanguageModelClientConfiguration 
 {
-    private final ModelApiDescriptorRepository repository;
-    
     @Inject
-    public LanguageModelClientConfiguration( ModelApiDescriptorRepository repository )
+    public LanguageModelClientConfiguration( )
     {
-        this.repository = repository;
-    }
-    
-    public Optional<ModelApiDescriptor> getSelectedModel()
-    {
-        return Optional.ofNullable( repository.getModelInUse() );
     }
     
     public int getConnectionTimoutSeconds()

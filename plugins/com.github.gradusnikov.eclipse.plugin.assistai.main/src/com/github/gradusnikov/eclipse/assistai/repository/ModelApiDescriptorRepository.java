@@ -126,20 +126,38 @@ public class ModelApiDescriptorRepository
         logger.info( "AI models updated" );
 	}
 	
-	public ModelApiDescriptor getModelInUse()
+	public ModelApiDescriptor getChatModelInUse()
 	{
-        String currentModel = getPreferenceStore().getString( PreferenceConstants.ASSISTAI_SELECTED_MODEL );
-        var models = listModelApiDescriptors();
-        return models.isEmpty() 
-        			? null 
-        			: findById( currentModel ).orElse( listModelApiDescriptors().getFirst() );
+        String currentModel = getPreferenceStore().getString( PreferenceConstants.ASSISTAI_CHAT_MODEL );
+        return findModelOrGetFirst( currentModel );
 		
 	}
-	public ModelApiDescriptor setModelInUse(String modelId) 
+	public ModelApiDescriptor getCompletionsModelInUse()
+    {
+        String currentModel = getPreferenceStore().getString( PreferenceConstants.ASSISTAI_COMPLETION_MODEL );
+        if ( currentModel == null || currentModel.isBlank() )
+        {
+            return getChatModelInUse();
+        }
+        return findModelOrGetFirst( currentModel );        
+    }
+    private ModelApiDescriptor findModelOrGetFirst( String currentModel )
+    {
+        var models = listModelApiDescriptors();
+        return models.isEmpty() 
+                    ? null 
+                    : findById( currentModel ).orElse( listModelApiDescriptors().getFirst() );
+    }
+    public ModelApiDescriptor setChatModelInUse(String modelId) 
 	{
-	    getPreferenceStore().setValue(PreferenceConstants.ASSISTAI_SELECTED_MODEL, modelId);
-		return getModelInUse();
+	    getPreferenceStore().setValue(PreferenceConstants.ASSISTAI_CHAT_MODEL, modelId);
+		return getChatModelInUse();
 	}
+    public ModelApiDescriptor setCompletionsModelInUse(String modelId) 
+    {
+        getPreferenceStore().setValue(PreferenceConstants.ASSISTAI_COMPLETION_MODEL, modelId);
+        return getCompletionsModelInUse();
+    }
 	
 	
     public static String toJson( ModelApiDescriptor ... descriptors )
@@ -184,7 +202,7 @@ public class ModelApiDescriptorRepository
     }
     public void initializeDefaultDescriptorInUse( ModelApiDescriptor descriptor )
     {
-        getPreferenceStore().setDefault( PreferenceConstants.ASSISTAI_SELECTED_MODEL, descriptor.uid() );
+        getPreferenceStore().setDefault( PreferenceConstants.ASSISTAI_CHAT_MODEL, descriptor.uid() );
     }
 
 }

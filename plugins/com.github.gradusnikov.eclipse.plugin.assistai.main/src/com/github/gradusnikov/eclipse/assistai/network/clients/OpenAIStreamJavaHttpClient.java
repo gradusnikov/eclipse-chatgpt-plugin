@@ -47,9 +47,11 @@ import jakarta.inject.Inject;
  * This class allows subscribing to responses received from the OpenAI API and processes the chat completions.
  */
 @Creatable
-public class OpenAIStreamJavaHttpClient implements LanguageModelClient
+public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
 {
+    // Publisher is created fresh for each run() call to avoid issues with closed publishers
     private SubmissionPublisher<Incoming> publisher;
+    private final List<Flow.Subscriber<Incoming>> subscribers = new ArrayList<>();
     
     private Supplier<Boolean> isCancelled = () -> false;
     
@@ -72,8 +74,6 @@ public class OpenAIStreamJavaHttpClient implements LanguageModelClient
     
     public OpenAIStreamJavaHttpClient()
     {
-       
-        publisher = new SubmissionPublisher<>();
         preferenceStore = Activator.getDefault().getPreferenceStore();
     }
     
@@ -90,7 +90,8 @@ public class OpenAIStreamJavaHttpClient implements LanguageModelClient
     @Override
     public synchronized void subscribe(Flow.Subscriber<Incoming> subscriber)
     {
-        publisher.subscribe(subscriber);
+        // Store subscriber to be added when publisher is created in run()
+        subscribers.add(subscriber);
     }
     /**
      * Returns the JSON request body as a String for the given prompt.
@@ -139,7 +140,7 @@ public class OpenAIStreamJavaHttpClient implements LanguageModelClient
             }
             requestBody.put("messages", messages);
             // o1 and o1-mini models do not support temperature
-            if ( !model.modelName().matches( "^o\\d{1}(-.*)?" ) )
+            if ( !model.modelName().matches( "^o\\d{1}(-.*)?$" ) )
             {
                 requestBody.put("temperature", model.temperature()/10);
             }
@@ -207,8 +208,8 @@ public class OpenAIStreamJavaHttpClient implements LanguageModelClient
             var attachmentsString = String.join( "\n", textParts );
             
             var textContent = attachmentsString.isBlank() 
-            			    ? message.getContent() 
-            			    : attachmentsString + "\n\n" + message.getContent();
+            		    ? message.getContent() 
+            		    : attachmentsString + "\n\n" + message.getContent();
            
             // add image content
             if ( model.vision() )
@@ -276,9 +277,20 @@ public class OpenAIStreamJavaHttpClient implements LanguageModelClient
     public Runnable run( Conversation prompt ) 
     {
     	return () ->  {
-    		
-            var model = configuration.getSelectedModel().orElseThrow();
+    	    // Create a fresh publisher for this request
+    	    // Use a synchronous executor (Runnable::run) to ensure chunks are delivered 
+    	    // immediately as they arrive, rather than being batched by the ForkJoinPool.
+    	    // This is critical for streaming use cases where the caller expects to receive
+    	    // each chunk as it arrives from the API.
+    	    publisher = new SubmissionPublisher<>(Runnable::run, Flow.defaultBufferSize());
     	    
+    	    // Add all subscribers that were registered before run() was called
+    	    synchronized (this) {
+    	        for (Flow.Subscriber<Incoming> subscriber : subscribers) {
+    	            publisher.subscribe(subscriber);
+    	        }
+    	    }
+    		
     	    HttpClient client = HttpClient.newBuilder()
     		                              .connectTimeout( Duration.ofSeconds(configuration.getConnectionTimoutSeconds()) )
     		                              .build();
@@ -293,7 +305,7 @@ public class OpenAIStreamJavaHttpClient implements LanguageModelClient
     				.POST(HttpRequest.BodyPublishers.ofString(requestBody))
     				.build();
     		
-    		logger.info("Sending request to ChatGPT.\n\n" + requestBody);
+    		logger.info("Sending request to ChatGPT.");
     		
     		try
     		{

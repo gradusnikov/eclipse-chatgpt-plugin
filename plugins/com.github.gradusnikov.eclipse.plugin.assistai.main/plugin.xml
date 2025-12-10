@@ -49,8 +49,53 @@
             class="com.github.gradusnikov.eclipse.assistai.preferences.PreferenceInitializer">
       </initializer>
    </extension>
-	<extension point="org.eclipse.ui.startup">
-	    <startup class="com.github.gradusnikov.eclipse.assistai.PluginStartup"/>
-	</extension>   
+   <extension point="org.eclipse.ui.startup">
+       <startup class="com.github.gradusnikov.eclipse.assistai.PluginStartup"/>
+   </extension>
+   
+   <!-- LLM Code Completion Extension -->
+   <extension
+         point="org.eclipse.jdt.ui.javaCompletionProposalComputer"
+         id="assistAICompletionProposalComputer"
+         name="AssistAI Code Completion">
+      <javaCompletionProposalComputer
+            class="com.github.gradusnikov.eclipse.assistai.completion.LLMCompletionProposalComputer"
+            categoryId="org.eclipse.jdt.ui.javaAllProposalCategory"
+            needsSortingAfterFiltering="false">
+         <partition type="__dftl_partition_content_type"/>
+      </javaCompletionProposalComputer>
+   </extension>
+   
+   <!-- Command for AI Code Completion -->
+   <extension point="org.eclipse.ui.commands">
+      <category
+            id="com.github.gradusnikov.eclipse.assistai.commands.category"
+            name="AssistAI">
+      </category>
+      <command
+            id="com.github.gradusnikov.eclipse.assistai.commands.aiCompletion"
+            name="AI Code Completion"
+            description="Trigger AI-powered code completion"
+            categoryId="com.github.gradusnikov.eclipse.assistai.commands.category">
+      </command>
+   </extension>
+   
+   <!-- Handler for AI Code Completion Command -->
+   <extension point="org.eclipse.ui.handlers">
+      <handler
+            commandId="com.github.gradusnikov.eclipse.assistai.commands.aiCompletion"
+            class="com.github.gradusnikov.eclipse.assistai.completion.AICompletionHandler">
+      </handler>
+   </extension>
+   
+   <!-- Key Binding for AI Code Completion -->
+   <extension point="org.eclipse.ui.bindings">
+      <key
+            commandId="com.github.gradusnikov.eclipse.assistai.commands.aiCompletion"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="Alt+/"
+            contextId="org.eclipse.jdt.ui.javaEditorScope">
+      </key>
+   </extension>
 
 </plugin>

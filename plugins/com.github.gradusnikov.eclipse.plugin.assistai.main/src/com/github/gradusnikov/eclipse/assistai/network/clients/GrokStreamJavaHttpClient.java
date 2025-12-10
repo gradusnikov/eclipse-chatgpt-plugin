@@ -47,8 +47,12 @@ import io.modelcontextprotocol.client.McpSyncClient;
 import jakarta.inject.Inject;
 
 @Creatable
-public class GrokStreamJavaHttpClient implements LanguageModelClient {
+public class GrokStreamJavaHttpClient extends AbstractLanguageModelClient
+{
+    
+    // Publisher is created fresh for each run() call to avoid issues with closed publishers
     private SubmissionPublisher<Incoming> publisher;
+    private final List<Flow.Subscriber<Incoming>> subscribers = new ArrayList<>();
     private Supplier<Boolean> isCancelled = () -> false;
 
     @Inject
@@ -68,7 +72,6 @@ public class GrokStreamJavaHttpClient implements LanguageModelClient {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public GrokStreamJavaHttpClient() {
-        publisher = new SubmissionPublisher<>();
         preferenceStore = Activator.getDefault().getPreferenceStore();
     }
 
@@ -79,7 +82,8 @@ public class GrokStreamJavaHttpClient implements LanguageModelClient {
 
     @Override
     public synchronized void subscribe(Flow.Subscriber<Incoming> subscriber) {
-        publisher.subscribe(subscriber);
+        // Store subscriber to be added when publisher is created in run()
+        subscribers.add(subscriber);
     }
 
     static ArrayNode clientToolsToJson(String clientName, McpSyncClient client) {
@@ -263,8 +267,20 @@ public class GrokStreamJavaHttpClient implements LanguageModelClient {
     @Override
     public Runnable run(Conversation prompt) {
         return () -> {
-            var model = configuration.getSelectedModel().orElseThrow();
-
+            // Create a fresh publisher for this request
+            // Use a synchronous executor (Runnable::run) to ensure chunks are delivered 
+            // immediately as they arrive, rather than being batched by the ForkJoinPool.
+            // This is critical for streaming use cases where the caller expects to receive
+            // each chunk as it arrives from the API.
+            publisher = new SubmissionPublisher<>(Runnable::run, Flow.defaultBufferSize());
+            
+            // Add all subscribers that were registered before run() was called
+            synchronized (this) {
+                for (Flow.Subscriber<Incoming> subscriber : subscribers) {
+                    publisher.subscribe(subscriber);
+                }
+            }
+            
             HttpClient client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
                 .build();
@@ -278,7 +294,7 @@ public class GrokStreamJavaHttpClient implements LanguageModelClient {
                 .header("Accept", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
-            logger.info("Sending request to Grok API.\n\n" + requestBody);
+            logger.info("Sending request to Grok API.");
 
             int maxRetries = 3;
             int retryCount = 0;
@@ -335,6 +351,7 @@ public class GrokStreamJavaHttpClient implements LanguageModelClient {
                 } catch (Exception e) {
                     logger.error(e.getMessage(), e);
                     publisher.closeExceptionally(e);
+                    return; // Exit early on error
                 } finally {
                     if (!shouldRetry) {
                         if (isCancelled.get()) {
@@ -372,9 +389,13 @@ public class GrokStreamJavaHttpClient implements LanguageModelClient {
                 }
                 // Handle content deltas
                 else if (delta.has("content")) {
-                    var content = delta.get("content").asText();
-                    if (!content.isEmpty()) {
-                        publisher.submit(new Incoming(Incoming.Type.CONTENT, content));
+                    var contentNode = delta.get("content");
+                    // Check if content is not null and is a text node
+                    if (contentNode != null && !contentNode.isNull()) {
+                        var content = contentNode.asText();
+                        if (!content.isEmpty()) {
+                            publisher.submit(new Incoming(Incoming.Type.CONTENT, content));
+                        }
                     }
                 }
             }

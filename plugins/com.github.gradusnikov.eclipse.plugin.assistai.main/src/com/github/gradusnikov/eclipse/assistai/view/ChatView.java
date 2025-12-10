@@ -956,7 +956,7 @@ public class ChatView
 		menuItem.addSelectionListener( new SelectionAdapter() {
 		    @Override
 		    public void widgetSelected(SelectionEvent e) {
-		    	presenter.onModelSelected(model.getModelId());
+		    	presenter.onChatModelSelected(model.getModelId());
 		    }
 		});
 	}

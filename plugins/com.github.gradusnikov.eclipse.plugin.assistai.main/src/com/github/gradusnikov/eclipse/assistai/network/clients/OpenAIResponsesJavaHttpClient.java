@@ -48,7 +48,7 @@ import jakarta.inject.Inject;
  * stateful conversations, and improved reasoning capabilities.
  */
 @Creatable
-public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
+public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
 {
     private final State NULL_STATE = new NullState();
     private State state = NULL_STATE;
@@ -74,7 +74,6 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
     
     public OpenAIResponsesJavaHttpClient()
     {
-        publisher = new SubmissionPublisher<>();
         preferenceStore = Activator.getDefault().getPreferenceStore();
     }
     
@@ -339,8 +338,13 @@ public class OpenAIResponsesJavaHttpClient implements LanguageModelClient
     public Runnable run(Conversation prompt) 
     {
         return () -> {
-            var model = configuration.getSelectedModel().orElseThrow();
-            
+            // Create a fresh publisher for this request
+            // Use a synchronous executor (Runnable::run) to ensure chunks are delivered 
+            // immediately as they arrive, rather than being batched by the ForkJoinPool.
+            // This is critical for streaming use cases where the caller expects to receive
+            // each chunk as it arrives from the API.
+            publisher = new SubmissionPublisher<>(Runnable::run, Flow.defaultBufferSize());
+
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
                     .build();

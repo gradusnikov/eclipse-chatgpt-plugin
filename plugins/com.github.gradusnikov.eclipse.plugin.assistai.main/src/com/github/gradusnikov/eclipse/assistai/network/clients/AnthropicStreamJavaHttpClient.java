@@ -50,9 +50,11 @@ import jakarta.inject.Inject;
  * This class allows subscribing to responses received from the Anthropic API and processes the chat completions.
  */
 @Creatable
-public class AnthropicStreamJavaHttpClient implements LanguageModelClient
+public class AnthropicStreamJavaHttpClient extends AbstractLanguageModelClient
 {
+    // Publisher is created fresh for each run() call to avoid issues with closed publishers
     private SubmissionPublisher<Incoming> publisher;
+    private final List<Flow.Subscriber<Incoming>> subscribers = new ArrayList<>();
     
     private Supplier<Boolean> isCancelled = () -> false;
     
@@ -74,7 +76,6 @@ public class AnthropicStreamJavaHttpClient implements LanguageModelClient
 
     public AnthropicStreamJavaHttpClient()
     {
-        publisher = new SubmissionPublisher<>();
         preferenceStore = Activator.getDefault().getPreferenceStore();
     }
     
@@ -83,10 +84,18 @@ public class AnthropicStreamJavaHttpClient implements LanguageModelClient
     {
         this.isCancelled = isCancelled;
     }
+    
+    @Override
+    public void setModel(ModelApiDescriptor model)
+    {
+        this.model = model;
+    }
+    
     @Override
     public synchronized void subscribe(Flow.Subscriber<Incoming> subscriber)
     {
-        publisher.subscribe(subscriber);
+        // Store subscriber to be added when publisher is created in run()
+        subscribers.add(subscriber);
     }
 
     static ArrayNode clientToolsToJson(String clientName, McpSyncClient client) {
@@ -226,8 +235,8 @@ public class AnthropicStreamJavaHttpClient implements LanguageModelClient
                         .collect(Collectors.toList());
                 var attachmentsString = String.join( "\n", textParts );
                 var textContent = attachmentsString.isBlank() 
-                			    ? message.getContent() 
-                			    : attachmentsString + "\n\n" + message.getContent();
+                		    ? message.getContent() 
+                		    : attachmentsString + "\n\n" + message.getContent();
                
 
                 // Handle content format based on whether there are images (vision capability)
@@ -280,9 +289,22 @@ public class AnthropicStreamJavaHttpClient implements LanguageModelClient
         return imageObject;
     }
 
+
 	public Runnable run(Conversation prompt) {
 	    return () -> {
-	        var model = configuration.getSelectedModel().orElseThrow();
+	        // Create a fresh publisher for this request
+	        // Use a synchronous executor (Runnable::run) to ensure chunks are delivered 
+	        // immediately as they arrive, rather than being batched by the ForkJoinPool.
+	        // This is critical for streaming use cases where the caller expects to receive
+	        // each chunk as it arrives from the API.
+	        publisher = new SubmissionPublisher<>(Runnable::run, Flow.defaultBufferSize());
+	        
+	        // Add all subscribers that were registered before run() was called
+	        synchronized (this) {
+	            for (Flow.Subscriber<Incoming> subscriber : subscribers) {
+	                publisher.subscribe(subscriber);
+	            }
+	        }
 	        
 	        HttpClient client = HttpClient.newBuilder()
 	                .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
@@ -299,7 +321,7 @@ public class AnthropicStreamJavaHttpClient implements LanguageModelClient
 	                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
 	                .build();
 	
-	        logger.info("Sending request to Anthropic API.\n\n" + requestBody);
+	        logger.info("Sending request to Anthropic API.");
 	
 	        // Rate limit handling variables
 	        int maxRetries = 3;
@@ -451,6 +473,7 @@ public class AnthropicStreamJavaHttpClient implements LanguageModelClient
 	            {
 	                logger.error(e.getMessage(), e);
 	                publisher.closeExceptionally(e);
+	                return; // Exit early on error
 	            }
 	            finally 
 	            {

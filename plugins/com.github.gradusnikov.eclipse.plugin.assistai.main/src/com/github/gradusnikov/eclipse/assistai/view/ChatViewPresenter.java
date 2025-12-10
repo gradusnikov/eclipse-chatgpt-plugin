@@ -151,7 +151,7 @@ public class ChatViewPresenter implements IResourceCacheListener
 
 	private void initializeAvailableModels() {
 		// Initialize model from preferences if available
-        var selectedModel = modelReposotiry.getModelInUse();
+        var selectedModel = modelReposotiry.getChatModelInUse();
         var models = modelReposotiry.listModelApiDescriptors();
         applyToView( view -> {
         	view.setAvailableModels( models, Optional.ofNullable( selectedModel.uid() ).orElse("" ) );
@@ -550,11 +550,11 @@ public class ChatViewPresenter implements IResourceCacheListener
      * 
      * @param modelId The ID of the selected model
      */
-    public void onModelSelected(String modelId) 
+    public void onChatModelSelected(String modelId) 
     {
         logger.info("Model selected: " + modelId);
         
-        modelReposotiry.setModelInUse( modelId );
+        modelReposotiry.setChatModelInUse( modelId );
         initializeAvailableModels();
     }
     

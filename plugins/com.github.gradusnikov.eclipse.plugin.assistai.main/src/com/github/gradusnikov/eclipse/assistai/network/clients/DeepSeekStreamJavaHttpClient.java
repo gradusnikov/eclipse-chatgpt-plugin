@@ -49,9 +49,11 @@ import jakarta.inject.Inject;
  * This class allows subscribing to responses received from the DeepSeek API and processes the chat completions.
  */
 @Creatable
-public class DeepSeekStreamJavaHttpClient implements LanguageModelClient
+public class DeepSeekStreamJavaHttpClient extends AbstractLanguageModelClient
 {
+    // Publisher is created fresh for each run() call to avoid issues with closed publishers
     private SubmissionPublisher<Incoming> publisher;
+    private final List<Flow.Subscriber<Incoming>> subscribers = new ArrayList<>();
     
     private Supplier<Boolean> isCancelled = () -> false;
     
@@ -73,7 +75,6 @@ public class DeepSeekStreamJavaHttpClient implements LanguageModelClient
 
     public DeepSeekStreamJavaHttpClient()
     {
-        publisher = new SubmissionPublisher<>();
         preferenceStore = Activator.getDefault().getPreferenceStore();
     }
     
@@ -86,7 +87,8 @@ public class DeepSeekStreamJavaHttpClient implements LanguageModelClient
     @Override
     public synchronized void subscribe(Flow.Subscriber<Incoming> subscriber)
     {
-        publisher.subscribe(subscriber);
+        // Store subscriber to be added when publisher is created in run()
+        subscribers.add(subscriber);
     }
 
     private ArrayNode clientToolsToJson(String clientName, McpSyncClient client) {
@@ -314,7 +316,19 @@ public class DeepSeekStreamJavaHttpClient implements LanguageModelClient
     public Runnable run(Conversation prompt)
     {
         return () -> {
-            var model = configuration.getSelectedModel().orElseThrow();
+            // Create a fresh publisher for this request
+            // Use a synchronous executor (Runnable::run) to ensure chunks are delivered 
+            // immediately as they arrive, rather than being batched by the ForkJoinPool.
+            // This is critical for streaming use cases where the caller expects to receive
+            // each chunk as it arrives from the API.
+            publisher = new SubmissionPublisher<>(Runnable::run, Flow.defaultBufferSize());
+            
+            // Add all subscribers that were registered before run() was called
+            synchronized (this) {
+                for (Flow.Subscriber<Incoming> subscriber : subscribers) {
+                    publisher.subscribe(subscriber);
+                }
+            }
             
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
@@ -330,7 +344,7 @@ public class DeepSeekStreamJavaHttpClient implements LanguageModelClient
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .build();
 
-            logger.info("Sending request to DeepSeek API.\n\n" + requestBody);
+            logger.info("Sending request to DeepSeek API.");
 
             try
             {
