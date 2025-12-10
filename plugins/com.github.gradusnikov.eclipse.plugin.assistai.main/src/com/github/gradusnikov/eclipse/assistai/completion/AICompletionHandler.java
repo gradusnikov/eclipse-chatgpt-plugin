@@ -1,6 +1,7 @@
 package com.github.gradusnikov.eclipse.assistai.completion;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -9,6 +10,7 @@ import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.ILog;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.ToolFactory;
@@ -48,6 +50,14 @@ public class AICompletionHandler extends AbstractHandler {
     // Track current completion request
     private static final AtomicReference<CompletionHandle> currentRequest = new AtomicReference<>();
     
+    private final ILog logger;
+    
+    public AICompletionHandler()
+    {
+        this.logger = Activator.getDefault().getLog();    
+    }
+    
+    
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
         IWorkbenchWindow window = HandlerUtil.getActiveWorkbenchWindow(event);
@@ -66,6 +76,7 @@ public class AICompletionHandler extends AbstractHandler {
         }
         
         ITextEditor textEditor = (ITextEditor) editor;
+        
         
         try {
             Activator activator = Activator.getDefault();
@@ -139,7 +150,7 @@ public class AICompletionHandler extends AbstractHandler {
             chunk -> {
                 streamingBuffer.append(chunk);
                 String parsed = parseCompletion(streamingBuffer.toString());
-                if (parsed != null && !parsed.isEmpty()) {
+                if ( Objects.nonNull( parsed ) ) {
                     // Update on UI thread
                     Display.getDefault().asyncExec(() -> {
                         if (!ghostManager.isShowing()) {
@@ -155,7 +166,7 @@ public class AICompletionHandler extends AbstractHandler {
             // On complete - format the final completion
             fullResponse -> {
                 String completion = parseCompletion(fullResponse);
-                if (completion != null && !completion.isEmpty()) {
+                if ( Objects.nonNull(completion) ) {
                     // Format the completion on completion
                     String formattedCompletion = formatCompletion(completion, ctx, textEditor);
                     Display.getDefault().asyncExec(() -> {
@@ -211,7 +222,7 @@ public class AICompletionHandler extends AbstractHandler {
             // On complete - insert the text
             fullResponse -> {
                 String completion = parseCompletion(fullResponse);
-                if (completion != null && !completion.isBlank()) {
+                if ( Objects.nonNull(completion) ) {
                     Display.getDefault().asyncExec(() -> {
                         insertText(textEditor, completion);
                     });
@@ -293,12 +304,12 @@ public class AICompletionHandler extends AbstractHandler {
                 ghostTextManagers.put(editor, manager);
                 return manager;
             } else {
-                Activator.getDefault().getLog().warn(
+                logger.warn(
                     "Could not obtain ISourceViewer from editor: " + editor.getClass().getName()
                 );
             }
         } catch (Exception ex) {
-            Activator.getDefault().getLog().error("Error creating GhostTextManager", ex);
+            logger.error("Error creating GhostTextManager", ex);
         }
         return null;
     }
@@ -319,7 +330,7 @@ public class AICompletionHandler extends AbstractHandler {
                 }
             }
         } catch (Exception e) {
-            Activator.getDefault().getLog().warn(
+            logger.warn(
                 "Failed to get ISourceViewer via reflection: " + e.getMessage()
             );
         }
@@ -435,7 +446,7 @@ public class AICompletionHandler extends AbstractHandler {
             return completion;
             
         } catch (Exception e) {
-            Activator.getDefault().getLog().warn("Failed to format completion: " + e.getMessage());
+            logger.warn("Failed to format completion: " + e.getMessage());
             return completion;
         }
     }

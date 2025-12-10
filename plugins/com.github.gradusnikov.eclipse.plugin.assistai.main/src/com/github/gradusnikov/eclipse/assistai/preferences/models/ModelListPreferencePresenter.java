@@ -2,7 +2,8 @@ package com.github.gradusnikov.eclipse.assistai.preferences.models;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 
-import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepository;
+import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptorRepository;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;

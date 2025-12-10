@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.repository;
+package com.github.gradusnikov.eclipse.assistai.prompt;
 
 import java.util.Arrays;
 import java.util.List;
@@ -10,7 +10,6 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
-import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;

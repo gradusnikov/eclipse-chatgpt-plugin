@@ -4,8 +4,8 @@ import java.util.Arrays;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 
+import com.github.gradusnikov.eclipse.assistai.prompt.PromptRepository;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
-import com.github.gradusnikov.eclipse.assistai.repository.PromptRepository;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;

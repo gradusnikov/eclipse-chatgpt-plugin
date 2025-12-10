@@ -8,11 +8,11 @@ import java.util.UUID;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerRepository;
+import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptorRepository;
 import com.github.gradusnikov.eclipse.assistai.preferences.mcp.McpServerDescriptorUtilities;
-import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.PromptLoader;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
-import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepository;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;

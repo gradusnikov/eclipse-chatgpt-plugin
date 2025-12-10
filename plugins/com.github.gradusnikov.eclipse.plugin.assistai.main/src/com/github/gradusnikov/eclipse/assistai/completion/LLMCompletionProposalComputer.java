@@ -22,8 +22,8 @@ import org.eclipse.swt.graphics.Image;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
+import com.github.gradusnikov.eclipse.assistai.prompt.PromptRepository;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
-import com.github.gradusnikov.eclipse.assistai.repository.PromptRepository;
 
 /**
  * Eclipse JDT completion proposal computer that uses LLM for code completion.

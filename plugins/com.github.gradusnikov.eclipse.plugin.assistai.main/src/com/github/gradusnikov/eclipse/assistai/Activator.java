@@ -8,11 +8,11 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 
+import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptorRepository;
 import com.github.gradusnikov.eclipse.assistai.preferences.mcp.McpHttpServerPreferencePresenter;
 import com.github.gradusnikov.eclipse.assistai.preferences.mcp.McpServerPreferencePresenter;
 import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelListPreferencePresenter;
 import com.github.gradusnikov.eclipse.assistai.preferences.prompts.PromptsPreferencePresenter;
-import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepository;
 
 public class Activator extends AbstractUIPlugin 
 {

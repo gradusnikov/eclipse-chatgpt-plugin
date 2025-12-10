@@ -62,7 +62,7 @@ import org.eclipse.ui.PlatformUI;
 
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment.UiVisitor;
-import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
 import com.github.gradusnikov.eclipse.assistai.prompt.MarkdownParser;
 import com.github.gradusnikov.eclipse.assistai.tools.AssistaiSharedFiles;
 import com.github.gradusnikov.eclipse.assistai.tools.AssistaiSharedFonts;

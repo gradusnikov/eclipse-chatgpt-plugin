@@ -5,7 +5,7 @@ import java.util.function.Supplier;
 
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
-import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
 
 public interface LanguageModelClient
 {

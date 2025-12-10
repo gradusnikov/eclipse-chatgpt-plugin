@@ -2,7 +2,7 @@ package com.github.gradusnikov.eclipse.assistai.network.clients;
 
 import java.util.Objects;
 
-import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
 
 public abstract class AbstractLanguageModelClient implements LanguageModelClient
 {

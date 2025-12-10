@@ -20,8 +20,8 @@ import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
+import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptorRepository;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
-import com.github.gradusnikov.eclipse.assistai.repository.ModelApiDescriptorRepository;
 
 
 public class ModelPreferencePage extends FieldEditorPreferencePage implements IWorkbenchPreferencePage

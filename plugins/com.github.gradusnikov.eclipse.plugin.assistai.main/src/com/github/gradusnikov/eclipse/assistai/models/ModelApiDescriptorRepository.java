@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.assistai.repository;
+package com.github.gradusnikov.eclipse.assistai.models;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -17,7 +17,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants;
-import com.github.gradusnikov.eclipse.assistai.preferences.models.ModelApiDescriptor;
+import com.google.common.collect.Iterables;
 
 import jakarta.inject.Inject;
 
@@ -55,14 +55,7 @@ public class ModelApiDescriptorRepository
 	public int indexOf( String modelId )
 	{
 		var models = listModelApiDescriptors();
-		for ( int i = 0; i < models.size(); i++ )
-		{
-			if ( models.get(i).uid().equals(modelId) )
-			{
-				return i;
-			}
-		}
-		return -1;
+		return Iterables.indexOf( models, model -> model.uid().equals( modelId ) );
 	}
 
 	public ModelApiDescriptor save( int selectedIndex, ModelApiDescriptor updatedModelStub )
@@ -81,16 +74,7 @@ public class ModelApiDescriptorRepository
             uid = UUID.randomUUID().toString();
             addOrReplace = model -> storedDescriptors.add( model );
         }
-        ModelApiDescriptor toStore  = new ModelApiDescriptor( 
-	    		  uid, 
-	    		  updatedModelStub.apiType(), 
-	    		  updatedModelStub.apiUrl(),
-	    		  updatedModelStub.apiKey(), 
-	    		  updatedModelStub.modelName(), 
-	    		  updatedModelStub.temperature(), 
-	    		  updatedModelStub.vision(),
-	    		  updatedModelStub.functionCalling()
-	       );
+        ModelApiDescriptor toStore  = ModelApiDescriptor.copyWithUid( uid, updatedModelStub );  
         addOrReplace.accept( toStore );
         
         // replace preferences
