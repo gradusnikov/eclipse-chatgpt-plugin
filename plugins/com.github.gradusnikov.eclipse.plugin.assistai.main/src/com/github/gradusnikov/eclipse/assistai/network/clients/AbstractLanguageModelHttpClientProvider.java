@@ -2,6 +2,7 @@ package com.github.gradusnikov.eclipse.assistai.network.clients;
 
 import java.util.Objects;
 
+import com.github.gradusnikov.eclipse.assistai.chat.ConversationContext;
 import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
 
 import jakarta.inject.Provider;
@@ -60,5 +61,15 @@ public abstract class AbstractLanguageModelHttpClientProvider implements Provide
         client.setModel( modelApiDescriptor );
         return client;
     }
+    
+    /**
+     * Returns a client configured with the given conversation context.
+     * This is the preferred method for obtaining clients as it ensures
+     * proper routing of function call results.
+     * 
+     * @param context The conversation context for this request
+     * @return A configured LanguageModelClient
+     */
+    public abstract LanguageModelClient get( ConversationContext context );
 
 }

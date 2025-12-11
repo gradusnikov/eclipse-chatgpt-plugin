@@ -44,7 +44,6 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ConsoleService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.GitService;
-import com.github.gradusnikov.eclipse.assistai.repository.PromptRepository;
 import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 
 public class ChatMessageFactoryTest {

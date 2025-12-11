@@ -9,31 +9,26 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
-import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.ILog;
-import org.eclipse.jdt.core.IJavaProject;
-import org.eclipse.jdt.core.JavaCore;
-import org.eclipse.jdt.core.ToolFactory;
-import org.eclipse.jdt.core.formatter.CodeFormatter;
 import org.eclipse.jface.text.BadLocationException;
-import org.eclipse.jface.text.Document;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.ITextSelection;
 import org.eclipse.jface.text.source.ISourceViewer;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.swt.widgets.Display;
-import org.eclipse.text.edits.TextEdit;
 import org.eclipse.ui.IEditorPart;
-import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
+import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.completion.StreamingCompletionClient.CompletionHandle;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
+import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 
 /**
  * Handler for the AI Code Completion command (Alt+/).
@@ -51,10 +46,23 @@ public class AICompletionHandler extends AbstractHandler {
     private static final AtomicReference<CompletionHandle> currentRequest = new AtomicReference<>();
     
     private final ILog logger;
+
+    private final CompletionContextBuilder contextBuilder;
+
+    private final StreamingCompletionClient streamingClient;
+
+    private final ChatMessageFactory chatMessageFactory;
+    
+    private final CodeEditingService codeEditingService;
     
     public AICompletionHandler()
     {
-        this.logger = Activator.getDefault().getLog();    
+        Activator activator = Activator.getDefault();
+        this.logger = activator.getLog();
+        this.contextBuilder = activator.make(CompletionContextBuilder.class);
+        this.streamingClient = activator.make(StreamingCompletionClient.class);
+        this.chatMessageFactory = activator.make(ChatMessageFactory.class);
+        this.codeEditingService = activator.make(CodeEditingService.class);
     }
     
     
@@ -119,10 +127,6 @@ public class AICompletionHandler extends AbstractHandler {
      * Shows text incrementally as it streams in from the LLM.
      */
     private void executeWithStreamingGhostText(ITextEditor textEditor, GhostTextManager ghostManager) throws Exception {
-        Activator activator = Activator.getDefault();
-        CompletionContextBuilder contextBuilder = activator.make(CompletionContextBuilder.class);
-        ChatMessageFactory chatMessageFactory = activator.make(ChatMessageFactory.class);
-        StreamingCompletionClient streamingClient = activator.make(StreamingCompletionClient.class);
         
         Optional<CompletionContext> contextOpt = contextBuilder.build(textEditor);
         if (contextOpt.isEmpty()) {
@@ -135,7 +139,7 @@ public class AICompletionHandler extends AbstractHandler {
         }
         
         // Use ChatMessageFactory to create the conversation with proper variable substitution
-        Conversation conversation = chatMessageFactory.createCompletionConversation(ctx);
+        Conversation conversation = createCompletionConversation(ctx);
         
         // Get cursor offset at the time of request
         int cursorOffset = getCaretOffset(textEditor);
@@ -167,8 +171,8 @@ public class AICompletionHandler extends AbstractHandler {
             fullResponse -> {
                 String completion = parseCompletion(fullResponse);
                 if ( Objects.nonNull(completion) ) {
-                    // Format the completion on completion
-                    String formattedCompletion = formatCompletion(completion, ctx, textEditor);
+                    // Format the completion using CodeEditingService
+                    String formattedCompletion = codeEditingService.formatCompletion(completion, ctx, textEditor);
                     Display.getDefault().asyncExec(() -> {
                         ghostManager.updateGhostText(formattedCompletion);
                     });
@@ -196,10 +200,6 @@ public class AICompletionHandler extends AbstractHandler {
      * Uses streaming client internally, waits for completion, then inserts.
      */
     private void executeDirectInsertion(ITextEditor textEditor) throws Exception {
-        Activator activator = Activator.getDefault();
-        CompletionContextBuilder contextBuilder = activator.make(CompletionContextBuilder.class);
-        ChatMessageFactory chatMessageFactory = activator.make(ChatMessageFactory.class);
-        StreamingCompletionClient streamingClient = activator.make(StreamingCompletionClient.class);
         
         Optional<CompletionContext> contextOpt = contextBuilder.build(textEditor);
         if (contextOpt.isEmpty()) {
@@ -212,7 +212,7 @@ public class AICompletionHandler extends AbstractHandler {
         }
         
         // Use ChatMessageFactory to create the conversation with proper variable substitution
-        Conversation conversation = chatMessageFactory.createCompletionConversation(ctx);
+        Conversation conversation = createCompletionConversation(ctx);
         
         // Start streaming and insert when complete
         streamingClient.startStreaming(
@@ -254,6 +254,23 @@ public class AICompletionHandler extends AbstractHandler {
         } catch (BadLocationException e) {
             // Ignore
         }
+    }
+    
+    
+    /**
+     * Creates a Conversation with a single user message for completion.
+     * This is a convenience method that combines context setup, message creation,
+     * and conversation creation.
+     * 
+     * @param completionContext The completion context
+     * @return A Conversation ready to be sent to the LLM
+     */
+    public Conversation createCompletionConversation(CompletionContext completionContext)
+    {
+        Conversation conversation = new Conversation();
+        ChatMessage message = chatMessageFactory.createUserChatMessage( Prompts.COMPLETION );
+        conversation.add(message);
+        return conversation;
     }
     
     /**
@@ -360,145 +377,5 @@ public class AICompletionHandler extends AbstractHandler {
         }
 
         return response.trim();
-    }
-    
-    /**
-     * Formats a code completion snippet using Eclipse's code formatter.
-     * The completion is formatted in context by combining it with the code before the cursor,
-     * formatting the combined code, and then extracting the formatted completion.
-     * 
-     * @param completion The raw completion text from the LLM
-     * @param ctx The completion context containing code before/after cursor
-     * @param editor The text editor (used to get project-specific formatter settings)
-     * @return The formatted completion, or the original if formatting fails
-     */
-    private String formatCompletion(String completion, CompletionContext ctx, ITextEditor editor) {
-        if (completion == null || completion.isEmpty()) {
-            return completion;
-        }
-        
-        // Only format Java files
-        if (!"java".equalsIgnoreCase(ctx.fileExtension())) {
-            return completion;
-        }
-        
-        try {
-            // Get the project for formatter settings
-            Map<String, String> options = getFormatterOptions(editor);
-            
-            if (options == null) {
-                return completion;
-            }
-            
-            // Create the formatter
-            CodeFormatter formatter = ToolFactory.createCodeFormatter(options);
-            
-            // Combine code before cursor with the completion to format in context
-            String codeBefore = ctx.codeBeforeCursor();
-            String combinedCode = codeBefore + completion;
-            
-            // Format just the completion part (from offset = codeBefore.length())
-            int completionOffset = codeBefore.length();
-            int completionLength = completion.length();
-            
-            // Format as statements (K_STATEMENTS works better for code fragments)
-            TextEdit textEdit = formatter.format(
-                CodeFormatter.K_STATEMENTS | CodeFormatter.F_INCLUDE_COMMENTS,
-                combinedCode,
-                completionOffset,
-                completionLength,
-                getIndentationLevel(codeBefore),
-                null
-            );
-            
-            if (textEdit == null) {
-                // Try formatting as unknown kind
-                textEdit = formatter.format(
-                    CodeFormatter.K_UNKNOWN,
-                    combinedCode,
-                    completionOffset,
-                    completionLength,
-                    getIndentationLevel(codeBefore),
-                    null
-                );
-            }
-            
-            if (textEdit == null) {
-                // Formatting failed, return original
-                return completion;
-            }
-            
-            // Apply the formatting to get the result
-            IDocument document = new Document(combinedCode);
-            textEdit.apply(document);
-            
-            // Extract the formatted completion (everything after the original code before cursor)
-            String formattedCombined = document.get();
-            
-            // The formatted code might have different length, so we need to extract the completion part
-            // by removing the (possibly reformatted) prefix
-            if (formattedCombined.length() > codeBefore.length()) {
-                // Find where the completion starts - look for the completion in the formatted result
-                String formattedCompletion = formattedCombined.substring(codeBefore.length());
-                return formattedCompletion;
-            }
-            
-            return completion;
-            
-        } catch (Exception e) {
-            logger.warn("Failed to format completion: " + e.getMessage());
-            return completion;
-        }
-    }
-    
-    /**
-     * Gets the formatter options for the given editor's project.
-     */
-    private Map<String, String> getFormatterOptions(ITextEditor editor) {
-        try {
-            // Try to get project from editor
-            if (editor.getEditorInput() instanceof IFileEditorInput) {
-                IFile file = ((IFileEditorInput) editor.getEditorInput()).getFile();
-                if (file != null && file.getProject() != null) {
-                    IJavaProject javaProject = JavaCore.create(file.getProject());
-                    if (javaProject != null && javaProject.exists()) {
-                        return javaProject.getOptions(true);
-                    }
-                }
-            }
-            
-            // Fall back to workspace defaults
-            return JavaCore.getOptions();
-        } catch (Exception e) {
-            return JavaCore.getOptions();
-        }
-    }
-    
-    /**
-     * Calculates the indentation level based on the code before cursor.
-     */
-    private int getIndentationLevel(String codeBefore) {
-        if (codeBefore == null || codeBefore.isEmpty()) {
-            return 0;
-        }
-        
-        // Find the last line
-        int lastNewline = codeBefore.lastIndexOf('\n');
-        String lastLine = (lastNewline >= 0) ? codeBefore.substring(lastNewline + 1) : codeBefore;
-        
-        // Count leading tabs/spaces
-        int indent = 0;
-        for (char c : lastLine.toCharArray()) {
-            if (c == '\t') {
-                indent++;
-            } else if (c == ' ') {
-                // Assuming 4 spaces = 1 indent level (common default)
-                // This will be adjusted by the formatter anyway
-            } else {
-                break;
-            }
-        }
-        
-        return indent;
     }
 }

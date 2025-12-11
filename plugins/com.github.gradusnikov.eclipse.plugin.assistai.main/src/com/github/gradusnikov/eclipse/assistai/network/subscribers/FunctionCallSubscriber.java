@@ -1,6 +1,7 @@
 package com.github.gradusnikov.eclipse.assistai.network.subscribers;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 
@@ -11,10 +12,18 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.gradusnikov.eclipse.assistai.chat.ConversationContext;
 import com.github.gradusnikov.eclipse.assistai.chat.FunctionCall;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.jobs.ExecuteFunctionCallJob;
 
+/**
+ * Subscriber that handles function call responses from the LLM.
+ * 
+ * This class is NOT a singleton - a new instance should be created for each
+ * request to ensure proper context isolation between different conversation flows
+ * (e.g., ChatView vs code completion).
+ */
 @Creatable
 public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
 {
@@ -25,11 +34,32 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
     
     private Subscription subscription;
     private final StringBuffer jsonBuffer;
-    ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper();
+    
+    private ConversationContext conversationContext;
     
     public FunctionCallSubscriber()
     {
         jsonBuffer = new StringBuffer();
+    }
+    
+    /**
+     * Sets the conversation context for this subscriber.
+     * Must be called before the subscriber is used.
+     * 
+     * @param context The conversation context to use for function call execution
+     */
+    public void setConversationContext( ConversationContext context )
+    {
+        this.conversationContext = Objects.requireNonNull( context, "ConversationContext cannot be null" );
+    }
+    
+    /**
+     * Returns the current conversation context.
+     */
+    public ConversationContext getConversationContext()
+    {
+        return conversationContext;
     }
     
     @Override
@@ -67,6 +97,15 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
             return;
         }
         
+        // Verify context is set
+        if ( conversationContext == null )
+        {
+            logger.error( "ConversationContext not set in FunctionCallSubscriber. Function calls will not be executed." );
+            jsonBuffer.setLength(0);
+            subscription.request(1);
+            return;
+        }
+        
         try
         {
             // Split by "function_call" to get individual calls
@@ -96,6 +135,13 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
                 String thoughtSignature = jsonNode.has("thoughtSignature") ? jsonNode.get("thoughtSignature").asText() : null;
                 
                 var functionCall = new FunctionCall(id, name, arguments, thoughtSignature);
+                
+                // Check if tool is allowed before scheduling
+                if ( !conversationContext.isToolAllowed( name ) )
+                {
+                    logger.warn( "Tool not allowed in context " + conversationContext.getContextId() + ": " + name );
+                    continue;
+                }
                 
                 scheduleFunctionCall(functionCall);
                 logger.info("Job scheduled: " + functionCall.id());
@@ -234,6 +280,7 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
     {
         ExecuteFunctionCallJob job = executeFunctionCallJobProvider.get();
         job.setFunctionCall( functionCall );
+        job.setConversationContext( conversationContext );
         job.schedule();
     }
 

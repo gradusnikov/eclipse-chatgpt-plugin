@@ -349,14 +349,33 @@ public class ResourceCache implements IResourceChangeListener {
         }
     }
     
+    /**
+     * Called when a resource content has changed.
+     * Updates the cached resource with new content if it exists in the cache.
+     * 
+     * @param path The workspace path of the changed resource
+     */
     public void resourceChanged( IPath path )
     {
         if ( workspacePathIndex.containsKey( path ) )
         {
-            invalidate(path);
+            // Try to get the IFile from the workspace
+            IResource resource = ResourcesPlugin.getWorkspace().getRoot().findMember(path);
+            if (resource instanceof IFile) {
+                updateCachedResource((IFile) resource, path);
+            } else {
+                // Can't get the file, fall back to invalidation
+                invalidate(path);
+            }
         }
     }
 
+    /**
+     * Called when a resource has been removed/deleted.
+     * Removes the resource from the cache.
+     * 
+     * @param path The workspace path of the removed resource
+     */
     public void resourceRemoved( IPath path )
     {
         if ( workspacePathIndex.containsKey( path ) )
@@ -388,9 +407,9 @@ public class ResourceCache implements IResourceChangeListener {
 
                     switch (delta.getKind()) {
                         case IResourceDelta.CHANGED:
-                            // Content changed - invalidate cache
+                            // Content changed - update cache with new content
                             if ((delta.getFlags() & IResourceDelta.CONTENT) != 0) {
-                                invalidate( path );
+                                updateCachedResource((IFile) resource, path);
                             }
                             break;
                         case IResourceDelta.REMOVED:
@@ -408,6 +427,67 @@ public class ResourceCache implements IResourceChangeListener {
         catch (CoreException e) 
         {
             logger.error("ResourceCache: Error processing resource change", e);
+        }
+    }
+    
+    /**
+     * Updates a cached resource with new content from the file.
+     * If the file is in the cache, reads the new content and updates the cache entry.
+     * 
+     * @param file The changed file
+     * @param path The workspace path of the file
+     */
+    private synchronized void updateCachedResource(IFile file, IPath path) {
+        URI uri = workspacePathIndex.get(path);
+        if (uri == null) {
+            // Not in cache, nothing to update
+            return;
+        }
+        
+        CachedResource existing = resources.get(uri);
+        if (existing == null) {
+            // Not in cache, nothing to update
+            return;
+        }
+        
+        try {
+            // Read new content from file
+            String newContent = readFileContent(file);
+            
+            // Create updated cached resource with incremented version
+            ResourceDescriptor descriptor = existing.descriptor();
+            int newVersion = existing.version() + 1;
+            CachedResource updated = CachedResource.create(descriptor, newContent, newVersion);
+            
+            // Replace in cache
+            resources.put(uri, updated);
+            
+            // Fire update event
+            fireCacheEvent(new ResourceCacheEvent(this, ResourceCacheEvent.Type.UPDATED, updated));
+            
+            logger.info("ResourceCache: Updated " + path + " (v" + newVersion + ", ~" + updated.estimateTokens() + " tokens)");
+            
+        } catch (Exception e) {
+            logger.error("ResourceCache: Failed to update cached resource " + path + ", invalidating instead", e);
+            // Fall back to invalidation if we can't read the file
+            invalidate(path);
+        }
+    }
+    
+    /**
+     * Reads the content of a file.
+     */
+    private String readFileContent(IFile file) throws CoreException, java.io.IOException {
+        try (java.io.InputStream is = file.getContents();
+             java.io.InputStreamReader reader = new java.io.InputStreamReader(is, file.getCharset());
+             java.io.BufferedReader bufferedReader = new java.io.BufferedReader(reader)) {
+            
+            StringBuilder content = new StringBuilder();
+            String line;
+            while ((line = bufferedReader.readLine()) != null) {
+                content.append(line).append("\n");
+            }
+            return content.toString();
         }
     }
     

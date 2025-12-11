@@ -11,6 +11,7 @@ public class ResourceCacheEvent extends EventObject {
     
     public enum Type {
         ADDED,
+        UPDATED,
         REMOVED,
         INVALIDATED,
         CLEARED

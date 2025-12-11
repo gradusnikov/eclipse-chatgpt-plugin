@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.ITextSelection;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.ui.IEditorPart;
@@ -155,6 +156,145 @@ public class EditorService
                        .map( IWorkbench::getActiveWorkbenchWindow )
                        .map( IWorkbenchWindow::getActivePage)
                        .map( IWorkbenchPage::getActiveEditor);
+    }
+    
+    /**
+     * Gets the code before the cursor in the currently active editor.
+     * 
+     * @return The code before the cursor, or empty string if not available
+     */
+    public String getCodeBeforeCursor()
+    {
+        return getActiveTextEditor()
+                .map(editor -> {
+                    IDocument document = editor.getDocumentProvider().getDocument(editor.getEditorInput());
+                    ISelection selection = editor.getSelectionProvider().getSelection();
+                    
+                    if (document != null && selection instanceof ITextSelection)
+                    {
+                        ITextSelection textSelection = (ITextSelection) selection;
+                        int offset = textSelection.getOffset();
+                        
+                        try
+                        {
+                            return document.get(0, offset);
+                        }
+                        catch (Exception e)
+                        {
+                            logger.error("Error getting code before cursor", e);
+                        }
+                    }
+                    return "";
+                })
+                .orElse("");
+    }
+    
+    /**
+     * Gets the code after the cursor in the currently active editor.
+     * 
+     * @return The code after the cursor, or empty string if not available
+     */
+    public String getCodeAfterCursor()
+    {
+        return getActiveTextEditor()
+                .map(editor -> {
+                    IDocument document = editor.getDocumentProvider().getDocument(editor.getEditorInput());
+                    ISelection selection = editor.getSelectionProvider().getSelection();
+                    
+                    if (document != null && selection instanceof ITextSelection)
+                    {
+                        ITextSelection textSelection = (ITextSelection) selection;
+                        int offset = textSelection.getOffset();
+                        int length = document.getLength();
+                        
+                        try
+                        {
+                            return document.get(offset, length - offset);
+                        }
+                        catch (Exception e)
+                        {
+                            logger.error("Error getting code after cursor", e);
+                        }
+                    }
+                    return "";
+                })
+                .orElse("");
+    }
+    
+    /**
+     * Gets the current cursor line number (1-based).
+     * 
+     * @return The line number as a string, or empty string if not available
+     */
+    public String getCursorLine()
+    {
+        return getActiveTextEditor()
+                .map(editor -> {
+                    IDocument document = editor.getDocumentProvider().getDocument(editor.getEditorInput());
+                    ISelection selection = editor.getSelectionProvider().getSelection();
+                    
+                    if (document != null && selection instanceof ITextSelection)
+                    {
+                        ITextSelection textSelection = (ITextSelection) selection;
+                        try
+                        {
+                            // getLine() returns 0-based line number, so add 1
+                            int line = document.getLineOfOffset(textSelection.getOffset()) + 1;
+                            return String.valueOf(line);
+                        }
+                        catch (Exception e)
+                        {
+                            logger.error("Error getting cursor line", e);
+                        }
+                    }
+                    return "";
+                })
+                .orElse("");
+    }
+    
+    /**
+     * Gets the current cursor column number (1-based).
+     * 
+     * @return The column number as a string, or empty string if not available
+     */
+    public String getCursorColumn()
+    {
+        return getActiveTextEditor()
+                .map(editor -> {
+                    IDocument document = editor.getDocumentProvider().getDocument(editor.getEditorInput());
+                    ISelection selection = editor.getSelectionProvider().getSelection();
+                    
+                    if (document != null && selection instanceof ITextSelection)
+                    {
+                        ITextSelection textSelection = (ITextSelection) selection;
+                        try
+                        {
+                            int offset = textSelection.getOffset();
+                            int lineOffset = document.getLineInformationOfOffset(offset).getOffset();
+                            // Column is 1-based
+                            int column = offset - lineOffset + 1;
+                            return String.valueOf(column);
+                        }
+                        catch (Exception e)
+                        {
+                            logger.error("Error getting cursor column", e);
+                        }
+                    }
+                    return "";
+                })
+                .orElse("");
+    }
+    
+    /**
+     * Gets the active text editor.
+     * 
+     * @return Optional containing the active ITextEditor, or empty if not available
+     */
+    private Optional<ITextEditor> getActiveTextEditor()
+    {
+        return getActiveEditor()
+                .filter(editor -> editor instanceof ITextEditor)
+                .map(editor -> (ITextEditor) editor);
     }
 
 }

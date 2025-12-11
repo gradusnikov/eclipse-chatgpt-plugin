@@ -53,6 +53,7 @@ import org.eclipse.ui.ide.IDE;
 import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.texteditor.ITextEditor;
 
+import com.github.gradusnikov.eclipse.assistai.completion.CompletionContext;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
 import jakarta.inject.Inject;
@@ -201,7 +202,6 @@ public class CodeEditingService
 	        IFileState previousState = history[0];
 	        
 	        var previousContentString = new String( ResourceUtilities.readInputStream(previousState.getContents()), Charset.forName( file.getCharset() ));
-	        String diff = generateCodeDiff(projectName, filePath, previousContentString, 3 );
 	        
 	        // Restore the file from the previous state
 	        try (ByteArrayInputStream source = new ByteArrayInputStream(previousContentString.getBytes(Charset.forName( file.getCharset() )))) 
@@ -397,14 +397,12 @@ public class CodeEditingService
     
     
 	/**
-	 * Inserts content before a specific line in an existing file.
-	 * The new content will be inserted BEFORE the specified line, and existing content 
-	 * at that line and below will be shifted down.
+	 * Inserts content after a specific line in an existing file.
 	 * 
 	 * @param projectName The name of the project containing the file
 	 * @param filePath The path to the file relative to the project root
 	 * @param content The content to insert into the file
-	 * @param atLine The line number before which to insert the text (1-based index, 0 or 1 for beginning of file)
+	 * @param atLine The line number after which to insert the text (0 for beginning of file)
 	 * @return A status message indicating success or failure
 	 */
 	public String insertIntoFile(String projectName, String filePath, String content, int atLine) 
@@ -1299,17 +1297,158 @@ public class CodeEditingService
         }
     }
 
-	/**
-	 * Creates a backup of the file by triggering Eclipse's local history mechanism.
-	 * Eclipse automatically maintains file history when content changes occur.
-	 * 
-	 * @param file The file to backup
-	 * @throws CoreException if backup operation fails
-	 */
-	private void backupFile(IFile file) throws CoreException 
-	{
-	    // Eclipse automatically maintains local history when file.setContents() is called
-	    // We just need to ensure the file is synchronized
-	    file.refreshLocal(IResource.DEPTH_ZERO, null);
-	}
+    /**
+     * Formats a code completion snippet using Eclipse's code formatter.
+     * The completion is formatted in context by combining it with the code before the cursor,
+     * formatting the combined code, and then extracting the formatted completion.
+     * 
+     * @param completion The raw completion text from the LLM
+     * @param ctx The completion context containing code before/after cursor
+     * @param editor The text editor (used to get project-specific formatter settings)
+     * @return The formatted completion, or the original if formatting fails
+     */
+    public String formatCompletion(String completion, CompletionContext ctx, ITextEditor editor) {
+        if (completion == null || completion.isEmpty()) {
+            return completion;
+        }
+        
+        // Only format Java files
+        if (!"java".equalsIgnoreCase(ctx.fileExtension())) {
+            return completion;
+        }
+        
+        try {
+            // Get the project for formatter settings
+            Map<String, String> options = getFormatterOptionsForEditor(editor);
+            
+            if (options == null) {
+                return completion;
+            }
+            
+            // Create the formatter
+            CodeFormatter formatter = ToolFactory.createCodeFormatter(options);
+            
+            // Combine code before cursor with the completion to format in context
+            String codeBefore = ctx.codeBeforeCursor();
+            String combinedCode = codeBefore + completion;
+            
+            // Format just the completion part (from offset = codeBefore.length())
+            int completionOffset = codeBefore.length();
+            int completionLength = completion.length();
+            
+            // Format as statements (K_STATEMENTS works better for code fragments)
+            TextEdit textEdit = formatter.format(
+                CodeFormatter.K_STATEMENTS | CodeFormatter.F_INCLUDE_COMMENTS,
+                combinedCode,
+                completionOffset,
+                completionLength,
+                getIndentationLevel(codeBefore),
+                null
+            );
+            
+            if (textEdit == null) {
+                // Try formatting as unknown kind
+                textEdit = formatter.format(
+                    CodeFormatter.K_UNKNOWN,
+                    combinedCode,
+                    completionOffset,
+                    completionLength,
+                    getIndentationLevel(codeBefore),
+                    null
+                );
+            }
+            
+            if (textEdit == null) {
+                // Formatting failed, return original
+                return completion;
+            }
+            
+            // Apply the formatting to get the result
+            IDocument document = new Document(combinedCode);
+            textEdit.apply(document);
+            
+            // Extract the formatted completion (everything after the original code before cursor)
+            String formattedCombined = document.get();
+            
+            // The formatted code might have different length, so we need to extract the completion part
+            // by removing the (possibly reformatted) prefix
+            if (formattedCombined.length() > codeBefore.length()) {
+                // Find where the completion starts - look for the completion in the formatted result
+                String formattedCompletion = formattedCombined.substring(codeBefore.length());
+                return formattedCompletion;
+            }
+            
+            return completion;
+            
+        } catch (Exception e) {
+            logger.warn("Failed to format completion: " + e.getMessage());
+            return completion;
+        }
+    }
+    
+    /**
+     * Gets the formatter options for the given editor's project.
+     */
+    private Map<String, String> getFormatterOptionsForEditor(ITextEditor editor) {
+        try {
+            // Try to get project from editor
+            if (editor.getEditorInput() instanceof IFileEditorInput) {
+                IFile file = ((IFileEditorInput) editor.getEditorInput()).getFile();
+                if (file != null && file.getProject() != null) {
+                    IJavaProject javaProject = JavaCore.create(file.getProject());
+                    if (javaProject != null && javaProject.exists()) {
+                        return javaProject.getOptions(true);
+                    }
+                }
+            }
+            
+            // Fall back to workspace defaults
+            return JavaCore.getOptions();
+        } catch (Exception e) {
+            return JavaCore.getOptions();
+        }
+    }
+    
+    /**
+     * Calculates the indentation level based on the code before cursor.
+     */
+    private int getIndentationLevel(String codeBefore) {
+        if (codeBefore == null || codeBefore.isEmpty()) {
+            return 0;
+        }
+        
+        // Find the last line
+        int lastNewline = codeBefore.lastIndexOf('\n');
+        String lastLine = (lastNewline >= 0) ? codeBefore.substring(lastNewline + 1) : codeBefore;
+        
+        // Count leading tabs/spaces
+        int indent = 0;
+        for (char c : lastLine.toCharArray()) {
+            if (c == '\t') {
+                indent++;
+            } else if (c == ' ') {
+                // Assuming 4 spaces = 1 indent level (common default)
+                // This will be adjusted by the formatter anyway
+            } else {
+                break;
+            }
+        }
+        
+        return indent;
+    }
+    
+    /**
+     * Creates a backup of the file by triggering Eclipse's local history mechanism.
+     * Eclipse automatically maintains file history when content changes occur.
+     * 
+     * @param file The file to backup
+     * @throws CoreException if backup operation fails
+     */
+    private void backupFile(IFile file) throws CoreException 
+    {
+        // Eclipse automatically maintains local history when file.setContents() is called
+        // We just need to ensure the file is synchronized
+        file.refreshLocal(IResource.DEPTH_ZERO, null);
+    }
+    
 }

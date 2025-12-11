@@ -163,6 +163,7 @@ public class ChatViewPresenter implements IResourceCacheListener
         onStop();
         conversation.clear();
         attachments.clear();
+        resourceCache.clear();
         applyToView( view -> {
             view.clearChatView();
             view.clearUserInput();

@@ -8,9 +8,11 @@ import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
+import com.github.gradusnikov.eclipse.assistai.chat.ConversationContext;
 import com.github.gradusnikov.eclipse.assistai.network.clients.ChatLanguageModelHttpClientProvider;
 
 import jakarta.inject.Inject;
+import jakarta.inject.Provider;
 
 @Creatable
 public class SendConversationJob extends Job
@@ -24,6 +26,9 @@ public class SendConversationJob extends Job
     @Inject
     private Conversation conversation;
     
+    @Inject
+    private Provider<SendConversationJob> selfProvider;
+    
     public SendConversationJob()
     {
         super( AssistAIJobConstants.JOB_PREFIX + " is working." );
@@ -34,11 +39,30 @@ public class SendConversationJob extends Job
 	@Override
 	protected IStatus run(IProgressMonitor progressMonitor) 
 	{
-	    var aiClient = clientProvider.get();
+	    // Create a conversation context for the ChatView
+	    // This context wraps the singleton conversation and schedules
+	    // another SendConversationJob when function calls complete
+	    ConversationContext context = ConversationContext.builder()
+	            .contextId( "chat-view" )
+	            .conversation( conversation )
+	            .onFunctionResult( (functionCall, result) -> {
+	                // Function result handling is done by ExecuteFunctionCallJob
+	                // which adds messages to the conversation
+	                logger.info( "Function call completed: " + functionCall.name() );
+	            })
+	            .onConversationContinue( () -> {
+	                // Schedule another job to continue the conversation
+	                selfProvider.get().schedule();
+	            })
+	            // No tool restrictions for ChatView - all tools allowed
+	            .allowedTools( null )
+	            .build();
+	    
+	    var aiClient = clientProvider.get( context );
 	    aiClient.setCancelProvider(() -> progressMonitor.isCanceled()); 
 	    
         // Get the runnable from the client
-        Runnable task = aiClient.run(conversation);
+        Runnable task = aiClient.run( context.getConversation() );
         try
         {
         	task.run();
@@ -54,6 +78,5 @@ public class SendConversationJob extends Job
         }
         return Status.OK_STATUS;
 	}
-
 
 }

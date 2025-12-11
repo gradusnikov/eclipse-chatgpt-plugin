@@ -17,7 +17,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
-import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
+import com.github.gradusnikov.eclipse.assistai.chat.ConversationContext;
 import com.github.gradusnikov.eclipse.assistai.chat.FunctionCall;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.resources.CachedResource;
@@ -29,7 +29,6 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import jakarta.inject.Inject;
-import jakarta.inject.Provider;
 
 @Creatable
 public class ExecuteFunctionCallJob extends Job
@@ -42,18 +41,14 @@ public class ExecuteFunctionCallJob extends Job
     private ILog                          logger;
 
     @Inject
-    private Provider<SendConversationJob> sendConversationJobProvider;
-
-    @Inject
-    private Conversation                  conversation;
-
-    @Inject
-    private InMemoryMcpClientRetistry             mcpClientRetistry;
+    private InMemoryMcpClientRetistry     mcpClientRetistry;
 
     @Inject
     private ResourceCache                 resourceCache;
 
     private FunctionCall                  functionCall;
+    
+    private ConversationContext           conversationContext;
 
 
 	// In ExecuteFunctionCallJob.java, add a job rule in the constructor
@@ -67,6 +62,7 @@ public class ExecuteFunctionCallJob extends Job
     protected IStatus run( IProgressMonitor monitor )
     {
         Objects.requireNonNull( functionCall, "Function call cannot be null" );
+        Objects.requireNonNull( conversationContext, "Conversation context cannot be null" );
 
         try
         {
@@ -82,6 +78,11 @@ public class ExecuteFunctionCallJob extends Job
     public void setFunctionCall( FunctionCall functionCall )
     {
         this.functionCall = functionCall;
+    }
+    
+    public void setConversationContext( ConversationContext context )
+    {
+        this.conversationContext = context;
     }
 
     private IStatus executeFunctionCall()
@@ -99,6 +100,13 @@ public class ExecuteFunctionCallJob extends Job
 
         String clientName = clientToolName.substring( 0, separatorIndex );
         String toolName = clientToolName.substring( separatorIndex + CLIENT_TOOL_SEPARATOR.length() );
+
+        // Check if tool is allowed in this context
+        if ( !conversationContext.isToolAllowed( clientToolName ) )
+        {
+            logger.warn( "Tool not allowed in this context: " + clientToolName );
+            return handleToolNotAllowed( clientToolName );
+        }
 
         // Create tool request
         CallToolRequest request = new CallToolRequest( toolName, functionCall.arguments() );
@@ -122,6 +130,16 @@ public class ExecuteFunctionCallJob extends Job
         }
     }
 
+    private IStatus handleToolNotAllowed( String toolName )
+    {
+        // Create an error result for disallowed tool
+        CallToolResult errorResult = new CallToolResult(
+            List.of( new McpSchema.TextContent( "Tool '" + toolName + "' is not allowed in this context." ) ),
+            true // isError
+        );
+        return handleFunctionResult( errorResult );
+    }
+
     private IStatus handleFunctionResult( CallToolResult result )
     {
         logger.info( "Finished function call " + functionCall.name() 
@@ -130,14 +148,22 @@ public class ExecuteFunctionCallJob extends Job
         {
             // 1. Create assistant message with function call
             ChatMessage assistantMessage = createAssistantMessage();
-            conversation.add( assistantMessage );
+            conversationContext.addMessage( assistantMessage );
 
             // 2. Create function result message
             ChatMessage resultMessage = createFunctionResultMessage( result );
-            conversation.add( resultMessage );
+            conversationContext.addMessage( resultMessage );
 
-            // 3. Send updated conversation to LLM
-            scheduleConversationSending();
+            // 3. Notify context of function result
+            conversationContext.handleFunctionResult( functionCall, result );
+
+            // 4. Continue conversation if context supports it
+            logger.info( "Checking if conversation should continue: " + conversationContext.shouldContinueConversation() + " (context: " + conversationContext.getContextId() + ")" );
+            if ( conversationContext.shouldContinueConversation() )
+            {
+                logger.info( "Calling continueConversation() for context: " + conversationContext.getContextId() );
+                conversationContext.continueConversation();
+            }
 
             return Status.OK_STATUS;
         }
@@ -226,12 +252,6 @@ public class ExecuteFunctionCallJob extends Job
             // Caching failed, return full content
             return resourceResult.content();
         }
-    }
-
-    private void scheduleConversationSending()
-    {
-        SendConversationJob job = sendConversationJobProvider.get();
-        job.schedule();
     }
 
     private IStatus handleExecutionError( Throwable throwable )
