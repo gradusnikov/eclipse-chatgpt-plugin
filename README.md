@@ -61,6 +61,16 @@ To use a local or third-party model, configure it using the OpenAI protocol form
 | eclipse-coder | replaceString | Replaces a specific string in a file with a new string, optionally within a specified line range. |
 | eclipse-coder | undoEdit | Undoes the last edit operation by restoring a file from its backup. |
 | eclipse-coder | createDirectories | Creates a directory structure (recursively) in the specified project. |
+| eclipse-coder | renameFile | Renames a file in the specified project. |
+| eclipse-coder | deleteFile | Deletes a file from the specified project. |
+| eclipse-coder | replaceFileContent | Replaces the entire content of a file with new content. |
+| eclipse-coder | deleteLinesInFile | Deletes a range of lines in a file, using 1-based line indexing. |
+| eclipse-coder | refactorRenameJavaType | Renames a Java class/interface/enum using Eclipse's refactoring mechanism, updating the type name, file name, and all references throughout the workspace. |
+| eclipse-coder | refactorMoveJavaType | Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism, updating the package declaration and all references. |
+| eclipse-coder | refactorRenamePackage | Renames a Java package using Eclipse's refactoring mechanism, updating all package declarations and references throughout the workspace. |
+| eclipse-coder | moveResource | Moves a file or folder to a different location within the project. |
+| eclipse-coder | organizeImports | Organizes imports in a Java file (removes unused, adds missing, sorts). Equivalent to Ctrl+Shift+O. |
+| eclipse-coder | organizeImportsInPackage | Organizes imports in all Java files within a package. |
 | eclipse-ide | formatCode | Formats code according to the current Eclipse formatter settings. |
 | eclipse-ide | getJavaDoc | Get the JavaDoc for the given compilation unit. |
 | eclipse-ide | getSource | Get the source for the given class. |
@@ -78,6 +88,10 @@ To use a local or third-party model, configure it using the OpenAI protocol form
 | eclipse-ide | runClassTests | Runs tests for a specific class and returns the results. |
 | eclipse-ide | runTestMethod | Runs a specific test method and returns the results. |
 | eclipse-ide | findTestClasses | Finds all test classes in a project. |
+| eclipse-ide | runMavenBuild | Runs a Maven build with the specified goals on a project. |
+| eclipse-ide | getEffectivePom | Gets the effective POM for a Maven project. |
+| eclipse-ide | listMavenProjects | Lists all available Maven projects in the workspace. |
+| eclipse-ide | getProjectDependencies | Gets Maven project dependencies. |
 | memory | think | Use this tool to think about something without obtaining new information or performing changes. |
 | webpage-reader | readWebPage | Reads the content of the given web site and returns its content as a markdown text. |
 | time | currentTime | Returns the current date and time in the following format: yyyy-MM-dd HH:mm:ss |

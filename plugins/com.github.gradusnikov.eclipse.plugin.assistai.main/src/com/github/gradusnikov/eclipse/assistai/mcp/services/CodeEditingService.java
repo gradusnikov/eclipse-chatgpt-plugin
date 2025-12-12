@@ -25,12 +25,27 @@ import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
+import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
+import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.IPackageFragment;
+import org.eclipse.jdt.core.IPackageFragmentRoot;
+import org.eclipse.jdt.core.ISourceRange;
+import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
+import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.core.ToolFactory;
 import org.eclipse.jdt.core.formatter.CodeFormatter;
+import org.eclipse.jdt.core.manipulation.OrganizeImportsOperation;
+import org.eclipse.jdt.core.manipulation.OrganizeImportsOperation.IChooseImportQuery;
+import org.eclipse.jdt.core.refactoring.IJavaRefactorings;
+import org.eclipse.jdt.core.refactoring.descriptors.MoveDescriptor;
+import org.eclipse.jdt.core.refactoring.descriptors.RenameJavaElementDescriptor;
+import org.eclipse.jdt.core.search.TypeNameMatch;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.Document;
 import org.eclipse.jface.text.IDocument;
@@ -39,6 +54,12 @@ import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.diff.HistogramDiff;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.diff.RawTextComparator;
+import org.eclipse.ltk.core.refactoring.Change;
+import org.eclipse.ltk.core.refactoring.Refactoring;
+import org.eclipse.ltk.core.refactoring.RefactoringContribution;
+import org.eclipse.ltk.core.refactoring.RefactoringCore;
+import org.eclipse.ltk.core.refactoring.RefactoringDescriptor;
+import org.eclipse.ltk.core.refactoring.RefactoringStatus;
 import org.eclipse.text.edits.MalformedTreeException;
 import org.eclipse.text.edits.TextEdit;
 import org.eclipse.ui.IEditorInput;
@@ -1064,6 +1085,929 @@ public class CodeEditingService
         {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Renames a Java compilation unit (class/interface/enum) using Eclipse's refactoring mechanism.
+     * This updates the class name, file name, and all references throughout the project.
+     * 
+     * @param projectName The name of the project containing the Java file
+     * @param filePath The path to the Java file relative to the project root
+     * @param newTypeName The new name for the type (without .java extension)
+     * @return A status message indicating success or failure
+     */
+    public String refactorRenameJavaType(String projectName, String filePath, String newTypeName)
+    {
+        Objects.requireNonNull(projectName);
+        Objects.requireNonNull(filePath);
+        Objects.requireNonNull(newTypeName);
+        
+        if (projectName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+        }
+        if (filePath.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: File path cannot be empty.");
+        }
+        if (newTypeName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: New type name cannot be empty.");
+        }
+        
+        // Remove .java extension if provided
+        if (newTypeName.endsWith(".java"))
+        {
+            newTypeName = newTypeName.substring(0, newTypeName.length() - 5);
+        }
+        
+        final String finalNewTypeName = newTypeName;
+        
+        try 
+        {
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject(projectName);
+            
+            if (!project.exists()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+            }
+            if (!project.isOpen()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+            }
+            
+            // Get the Java project
+            IJavaProject javaProject = JavaCore.create(project);
+            if (javaProject == null || !javaProject.exists())
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is not a Java project.");
+            }
+            
+            IPath path = IPath.fromPath(Path.of(filePath));
+            IFile file = project.getFile(path);
+            
+            if (!file.exists()) 
+            {
+                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+            }
+            
+            if (!filePath.endsWith(".java"))
+            {
+                throw new RuntimeException("Error: File '" + filePath + "' is not a Java file. Use renameFile for non-Java files.");
+            }
+            
+            // Get the compilation unit
+            IJavaElement javaElement = JavaCore.create(file);
+            if (!(javaElement instanceof ICompilationUnit))
+            {
+                throw new RuntimeException("Error: Could not resolve Java compilation unit for file '" + filePath + "'.");
+            }
+            
+            ICompilationUnit compilationUnit = (ICompilationUnit) javaElement;
+            
+            // Get the primary type
+            IType primaryType = compilationUnit.findPrimaryType();
+            if (primaryType == null)
+            {
+                throw new RuntimeException("Error: Could not find primary type in file '" + filePath + "'.");
+            }
+            
+            String oldTypeName = primaryType.getElementName();
+            
+            // Close the editor if the file is open (to avoid conflicts)
+            sync.syncExec(() -> 
+            {
+                IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+                if (page != null) 
+                {
+                    IEditorPart editor = page.findEditor(new FileEditorInput(file));
+                    if (editor != null) 
+                    {
+                        page.closeEditor(editor, true); // save before closing
+                    }
+                }
+            });
+            
+            // Create the rename refactoring descriptor
+            RefactoringContribution contribution = RefactoringCore.getRefactoringContribution(IJavaRefactorings.RENAME_TYPE);
+            RenameJavaElementDescriptor descriptor = (RenameJavaElementDescriptor) contribution.createDescriptor();
+            
+            descriptor.setJavaElement(primaryType);
+            descriptor.setNewName(finalNewTypeName);
+            descriptor.setUpdateReferences(true);
+            descriptor.setUpdateSimilarDeclarations(false);
+            descriptor.setUpdateTextualOccurrences(false);
+            
+            // Create and validate the refactoring
+            RefactoringStatus status = new RefactoringStatus();
+            Refactoring refactoring = descriptor.createRefactoring(status);
+            
+            if (status.hasFatalError())
+            {
+                throw new RuntimeException("Error creating refactoring: " + status.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+            }
+            
+            // Check initial conditions
+            IProgressMonitor monitor = new NullProgressMonitor();
+            RefactoringStatus checkStatus = refactoring.checkInitialConditions(monitor);
+            if (checkStatus.hasFatalError())
+            {
+                throw new RuntimeException("Error in initial conditions: " + checkStatus.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+            }
+            
+            // Check final conditions
+            checkStatus = refactoring.checkFinalConditions(monitor);
+            if (checkStatus.hasFatalError())
+            {
+                throw new RuntimeException("Error in final conditions: " + checkStatus.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+            }
+            
+            // Perform the refactoring
+            Change change = refactoring.createChange(monitor);
+            change.perform(monitor);
+            
+            // Refresh the project
+            project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
+            
+            // Build the new file path to open
+            String newFilePath = filePath.replace(oldTypeName + ".java", finalNewTypeName + ".java");
+            IFile newFile = project.getFile(IPath.fromPath(Path.of(newFilePath)));
+            
+            // Open the renamed file in the editor
+            sync.asyncExec(() -> {
+                if (newFile.exists())
+                {
+                    safeOpenEditor(newFile);
+                }
+            });
+            
+            StringBuilder result = new StringBuilder();
+            result.append("Success: Java type '").append(oldTypeName).append("' renamed to '").append(finalNewTypeName).append("'.\n");
+            result.append("File renamed from '").append(filePath).append("' to '").append(newFilePath).append("'.\n");
+            result.append("All references have been updated.");
+            
+            return result.toString();
+        } 
+        catch (CoreException e) 
+        {
+            throw new RuntimeException("Error during refactoring: " + ExceptionUtils.getRootCauseMessage(e), e);
+        }
+    }
+
+    /**
+     * Moves a Java compilation unit to a different package using Eclipse's refactoring mechanism.
+     * This updates the package declaration and all references throughout the workspace.
+     * 
+     * @param projectName The name of the project containing the Java file
+     * @param filePath The path to the Java file relative to the project root
+     * @param targetPackage The fully qualified name of the target package (e.g., "com.example.newpackage")
+     * @return A status message indicating success or failure
+     */
+    public String refactorMoveJavaType(String projectName, String filePath, String targetPackage)
+    {
+        Objects.requireNonNull(projectName);
+        Objects.requireNonNull(filePath);
+        Objects.requireNonNull(targetPackage);
+        
+        if (projectName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+        }
+        if (filePath.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: File path cannot be empty.");
+        }
+        
+        try 
+        {
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject(projectName);
+            
+            if (!project.exists()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+            }
+            if (!project.isOpen()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+            }
+            
+            // Get the Java project
+            IJavaProject javaProject = JavaCore.create(project);
+            if (javaProject == null || !javaProject.exists())
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is not a Java project.");
+            }
+            
+            IPath path = IPath.fromPath(Path.of(filePath));
+            IFile file = project.getFile(path);
+            
+            if (!file.exists()) 
+            {
+                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+            }
+            
+            if (!filePath.endsWith(".java"))
+            {
+                throw new RuntimeException("Error: File '" + filePath + "' is not a Java file.");
+            }
+            
+            // Get the compilation unit
+            IJavaElement javaElement = JavaCore.create(file);
+            if (!(javaElement instanceof ICompilationUnit))
+            {
+                throw new RuntimeException("Error: Could not resolve Java compilation unit for file '" + filePath + "'.");
+            }
+            
+            ICompilationUnit compilationUnit = (ICompilationUnit) javaElement;
+            IType primaryType = compilationUnit.findPrimaryType();
+            
+            if (primaryType == null)
+            {
+                throw new RuntimeException("Error: Could not find primary type in file '" + filePath + "'.");
+            }
+            
+            String typeName = primaryType.getElementName();
+            String oldPackageName = primaryType.getPackageFragment().getElementName();
+            
+            // Find or create the target package
+            IPackageFragment targetPackageFragment = findOrCreatePackage(javaProject, targetPackage);
+            
+            // Close the editor if the file is open
+            sync.syncExec(() -> 
+            {
+                IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+                if (page != null) 
+                {
+                    IEditorPart editor = page.findEditor(new FileEditorInput(file));
+                    if (editor != null) 
+                    {
+                        page.closeEditor(editor, true);
+                    }
+                }
+            });
+            
+            // Create the move refactoring descriptor
+            RefactoringContribution contribution = RefactoringCore.getRefactoringContribution(IJavaRefactorings.MOVE);
+            MoveDescriptor descriptor = (MoveDescriptor) contribution.createDescriptor();
+            
+            descriptor.setDestination(targetPackageFragment);
+            descriptor.setMoveResources(new IFile[0], new IFolder[0], new ICompilationUnit[] { compilationUnit });
+            descriptor.setUpdateReferences(true);
+            descriptor.setUpdateQualifiedNames(false);
+            
+            // Create and validate the refactoring
+            RefactoringStatus status = new RefactoringStatus();
+            Refactoring refactoring = descriptor.createRefactoring(status);
+            
+            if (status.hasFatalError())
+            {
+                throw new RuntimeException("Error creating refactoring: " + status.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+            }
+            
+            // Check initial conditions
+            IProgressMonitor monitor = new NullProgressMonitor();
+            RefactoringStatus checkStatus = refactoring.checkInitialConditions(monitor);
+            if (checkStatus.hasFatalError())
+            {
+                throw new RuntimeException("Error in initial conditions: " + checkStatus.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+            }
+            
+            // Check final conditions
+            checkStatus = refactoring.checkFinalConditions(monitor);
+            if (checkStatus.hasFatalError())
+            {
+                throw new RuntimeException("Error in final conditions: " + checkStatus.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+            }
+            
+            // Perform the refactoring
+            Change change = refactoring.createChange(monitor);
+            change.perform(monitor);
+            
+            // Refresh the project
+            project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
+            
+            // Build the new file path
+            String packagePath = targetPackage.replace('.', '/');
+            IPackageFragmentRoot sourceRoot = (IPackageFragmentRoot) compilationUnit.getParent().getParent();
+            String sourceRootPath = sourceRoot.getResource().getProjectRelativePath().toString();
+            String newFilePath = sourceRootPath + "/" + packagePath + "/" + typeName + ".java";
+            
+            IFile newFile = project.getFile(IPath.fromPath(Path.of(newFilePath)));
+            
+            // Open the moved file in the editor
+            sync.asyncExec(() -> {
+                if (newFile.exists())
+                {
+                    safeOpenEditor(newFile);
+                }
+            });
+            
+            StringBuilder result = new StringBuilder();
+            result.append("Success: Java type '").append(typeName).append("' moved from package '").append(oldPackageName);
+            result.append("' to '").append(targetPackage).append("'.\n");
+            result.append("New file location: '").append(newFilePath).append("'.\n");
+            result.append("All references have been updated.");
+            
+            return result.toString();
+        } 
+        catch (CoreException e) 
+        {
+            throw new RuntimeException("Error during refactoring: " + ExceptionUtils.getRootCauseMessage(e), e);
+        }
+    }
+
+    /**
+     * Renames a Java package using Eclipse's refactoring mechanism.
+     * This renames the package directory, updates all package declarations in contained files,
+     * and updates all references throughout the workspace.
+     * 
+     * @param projectName The name of the project containing the package
+     * @param packageName The current fully qualified package name (e.g., "com.example.oldpackage")
+     * @param newPackageName The new package name (can be just the last segment or full path)
+     * @return A status message indicating success or failure
+     */
+    public String refactorRenamePackage(String projectName, String packageName, String newPackageName)
+    {
+        Objects.requireNonNull(projectName);
+        Objects.requireNonNull(packageName);
+        Objects.requireNonNull(newPackageName);
+        
+        if (projectName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+        }
+        if (packageName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Package name cannot be empty.");
+        }
+        if (newPackageName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: New package name cannot be empty.");
+        }
+        
+        try 
+        {
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject(projectName);
+            
+            if (!project.exists()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+            }
+            if (!project.isOpen()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+            }
+            
+            // Get the Java project
+            IJavaProject javaProject = JavaCore.create(project);
+            if (javaProject == null || !javaProject.exists())
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is not a Java project.");
+            }
+            
+            // Find the package
+            IPackageFragment packageFragment = findPackage(javaProject, packageName);
+            if (packageFragment == null)
+            {
+                throw new RuntimeException("Error: Package '" + packageName + "' not found in project '" + projectName + "'.");
+            }
+            
+            // Close all editors for files in this package
+            sync.syncExec(() -> 
+            {
+                try 
+                {
+                    IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+                    if (page != null) 
+                    {
+                        for (ICompilationUnit cu : packageFragment.getCompilationUnits())
+                        {
+                            IFile file = (IFile) cu.getResource();
+                            IEditorPart editor = page.findEditor(new FileEditorInput(file));
+                            if (editor != null) 
+                            {
+                                page.closeEditor(editor, true);
+                            }
+                        }
+                    }
+                }
+                catch (JavaModelException e)
+                {
+                    logger.error("Error closing editors: " + e.getMessage());
+                }
+            });
+            
+            // Create the rename refactoring descriptor
+            RefactoringContribution contribution = RefactoringCore.getRefactoringContribution(IJavaRefactorings.RENAME_PACKAGE);
+            RenameJavaElementDescriptor descriptor = (RenameJavaElementDescriptor) contribution.createDescriptor();
+            
+            descriptor.setJavaElement(packageFragment);
+            descriptor.setNewName(newPackageName);
+            descriptor.setUpdateReferences(true);
+            descriptor.setUpdateTextualOccurrences(false);
+            descriptor.setUpdateHierarchy(true);
+            
+            // Create and validate the refactoring
+            RefactoringStatus status = new RefactoringStatus();
+            Refactoring refactoring = descriptor.createRefactoring(status);
+            
+            if (status.hasFatalError())
+            {
+                throw new RuntimeException("Error creating refactoring: " + status.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+            }
+            
+            // Check initial conditions
+            IProgressMonitor monitor = new NullProgressMonitor();
+            RefactoringStatus checkStatus = refactoring.checkInitialConditions(monitor);
+            if (checkStatus.hasFatalError())
+            {
+                throw new RuntimeException("Error in initial conditions: " + checkStatus.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+            }
+            
+            // Check final conditions
+            checkStatus = refactoring.checkFinalConditions(monitor);
+            if (checkStatus.hasFatalError())
+            {
+                throw new RuntimeException("Error in final conditions: " + checkStatus.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+            }
+            
+            // Perform the refactoring
+            Change change = refactoring.createChange(monitor);
+            change.perform(monitor);
+            
+            // Refresh the project
+            project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
+            
+            StringBuilder result = new StringBuilder();
+            result.append("Success: Package '").append(packageName).append("' renamed to '").append(newPackageName).append("'.\n");
+            result.append("All package declarations and references have been updated.");
+            
+            return result.toString();
+        } 
+        catch (CoreException e) 
+        {
+            throw new RuntimeException("Error during refactoring: " + ExceptionUtils.getRootCauseMessage(e), e);
+        }
+    }
+
+    /**
+     * Organizes imports in a Java file using Eclipse's organize imports mechanism.
+     * This removes unused imports, adds missing imports, and sorts them according to project settings.
+     * 
+     * @param projectName The name of the project containing the Java file
+     * @param filePath The path to the Java file relative to the project root
+     * @return A status message indicating success or failure with details of changes made
+     */
+    public String organizeImports(String projectName, String filePath)
+    {
+        Objects.requireNonNull(projectName);
+        Objects.requireNonNull(filePath);
+        
+        if (projectName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+        }
+        if (filePath.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: File path cannot be empty.");
+        }
+        
+        try 
+        {
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject(projectName);
+            
+            if (!project.exists()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+            }
+            if (!project.isOpen()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+            }
+            
+            // Get the Java project
+            IJavaProject javaProject = JavaCore.create(project);
+            if (javaProject == null || !javaProject.exists())
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is not a Java project.");
+            }
+            
+            IPath path = IPath.fromPath(Path.of(filePath));
+            IFile file = project.getFile(path);
+            
+            if (!file.exists()) 
+            {
+                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+            }
+            
+            if (!filePath.endsWith(".java"))
+            {
+                throw new RuntimeException("Error: File '" + filePath + "' is not a Java file.");
+            }
+            
+            // Get the compilation unit
+            IJavaElement javaElement = JavaCore.create(file);
+            if (!(javaElement instanceof ICompilationUnit))
+            {
+                throw new RuntimeException("Error: Could not resolve Java compilation unit for file '" + filePath + "'.");
+            }
+            
+            ICompilationUnit compilationUnit = (ICompilationUnit) javaElement;
+            
+            // Refresh the editor if the file is open
+            sync.syncExec(() -> 
+            {
+                safeOpenEditor(file);
+                refreshEditor(file);
+            });
+            
+            // Get the original imports for comparison
+            String originalSource = compilationUnit.getSource();
+            String originalImports = extractImportSection(originalSource);
+            
+            // Create a choose import query that automatically selects the first option
+            // This handles cases where there are multiple types with the same simple name
+            IChooseImportQuery chooseImportQuery = new IChooseImportQuery() {
+                @Override
+                public TypeNameMatch[] chooseImports(TypeNameMatch[][] openChoices, ISourceRange[] ranges) {
+                    // Automatically choose the first option for each ambiguous import
+                    TypeNameMatch[] result = new TypeNameMatch[openChoices.length];
+                    for (int i = 0; i < openChoices.length; i++) {
+                        if (openChoices[i].length > 0) {
+                            result[i] = openChoices[i][0];
+                        }
+                    }
+                    return result;
+                }
+            };
+            
+            // Create and run the organize imports operation
+            IProgressMonitor monitor = new NullProgressMonitor();
+            OrganizeImportsOperation operation = new OrganizeImportsOperation(
+                compilationUnit,
+                null, // astRoot - will be created automatically
+                true, // ignoreLowerCaseNames
+                true, // save
+                true, // allowSyntaxErrors
+                chooseImportQuery
+            );
+            
+            // Execute the operation
+            operation.run(monitor);
+            
+            // Refresh the compilation unit to get the updated source
+            compilationUnit.getResource().refreshLocal(IResource.DEPTH_ZERO, monitor);
+            
+            // Get the new imports for comparison
+            String newSource = compilationUnit.getSource();
+            String newImports = extractImportSection(newSource);
+            
+            // Refresh the editor
+            sync.asyncExec(() -> {
+                refreshEditor(file);
+            });
+            
+            // Build the result message
+            StringBuilder result = new StringBuilder();
+            result.append("Success: Imports organized in file '").append(filePath).append("'.\n");
+            
+            if (originalImports.equals(newImports)) {
+                result.append("No changes were necessary - imports were already organized.");
+            } else {
+                result.append("\nUpdated imports:\n```java\n").append(newImports).append("\n```");
+            }
+            
+            return result.toString();
+        } 
+        catch (CoreException e) 
+        {
+            throw new RuntimeException("Error during organize imports: " + ExceptionUtils.getRootCauseMessage(e), e);
+        }
+    }
+
+    /**
+     * Organizes imports in all Java files within a package.
+     * 
+     * @param projectName The name of the project containing the package
+     * @param packageName The fully qualified package name (e.g., "com.example.mypackage")
+     * @return A status message indicating success or failure
+     */
+    public String organizeImportsInPackage(String projectName, String packageName)
+    {
+        Objects.requireNonNull(projectName);
+        Objects.requireNonNull(packageName);
+        
+        if (projectName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+        }
+        if (packageName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Package name cannot be empty.");
+        }
+        
+        try 
+        {
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject(projectName);
+            
+            if (!project.exists()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+            }
+            if (!project.isOpen()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+            }
+            
+            // Get the Java project
+            IJavaProject javaProject = JavaCore.create(project);
+            if (javaProject == null || !javaProject.exists())
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is not a Java project.");
+            }
+            
+            // Find the package
+            IPackageFragment packageFragment = findPackage(javaProject, packageName);
+            if (packageFragment == null)
+            {
+                throw new RuntimeException("Error: Package '" + packageName + "' not found in project '" + projectName + "'.");
+            }
+            
+            // Get all compilation units in the package
+            ICompilationUnit[] compilationUnits = packageFragment.getCompilationUnits();
+            
+            if (compilationUnits.length == 0)
+            {
+                return "No Java files found in package '" + packageName + "'.";
+            }
+            
+            IProgressMonitor monitor = new NullProgressMonitor();
+            int processedCount = 0;
+            int changedCount = 0;
+            
+            // Create a choose import query
+            IChooseImportQuery chooseImportQuery = new IChooseImportQuery() {
+                @Override
+                public TypeNameMatch[] chooseImports(TypeNameMatch[][] openChoices, ISourceRange[] ranges) {
+                    TypeNameMatch[] result = new TypeNameMatch[openChoices.length];
+                    for (int i = 0; i < openChoices.length; i++) {
+                        if (openChoices[i].length > 0) {
+                            result[i] = openChoices[i][0];
+                        }
+                    }
+                    return result;
+                }
+            };
+            
+            for (ICompilationUnit cu : compilationUnits)
+            {
+                try
+                {
+                    String originalSource = cu.getSource();
+                    
+                    OrganizeImportsOperation operation = new OrganizeImportsOperation(
+                        cu,
+                        null,
+                        true,
+                        true,
+                        true,
+                        chooseImportQuery
+                    );
+                    
+                    operation.run(monitor);
+                    cu.getResource().refreshLocal(IResource.DEPTH_ZERO, monitor);
+                    
+                    String newSource = cu.getSource();
+                    if (!originalSource.equals(newSource))
+                    {
+                        changedCount++;
+                    }
+                    processedCount++;
+                }
+                catch (Exception e)
+                {
+                    logger.warn("Failed to organize imports in " + cu.getElementName() + ": " + e.getMessage());
+                }
+            }
+            
+            StringBuilder result = new StringBuilder();
+            result.append("Success: Organized imports in package '").append(packageName).append("'.\n");
+            result.append("Processed ").append(processedCount).append(" file(s), ");
+            result.append(changedCount).append(" file(s) were modified.");
+            
+            return result.toString();
+        } 
+        catch (CoreException e) 
+        {
+            throw new RuntimeException("Error during organize imports: " + ExceptionUtils.getRootCauseMessage(e), e);
+        }
+    }
+
+    /**
+     * Extracts the import section from Java source code.
+     */
+    private String extractImportSection(String source)
+    {
+        StringBuilder imports = new StringBuilder();
+        String[] lines = source.split("\n");
+        boolean inImports = false;
+        
+        for (String line : lines)
+        {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("import "))
+            {
+                inImports = true;
+                imports.append(line).append("\n");
+            }
+            else if (inImports && !trimmed.isEmpty() && !trimmed.startsWith("import "))
+            {
+                // End of imports section
+                break;
+            }
+        }
+        
+        return imports.toString().trim();
+    }
+
+    /**
+     * Moves a resource (file or folder) to a different location within the project.
+     * For Java files, use refactorMoveJavaType instead for proper reference updating.
+     * 
+     * @param projectName The name of the project containing the resource
+     * @param sourcePath The path to the resource relative to the project root
+     * @param targetPath The target directory path relative to the project root
+     * @return A status message indicating success or failure
+     */
+    public String moveResource(String projectName, String sourcePath, String targetPath)
+    {
+        Objects.requireNonNull(projectName);
+        Objects.requireNonNull(sourcePath);
+        Objects.requireNonNull(targetPath);
+        
+        if (projectName.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+        }
+        if (sourcePath.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Source path cannot be empty.");
+        }
+        if (targetPath.isEmpty()) 
+        {
+            throw new IllegalArgumentException("Error: Target path cannot be empty.");
+        }
+        
+        try 
+        {
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject(projectName);
+            
+            if (!project.exists()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+            }
+            if (!project.isOpen()) 
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+            }
+            
+            // Normalize paths
+            String normalizedSource = sourcePath;
+            while (normalizedSource.startsWith("/") || normalizedSource.startsWith("\\")) 
+            {
+                normalizedSource = normalizedSource.substring(1);
+            }
+            
+            String normalizedTarget = targetPath;
+            while (normalizedTarget.startsWith("/") || normalizedTarget.startsWith("\\")) 
+            {
+                normalizedTarget = normalizedTarget.substring(1);
+            }
+            
+            // Get the source resource
+            IResource sourceResource = project.findMember(normalizedSource);
+            if (sourceResource == null || !sourceResource.exists())
+            {
+                throw new RuntimeException("Error: Resource '" + sourcePath + "' does not exist in project '" + projectName + "'.");
+            }
+            
+            // Warn about Java files
+            if (sourceResource instanceof IFile && sourcePath.endsWith(".java"))
+            {
+                logger.warn("Moving Java file without refactoring - references will not be updated. Consider using refactorMoveJavaType instead.");
+            }
+            
+            // Get or create the target folder
+            IFolder targetFolder = project.getFolder(normalizedTarget);
+            if (!targetFolder.exists())
+            {
+                ResourceUtilities.createFolderHierarchy(targetFolder);
+            }
+            
+            // Close the editor if moving a file that is open
+            if (sourceResource instanceof IFile)
+            {
+                IFile sourceFile = (IFile) sourceResource;
+                sync.syncExec(() -> 
+                {
+                    IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+                    if (page != null) 
+                    {
+                        IEditorPart editor = page.findEditor(new FileEditorInput(sourceFile));
+                        if (editor != null) 
+                        {
+                            page.closeEditor(editor, true);
+                        }
+                    }
+                });
+            }
+            
+            // Build the destination path
+            String resourceName = sourceResource.getName();
+            IPath destinationPath = targetFolder.getFullPath().append(resourceName);
+            
+            // Check if destination already exists
+            IResource existingResource = root.findMember(destinationPath);
+            if (existingResource != null && existingResource.exists())
+            {
+                throw new RuntimeException("Error: A resource named '" + resourceName + "' already exists at the destination.");
+            }
+            
+            // Perform the move
+            sourceResource.move(destinationPath, IResource.FORCE, new NullProgressMonitor());
+            
+            // Refresh the affected containers
+            sourceResource.getParent().refreshLocal(IResource.DEPTH_ONE, null);
+            targetFolder.refreshLocal(IResource.DEPTH_ONE, null);
+            
+            // If moved a file, open it in the editor
+            if (sourceResource instanceof IFile)
+            {
+                IFile newFile = root.getFile(destinationPath);
+                sync.asyncExec(() -> {
+                    if (newFile.exists())
+                    {
+                        safeOpenEditor(newFile);
+                    }
+                });
+            }
+            
+            String newPath = normalizedTarget + "/" + resourceName;
+            return "Success: Resource '" + sourcePath + "' moved to '" + newPath + "' in project '" + projectName + "'.";
+        } 
+        catch (CoreException e) 
+        {
+            throw new RuntimeException("Error during move: " + ExceptionUtils.getRootCauseMessage(e), e);
+        }
+    }
+
+    /**
+     * Finds a package fragment in the Java project.
+     */
+    private IPackageFragment findPackage(IJavaProject javaProject, String packageName) throws JavaModelException
+    {
+        for (IPackageFragmentRoot root : javaProject.getPackageFragmentRoots())
+        {
+            if (root.getKind() == IPackageFragmentRoot.K_SOURCE)
+            {
+                IPackageFragment fragment = root.getPackageFragment(packageName);
+                if (fragment != null && fragment.exists())
+                {
+                    return fragment;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Finds or creates a package fragment in the Java project.
+     */
+    private IPackageFragment findOrCreatePackage(IJavaProject javaProject, String packageName) throws CoreException
+    {
+        // First try to find existing package
+        IPackageFragment existing = findPackage(javaProject, packageName);
+        if (existing != null)
+        {
+            return existing;
+        }
+        
+        // Find the first source folder and create the package there
+        for (IPackageFragmentRoot root : javaProject.getPackageFragmentRoots())
+        {
+            if (root.getKind() == IPackageFragmentRoot.K_SOURCE)
+            {
+                return root.createPackageFragment(packageName, true, new NullProgressMonitor());
+            }
+        }
+        
+        throw new RuntimeException("Error: No source folder found in project to create package '" + packageName + "'.");
     }
 
     public String deleteFile(String projectName, String filePath)

@@ -130,6 +130,58 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.renameFile(projectName, filePath, newFileName);
     }
 
+    @Tool(name="refactorRenameJavaType", description="Renames a Java class/interface/enum using Eclipse's refactoring mechanism. This updates the type name, file name, and ALL references throughout the workspace. Use this instead of renameFile for Java files to ensure all references are updated correctly.", type="object")
+    public String refactorRenameJavaType(
+        @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
+        @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java')", required=true) String filePath,
+        @ToolParam(name="newTypeName", description="The new name for the Java type (without .java extension, e.g., 'NewClassName')", required=true) String newTypeName) 
+    {
+        return codeEditingService.refactorRenameJavaType(projectName, filePath, newTypeName);
+    }
+
+    @Tool(name="refactorMoveJavaType", description="Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism. This updates the package declaration and ALL references throughout the workspace. The target package will be created if it doesn't exist.", type="object")
+    public String refactorMoveJavaType(
+        @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
+        @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java')", required=true) String filePath,
+        @ToolParam(name="targetPackage", description="The fully qualified target package name (e.g., 'com.example.newpackage')", required=true) String targetPackage) 
+    {
+        return codeEditingService.refactorMoveJavaType(projectName, filePath, targetPackage);
+    }
+
+    @Tool(name="refactorRenamePackage", description="Renames a Java package using Eclipse's refactoring mechanism. This renames the package directory, updates all package declarations in contained files, and updates ALL references throughout the workspace.", type="object")
+    public String refactorRenamePackage(
+        @ToolParam(name="projectName", description="The name of the project containing the package", required=true) String projectName,
+        @ToolParam(name="packageName", description="The current fully qualified package name (e.g., 'com.example.oldpackage')", required=true) String packageName,
+        @ToolParam(name="newPackageName", description="The new package name - can be fully qualified (e.g., 'com.example.newpackage') or just the last segment to rename", required=true) String newPackageName) 
+    {
+        return codeEditingService.refactorRenamePackage(projectName, packageName, newPackageName);
+    }
+
+    @Tool(name="moveResource", description="Moves a file or folder to a different location within the project. For Java files, prefer using refactorMoveJavaType instead to ensure all references are updated.", type="object")
+    public String moveResource(
+        @ToolParam(name="projectName", description="The name of the project containing the resource", required=true) String projectName,
+        @ToolParam(name="sourcePath", description="The path to the file or folder relative to the project root", required=true) String sourcePath,
+        @ToolParam(name="targetPath", description="The target directory path relative to the project root where the resource should be moved to", required=true) String targetPath) 
+    {
+        return codeEditingService.moveResource(projectName, sourcePath, targetPath);
+    }
+
+    @Tool(name="organizeImports", description="Organizes imports in a Java file using Eclipse's organize imports mechanism. This removes unused imports, adds missing imports, and sorts them according to project settings. Equivalent to pressing Ctrl+Shift+O in Eclipse.", type="object")
+    public String organizeImports(
+        @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
+        @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java')", required=true) String filePath) 
+    {
+        return codeEditingService.organizeImports(projectName, filePath);
+    }
+
+    @Tool(name="organizeImportsInPackage", description="Organizes imports in all Java files within a package. This is useful for cleaning up imports across multiple files at once.", type="object")
+    public String organizeImportsInPackage(
+        @ToolParam(name="projectName", description="The name of the project containing the package", required=true) String projectName,
+        @ToolParam(name="packageName", description="The fully qualified package name (e.g., 'com.example.mypackage')", required=true) String packageName) 
+    {
+        return codeEditingService.organizeImportsInPackage(projectName, packageName);
+    }
+
     @Tool(name="deleteFile", description="Deletes a file from the specified project.", type="object")
     public String deleteFile(
         @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
