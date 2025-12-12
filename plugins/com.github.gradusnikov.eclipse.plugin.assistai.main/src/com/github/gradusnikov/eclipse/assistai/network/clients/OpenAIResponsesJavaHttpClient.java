@@ -53,6 +53,7 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
     private final State NULL_STATE = new NullState();
     private State state = NULL_STATE;
     private SubmissionPublisher<Incoming> publisher;
+    private final List<Flow.Subscriber<Incoming>> subscribers = new ArrayList<>();
     
     private Supplier<Boolean> isCancelled = () -> false;
     
@@ -86,7 +87,8 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
     @Override
     public synchronized void subscribe(Flow.Subscriber<Incoming> subscriber)
     {
-        publisher.subscribe(subscriber);
+        // Store subscriber to be added when publisher is created in run()
+        subscribers.add(subscriber);
     }
     
     
@@ -344,6 +346,13 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
             // This is critical for streaming use cases where the caller expects to receive
             // each chunk as it arrives from the API.
             publisher = new SubmissionPublisher<>(Runnable::run, Flow.defaultBufferSize());
+            
+            // Add all subscribers that were registered before run() was called
+            synchronized (this) {
+                for (Flow.Subscriber<Incoming> subscriber : subscribers) {
+                    publisher.subscribe(subscriber);
+                }
+            }
 
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
