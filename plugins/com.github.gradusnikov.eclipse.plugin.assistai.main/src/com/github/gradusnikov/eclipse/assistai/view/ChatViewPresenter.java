@@ -239,6 +239,7 @@ public class ChatViewPresenter implements IResourceCacheListener
     {
     	applyToView( messageView -> {
             messageView.setInputEnabled( true );
+            messageView.setFocus();
             if ( message.getContent().isBlank() )
             {
             	conversation.removeLastMessage();

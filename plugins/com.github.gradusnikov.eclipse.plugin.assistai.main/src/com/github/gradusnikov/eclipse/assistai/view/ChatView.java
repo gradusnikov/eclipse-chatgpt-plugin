@@ -971,10 +971,18 @@ public class ChatView
 	}
 
 
-	public void setInputEnabled( boolean b )
+	public void setInputEnabled( boolean enabled )
 	{
 	    uiSync.asyncExec( () -> {
-	        inputArea.setEnabled( b );
+	        inputArea.setEnabled( enabled );
+	        if ( enabled ) {
+	            // Restore focus after a small delay to ensure browser operations complete
+	            Display.getCurrent().timerExec( 100, () -> {
+	                if ( !inputArea.isDisposed() ) {
+	                    inputArea.setFocus();
+	                }
+	            } );
+	        }
 	    } );
 	}
 
