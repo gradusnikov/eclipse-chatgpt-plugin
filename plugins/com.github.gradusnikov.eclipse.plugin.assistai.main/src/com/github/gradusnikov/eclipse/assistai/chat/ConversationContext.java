@@ -4,29 +4,22 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.BiConsumer;
-
-import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 
 /**
- * Wraps a Conversation and provides context-specific callbacks for function call handling.
- * This allows different use cases (ChatView, code completion) to handle function results
- * appropriately while sharing the same execution infrastructure.
+ * Wraps a Conversation and provides context-specific configuration and continuation control.
+ * This allows different use cases (ChatView, code completion) to configure tool access
+ * and control conversation flow while sharing the same execution infrastructure.
  */
 public class ConversationContext
 {
     private final String contextId;
     private final Conversation conversation;
-    private final BiConsumer<FunctionCall, CallToolResult> onFunctionResult;
-    private final Runnable onConversationContinue;
     private final Set<String> allowedTools;
     
     private ConversationContext(Builder builder)
     {
         this.contextId = builder.contextId != null ? builder.contextId : UUID.randomUUID().toString();
         this.conversation = Objects.requireNonNull(builder.conversation, "Conversation cannot be null");
-        this.onFunctionResult = builder.onFunctionResult;
-        this.onConversationContinue = builder.onConversationContinue;
         this.allowedTools = builder.allowedTools != null ? Set.copyOf(builder.allowedTools) : null;
     }
     
@@ -52,42 +45,6 @@ public class ConversationContext
     public void addMessage(ChatMessage message)
     {
         conversation.add(message);
-    }
-    
-    /**
-     * Handles the result of a function call execution.
-     * Invokes the registered callback if present.
-     * 
-     * @param functionCall The function call that was executed
-     * @param result The result of the execution
-     */
-    public void handleFunctionResult(FunctionCall functionCall, CallToolResult result)
-    {
-        if (onFunctionResult != null)
-        {
-            onFunctionResult.accept(functionCall, result);
-        }
-    }
-    
-    /**
-     * Triggers continuation of the conversation after a function result has been added.
-     * This typically schedules another LLM request.
-     */
-    public void continueConversation()
-    {
-        if (onConversationContinue != null)
-        {
-            onConversationContinue.run();
-        }
-    }
-    
-    /**
-     * Checks if the conversation should continue after function execution.
-     * Returns true if a continuation callback is registered.
-     */
-    public boolean shouldContinueConversation()
-    {
-        return onConversationContinue != null;
     }
     
     /**
@@ -129,8 +86,6 @@ public class ConversationContext
     {
         private String contextId;
         private Conversation conversation;
-        private BiConsumer<FunctionCall, CallToolResult> onFunctionResult;
-        private Runnable onConversationContinue;
         private Set<String> allowedTools;
         
         /**
@@ -148,24 +103,6 @@ public class ConversationContext
         public Builder conversation(Conversation conversation)
         {
             this.conversation = conversation;
-            return this;
-        }
-        
-        /**
-         * Sets the callback invoked when a function call completes.
-         */
-        public Builder onFunctionResult(BiConsumer<FunctionCall, CallToolResult> callback)
-        {
-            this.onFunctionResult = callback;
-            return this;
-        }
-        
-        /**
-         * Sets the callback invoked to continue the conversation after function execution.
-         */
-        public Builder onConversationContinue(Runnable callback)
-        {
-            this.onConversationContinue = callback;
             return this;
         }
         
