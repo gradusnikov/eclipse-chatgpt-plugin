@@ -15,7 +15,6 @@ import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.ITextSelection;
 import org.eclipse.jface.text.source.ISourceViewer;
 import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
@@ -29,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
+import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 
 /**
  * Handler for the AI Code Completion command (Alt+/).
@@ -55,6 +55,8 @@ public class AICompletionHandler extends AbstractHandler {
     
     private final CodeEditingService codeEditingService;
     
+    private final UISynchronizeCallable uiSync;
+    
     public AICompletionHandler()
     {
         Activator activator = Activator.getDefault();
@@ -63,6 +65,7 @@ public class AICompletionHandler extends AbstractHandler {
         this.streamingClient = activator.make(StreamingCompletionClient.class);
         this.chatMessageFactory = activator.make(ChatMessageFactory.class);
         this.codeEditingService = activator.make(CodeEditingService.class);
+        this.uiSync = activator.make(UISynchronizeCallable.class);
     }
     
     
@@ -156,7 +159,7 @@ public class AICompletionHandler extends AbstractHandler {
                 String parsed = parseCompletion(streamingBuffer.toString());
                 if ( Objects.nonNull( parsed ) ) {
                     // Update on UI thread
-                    Display.getDefault().asyncExec(() -> {
+                    uiSync.asyncExec(() -> {
                         if (!ghostManager.isShowing()) {
                             // First content - show ghost text at original cursor position
                             ghostManager.showGhostText(parsed, cursorOffset);
@@ -175,17 +178,17 @@ public class AICompletionHandler extends AbstractHandler {
             if ( Objects.nonNull(completion) ) {
                 // Format the completion using CodeEditingService
                 String formattedCompletion = codeEditingService.formatCompletion(completion, ctx, textEditor);
-                Display.getDefault().asyncExec(() -> {
+                uiSync.asyncExec(() -> {
                     ghostManager.updateGhostText(formattedCompletion);
                 });
             } else {
-                Display.getDefault().asyncExec(() -> {
+                uiSync.asyncExec(() -> {
                     ghostManager.dismissCompletion();
                 });
             }
             currentRequest.set(null);
         }).exceptionally(error -> {
-            Display.getDefault().asyncExec(() -> {
+            uiSync.asyncExec(() -> {
                 ghostManager.dismissCompletion();
             });
             currentRequest.set(null);
@@ -221,7 +224,7 @@ public class AICompletionHandler extends AbstractHandler {
         ).thenAccept(fullResponse -> {
             String completion = parseCompletion(fullResponse);
             if ( Objects.nonNull(completion) ) {
-                Display.getDefault().asyncExec(() -> {
+                uiSync.asyncExec(() -> {
                     insertText(textEditor, completion);
                 });
             }
@@ -313,7 +316,7 @@ public class AICompletionHandler extends AbstractHandler {
             }
             
             if (sourceViewer != null) {
-                GhostTextManager manager = new GhostTextManager(sourceViewer);
+                GhostTextManager manager = new GhostTextManager(sourceViewer, uiSync);
                 ghostTextManagers.put(editor, manager);
                 return manager;
             } else {

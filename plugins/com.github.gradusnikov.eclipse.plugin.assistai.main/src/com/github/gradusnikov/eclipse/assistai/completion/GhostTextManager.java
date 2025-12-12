@@ -17,6 +17,8 @@ import org.eclipse.swt.graphics.GC;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.widgets.Display;
 
+import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
+
 /**
  * Manages ghost text (inline completion preview) in the editor. Shows
  * grayed-out text that can be accepted with Tab or dismissed with Escape.
@@ -34,6 +36,8 @@ public class GhostTextManager
     private final ITextViewer textViewer;
 
     private final StyledText  styledText;
+    
+    private final UISynchronizeCallable uiSync;
 
     private String            ghostText;
 
@@ -64,10 +68,11 @@ public class GhostTextManager
 
     private Runnable          onDismiss;
 
-    public GhostTextManager( ITextViewer textViewer )
+    public GhostTextManager( ITextViewer textViewer, UISynchronizeCallable uiSync )
     {
         this.textViewer = textViewer;
         this.styledText = textViewer.getTextWidget();
+        this.uiSync = uiSync;
         this.isShowing = false;
         this.isPainterInstalled = false;
 
@@ -161,7 +166,7 @@ public class GhostTextManager
                     // Any typing dismisses ghost text
                     if ( e.text.length() > 0 || e.start != e.end )
                     {
-                        Display.getCurrent().asyncExec( () -> dismissCompletion() );
+                        uiSync.asyncExec( () -> dismissCompletion() );
                     }
                 }
             }
@@ -182,7 +187,7 @@ public class GhostTextManager
             return;
         }
 
-        Display.getDefault().asyncExec( () -> {
+        uiSync.asyncExec( () -> {
             if ( styledText == null || styledText.isDisposed() )
             {
                 return;
@@ -221,7 +226,7 @@ public class GhostTextManager
             return;
         }
 
-        Display.getDefault().asyncExec( () -> {
+        uiSync.asyncExec( () -> {
             if ( styledText == null || styledText.isDisposed() )
             {
                 return;
@@ -269,7 +274,7 @@ public class GhostTextManager
             return;
         }
 
-        Display.getDefault().asyncExec( () -> {
+        uiSync.asyncExec( () -> {
             if ( styledText == null || styledText.isDisposed() )
             {
                 return;
