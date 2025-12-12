@@ -37,6 +37,7 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
     private final ObjectMapper mapper = new ObjectMapper();
     
     private ConversationContext conversationContext;
+    private Runnable onContinue;
     
     public FunctionCallSubscriber()
     {
@@ -52,6 +53,16 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
     public void setConversationContext( ConversationContext context )
     {
         this.conversationContext = Objects.requireNonNull( context, "ConversationContext cannot be null" );
+    }
+    
+    /**
+     * Sets the continuation callback that will be invoked after function execution completes.
+     * 
+     * @param onContinue The callback to invoke for conversation continuation (can be null)
+     */
+    public void setOnContinue( Runnable onContinue )
+    {
+        this.onContinue = onContinue;
     }
     
     /**
@@ -281,6 +292,7 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
         ExecuteFunctionCallJob job = executeFunctionCallJobProvider.get();
         job.setFunctionCall( functionCall );
         job.setConversationContext( conversationContext );
+        job.setOnContinue( onContinue );
         job.schedule();
     }
 

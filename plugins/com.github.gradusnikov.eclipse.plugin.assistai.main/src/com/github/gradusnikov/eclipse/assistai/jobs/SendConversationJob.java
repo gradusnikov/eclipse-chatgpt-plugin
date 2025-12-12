@@ -40,25 +40,20 @@ public class SendConversationJob extends Job
 	protected IStatus run(IProgressMonitor progressMonitor) 
 	{
 	    // Create a conversation context for the ChatView
-	    // This context wraps the singleton conversation and schedules
-	    // another SendConversationJob when function calls complete
 	    ConversationContext context = ConversationContext.builder()
 	            .contextId( "chat-view" )
 	            .conversation( conversation )
-	            .onFunctionResult( (functionCall, result) -> {
-	                // Function result handling is done by ExecuteFunctionCallJob
-	                // which adds messages to the conversation
-	                logger.info( "Function call completed: " + functionCall.name() );
-	            })
-	            .onConversationContinue( () -> {
-	                // Schedule another job to continue the conversation
-	                selfProvider.get().schedule();
-	            })
 	            // No tool restrictions for ChatView - all tools allowed
 	            .allowedTools( null )
 	            .build();
 	    
-	    var aiClient = clientProvider.get( context );
+	    // Create continuation callback that schedules another job
+	    Runnable onContinue = () -> {
+	        // Schedule another job to continue the conversation
+	        selfProvider.get().schedule();
+	    };
+	    
+	    var aiClient = clientProvider.get( context, onContinue );
 	    aiClient.setCancelProvider(() -> progressMonitor.isCanceled()); 
 	    
         // Get the runnable from the client

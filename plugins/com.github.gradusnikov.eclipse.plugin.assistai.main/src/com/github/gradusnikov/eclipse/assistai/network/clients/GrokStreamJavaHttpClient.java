@@ -26,24 +26,22 @@ import java.util.stream.Collectors;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
-import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.prompt.PromptRepository;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
-import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.spec.McpSchema.Tool;
 import jakarta.inject.Inject;
 
 @Creatable
@@ -56,23 +54,13 @@ public class GrokStreamJavaHttpClient extends AbstractLanguageModelClient
     private Supplier<Boolean> isCancelled = () -> false;
 
     @Inject
-    private ILog logger;
-
-    @Inject
-    private LanguageModelClientConfiguration configuration;
-
-    @Inject
-    private InMemoryMcpClientRetistry mcpClientRegistry;
-
-    @Inject
-    private ResourceCache resourceCache;
-
-    private IPreferenceStore preferenceStore;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    public GrokStreamJavaHttpClient() {
-        preferenceStore = Activator.getDefault().getPreferenceStore();
+    public GrokStreamJavaHttpClient( ILog logger, 
+            LanguageModelClientConfiguration configuration, 
+            InMemoryMcpClientRetistry mcpClientRegistry,
+            ResourceCache resourceCache, 
+            PromptRepository promptRepository )
+    {
+        super( logger, configuration, mcpClientRegistry, resourceCache, promptRepository );
     }
 
     @Override
@@ -86,27 +74,25 @@ public class GrokStreamJavaHttpClient extends AbstractLanguageModelClient
         subscribers.add(subscriber);
     }
 
-    static ArrayNode clientToolsToJson(String clientName, McpSyncClient client) {
+    static ArrayNode toolToJson(String toolName, Tool tool) {
         List<Map<String, Object>> tools = new ArrayList<>();
 
-        for (var tool : client.listTools().tools()) {
-            var toolObj = new LinkedHashMap<String, Object>();
-            var functionObj = new LinkedHashMap<String, Object>();
+        var toolObj = new LinkedHashMap<String, Object>();
+        var functionObj = new LinkedHashMap<String, Object>();
 
-            functionObj.put("name", clientName + "__" + tool.name());
-            functionObj.put("description", tool.description() != null ? tool.description() : "");
-            functionObj.put("parameters", Map.of(
-                "type", tool.inputSchema().type(),
-                "properties", tool.inputSchema().properties().isEmpty() ? new LinkedHashMap<>() : tool.inputSchema().properties(),
-                "required", tool.inputSchema().required() != null ? tool.inputSchema().required() : new ArrayList<>()
-            ));
+        functionObj.put("name", toolName);
+        functionObj.put("description", tool.description() != null ? tool.description() : "");
+        functionObj.put("parameters", Map.of(
+            "type", tool.inputSchema().type(),
+            "properties", tool.inputSchema().properties().isEmpty() ? new LinkedHashMap<>() : tool.inputSchema().properties(),
+            "required", tool.inputSchema().required() != null ? tool.inputSchema().required() : new ArrayList<>()
+        ));
 
-            toolObj.put("type", "function");
-            toolObj.put("function", functionObj);
-            tools.add(toolObj);
-        }
+        toolObj.put("type", "function");
+        toolObj.put("function", functionObj);
+        tools.add(toolObj);
 
-        var objectMapper = new ObjectMapper();
+        var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
         return (ArrayNode) objectMapper.valueToTree(tools);
     }
 
@@ -116,7 +102,7 @@ public class GrokStreamJavaHttpClient extends AbstractLanguageModelClient
             var messages = new ArrayList<Map<String, Object>>();
 
             // System message
-            String systemPrompt = preferenceStore.getString(Prompts.SYSTEM.preferenceName());
+            String systemPrompt = promptRepository.getPrompt( Prompts.SYSTEM.name() );
             
             // Inject cached resources block at the beginning of system prompt
             String resourcesBlock = resourceCache.toContextBlock();
@@ -147,8 +133,8 @@ public class GrokStreamJavaHttpClient extends AbstractLanguageModelClient
             // Add tools if function calling is enabled
             if (model.functionCalling()) {
                 ArrayNode tools = objectMapper.createArrayNode();
-                for (var client : mcpClientRegistry.listEnabledClients().entrySet()) {
-                    tools.addAll(clientToolsToJson(client.getKey(), client.getValue()));
+                for (var tool : listAvailableTools().entrySet()) {
+                    tools.addAll(toolToJson(tool.getKey(), tool.getValue()));
                 }
                 if (!tools.isEmpty()) {
                     requestBody.put("tools", tools);

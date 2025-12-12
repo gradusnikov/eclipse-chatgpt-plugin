@@ -25,7 +25,7 @@ import org.eclipse.ui.texteditor.ITextEditor;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
-import com.github.gradusnikov.eclipse.assistai.completion.StreamingCompletionClient.CompletionHandle;
+import java.util.concurrent.CompletableFuture;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
@@ -43,7 +43,7 @@ public class AICompletionHandler extends AbstractHandler {
     private static final Map<ITextEditor, GhostTextManager> ghostTextManagers = new WeakHashMap<>();
     
     // Track current completion request
-    private static final AtomicReference<CompletionHandle> currentRequest = new AtomicReference<>();
+    private static final AtomicReference<CompletableFuture<String>> currentRequest = new AtomicReference<>();
     
     private final ILog logger;
 
@@ -96,9 +96,9 @@ public class AICompletionHandler extends AbstractHandler {
             }
             
             // Cancel any existing request
-            CompletionHandle existingRequest = currentRequest.getAndSet(null);
+            CompletableFuture<String> existingRequest = currentRequest.getAndSet(null);
             if (existingRequest != null) {
-                existingRequest.cancel();
+                existingRequest.cancel(true);
             }
             
             // Get or create ghost text manager for this editor
@@ -139,7 +139,7 @@ public class AICompletionHandler extends AbstractHandler {
         }
         
         // Use ChatMessageFactory to create the conversation with proper variable substitution
-        Conversation conversation = createCompletionConversation(ctx);
+        Conversation conversation = createCompletionConversation();
         
         // Get cursor offset at the time of request
         int cursorOffset = getCaretOffset(textEditor);
@@ -148,7 +148,7 @@ public class AICompletionHandler extends AbstractHandler {
         StringBuilder streamingBuffer = new StringBuilder();
         
         // Start streaming
-        CompletionHandle handle = streamingClient.startStreaming(
+        CompletableFuture<String> future = streamingClient.startStreaming(
             conversation,
             // On chunk - append to buffer and update ghost text
             chunk -> {
@@ -166,33 +166,33 @@ public class AICompletionHandler extends AbstractHandler {
                         }
                     });
                 }
-            },
-            // On complete - format the final completion
-            fullResponse -> {
-                String completion = parseCompletion(fullResponse);
-                if ( Objects.nonNull(completion) ) {
-                    // Format the completion using CodeEditingService
-                    String formattedCompletion = codeEditingService.formatCompletion(completion, ctx, textEditor);
-                    Display.getDefault().asyncExec(() -> {
-                        ghostManager.updateGhostText(formattedCompletion);
-                    });
-                } else {
-                    Display.getDefault().asyncExec(() -> {
-                        ghostManager.dismissCompletion();
-                    });
-                }
-                currentRequest.set(null);
-            },
-            // On error
-            error -> {
-                Display.getDefault().asyncExec(() -> {
-                    ghostManager.dismissCompletion();
-                });
-                currentRequest.set(null);
             }
         );
         
-        currentRequest.set(handle);
+        // Handle completion and errors via CompletableFuture
+        future.thenAccept(fullResponse -> {
+            String completion = parseCompletion(fullResponse);
+            if ( Objects.nonNull(completion) ) {
+                // Format the completion using CodeEditingService
+                String formattedCompletion = codeEditingService.formatCompletion(completion, ctx, textEditor);
+                Display.getDefault().asyncExec(() -> {
+                    ghostManager.updateGhostText(formattedCompletion);
+                });
+            } else {
+                Display.getDefault().asyncExec(() -> {
+                    ghostManager.dismissCompletion();
+                });
+            }
+            currentRequest.set(null);
+        }).exceptionally(error -> {
+            Display.getDefault().asyncExec(() -> {
+                ghostManager.dismissCompletion();
+            });
+            currentRequest.set(null);
+            return null;
+        });
+        
+        currentRequest.set(future);
     }
     
     /**
@@ -212,25 +212,21 @@ public class AICompletionHandler extends AbstractHandler {
         }
         
         // Use ChatMessageFactory to create the conversation with proper variable substitution
-        Conversation conversation = createCompletionConversation(ctx);
+        Conversation conversation = createCompletionConversation();
         
         // Start streaming and insert when complete
         streamingClient.startStreaming(
             conversation,
-            // On chunk - ignore
-            chunk -> { },
-            // On complete - insert the text
-            fullResponse -> {
-                String completion = parseCompletion(fullResponse);
-                if ( Objects.nonNull(completion) ) {
-                    Display.getDefault().asyncExec(() -> {
-                        insertText(textEditor, completion);
-                    });
-                }
-            },
-            // On error - ignore
-            error -> { }
-        );
+            null  // No chunk callback needed for direct insertion
+        ).thenAccept(fullResponse -> {
+            String completion = parseCompletion(fullResponse);
+            if ( Objects.nonNull(completion) ) {
+                Display.getDefault().asyncExec(() -> {
+                    insertText(textEditor, completion);
+                });
+            }
+        });
+        // Errors are silently ignored for direct insertion
     }
     
     /**
@@ -265,7 +261,7 @@ public class AICompletionHandler extends AbstractHandler {
      * @param completionContext The completion context
      * @return A Conversation ready to be sent to the LLM
      */
-    public Conversation createCompletionConversation(CompletionContext completionContext)
+    public Conversation createCompletionConversation()
     {
         Conversation conversation = new Conversation();
         ChatMessage message = chatMessageFactory.createUserChatMessage( Prompts.COMPLETION );

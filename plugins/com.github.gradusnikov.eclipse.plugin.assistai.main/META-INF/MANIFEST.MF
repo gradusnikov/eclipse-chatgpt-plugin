@@ -35,6 +35,9 @@ Require-Bundle: org.eclipse.e4.ui.services,
  org.eclipse.m2e.core,
  org.eclipse.m2e.core.ui,
  org.eclipse.m2e.maven.runtime,
+ org.eclipse.ltk.core.refactoring,
+ org.eclipse.ltk.ui.refactoring,
+ org.eclipse.jdt.core.manipulation,
  jakarta.annotation-api;bundle-version="2.1.1",
  jakarta.inject.jakarta.inject-api;bundle-version="2.0.1"
 Bundle-RequiredExecutionEnvironment: JavaSE-21
@@ -42,6 +45,7 @@ Automatic-Module-Name: assistai.main
 Bundle-Classpath: .
 Bundle-ActivationPolicy: lazy
 Export-Package: com.github.gradusnikov.eclipse.assistai,
+ com.github.gradusnikov.eclipse.assistai.agents,
  com.github.gradusnikov.eclipse.assistai.chat,
  com.github.gradusnikov.eclipse.assistai.commands,
  com.github.gradusnikov.eclipse.assistai.handlers,
@@ -59,5 +63,8 @@ Export-Package: com.github.gradusnikov.eclipse.assistai,
  com.github.gradusnikov.eclipse.assistai.tools,
  com.github.gradusnikov.eclipse.assistai.view,
  com.github.gradusnikov.eclipse.assistai.view.dnd,
- com.github.gradusnikov.eclipse.assistai.view.dnd.handlers
-
+ com.github.gradusnikov.eclipse.assistai.view.dnd.handlers,
+ com.github.gradusnikov.eclipse.assistai.services,
+ com.github.gradusnikov.eclipse.plugin.assistai.main,
+ com.github.gradusnikov.eclipse.plugin.assistai.main.agents,
+ com.github.gradusnikov.eclipse.plugin.assistai.mcp.transport

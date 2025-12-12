@@ -24,24 +24,22 @@ import java.util.stream.Collectors;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
-import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.prompt.PromptRepository;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
-import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.spec.McpSchema.Tool;
 import jakarta.inject.Inject;
 
 /**
@@ -56,26 +54,15 @@ public class DeepSeekStreamJavaHttpClient extends AbstractLanguageModelClient
     private final List<Flow.Subscriber<Incoming>> subscribers = new ArrayList<>();
     
     private Supplier<Boolean> isCancelled = () -> false;
-    
-    @Inject
-    private ILog logger;
-    
-    @Inject
-    private LanguageModelClientConfiguration configuration;
-    
-    @Inject
-    private InMemoryMcpClientRetistry mcpClientRegistry;
-    
-    @Inject
-    private ResourceCache resourceCache;
-    
-    private IPreferenceStore preferenceStore;
-    
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public DeepSeekStreamJavaHttpClient()
+    @Inject
+    public DeepSeekStreamJavaHttpClient( ILog logger, 
+            LanguageModelClientConfiguration configuration, 
+            InMemoryMcpClientRetistry mcpClientRegistry,
+            ResourceCache resourceCache, 
+            PromptRepository promptRepository )
     {
-        preferenceStore = Activator.getDefault().getPreferenceStore();
+        super( logger, configuration, mcpClientRegistry, resourceCache, promptRepository );
     }
     
     @Override
@@ -91,41 +78,40 @@ public class DeepSeekStreamJavaHttpClient extends AbstractLanguageModelClient
         subscribers.add(subscriber);
     }
 
-    private ArrayNode clientToolsToJson(String clientName, McpSyncClient client) {
+    static ArrayNode toolToJson(String toolName, Tool tool) {
         List<Map<String, Object>> tools = new ArrayList<>();
         
-        for (var tool : client.listTools().tools()) {
-            // Create the main tool object
-            var toolObj = new LinkedHashMap<String, Object>();
-            var functionObj = new LinkedHashMap<String, Object>();
-            
-            // Create the function definition
-            functionObj.put("name", clientName + "__" + tool.name());
-            functionObj.put("description", tool.description() != null ? tool.description() : "");
-            
-            // Create parameters object in the format DeepSeek expects
-            var parametersObj = new LinkedHashMap<String, Object>();
-            parametersObj.put("type", tool.inputSchema().type());
-            
-            // Add properties
-            if (!tool.inputSchema().properties().isEmpty()) {
-                parametersObj.put("properties", tool.inputSchema().properties());
-            }
-            
-            // Add required fields if present
-            if (tool.inputSchema().required() != null && !tool.inputSchema().required().isEmpty()) {
-                parametersObj.put("required", tool.inputSchema().required());
-            }
-            
-            functionObj.put("parameters", parametersObj);
-            
-            // Add type and function to the tool object
-            toolObj.put("type", "function");
-            toolObj.put("function", functionObj);
-            
-            tools.add(toolObj);
+        // Create the main tool object
+        var toolObj = new LinkedHashMap<String, Object>();
+        var functionObj = new LinkedHashMap<String, Object>();
+        
+        // Create the function definition
+        functionObj.put("name", toolName);
+        functionObj.put("description", tool.description() != null ? tool.description() : "");
+        
+        // Create parameters object in the format DeepSeek expects
+        var parametersObj = new LinkedHashMap<String, Object>();
+        parametersObj.put("type", tool.inputSchema().type());
+        
+        // Add properties
+        if (!tool.inputSchema().properties().isEmpty()) {
+            parametersObj.put("properties", tool.inputSchema().properties());
         }
         
+        // Add required fields if present
+        if (tool.inputSchema().required() != null && !tool.inputSchema().required().isEmpty()) {
+            parametersObj.put("required", tool.inputSchema().required());
+        }
+        
+        functionObj.put("parameters", parametersObj);
+        
+        // Add type and function to the tool object
+        toolObj.put("type", "function");
+        toolObj.put("function", functionObj);
+        
+        tools.add(toolObj);
+        
+        var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
         var functionsJsonNode = objectMapper.valueToTree(tools);
         return (ArrayNode) functionsJsonNode; 
     }
@@ -138,7 +124,7 @@ public class DeepSeekStreamJavaHttpClient extends AbstractLanguageModelClient
             var messages = new ArrayList<Map<String, Object>>();
 
             // Add system message if provided
-            String systemPrompt = preferenceStore.getString(Prompts.SYSTEM.preferenceName());
+            String systemPrompt = promptRepository.getPrompt( Prompts.SYSTEM.name() );
             
             // Inject cached resources block at the beginning of system prompt
             String resourcesBlock = resourceCache.toContextBlock();
@@ -171,9 +157,9 @@ public class DeepSeekStreamJavaHttpClient extends AbstractLanguageModelClient
             if (model.functionCalling())
             {
                 ArrayNode tools = objectMapper.createArrayNode();
-                for (var client : mcpClientRegistry.listEnabledClients().entrySet())
+                for (var tool : listAvailableTools().entrySet())
                 {
-                    tools.addAll(clientToolsToJson(client.getKey(), client.getValue()));
+                    tools.addAll(toolToJson(tool.getKey(), tool.getValue()));
                 }
                 if (!tools.isEmpty())
                 {

@@ -49,6 +49,8 @@ public class ExecuteFunctionCallJob extends Job
     private FunctionCall                  functionCall;
     
     private ConversationContext           conversationContext;
+    
+    private Runnable                      onContinue;
 
 
 	// In ExecuteFunctionCallJob.java, add a job rule in the constructor
@@ -83,6 +85,11 @@ public class ExecuteFunctionCallJob extends Job
     public void setConversationContext( ConversationContext context )
     {
         this.conversationContext = context;
+    }
+    
+    public void setOnContinue( Runnable onContinue )
+    {
+        this.onContinue = onContinue;
     }
 
     private IStatus executeFunctionCall()
@@ -143,7 +150,7 @@ public class ExecuteFunctionCallJob extends Job
     private IStatus handleFunctionResult( CallToolResult result )
     {
         logger.info( "Finished function call " + functionCall.name() 
-                    + "\n\nResult:\n\\n" + Optional.ofNullable( result ).map( Object::toString ).orElse( "" ) );
+                    + "\n\nResult:\n" + Optional.ofNullable( result ).map( Object::toString ).orElse( "" ) );
         try
         {
             // 1. Create assistant message with function call
@@ -154,15 +161,11 @@ public class ExecuteFunctionCallJob extends Job
             ChatMessage resultMessage = createFunctionResultMessage( result );
             conversationContext.addMessage( resultMessage );
 
-            // 3. Notify context of function result
-            conversationContext.handleFunctionResult( functionCall, result );
-
-            // 4. Continue conversation if context supports it
-            logger.info( "Checking if conversation should continue: " + conversationContext.shouldContinueConversation() + " (context: " + conversationContext.getContextId() + ")" );
-            if ( conversationContext.shouldContinueConversation() )
+            // 3. Continue conversation if continuation callback is set
+            if ( onContinue != null )
             {
-                logger.info( "Calling continueConversation() for context: " + conversationContext.getContextId() );
-                conversationContext.continueConversation();
+                logger.info( "Calling continuation callback for context: " + conversationContext.getContextId() );
+                onContinue.run();
             }
 
             return Status.OK_STATUS;

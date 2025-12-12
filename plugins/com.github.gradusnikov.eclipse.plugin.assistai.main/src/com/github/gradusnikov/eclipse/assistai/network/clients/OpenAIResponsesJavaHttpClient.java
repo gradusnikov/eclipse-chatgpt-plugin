@@ -22,24 +22,22 @@ import java.util.stream.Stream;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
-import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.prompt.PromptRepository;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 import com.github.gradusnikov.eclipse.assistai.tools.JsonUtils;
 
-import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.spec.McpSchema.Tool;
 import jakarta.inject.Inject;
 
 /**
@@ -58,24 +56,13 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
     private Supplier<Boolean> isCancelled = () -> false;
     
     @Inject
-    private ILog logger;
-    
-    @Inject
-    private LanguageModelClientConfiguration configuration;
-    
-    @Inject
-    private InMemoryMcpClientRetistry mcpClientRegistry;
-    
-    @Inject
-    private ResourceCache resourceCache;
-    
-    private IPreferenceStore preferenceStore;
-    
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    
-    public OpenAIResponsesJavaHttpClient()
+    public OpenAIResponsesJavaHttpClient( ILog logger, 
+            LanguageModelClientConfiguration configuration, 
+            InMemoryMcpClientRetistry mcpClientRegistry,
+            ResourceCache resourceCache, 
+            PromptRepository promptRepository )
     {
-        preferenceStore = Activator.getDefault().getPreferenceStore();
+        super( logger, configuration, mcpClientRegistry, resourceCache, promptRepository );
     }
     
     @Override
@@ -142,7 +129,7 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
         requestBody.put("model", model.modelName());
         
         // Instructions (system prompt)
-        var systemPrompt = preferenceStore.getString(Prompts.SYSTEM.preferenceName());
+        var systemPrompt = promptRepository.getPrompt( Prompts.SYSTEM.name() );
         
         // Inject cached resources block at the beginning of system prompt
         String resourcesBlock = resourceCache.toContextBlock();
@@ -305,9 +292,9 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
         // Add MCP tools if function calling is enabled
         if ( model.functionCalling() ) 
         {
-            for (var client : mcpClientRegistry.listEnabledClients().entrySet()) 
+            for (var tool : listAvailableTools().entrySet()) 
             {
-                tools.addAll(convertMcpToolsToResponses(client.getKey(), client.getValue()));
+                tools.add(convertToolToResponses(tool.getKey(), tool.getValue()));
             }
         }
         
@@ -315,25 +302,19 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
     }
     
     /**
-     * Converts MCP tools to Responses API format
+     * Converts a Tool to Responses API format
      */
-    private List<Map<String, Object>> convertMcpToolsToResponses(String clientName, McpSyncClient client)
+    private Map<String, Object> convertToolToResponses(String toolName, Tool tool)
     {
-        var tools = new ArrayList<Map<String, Object>>();
-        
-        for (var tool : client.listTools().tools()) {
-            tools.add(Map.of(
-                    "type", "function",
-                    "name", clientName + "__" + tool.name(),
-                    "description", Optional.ofNullable(tool.description()).orElse(""),
-                    "parameters", Map.of(
-                            "type", tool.inputSchema().type(),
-                            "properties", tool.inputSchema().properties()),
-                    "required", Optional.ofNullable(tool.inputSchema().required()).orElse(List.of())
-            ));
-        }
-        
-        return tools;
+        return Map.of(
+                "type", "function",
+                "name", toolName,
+                "description", Optional.ofNullable(tool.description()).orElse(""),
+                "parameters", Map.of(
+                        "type", tool.inputSchema().type(),
+                        "properties", tool.inputSchema().properties()),
+                "required", Optional.ofNullable(tool.inputSchema().required()).orElse(List.of())
+        );
     }
     
     @Override

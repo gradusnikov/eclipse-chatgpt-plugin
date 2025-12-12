@@ -23,23 +23,21 @@ import java.util.stream.Collectors;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
-import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.prompt.PromptRepository;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
-import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.spec.McpSchema.Tool;
 import jakarta.inject.Inject;
 
 /**
@@ -56,25 +54,13 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
     private Supplier<Boolean> isCancelled = () -> false;
     
     @Inject
-    private ILog logger;
-    
-    @Inject
-    private LanguageModelClientConfiguration configuration;
-    
-    @Inject
-    private InMemoryMcpClientRetistry mcpClientRegistry;
-    
-    @Inject
-    private ResourceCache resourceCache;
-    
-    private IPreferenceStore preferenceStore;
-    
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    
-    public OpenAIStreamJavaHttpClient()
+    public OpenAIStreamJavaHttpClient( ILog logger, 
+            LanguageModelClientConfiguration configuration, 
+            InMemoryMcpClientRetistry mcpClientRegistry,
+            ResourceCache resourceCache, 
+            PromptRepository promptRepository )
     {
-        preferenceStore = Activator.getDefault().getPreferenceStore();
+        super( logger, configuration, mcpClientRegistry, resourceCache, promptRepository );
     }
     
     @Override
@@ -110,7 +96,7 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
 //            systemMessage.put("role", "system");
             systemMessage.put("role", "user");
             
-            String systemPrompt = preferenceStore.getString( Prompts.SYSTEM.preferenceName() );
+            String systemPrompt = promptRepository.getPrompt( Prompts.SYSTEM.name() );
             
             // Inject cached resources block at the beginning of system prompt
             String resourcesBlock = resourceCache.toContextBlock();
@@ -129,9 +115,9 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
             if ( model.functionCalling() )
             {
                 ArrayNode functions = objectMapper.createArrayNode();
-                for ( var client : mcpClientRegistry.listEnabledClients().entrySet() )
+                for ( var tool : listAvailableTools().entrySet() )
                 {
-                    functions.addAll( clientToolsToJson( client.getKey(), client.getValue() ) );
+                    functions.addAll( toolToJson( tool.getKey(), tool.getValue() ) );
                 }                
                 if ( !functions.isEmpty() )
                 {
@@ -155,24 +141,23 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
             throw new RuntimeException( e );
         }
     }
-    private static ArrayNode clientToolsToJson( String clientName, McpSyncClient client )
+    
+    static ArrayNode toolToJson(String toolName, Tool tool)
     {
         List<Map<String, Object>> toolObject = new ArrayList<>();
-        for (var tool : client.listTools().tools() )
-        {
-            toolObject.add( Map.of( "name", clientName + "__" +  tool.name(), // tool name is a combination of client name and the tool name
-                    "type", tool.inputSchema().type(),
-                    "description", Optional.ofNullable( tool.description() ).orElse( "" ),
-                    "parameters", Map.of(
-                                    "type", tool.inputSchema().type(), 
-                                    "properties", tool.inputSchema().properties()), // in reference implementation this method is not visible!
-                    "required", Optional.ofNullable(tool.inputSchema().required()).orElse( List.of() ) 
-                    ));
-        }
-        var objectMapper = new ObjectMapper();
+        toolObject.add( Map.of( "name", toolName,
+                "type", tool.inputSchema().type(),
+                "description", Optional.ofNullable( tool.description() ).orElse( "" ),
+                "parameters", Map.of(
+                                "type", tool.inputSchema().type(), 
+                                "properties", tool.inputSchema().properties()),
+                "required", Optional.ofNullable(tool.inputSchema().required()).orElse( List.of() ) 
+                ));
+        var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
         var functionsJsonNode= objectMapper.valueToTree( toolObject );
         return (ArrayNode) functionsJsonNode; 
     }
+    
     private LinkedHashMap<String, Object> toJsonPayload( ChatMessage message, ModelApiDescriptor model )
     {
         try
@@ -208,8 +193,8 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
             var attachmentsString = String.join( "\n", textParts );
             
             var textContent = attachmentsString.isBlank() 
-            		    ? message.getContent() 
-            		    : attachmentsString + "\n\n" + message.getContent();
+            	    ? message.getContent() 
+            	    : attachmentsString + "\n\n" + message.getContent();
            
             // add image content
             if ( model.vision() )
@@ -331,8 +316,7 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
     						} 
     						else
     						{
-    						    var mapper = new ObjectMapper();
-    						    var choice = mapper.readTree(data).get("choices").get(0);
+    						    var choice = objectMapper.readTree(data).get("choices").get(0);
     						    var node =  choice.get("delta");
     							if (node.has("content") )
     							{

@@ -12,4 +12,10 @@ public class MemoryMcpServer
     {
         return thought;
     }
+
+    @Tool(name = "completion_meta", description = "Internal sink for code completion. Use this tool to output any non-code text (markdown, explanations, reasoning, meta commentary) instead of writing it into the completion CONTENT stream. The code completion CONTENT stream must contain ONLY the exact source code to insert.", type = "object")
+    public String completionMeta( @ToolParam(name="text", description = "Non-code meta text that should not appear in the completion output", required=true) String text )
+    {
+        return text;
+    }
 }

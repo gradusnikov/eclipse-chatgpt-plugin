@@ -22,24 +22,22 @@ import java.util.stream.Stream;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
-import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.prompt.PromptRepository;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
-import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.spec.McpSchema.Tool;
 import jakarta.inject.Inject;
 
 /**
@@ -52,26 +50,15 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
     private SubmissionPublisher<Incoming> publisher;
     
     private Supplier<Boolean> isCancelled = () -> false;
-    
-    @Inject
-    private ILog logger;
-    
-    @Inject
-    private LanguageModelClientConfiguration configuration;
-    
-    @Inject
-    private InMemoryMcpClientRetistry mcpClientRegistry;
-    
-    @Inject
-    private ResourceCache resourceCache;
-    
-    private IPreferenceStore preferenceStore;
-    
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public GeminiStreamJavaHttpClient()
+    @Inject
+    public GeminiStreamJavaHttpClient( ILog logger, 
+            LanguageModelClientConfiguration configuration, 
+            InMemoryMcpClientRetistry mcpClientRegistry,
+            ResourceCache resourceCache, 
+            PromptRepository promptRepository )
     {
-        preferenceStore = Activator.getDefault().getPreferenceStore();
+        super( logger, configuration, mcpClientRegistry, resourceCache, promptRepository );
     }
     
     @Override
@@ -86,69 +73,67 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
         publisher.subscribe(subscriber);
     }
 
-    static ArrayNode clientToolsToJson(String clientName, McpSyncClient client) {
+    static ArrayNode toolToJson(String toolName, Tool tool) {
         List<Map<String, Object>> tools = new ArrayList<>();
         
-        for (var tool : client.listTools().tools()) {
-            try {
-                // Create the main tool object
-                var toolObj = new LinkedHashMap<String, Object>();
-                
-                // Create the function definition
-                toolObj.put("name", clientName + "__" + tool.name());
-                toolObj.put("description", tool.description() != null ? tool.description() : "");
-                
-                // Create parameters object in the format Gemini expects
-                var inputSchema = new LinkedHashMap<String, Object>();
-                inputSchema.put("type", "OBJECT"); // Always use OBJECT type for Gemini
-                
-                // Handle properties
-                Map<String, Object> properties = new LinkedHashMap<>();
-                if (tool.inputSchema().properties() != null && !tool.inputSchema().properties().isEmpty()) {
-                    // Copy existing properties
-                    properties.putAll(tool.inputSchema().properties());
-                }
-                
-                // Ensure required properties exist in properties map
-                List<String> validRequiredProps = new ArrayList<>();
-                if (tool.inputSchema().required() != null) {
-                    for (String reqProp : tool.inputSchema().required()) {
-                        // If a required property doesn't exist in properties, add it with a dummy definition
-                        if (!properties.containsKey(reqProp)) {
-                            properties.put(reqProp, Map.of(
-                                "type", "string",
-                                "description", "Parameter " + reqProp
-                            ));
-                        }
-                        validRequiredProps.add(reqProp);
-                    }
-                }
-                
-                // If properties is still empty, add a dummy property
-                if (properties.isEmpty()) {
-                    properties.put("dummy", Map.of(
-                        "type", "string",
-                        "description", "Dummy parameter"
-                    ));
-                }
-                
-                // Add properties to the schema
-                inputSchema.put("properties", properties);
-                
-                // Add validated required fields if present
-                if (!validRequiredProps.isEmpty()) {
-                    inputSchema.put("required", validRequiredProps);
-                }
-                
-                toolObj.put("parameters", inputSchema);
-                tools.add(toolObj);
-            } catch (Exception e) {
-                // Log and skip problematic tools
-                System.err.println("Error processing tool " + tool.name() + ": " + e.getMessage());
+        try {
+            // Create the main tool object
+            var toolObj = new LinkedHashMap<String, Object>();
+            
+            // Create the function definition
+            toolObj.put("name", toolName);
+            toolObj.put("description", tool.description() != null ? tool.description() : "");
+            
+            // Create parameters object in the format Gemini expects
+            var inputSchema = new LinkedHashMap<String, Object>();
+            inputSchema.put("type", "OBJECT"); // Always use OBJECT type for Gemini
+            
+            // Handle properties
+            Map<String, Object> properties = new LinkedHashMap<>();
+            if (tool.inputSchema().properties() != null && !tool.inputSchema().properties().isEmpty()) {
+                // Copy existing properties
+                properties.putAll(tool.inputSchema().properties());
             }
+            
+            // Ensure required properties exist in properties map
+            List<String> validRequiredProps = new ArrayList<>();
+            if (tool.inputSchema().required() != null) {
+                for (String reqProp : tool.inputSchema().required()) {
+                    // If a required property doesn't exist in properties, add it with a dummy definition
+                    if (!properties.containsKey(reqProp)) {
+                        properties.put(reqProp, Map.of(
+                            "type", "string",
+                            "description", "Parameter " + reqProp
+                        ));
+                    }
+                    validRequiredProps.add(reqProp);
+                }
+            }
+            
+            // If properties is still empty, add a dummy property
+            if (properties.isEmpty()) {
+                properties.put("dummy", Map.of(
+                    "type", "string",
+                    "description", "Dummy parameter"
+                ));
+            }
+            
+            // Add properties to the schema
+            inputSchema.put("properties", properties);
+            
+            // Add validated required fields if present
+            if (!validRequiredProps.isEmpty()) {
+                inputSchema.put("required", validRequiredProps);
+            }
+            
+            toolObj.put("parameters", inputSchema);
+            tools.add(toolObj);
+        } catch (Exception e) {
+            // Log and skip problematic tools
+            System.err.println("Error processing tool " + tool.name() + ": " + e.getMessage());
         }
         
-        var objectMapper = new ObjectMapper();
+        var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
         var functionsJsonNode = objectMapper.valueToTree(tools);
         return (ArrayNode) functionsJsonNode; 
     }
@@ -162,7 +147,7 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
     
             // Add system message if provided
             // note gemini does not support system messages
-            String systemPrompt = preferenceStore.getString(Prompts.SYSTEM.preferenceName());
+            String systemPrompt = promptRepository.getPrompt( Prompts.SYSTEM.name() );
             
             // Inject cached resources block at the beginning of system prompt
             String resourcesBlock = resourceCache.toContextBlock();
@@ -191,8 +176,7 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
             var generationConfig = new LinkedHashMap<String, Object>();
             
             // Add temperature configuration if applicable
-            if (!model.modelName().matches("^o\\d{1}(-.*)?"))
-            {
+            if (!model.modelName().matches("^o\\d{1}(-.*)?")){
                 generationConfig.put("temperature", model.temperature() / 10.0);
             }
             
@@ -208,20 +192,21 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
             {
                 List<Map<String, Object>> allFunctionDeclarations = new ArrayList<>();
                 
-                for (var client : mcpClientRegistry.listEnabledClients().entrySet())
+                for (var tool : listAvailableTools().entrySet())
                 {
                     try {
-                        var functionDeclarations = clientToolsToJson(client.getKey(), client.getValue());
+                        var functionDeclarations = toolToJson(tool.getKey(), tool.getValue());
                         if (functionDeclarations != null && functionDeclarations.size() > 0) {
                             // Convert ArrayNode to List of Maps
                             for (JsonNode node : functionDeclarations) {
                                 // Convert each JsonNode to a Map
+                                @SuppressWarnings("unchecked")
                                 Map<String, Object> declarationMap = objectMapper.convertValue(node, Map.class);
                                 allFunctionDeclarations.add(declarationMap);
                             }
                         }
                     } catch (Exception e) {
-                        logger.error("Error processing client " + client.getKey() + ": " + e.getMessage(), e);
+                        logger.error("Error processing tool " + tool.getKey() + ": " + e.getMessage(), e);
                     }
                 }
                 

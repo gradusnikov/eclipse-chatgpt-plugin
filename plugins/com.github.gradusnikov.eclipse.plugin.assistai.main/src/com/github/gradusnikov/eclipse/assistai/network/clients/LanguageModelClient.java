@@ -4,6 +4,7 @@ import java.util.concurrent.Flow;
 import java.util.function.Supplier;
 
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
+import com.github.gradusnikov.eclipse.assistai.chat.ConversationContext;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
 
@@ -24,6 +25,17 @@ public interface LanguageModelClient
         // model override should implement this method
     }
 
+    /**
+     * Sets the conversation context to use for requests.
+     * 
+     * @param conversationContext the conversation context to use
+     */
+    default void setConversationContext( ConversationContext conversationContext )
+    {
+        // Default implementation does nothing - clients that support
+        // conversation context should implement this method
+    }    
+    
     /**
      * Subscribes a given Flow.Subscriber to receive String data from OpenAI API responses.
      * @param subscriber the Flow.Subscriber to be subscribed to the publisher

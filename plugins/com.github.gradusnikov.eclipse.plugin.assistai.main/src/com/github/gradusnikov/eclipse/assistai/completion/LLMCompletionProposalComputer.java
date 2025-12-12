@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -199,36 +198,10 @@ public class LLMCompletionProposalComputer implements IJavaCompletionProposalCom
      */
     private Optional<String> completeWithStreaming( Conversation conversation, IProgressMonitor monitor )
     {
-        CompletableFuture<String> future = new CompletableFuture<>();
-        StringBuilder result = new StringBuilder();
-        AtomicReference<StreamingCompletionClient.CompletionHandle> handleRef = new AtomicReference<>();
-        
-        StreamingCompletionClient.CompletionHandle handle = streamingCompletionClient.startStreaming(
+        CompletableFuture<String> future = streamingCompletionClient.startStreaming(
             conversation,
-            // On chunk - accumulate text
-            chunk -> {
-                if ( !monitor.isCanceled() )
-                {
-                    result.append( chunk );
-                }
-            },
-            // On complete
-            fullResponse -> {
-                if ( !future.isDone() )
-                {
-                    future.complete( fullResponse );
-                }
-            },
-            // On error
-            error -> {
-                if ( !future.isDone() )
-                {
-                    future.completeExceptionally( error );
-                }
-            }
+            null  // No chunk callback needed - we'll wait for the complete result
         );
-        
-        handleRef.set( handle );
         
         try
         {
@@ -240,13 +213,13 @@ public class LLMCompletionProposalComputer implements IJavaCompletionProposalCom
             {
                 if ( monitor.isCanceled() )
                 {
-                    handle.cancel();
+                    future.cancel( true );
                     return Optional.empty();
                 }
                 
                 if ( System.currentTimeMillis() - startTime > timeoutMs )
                 {
-                    handle.cancel();
+                    future.cancel( true );
                     if ( logger != null )
                     {
                         logger.warn( "Streaming completion timed out" );
@@ -269,7 +242,7 @@ public class LLMCompletionProposalComputer implements IJavaCompletionProposalCom
         catch ( InterruptedException e )
         {
             Thread.currentThread().interrupt();
-            handle.cancel();
+            future.cancel( true );
             return Optional.empty();
         }
         catch ( Exception e )

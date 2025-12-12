@@ -7,7 +7,7 @@ import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
 
 import jakarta.inject.Provider;
 
-public abstract class AbstractLanguageModelHttpClientProvider implements Provider<LanguageModelClient>
+public abstract class AbstractLanguageModelHttpClientProvider
 {
     protected final Provider<OpenAIStreamJavaHttpClient> openaiClientProvider;
     protected final Provider<OpenAIResponsesJavaHttpClient> openaiResponsesClientProvider;
@@ -44,7 +44,7 @@ public abstract class AbstractLanguageModelHttpClientProvider implements Provide
     /**
      * Creates a new client instance based on the selected model's API URL.
      */
-    protected LanguageModelClient createClient( ModelApiDescriptor modelApiDescriptor )
+    protected LanguageModelClient createClient( ModelApiDescriptor modelApiDescriptor, ConversationContext conversationContext )
     {
         var apiUrl = modelApiDescriptor.apiUrl();
         
@@ -58,18 +58,20 @@ public abstract class AbstractLanguageModelHttpClientProvider implements Provide
         };
         
         var client =  clientProvider.get();
+        client.setConversationContext( conversationContext );
         client.setModel( modelApiDescriptor );
         return client;
     }
     
     /**
-     * Returns a client configured with the given conversation context.
+     * Returns a client configured with the given conversation context and continuation callback.
      * This is the preferred method for obtaining clients as it ensures
      * proper routing of function call results.
      * 
      * @param context The conversation context for this request
+     * @param onContinue The continuation callback to invoke after function execution (can be null)
      * @return A configured LanguageModelClient
      */
-    public abstract LanguageModelClient get( ConversationContext context );
+    public abstract LanguageModelClient get( ConversationContext context, Runnable onContinue );
 
 }

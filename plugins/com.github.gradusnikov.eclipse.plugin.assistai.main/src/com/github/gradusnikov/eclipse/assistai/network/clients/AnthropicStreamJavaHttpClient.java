@@ -25,24 +25,23 @@ import java.util.stream.Collectors;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
-import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.prompt.PromptRepository;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
-import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.spec.McpSchema.Tool;
 import jakarta.inject.Inject;
 
 /**
@@ -58,27 +57,18 @@ public class AnthropicStreamJavaHttpClient extends AbstractLanguageModelClient
     
     private Supplier<Boolean> isCancelled = () -> false;
     
-    @Inject
-    private ILog logger;
     
     @Inject
-    private LanguageModelClientConfiguration configuration;
-    
-    @Inject
-    private InMemoryMcpClientRetistry mcpClientRegistry;
-    
-    @Inject
-    private ResourceCache resourceCache;
-    
-    private IPreferenceStore preferenceStore;
-    
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    public AnthropicStreamJavaHttpClient()
+    public AnthropicStreamJavaHttpClient( ILog logger, 
+            LanguageModelClientConfiguration configuration, 
+            InMemoryMcpClientRetistry mcpClientRegistry,
+            ResourceCache resourceCache, 
+            PromptRepository promptRepository 
+            )
     {
-        preferenceStore = Activator.getDefault().getPreferenceStore();
+        super( logger, configuration, mcpClientRegistry, resourceCache, promptRepository );
     }
-    
+
     @Override
     public void setCancelProvider(Supplier<Boolean> isCancelled)
     {
@@ -98,38 +88,33 @@ public class AnthropicStreamJavaHttpClient extends AbstractLanguageModelClient
         subscribers.add(subscriber);
     }
 
-    static ArrayNode clientToolsToJson(String clientName, McpSyncClient client) {
-        List<Map<String, Object>> tools = new ArrayList<>();
+    static ArrayNode toolToJson(String toolName, Tool tool ) {
+        // Create the main tool object
+        var toolObj = new LinkedHashMap<String, Object>();
         
-        for (var tool : client.listTools().tools()) {
-            // Create the main tool object
-            var toolObj = new LinkedHashMap<String, Object>();
-            
-            // Create the function definition
-            toolObj.put("name", clientName + "__" + tool.name());
-            toolObj.put("description", tool.description() != null ? tool.description() : "");
-            
-            // Create parameters object in the format Anthropic expects
-            var inputSchema = new LinkedHashMap<String, Object>();
-            inputSchema.put("type", tool.inputSchema().type() );
-            
-            // Add properties
-            if ( !tool.inputSchema().properties().isEmpty() )
-            {
-                inputSchema.put("properties", tool.inputSchema().properties());
-            }
-            
-            // Add required fields if present
-            if (tool.inputSchema().required() != null && !tool.inputSchema().required().isEmpty()) {
-                inputSchema.put("required", tool.inputSchema().required());
-            }
-            
-            toolObj.put("input_schema", inputSchema);
-            tools.add(toolObj);
+        // Create the function definition
+        toolObj.put("name", toolName );
+        toolObj.put("description", tool.description() != null ? tool.description() : "");
+        
+        // Create parameters object in the format Anthropic expects
+        var inputSchema = new LinkedHashMap<String, Object>();
+        inputSchema.put("type", tool.inputSchema().type() );
+        
+        // Add properties
+        if ( !tool.inputSchema().properties().isEmpty() )
+        {
+            inputSchema.put("properties", tool.inputSchema().properties());
         }
         
+        // Add required fields if present
+        if (tool.inputSchema().required() != null && !tool.inputSchema().required().isEmpty()) {
+            inputSchema.put("required", tool.inputSchema().required());
+        }
+        
+        toolObj.put("input_schema", inputSchema);
+        
         var objectMapper = new ObjectMapper();
-        var functionsJsonNode= objectMapper.valueToTree( tools );
+        var functionsJsonNode = objectMapper.valueToTree(List.of(toolObj));
         return (ArrayNode) functionsJsonNode; 
     }
     
@@ -141,7 +126,7 @@ public class AnthropicStreamJavaHttpClient extends AbstractLanguageModelClient
             var messages = new ArrayList<Map<String, Object>>();
 
             // System message should be placed in system key, not in messages array for Anthropic
-            String systemPrompt = preferenceStore.getString(Prompts.SYSTEM.preferenceName());
+            String systemPrompt =  promptRepository.getPrompt(  Prompts.SYSTEM.name() );
             
             // Inject cached resources block at the beginning of system prompt
             String resourcesBlock = resourceCache.toContextBlock();
@@ -168,9 +153,9 @@ public class AnthropicStreamJavaHttpClient extends AbstractLanguageModelClient
             if (model.functionCalling())
             {
                 ArrayNode tools = objectMapper.createArrayNode();
-                for (var client : mcpClientRegistry.listEnabledClients().entrySet())
+                for (var tool : listAvailableTools().entrySet() )
                 {
-                    tools.addAll(clientToolsToJson(client.getKey(), client.getValue()));
+                    tools.addAll(toolToJson(tool.getKey(), tool.getValue()));
                 }
                 if (!tools.isEmpty())
                 {

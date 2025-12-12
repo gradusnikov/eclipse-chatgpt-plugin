@@ -2,10 +2,13 @@ package com.github.gradusnikov.eclipse.assistai.completion;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Flow;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import org.eclipse.core.runtime.ILog;
@@ -21,7 +24,7 @@ import jakarta.inject.Inject;
 
 /**
  * Streaming completion client that provides incremental updates via callbacks.
- * Used for ghost text preview that updates as the LLM response streams in.
+ * Uses modern Java concurrent APIs (CompletableFuture, Flow) for cleaner async handling.
  */
 @Creatable
 public class StreamingCompletionClient
@@ -37,19 +40,34 @@ public class StreamingCompletionClient
         "eclipse-ide__getCurrentlyOpenedFile",
         "eclipse-ide__getEditorSelection",
         "eclipse-ide__getJavaDoc",
-        "eclipse-ide__getCompilationErrors"
+        "eclipse-ide__getCompilationErrors",
+        "eclipse-ide__getMethodCallHierarchy",
+        "memory__completion_meta"
     );
     
     /**
      * Maximum number of function call iterations to prevent infinite loops.
      */
     private static final int MAX_FUNCTION_CALL_ITERATIONS = 5;
+    
+    /**
+     * Executor for running streaming completion requests.
+     * Uses daemon threads to prevent blocking JVM shutdown.
+     */
+    private static final Executor COMPLETION_EXECUTOR = Executors.newCachedThreadPool(new ThreadFactory() {
+        private final AtomicInteger threadNumber = new AtomicInteger(1);
+        
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread thread = new Thread(r, "LLM-Streaming-Completion-" + threadNumber.getAndIncrement());
+            thread.setDaemon(true);
+            return thread;
+        }
+    });
 
-    private ILog                                       logger;
-
+    private ILog logger;
     private CompletionsLanguageModelHttpClientProvider clientProvider;
-
-    private CompletionConfiguration                    configuration;
+    private CompletionConfiguration configuration;
 
     @Inject
     public StreamingCompletionClient( 
@@ -57,150 +75,142 @@ public class StreamingCompletionClient
             CompletionConfiguration configuration, 
             ILog logger )
     {
-        Objects.requireNonNull( clientProvider );
-        Objects.requireNonNull( configuration );
-        Objects.requireNonNull( logger );
-        this.clientProvider = clientProvider;
-        this.configuration = configuration;
-        this.logger = logger;
+        this.clientProvider = Objects.requireNonNull( clientProvider );
+        this.configuration = Objects.requireNonNull( configuration );
+        this.logger = Objects.requireNonNull( logger );
     }
 
     /**
      * Starts a streaming completion request.
      * 
-     * @param conversation
-     *            The conversation/prompt to send
-     * @param onChunk
-     *            Called for each chunk of text received
-     * @param onComplete
-     *            Called when streaming is complete with full text
-     * @param onError
-     *            Called if an error occurs
-     * @return A cancellation handle
+     * @param conversation The conversation/prompt to send
+     * @param onChunk Called for each chunk of text received (optional, can be null)
+     * @return A CompletableFuture that completes with the full response text.
+     *         Use thenAccept() for completion handling and exceptionally() for errors.
      */
-    public CompletionHandle startStreaming( 
+    public CompletableFuture<String> startStreaming( 
             Conversation conversation, 
-            Consumer<String> onChunk, 
-            Consumer<String> onComplete, 
-            Consumer<Throwable> onError )
+            Consumer<String> onChunk )
     {
-
         // Check if completion is enabled
         if ( !configuration.isEnabled() )
         {
             logger.info( "LLM code completion is disabled in preferences" );
-            onComplete.accept( "" );
-            return new CompletionHandle( () -> {
-            } );
+            return CompletableFuture.completedFuture( "" );
         }
 
-        AtomicBoolean cancelled = new AtomicBoolean( false );
-        AtomicBoolean finalCompleted = new AtomicBoolean( false );
+        String contextId = "completion-" + System.currentTimeMillis();
+        logger.info( "Creating completion context: " + contextId );
+        
         AtomicInteger functionCallIteration = new AtomicInteger( 0 );
         StringBuilder fullResponse = new StringBuilder();
         
-        // Use AtomicReference to break circular dependency in lambda
-        AtomicReference<ConversationContext> contextRef = new AtomicReference<>();
-
-        try
-        {
-            String contextId = "completion-" + System.currentTimeMillis();
-            logger.info( "Creating completion context: " + contextId );
-            
-            // Create a conversation context for completions
-            // This context has restricted tools and handles function call continuations
-            ConversationContext context = ConversationContext.builder()
-                    .contextId( contextId )
-                    .conversation( conversation )
-                    .onFunctionResult( (functionCall, result) -> {
-                        logger.info( "Completion context " + contextId + ": function call completed: " + functionCall.name() );
-                    })
-                    .onConversationContinue( () -> {
-                        logger.info( "Completion context " + contextId + ": onConversationContinue called, cancelled=" + cancelled.get() + ", finalCompleted=" + finalCompleted.get() );
-                        
-                        // For completions, we need to re-invoke streaming after function call
-                        if ( cancelled.get() || finalCompleted.get() )
-                        {
-                            logger.info( "Completion context " + contextId + ": skipping continuation - cancelled or completed" );
-                            return;
-                        }
-                        
-                        int iteration = functionCallIteration.incrementAndGet();
-                        if ( iteration > MAX_FUNCTION_CALL_ITERATIONS )
-                        {
-                            logger.warn( "Completion context " + contextId + ": max function call iterations reached (" + MAX_FUNCTION_CALL_ITERATIONS + ")" );
-                            finalCompleted.set( true );
-                            onComplete.accept( fullResponse.toString() );
-                            return;
-                        }
-                        
-                        logger.info( "Completion context " + contextId + ": continuing conversation after function call (iteration " + iteration + ")" );
-                        
-                        // Re-invoke streaming with updated conversation
-                        ConversationContext ctx = contextRef.get();
-                        if ( ctx != null )
-                        {
-                            // Clear the response buffer for the new iteration
-                            // (function results are in the conversation, not the response text)
-                            fullResponse.setLength( 0 );
-                            
-                            startStreamingInternal( ctx, onChunk, onComplete, onError, cancelled, finalCompleted, fullResponse );
-                        }
-                        else
-                        {
-                            logger.error( "Completion context " + contextId + ": contextRef is null!" );
-                        }
-                    })
-                    .allowedTools( COMPLETION_ALLOWED_TOOLS )
-                    .build();
-            
-            // Store the context in the reference for use in the lambda
-            contextRef.set( context );
-            
-            logger.info( "Completion context " + contextId + ": shouldContinueConversation = " + context.shouldContinueConversation() );
-            
-            // Start the streaming request
-            startStreamingInternal( context, onChunk, onComplete, onError, cancelled, finalCompleted, fullResponse );
-
-            // Return cancellation handle
-            return new CompletionHandle( () -> {
-                cancelled.set( true );
-            } );
-
-        }
-        catch ( Exception e )
-        {
-            logger.error( "Error starting streaming completion: " + e.getMessage(), e );
-            onError.accept( e );
-            return new CompletionHandle( () -> {
-            } );
-        }
+        // Create the conversation context (no callback - it's passed separately)
+        CompletableFuture<String> completionFuture = new CompletableFuture<>();
+        ConversationContext context = ConversationContext.builder()
+                .contextId( contextId )
+                .conversation( conversation )
+                .allowedTools( COMPLETION_ALLOWED_TOOLS )
+                .build();
+        
+        // Create continuation callback
+        Runnable onContinue = createContinuationCallback(
+            contextId,
+            conversation,
+            functionCallIteration,
+            fullResponse,
+            completionFuture,
+            onChunk
+        );
+        
+        // Start the first streaming iteration
+        startStreamingIteration( context, onContinue, onChunk, fullResponse, completionFuture );
+        
+        return completionFuture;
     }
     
     /**
-     * Internal method to start or continue streaming.
+     * Creates a continuation callback that handles function call iterations.
      */
-    private void startStreamingInternal(
-            ConversationContext context,
-            Consumer<String> onChunk,
-            Consumer<String> onComplete,
-            Consumer<Throwable> onError,
-            AtomicBoolean cancelled,
-            AtomicBoolean finalCompleted,
-            StringBuilder fullResponse )
+    private Runnable createContinuationCallback(
+            String contextId,
+            Conversation conversation,
+            AtomicInteger functionCallIteration,
+            StringBuilder fullResponse,
+            CompletableFuture<String> completionFuture,
+            Consumer<String> onChunk )
     {
-        logger.info( "startStreamingInternal called for context: " + context.getContextId() );
+        return () -> {
+                    logger.info( "Completion context " + contextId + ": onConversationContinue called, cancelled=" + completionFuture.isCancelled() + ", completed=" + completionFuture.isDone() );
+                    
+                    // Skip if already cancelled or completed
+                    if ( completionFuture.isDone() )
+                    {
+                        logger.info( "Completion context " + contextId + ": skipping continuation - cancelled or completed" );
+                        return;
+                    }
+                    
+                    int iteration = functionCallIteration.incrementAndGet();
+                    if ( iteration > MAX_FUNCTION_CALL_ITERATIONS )
+                    {
+                        logger.warn( "Completion context " + contextId + ": max function call iterations reached (" + MAX_FUNCTION_CALL_ITERATIONS + ")" );
+                        completionFuture.complete( fullResponse.toString() );
+                        return;
+                    }
+                    
+                    logger.info( "Completion context " + contextId + ": continuing conversation after function call (iteration " + iteration + ")" );
+                    
+                    // Clear response buffer for new iteration (function results are in conversation)
+                    fullResponse.setLength( 0 );
+                    
+                    // Continue with next iteration
+                    ConversationContext ctx = ConversationContext.builder()
+                            .contextId( contextId )
+                            .conversation( conversation )
+                            .allowedTools( COMPLETION_ALLOWED_TOOLS )
+                            .build();
+                    
+                    startStreamingIteration( ctx, this::handleRecursiveContinuation, onChunk, fullResponse, completionFuture );
+                };
+    }
+    
+    /**
+     * Handles recursive continuation to prevent stack overflow.
+     */
+    private void handleRecursiveContinuation()
+    {
+        logger.warn( "Recursive continuation detected - this should not happen in normal flow" );
+    }
+    
+    /**
+     * Starts a single streaming iteration (may be followed by function call continuations).
+     */
+    private void startStreamingIteration(
+            ConversationContext context,
+            Runnable onContinue,
+            Consumer<String> onChunk,
+            StringBuilder fullResponse,
+            CompletableFuture<String> completionFuture )
+    {
+        logger.info( "startStreamingIteration called for context: " + context.getContextId() );
         
-        // Track if this particular stream iteration had a function call
+        // Skip if already completed or cancelled
+        if ( completionFuture.isDone() )
+        {
+            logger.info( "Skipping iteration - already completed or cancelled" );
+            return;
+        }
+        
         AtomicBoolean hasFunctionCall = new AtomicBoolean( false );
+        AtomicBoolean markdownTruncated = new AtomicBoolean( false );
         
-        // Get client with context for proper function call routing
-        LanguageModelClient client = clientProvider.get( context );
-
-        // Set up cancellation
-        client.setCancelProvider( cancelled::get );
-
-        // Subscribe to stream
+        LanguageModelClient client = clientProvider.get( context, onContinue );
+        client.setCancelProvider( completionFuture::isCancelled );
+        
+        // Create a future for this streaming iteration
+        CompletableFuture<Void> iterationFuture = new CompletableFuture<>();
+        
+        // Subscribe to the stream
         client.subscribe( new Flow.Subscriber<Incoming>()
         {
             private Flow.Subscription subscription;
@@ -209,13 +219,13 @@ public class StreamingCompletionClient
             public void onSubscribe( Flow.Subscription subscription )
             {
                 this.subscription = subscription;
-                subscription.request( Long.MAX_VALUE ); // Request all items upfront
+                subscription.request( Long.MAX_VALUE );
             }
 
             @Override
             public void onNext( Incoming item )
             {
-                if ( cancelled.get() )
+                if ( completionFuture.isDone() )
                 {
                     subscription.cancel();
                     return;
@@ -223,22 +233,16 @@ public class StreamingCompletionClient
 
                 if ( item.type() == Incoming.Type.CONTENT )
                 {
-                    String chunk = item.payload().toString();
+                    String chunk = sanitizeMarkdownChunk( item.payload().toString(), markdownTruncated );
                     fullResponse.append( chunk );
 
-                    // Notify of new chunk
-                    try
+                    if ( onChunk != null )
                     {
-                        onChunk.accept( chunk );
-                    }
-                    catch ( Exception e )
-                    {
-                        logger.warn( "Error in chunk callback: " + e.getMessage() );
+                        safeCallback( () -> onChunk.accept( chunk ), "chunk callback" );
                     }
                 }
                 else if ( item.type() == Incoming.Type.FUNCTION_CALL )
                 {
-                    // Mark that we have a function call - don't complete yet
                     hasFunctionCall.set( true );
                     logger.info( "Completion stream " + context.getContextId() + ": function call detected, will wait for execution" );
                 }
@@ -247,129 +251,106 @@ public class StreamingCompletionClient
             @Override
             public void onError( Throwable throwable )
             {
-                if ( !cancelled.get() && !finalCompleted.get() )
+                if ( !completionFuture.isDone() )
                 {
-                    finalCompleted.set( true );
-                    try
-                    {
-                        onError.accept( throwable );
-                    }
-                    catch ( Exception e )
-                    {
-                        logger.warn( "Error in error callback: " + e.getMessage() );
-                    }
+                    iterationFuture.completeExceptionally( throwable );
+                    completionFuture.completeExceptionally( throwable );
                 }
             }
 
             @Override
             public void onComplete()
             {
-                logger.info( "Completion stream " + context.getContextId() + ": onComplete called, hasFunctionCall=" + hasFunctionCall.get() + ", cancelled=" + cancelled.get() + ", finalCompleted=" + finalCompleted.get() );
+                logger.info( "Completion stream " + context.getContextId() + ": onComplete called, hasFunctionCall=" + hasFunctionCall.get() );
                 
-                // Only call the final onComplete if there's no function call pending
-                // If there's a function call, ExecuteFunctionCallJob will trigger continuation
-                if ( !hasFunctionCall.get() && !cancelled.get() && !finalCompleted.get() )
+                iterationFuture.complete( null );
+                
+                // Only complete if no function call is pending
+                if ( !hasFunctionCall.get() && !completionFuture.isDone() )
                 {
-                    finalCompleted.set( true );
-                    try
-                    {
-                        onComplete.accept( fullResponse.toString() );
-                    }
-                    catch ( Exception e )
-                    {
-                        logger.warn( "Error in complete callback: " + e.getMessage() );
-                    }
+                    completionFuture.complete( fullResponse.toString() );
                 }
                 else if ( hasFunctionCall.get() )
                 {
-                    logger.info( "Completion stream " + context.getContextId() + ": completed with function call pending, waiting for ExecuteFunctionCallJob" );
+                    logger.info( "Completion stream " + context.getContextId() + ": completed with function call pending, waiting for continuation" );
                 }
             }
-        } );
+        });
 
-        // Run the request in a separate thread
-        Thread requestThread = new Thread( () -> {
+        // Run the client request asynchronously
+        CompletableFuture.runAsync( () -> {
             try
             {
                 client.run( context.getConversation() ).run();
-                
-                // Give the publisher a moment to deliver the onComplete signal
-                // This is needed because SubmissionPublisher.close() is asynchronous
-                int waitCount = 0;
-                while ( !finalCompleted.get() && !hasFunctionCall.get() && waitCount < 50 && !cancelled.get() )
-                {
-                    Thread.sleep( 10 );
-                    waitCount++;
-                }
-                
-                // If still not completed after waiting and no function call, call onComplete
-                if ( !finalCompleted.get() && !hasFunctionCall.get() && !cancelled.get() )
-                {
-                    finalCompleted.set( true );
-                    try
-                    {
-                        onComplete.accept( fullResponse.toString() );
-                    }
-                    catch ( Exception e )
-                    {
-                        logger.warn( "Error in complete callback: " + e.getMessage() );
-                    }
-                }
-            }
-            catch ( InterruptedException e )
-            {
-                Thread.currentThread().interrupt();
-                if ( !cancelled.get() && !finalCompleted.get() )
-                {
-                    finalCompleted.set( true );
-                    try
-                    {
-                        onError.accept( e );
-                    }
-                    catch ( Exception ex )
-                    {
-                        logger.warn( "Error in error callback: " + ex.getMessage() );
-                    }
-                }
             }
             catch ( Exception e )
             {
-                if ( !cancelled.get() && !finalCompleted.get() )
+                if ( !completionFuture.isDone() )
                 {
-                    finalCompleted.set( true );
-                    try
-                    {
-                        onError.accept( e );
-                    }
-                    catch ( Exception ex )
-                    {
-                        logger.warn( "Error in error callback: " + ex.getMessage() );
-                    }
+                    iterationFuture.completeExceptionally( e );
+                    completionFuture.completeExceptionally( e );
                 }
             }
-        }, "LLM-Streaming-Completion" );
-        requestThread.setDaemon( true );
-        requestThread.start();
+        }, COMPLETION_EXECUTOR );
+        
+        // Handle iteration completion with timeout fallback
+        iterationFuture
+            .orTimeout( 60, java.util.concurrent.TimeUnit.SECONDS )
+            .whenComplete( (result, error) -> {
+                if ( error != null && !completionFuture.isDone() )
+                {
+                    logger.error( "Iteration failed or timed out: " + error.getMessage() );
+                    if ( !hasFunctionCall.get() )
+                    {
+                        completionFuture.completeExceptionally( error );
+                    }
+                }
+                else if ( !hasFunctionCall.get() && !completionFuture.isDone() )
+                {
+                    // Fallback completion if subscriber didn't trigger it
+                    completionFuture.complete( fullResponse.toString() );
+                }
+            });
     }
-
+    
     /**
-     * Handle for cancelling a streaming completion request.
+     * Safely executes a callback, catching and logging any exceptions.
      */
-    public static class CompletionHandle
+    private void safeCallback( Runnable callback, String callbackName )
     {
-        private final Runnable cancelAction;
-
-        CompletionHandle( Runnable cancelAction )
+        try
         {
-            this.cancelAction = cancelAction;
+            callback.run();
+        }
+        catch ( Exception e )
+        {
+            logger.warn( "Error in " + callbackName + ": " + e.getMessage() );
+        }
+    }
+    
+    /**
+     * Sanitizes markdown code fences from completion chunks.
+     */
+    private static String sanitizeMarkdownChunk( String rawChunk, AtomicBoolean markdownTruncated )
+    {
+        if ( rawChunk == null || rawChunk.isEmpty() )
+        {
+            return "";
         }
 
-        /**
-         * Cancels the completion request.
-         */
-        public void cancel()
+        String chunk = rawChunk;
+
+        // Drop common markdown code fences. If the fence is encountered, truncate the rest of the stream.
+        int fenceIndex = chunk.indexOf( "```" );
+        if ( fenceIndex >= 0 )
         {
-            cancelAction.run();
+            markdownTruncated.set( true );
+            chunk = chunk.substring( 0, fenceIndex );
         }
+
+        // Remove standalone fence markers that could arrive split across chunks.
+        chunk = chunk.replace( "~~~", "" );
+
+        return chunk;
     }
 }
