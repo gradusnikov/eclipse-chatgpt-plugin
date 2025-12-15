@@ -53,18 +53,11 @@
        <startup class="com.github.gradusnikov.eclipse.assistai.PluginStartup"/>
    </extension>
    
-   <!-- LLM Code Completion Extension -->
-   <extension
-         point="org.eclipse.jdt.ui.javaCompletionProposalComputer"
-         id="assistAICompletionProposalComputer"
-         name="AssistAI Code Completion">
-      <javaCompletionProposalComputer
-            class="com.github.gradusnikov.eclipse.assistai.completion.LLMCompletionProposalComputer"
-            categoryId="org.eclipse.jdt.ui.javaAllProposalCategory"
-            needsSortingAfterFiltering="false">
-         <partition type="__dftl_partition_content_type"/>
-      </javaCompletionProposalComputer>
-   </extension>
+   <!-- 
+   AI Code Completion is available via Alt+/ hotkey only.
+   We intentionally don't register with javaCompletionProposalComputer to avoid
+   appearing in Ctrl+Space content assist (which would slow down the UI).
+   -->
    
    <!-- Command for AI Code Completion -->
    <extension point="org.eclipse.ui.commands">
