@@ -21,7 +21,7 @@ import org.eclipse.swt.graphics.Image;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
-import com.github.gradusnikov.eclipse.assistai.prompt.PromptRepository;
+import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 
 /**
@@ -38,13 +38,13 @@ public class LLMCompletionProposalComputer implements IJavaCompletionProposalCom
 
     private ILog                     logger;
 
-    private CompletionContextBuilder contextBuilder;
 
     private StreamingCompletionClient streamingCompletionClient;
 
     private CompletionConfiguration  configuration;
 
-    private PromptRepository         promptRepository;
+    
+    private ChatMessageFactory       chatMessageFactory;
 
     private Image                    aiIcon;
 
@@ -63,10 +63,9 @@ public class LLMCompletionProposalComputer implements IJavaCompletionProposalCom
         {
             Activator activator = Activator.getDefault();
             this.logger = Activator.getDefault().getLog();
-            this.contextBuilder = activator.make( CompletionContextBuilder.class );
             this.streamingCompletionClient = activator.make( StreamingCompletionClient.class );
             this.configuration = activator.make( CompletionConfiguration.class );
-            this.promptRepository = activator.make( PromptRepository.class );
+            this.chatMessageFactory = activator.make( ChatMessageFactory.class );
             this.errorMessage = null;
 
             // Load AI icon
@@ -116,7 +115,7 @@ public class LLMCompletionProposalComputer implements IJavaCompletionProposalCom
             return Collections.emptyList();
         }
 
-        if ( contextBuilder == null || streamingCompletionClient == null )
+        if ( streamingCompletionClient == null )
         {
             errorMessage = "LLM completion not initialized";
             return Collections.emptyList();
@@ -124,29 +123,9 @@ public class LLMCompletionProposalComputer implements IJavaCompletionProposalCom
 
         try
         {
-            // Build completion context
-            Optional<CompletionContext> completionContextOpt = contextBuilder.build( context );
-            if ( completionContextOpt.isEmpty() )
-            {
-                return Collections.emptyList();
-            }
-
-            CompletionContext completionContext = completionContextOpt.get();
-
-            // Skip if we're at an empty position with no context
-            if ( completionContext.codeBeforeCursor().isBlank() )
-            {
-                return Collections.emptyList();
-            }
-
-            // Build the prompt
-            String prompt = buildPrompt( completionContext );
 
             // Create conversation
-            Conversation conversation = new Conversation();
-            ChatMessage userMessage = new ChatMessage( java.util.UUID.randomUUID().toString(), "user" );
-            userMessage.setContent( prompt );
-            conversation.add( userMessage );
+            Conversation conversation = createCompletionConversation();
 
             // Check for cancellation
             if ( monitor.isCanceled() )
@@ -162,7 +141,6 @@ public class LLMCompletionProposalComputer implements IJavaCompletionProposalCom
                 return Collections.emptyList();
             }
 
-            // Parse JSON response
             String response = responseOpt.get();
             String completion = parseCompletion( response );
 
@@ -190,6 +168,23 @@ public class LLMCompletionProposalComputer implements IJavaCompletionProposalCom
             errorMessage = "LLM completion error: " + e.getMessage();
             return Collections.emptyList();
         }
+    }
+    
+    /**
+     * Creates a Conversation with a single user message for completion.
+     * This is a convenience method that combines context setup, message creation,
+     * and conversation creation.
+     * 
+     * @param completionContext The completion context
+     * @return A Conversation ready to be sent to the LLM
+     */
+    public Conversation createCompletionConversation()
+    {
+        Conversation conversation = new Conversation();
+        ChatMessage message = chatMessageFactory.createUserChatMessage( Prompts.COMPLETION );
+        
+        conversation.add(message);
+        return  conversation;
     }
     
     /**
@@ -266,22 +261,6 @@ public class LLMCompletionProposalComputer implements IJavaCompletionProposalCom
     public String getErrorMessage()
     {
         return errorMessage;
-    }
-
-    /**
-     * Builds the prompt using the template and completion context.
-     */
-    private String buildPrompt( CompletionContext ctx )
-    {
-        String template = promptRepository.getPrompt( Prompts.COMPLETION.name() );
-
-        return template.replace( "${currentFileName}", ctx.fileName() )
-                       .replace( "${currentProjectName}", ctx.projectName() )
-                       .replace( "${fileExtension}", ctx.fileExtension() )
-                       .replace( "${codeBeforeCursor}", ctx.codeBeforeCursor() )
-                       .replace( "${codeAfterCursor}", ctx.codeAfterCursor() )
-                       .replace( "${cursorLine}", String.valueOf( ctx.cursorLine() ) )
-                       .replace( "${cursorColumn}", String.valueOf( ctx.cursorColumn() ) );
     }
 
     /**

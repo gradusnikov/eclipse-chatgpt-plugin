@@ -2,8 +2,8 @@ package com.github.gradusnikov.eclipse.assistai.completion;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.WeakHashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.eclipse.core.commands.AbstractHandler;
@@ -24,8 +24,6 @@ import org.eclipse.ui.texteditor.ITextEditor;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
-import java.util.concurrent.CompletableFuture;
-import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactory;
 import com.github.gradusnikov.eclipse.assistai.prompt.Prompts;
 import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
@@ -47,13 +45,9 @@ public class AICompletionHandler extends AbstractHandler {
     
     private final ILog logger;
 
-    private final CompletionContextBuilder contextBuilder;
-
     private final StreamingCompletionClient streamingClient;
 
     private final ChatMessageFactory chatMessageFactory;
-    
-    private final CodeEditingService codeEditingService;
     
     private final UISynchronizeCallable uiSync;
     
@@ -61,10 +55,8 @@ public class AICompletionHandler extends AbstractHandler {
     {
         Activator activator = Activator.getDefault();
         this.logger = activator.getLog();
-        this.contextBuilder = activator.make(CompletionContextBuilder.class);
         this.streamingClient = activator.make(StreamingCompletionClient.class);
         this.chatMessageFactory = activator.make(ChatMessageFactory.class);
-        this.codeEditingService = activator.make(CodeEditingService.class);
         this.uiSync = activator.make(UISynchronizeCallable.class);
     }
     
@@ -131,55 +123,42 @@ public class AICompletionHandler extends AbstractHandler {
      */
     private void executeWithStreamingGhostText(ITextEditor textEditor, GhostTextManager ghostManager) throws Exception {
         
-        Optional<CompletionContext> contextOpt = contextBuilder.build(textEditor);
-        if (contextOpt.isEmpty()) {
-            return;
-        }
-        
-        CompletionContext ctx = contextOpt.get();
-        if (ctx.codeBeforeCursor().isBlank()) {
-            return;
-        }
-        
-        // Use ChatMessageFactory to create the conversation with proper variable substitution
-        Conversation conversation = createCompletionConversation();
-        
         // Get cursor offset at the time of request
         int cursorOffset = getCaretOffset(textEditor);
+        
+        var conversation = createCompletionConversation( textEditor );
         
         // Buffer for streaming response
         StringBuilder streamingBuffer = new StringBuilder();
         
         // Start streaming
         CompletableFuture<String> future = streamingClient.startStreaming(
-            conversation,
-            // On chunk - append to buffer and update ghost text
-            chunk -> {
-                streamingBuffer.append(chunk);
-                String parsed = parseCompletion(streamingBuffer.toString());
-                if ( Objects.nonNull( parsed ) ) {
-                    // Update on UI thread
-                    uiSync.asyncExec(() -> {
-                        if (!ghostManager.isShowing()) {
-                            // First content - show ghost text at original cursor position
-                            ghostManager.showGhostText(parsed, cursorOffset);
-                        } else {
-                            // Update existing ghost text
-                            ghostManager.updateGhostText(parsed);
-                        }
-                    });
+                conversation,
+                // On chunk - append to buffer and update ghost text
+                chunk -> {
+                    streamingBuffer.append(chunk);
+                    String parsed = parseCompletion(streamingBuffer.toString());
+                    if ( Objects.nonNull( parsed ) ) {
+                        // Update on UI thread
+                        uiSync.asyncExec(() -> {
+                            if (!ghostManager.isShowing()) {
+                                // First content - show ghost text at original cursor position
+                                ghostManager.showGhostText(parsed, cursorOffset);
+                            } else {
+                                // Update existing ghost text
+                                ghostManager.updateGhostText(parsed);
+                            }
+                        });
+                    }
                 }
-            }
-        );
+                );
         
         // Handle completion and errors via CompletableFuture
         future.thenAccept(fullResponse -> {
             String completion = parseCompletion(fullResponse);
             if ( Objects.nonNull(completion) ) {
-                // Format the completion using CodeEditingService
-                String formattedCompletion = codeEditingService.formatCompletion(completion, ctx, textEditor);
                 uiSync.asyncExec(() -> {
-                    ghostManager.updateGhostText(formattedCompletion);
+                    ghostManager.updateGhostText(completion);
                 });
             } else {
                 uiSync.asyncExec(() -> {
@@ -202,34 +181,23 @@ public class AICompletionHandler extends AbstractHandler {
      * Executes completion with direct insertion (no ghost text).
      * Uses streaming client internally, waits for completion, then inserts.
      */
-    private void executeDirectInsertion(ITextEditor textEditor) throws Exception {
-        
-        Optional<CompletionContext> contextOpt = contextBuilder.build(textEditor);
-        if (contextOpt.isEmpty()) {
-            return;
-        }
-        
-        CompletionContext ctx = contextOpt.get();
-        if (ctx.codeBeforeCursor().isBlank()) {
-            return;
-        }
+    private void executeDirectInsertion(ITextEditor textEditor)  {
         
         // Use ChatMessageFactory to create the conversation with proper variable substitution
-        Conversation conversation = createCompletionConversation();
-        
+        var conversation = createCompletionConversation( textEditor );
         // Start streaming and insert when complete
         streamingClient.startStreaming(
-            conversation,
-            null  // No chunk callback needed for direct insertion
-        ).thenAccept(fullResponse -> {
-            String completion = parseCompletion(fullResponse);
-            if ( Objects.nonNull(completion) ) {
-                uiSync.asyncExec(() -> {
-                    insertText(textEditor, completion);
+                conversation,
+                null  // No chunk callback needed for direct insertion
+                ).thenAccept(fullResponse -> {
+                    String completion = parseCompletion(fullResponse);
+                    if ( Objects.nonNull(completion) ) {
+                        uiSync.asyncExec(() -> {
+                            insertText(textEditor, completion);
+                        });
+                    }
                 });
-            }
-        });
-        // Errors are silently ignored for direct insertion
+        
     }
     
     /**
@@ -264,13 +232,16 @@ public class AICompletionHandler extends AbstractHandler {
      * @param completionContext The completion context
      * @return A Conversation ready to be sent to the LLM
      */
-    public Conversation createCompletionConversation()
+    public Conversation createCompletionConversation(ITextEditor textEditor)
     {
         Conversation conversation = new Conversation();
         ChatMessage message = chatMessageFactory.createUserChatMessage( Prompts.COMPLETION );
+        
         conversation.add(message);
-        return conversation;
+        return  conversation;
     }
+    
+    
     
     /**
      * Gets the caret offset from the editor (widget offset for StyledText).
