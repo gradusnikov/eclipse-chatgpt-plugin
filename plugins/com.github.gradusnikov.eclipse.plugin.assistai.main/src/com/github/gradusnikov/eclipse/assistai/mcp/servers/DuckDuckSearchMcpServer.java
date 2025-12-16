@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.net.URL;
 import java.net.URLEncoder;
 
-import jakarta.inject.Inject;
-
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.jsoup.Jsoup;
@@ -19,6 +17,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
+
+import jakarta.inject.Inject;
 
 @Creatable
 @McpServer(name="duck-duck-search")

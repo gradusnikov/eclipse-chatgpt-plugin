@@ -3,7 +3,15 @@ Bundle-ManifestVersion: 2
 Bundle-Name: Tests
 Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.main.tests
 Bundle-Version: 1.0.4.qualifier
-Export-Package: com.github.gradusnikov.eclipse.plugin.assistai.main
+Export-Package: com.github.gradusnikov.eclipse.plugin.assistai.main,
+ com.github.gradusnikov.eclipse.assistai.mcp.services,
+ com.github.gradusnikov.eclipse.assistai.mcp.servers,
+ com.github.gradusnikov.eclipse.plugin.assistai.mcp.transport,
+ com.github.gradusnikov.eclipse.assistai.chat,
+ com.github.gradusnikov.eclipse.assistai.prompt,
+ com.github.gradusnikov.eclipse.assistai.services,
+ com.github.gradusnikov.eclipse.assistai.tools,
+ com.github.gradusnikov.eclipse.plugin.assistai.main.agents
 Fragment-Host: com.github.gradusnikov.eclipse.plugin.assistai.main
 Require-Bundle: junit-jupiter-api,
  org.eclipse.jdt.core,
@@ -11,10 +19,11 @@ Require-Bundle: junit-jupiter-api,
  slf4j.api
 Automatic-Module-Name: com.github.gradusnikov.eclipse.plugin.assistai.main.tests
 Bundle-RequiredExecutionEnvironment: JavaSE-23
-Import-Package: org.eclipse.core.runtime,
- org.hamcrest;version="2.2.0",
+Import-Package: com.github.gradusnikov.eclipse.assistai.agents,
  jakarta.servlet;version="6.1.0",
  jakarta.servlet.http;version="6.1.0",
  org.apache.catalina;resolution:=optional,
  org.apache.catalina.startup;resolution:=optional,
- org.apache.tomcat.util.descriptor.web;resolution:=optional
+ org.apache.tomcat.util.descriptor.web;resolution:=optional,
+ org.eclipse.core.runtime,
+ org.hamcrest;version="2.2.0"

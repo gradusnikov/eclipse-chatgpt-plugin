@@ -272,6 +272,16 @@ public class EclipseIntegrationsMcpServer
         return resourceService.findFiles(patterns, limit).toString();
     }
 
+    @Tool(name = "searchAndReplace", description = "Search and replace across multiple files in the workspace using Eclipse's text search engine.", type = "object")
+    public String searchAndReplace(
+            @ToolParam(name = "containingText", description = "Plain text to find (not regex)", required = true) String containingText,
+            @ToolParam(name = "replacementText", description = "Replacement text (can be empty)", required = true) String replacementText,
+            @ToolParam(name = "fileNamePatterns", description = "Optional file name patterns. Accepts either an array (e.g. [\"*.java\", \"*.xml\"]) or a string (e.g. \"*.java,*.xml\"). If omitted, all files are searched.", required = false) Object fileNamePatterns)
+    {
+        String[] patterns = normalizeFileNamePatterns(fileNamePatterns);
+        return searchService.searchAndReplace(containingText, replacementText, patterns).toString();
+    }
+
     private static String[] normalizeFileNamePatterns(Object fileNamePatterns)
     {
         if (fileNamePatterns == null)
