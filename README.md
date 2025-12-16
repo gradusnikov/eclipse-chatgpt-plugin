@@ -92,6 +92,9 @@ To use a local or third-party model, configure it using the OpenAI protocol form
 | eclipse-ide | getEffectivePom | Gets the effective POM for a Maven project. |
 | eclipse-ide | listMavenProjects | Lists all available Maven projects in the workspace. |
 | eclipse-ide | getProjectDependencies | Gets Maven project dependencies. |
+| eclipse-ide | fileSearch | Searches for a plain substring in workspace files using Eclipse's text search engine. |
+| eclipse-ide | fileSearchRegExp | Searches workspace files using a Java regular expression via Eclipse's text search engine. |
+| eclipse-ide | findFiles | Finds workspace files matching the given glob patterns. |
 | memory | think | Use this tool to think about something without obtaining new information or performing changes. |
 | webpage-reader | readWebPage | Reads the content of the given web site and returns its content as a markdown text. |
 | time | currentTime | Returns the current date and time in the following format: yyyy-MM-dd HH:mm:ss |
