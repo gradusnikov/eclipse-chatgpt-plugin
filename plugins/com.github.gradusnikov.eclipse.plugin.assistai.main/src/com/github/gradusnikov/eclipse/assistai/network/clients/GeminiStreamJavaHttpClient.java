@@ -5,7 +5,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -393,7 +392,7 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
             publisher = new SubmissionPublisher<>(Runnable::run, Flow.defaultBufferSize());
 
             HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
+                    .connectTimeout(model.connectionTimeout())
                     .build();
 
             String requestBody = getRequestBody(prompt, model);
@@ -403,7 +402,7 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
             
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(apiUrl))
-                    .timeout(Duration.ofSeconds(configuration.getRequestTimoutSeconds()))
+                    .timeout(model.requestTimeout())
                     .header("Content-Type", "application/json")
                     .header("x-goog-api-key", model.apiKey())
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))

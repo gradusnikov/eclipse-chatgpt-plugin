@@ -9,7 +9,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -317,12 +316,12 @@ public class DeepSeekStreamJavaHttpClient extends AbstractLanguageModelClient
             }
             
             HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
+                    .connectTimeout(model.connectionTimeout())
                     .build();
 
             String requestBody = getRequestBody(prompt, model);
             HttpRequest request = HttpRequest.newBuilder().uri(URI.create(model.apiUrl()))
-                    .timeout(Duration.ofSeconds(configuration.getRequestTimoutSeconds()))
+                    .timeout(model.requestTimeout())
                     .version(HttpClient.Version.HTTP_1_1)
                     .header("Authorization", "Bearer " + model.apiKey())
                     .header("Content-Type", "application/json")
