@@ -1,5 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.preferences.models;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -44,6 +45,10 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
     private Text       apiUrl;
 
     private Text       apiKey;
+
+    private Text       connectionTimeout;
+
+    private Text       requestTimeout;
 
     private Text       modelName;
 
@@ -126,6 +131,8 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
                 "openai", 
                 apiUrl.getText(), 
                 apiKey.getText(), 
+                textToDuration(connectionTimeout.getText()), 
+                textToDuration(requestTimeout.getText()), 
                 modelName.getText(),
                 withTemperature.getSelection(), 
                 withVision.getSelection(), 
@@ -168,6 +175,8 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
 
         apiUrl = addTextField( form, "API Url:");
         apiKey = addTextField( form, "API Key:");
+        connectionTimeout = addTextField( form, "Connection Timeout (seconds):");
+        requestTimeout = addTextField( form, "Request Timeout (seconds):");
         modelName = addTextField( form, "Model Name:");
         withVision = addCheckField( form, "With Vision:");
         withFunctionCalls = addCheckField( form, "With Function Calls:");
@@ -254,6 +263,8 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         uiSync.asyncExec( () -> {
             apiUrl.setText( modelApiDescriptor.apiUrl() );
             apiKey.setText( modelApiDescriptor.apiKey() );
+            connectionTimeout.setText( durationToText(modelApiDescriptor.connectionTimeout()) );
+            requestTimeout.setText( durationToText(modelApiDescriptor.requestTimeout()) );
             modelName.setText( modelApiDescriptor.modelName() );
             withTemperature.setSelection( modelApiDescriptor.temperature() );
             withVision.setSelection( modelApiDescriptor.vision() );
@@ -267,6 +278,8 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         uiSync.asyncExec( () -> {
             apiUrl.setText( "" );
             apiKey.setText( "" );
+            connectionTimeout.setText( "" );
+            requestTimeout.setText( "" );
             modelName.setText( "" );
             withTemperature.setSelection( 0 );
             withVision.setSelection( false );
@@ -296,4 +309,12 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         } );
     }
 
+
+    private static Duration textToDuration(String text) {
+      return Duration.ofSeconds(Long.parseLong(text));
+    }
+
+    private static String durationToText(Duration duration) {
+      return Long.toString(duration.getSeconds());
+    }
 }
