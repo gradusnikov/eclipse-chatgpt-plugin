@@ -53,49 +53,87 @@ To use a local or third-party model, configure it using the OpenAI protocol form
 
 ## Built-in MCP tools
 
+### eclipse-coder — Code Editing
+
+| Tool | Description |
+|------|-------------|
+| createFile | Creates a new file in the specified project, adds it to the project, and opens it in the editor. |
+| insertIntoFile | Inserts content at a specific position in an existing file. |
+| replaceString | Replaces a specific string in a file with a new string, optionally within a specified line range. |
+| applyPatch | Applies a unified diff patch to a file with fuzzy context matching. More reliable than replaceString for multi-hunk edits. Optionally shows Eclipse's Apply Patch dialog. |
+| formatFile | Formats an entire Java file using Eclipse's code formatter (Ctrl+Shift+F). |
+| undoEdit | Undoes the last edit operation by restoring a file from its backup. |
+| createDirectories | Creates a directory structure (recursively) in the specified project. |
+| renameFile | Renames a file in the specified project. |
+| deleteFile | Deletes a file from the specified project. |
+| replaceFileContent | Replaces the entire content of a file with new content. |
+| deleteLinesInFile | Deletes a range of lines in a file, using 1-based line indexing. |
+| refactorRenameJavaType | Renames a Java class/interface/enum using Eclipse's refactoring mechanism, updating the type name, file name, and all references throughout the workspace. |
+| refactorMoveJavaType | Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism, updating the package declaration and all references. |
+| refactorRenamePackage | Renames a Java package using Eclipse's refactoring mechanism, updating all package declarations and references throughout the workspace. |
+| moveResource | Moves a file or folder to a different location within the project. |
+| organizeImports | Organizes imports in a Java file (removes unused, adds missing, sorts). Equivalent to Ctrl+Shift+O. |
+| organizeImportsInPackage | Organizes imports in all Java files within a package. |
+
+### eclipse-ide — Code Analysis, Navigation & Build
+
+| Tool | Description |
+|------|-------------|
+| formatCode | Formats code according to the current Eclipse formatter settings. |
+| getJavaDoc | Get the JavaDoc for the given compilation unit. |
+| getSource | Get the source for the given class. |
+| getProjectProperties | Retrieves the properties and configuration of a specified project. |
+| getProjectLayout | Get the file and folder structure of a specified project. Supports `scopePath` to limit to a subdirectory and `maxDepth` to control tree depth for large projects. |
+| getMethodCallHierarchy | Retrieves the call hierarchy (callers) for a specified method. |
+| getTypeHierarchy | Retrieves the type hierarchy (supertypes, interfaces, and subtypes) for a given Java class or interface. |
+| findReferences | Finds all references/usages of a Java type, method, or field across the entire workspace. |
+| getCompilationErrors | Retrieves compilation errors and problems from the workspace or a project. |
+| getQuickFixes | Gets available quick fixes for compilation errors in a Java file. |
+| getImportSuggestions | Finds import candidates for unresolved types in a Java file. |
+| readProjectResource | Read the content of a text resource from a specified project. |
+| listProjects | List all available projects in the workspace with their detected natures. |
+| getCurrentlyOpenedFile | Gets information about the currently active file in the Eclipse editor. |
+| getEditorSelection | Gets the currently selected text or lines in the active editor. |
+| getConsoleOutput | Retrieves the recent output from Eclipse console(s). |
+| runAllTests | Runs all tests in a specified project and returns the results. |
+| runPackageTests | Runs tests in a specific package and returns the results. |
+| runClassTests | Runs tests for a specific class and returns the results. |
+| runTestMethod | Runs a specific test method and returns the results. |
+| findTestClasses | Finds all test classes in a project. |
+| runMavenBuild | Runs a Maven build with the specified goals on a project. |
+| getEffectivePom | Gets the effective POM for a Maven project. |
+| listMavenProjects | Lists all available Maven projects in the workspace. |
+| getProjectDependencies | Gets Maven project dependencies. |
+| fileSearch | Searches for a plain substring in workspace files using Eclipse's text search engine. |
+| fileSearchRegExp | Searches workspace files using a Java regular expression via Eclipse's text search engine. |
+| findFiles | Finds workspace files matching the given glob patterns. |
+| searchAndReplace | Search and replace across multiple files in the workspace using Eclipse's text search engine. |
+
+### eclipse-runner — Launch, Debug & Breakpoints
+
+| Tool | Description |
+|------|-------------|
+| runJavaApplication | Launches a Java application in run mode with optional program/VM arguments and configurable timeout. |
+| debugJavaApplication | Launches a Java application in debug mode. Stops at breakpoints. |
+| stopApplication | Stops a running or debugging Java application by name or main class match. |
+| listActiveLaunches | Lists all currently running or debugging applications with their status and mode. |
+| toggleBreakpoint | Sets or removes a line breakpoint at the specified location. |
+| setConditionalBreakpoint | Sets a breakpoint with a condition expression and optional hit count. |
+| listBreakpoints | Lists all breakpoints with their location, enabled status, and conditions. |
+| removeAllBreakpoints | Removes all breakpoints from the workspace. |
+| getStackTrace | Gets the stack trace of all threads for a suspended debug session, including local variables. |
+| evaluateExpression | Evaluates a Java expression in the context of a suspended debug frame. |
+| resumeDebug | Resumes execution of a suspended debug session. |
+| stepOver | Steps over the current line in a suspended debug session. |
+| stepInto | Steps into the method call at the current line in a suspended debug session. |
+| stepReturn | Steps out of the current method in a suspended debug session. |
+| hotCodeReplace | Pushes code changes into a running debug session without restarting (Hot Code Replace). |
+
+### Other Tools
+
 | MCP Server | Tool | Description |
 |------------|------|-------------|
 | duck-duck-search | webSearch | Performs a search using a Duck Duck Go search engine and returns the search result json. |
-| eclipse-coder | createFile | Creates a new file in the specified project, adds it to the project, and opens it in the editor. |
-| eclipse-coder | insertIntoFile | Inserts content at a specific position in an existing file. |
-| eclipse-coder | replaceString | Replaces a specific string in a file with a new string, optionally within a specified line range. |
-| eclipse-coder | undoEdit | Undoes the last edit operation by restoring a file from its backup. |
-| eclipse-coder | createDirectories | Creates a directory structure (recursively) in the specified project. |
-| eclipse-coder | renameFile | Renames a file in the specified project. |
-| eclipse-coder | deleteFile | Deletes a file from the specified project. |
-| eclipse-coder | replaceFileContent | Replaces the entire content of a file with new content. |
-| eclipse-coder | deleteLinesInFile | Deletes a range of lines in a file, using 1-based line indexing. |
-| eclipse-coder | refactorRenameJavaType | Renames a Java class/interface/enum using Eclipse's refactoring mechanism, updating the type name, file name, and all references throughout the workspace. |
-| eclipse-coder | refactorMoveJavaType | Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism, updating the package declaration and all references. |
-| eclipse-coder | refactorRenamePackage | Renames a Java package using Eclipse's refactoring mechanism, updating all package declarations and references throughout the workspace. |
-| eclipse-coder | moveResource | Moves a file or folder to a different location within the project. |
-| eclipse-coder | organizeImports | Organizes imports in a Java file (removes unused, adds missing, sorts). Equivalent to Ctrl+Shift+O. |
-| eclipse-coder | organizeImportsInPackage | Organizes imports in all Java files within a package. |
-| eclipse-ide | formatCode | Formats code according to the current Eclipse formatter settings. |
-| eclipse-ide | getJavaDoc | Get the JavaDoc for the given compilation unit. |
-| eclipse-ide | getSource | Get the source for the given class. |
-| eclipse-ide | getProjectProperties | Retrieves the properties and configuration of a specified project. |
-| eclipse-ide | getProjectLayout | Get the file and folder structure of a specified project in a hierarchical format. |
-| eclipse-ide | getMethodCallHierarchy | Retrieves the call hierarchy (callers) for a specified method. |
-| eclipse-ide | getCompilationErrors | Retrieves compilation errors and problems from the workspace or a project. |
-| eclipse-ide | readProjectResource | Read the content of a text resource from a specified project. |
-| eclipse-ide | listProjects | List all available projects in the workspace with their detected natures. |
-| eclipse-ide | getCurrentlyOpenedFile | Gets information about the currently active file in the Eclipse editor. |
-| eclipse-ide | getEditorSelection | Gets the currently selected text or lines in the active editor. |
-| eclipse-ide | getConsoleOutput | Retrieves the recent output from Eclipse console(s). |
-| eclipse-ide | runAllTests | Runs all tests in a specified project and returns the results. |
-| eclipse-ide | runPackageTests | Runs tests in a specific package and returns the results. |
-| eclipse-ide | runClassTests | Runs tests for a specific class and returns the results. |
-| eclipse-ide | runTestMethod | Runs a specific test method and returns the results. |
-| eclipse-ide | findTestClasses | Finds all test classes in a project. |
-| eclipse-ide | runMavenBuild | Runs a Maven build with the specified goals on a project. |
-| eclipse-ide | getEffectivePom | Gets the effective POM for a Maven project. |
-| eclipse-ide | listMavenProjects | Lists all available Maven projects in the workspace. |
-| eclipse-ide | getProjectDependencies | Gets Maven project dependencies. |
-| eclipse-ide | fileSearch | Searches for a plain substring in workspace files using Eclipse's text search engine. |
-| eclipse-ide | fileSearchRegExp | Searches workspace files using a Java regular expression via Eclipse's text search engine. |
-| eclipse-ide | findFiles | Finds workspace files matching the given glob patterns. |
-| eclipse-ide | searchAndReplace | Search and replace across multiple files in the workspace using Eclipse's text search engine. |
 | memory | think | Use this tool to think about something without obtaining new information or performing changes. |
 | webpage-reader | readWebPage | Reads the content of the given web site and returns its content as a markdown text. |
 | time | currentTime | Returns the current date and time in the following format: yyyy-MM-dd HH:mm:ss |
@@ -241,6 +279,7 @@ AssistAI now supports exposing its internal MCP servers (eclipse-ide, eclipse-co
    The **Enabled Endpoints** section displays all available MCP servers exposed via HTTP:
    - `http://localhost:8124/mcp/eclipse-ide`
    - `http://localhost:8124/mcp/eclipse-coder`
+   - `http://localhost:8124/mcp/eclipse-runner`
    - `http://localhost:8124/mcp/duck-duck-search`
    - `http://localhost:8124/mcp/webpage-reader`
    - `http://localhost:8124/mcp/time`
@@ -310,12 +349,15 @@ To connect Claude Desktop to your Eclipse HTTP MCP Server:
 
 With HTTP MCP Server enabled, external AI clients can:
 
-- **Read and modify Eclipse project files** using `eclipse-coder` tools
+- **Read and modify Eclipse project files** using `eclipse-coder` tools (including unified diff patching)
 - **Access project structure and properties** using `eclipse-ide` tools
+- **Navigate code** with type hierarchy, find references, and call hierarchy tools
 - **Run and analyze JUnit tests** in your Eclipse workspace
-- **Read compilation errors** and get context about your code
+- **Read compilation errors** and get quick fix suggestions and import candidates
 - **Format code** according to Eclipse formatter settings
 - **Access JavaDoc and source code** for better context understanding
+- **Launch and stop Java applications** in run or debug mode using `eclipse-runner` tools
+- **Debug interactively** — set breakpoints (including conditional), step through code, inspect stack traces, evaluate expressions, and hot-swap code changes
 
 This feature enables powerful AI-assisted development workflows where Claude or other AI assistants can directly interact with your Eclipse IDE environment.
 
