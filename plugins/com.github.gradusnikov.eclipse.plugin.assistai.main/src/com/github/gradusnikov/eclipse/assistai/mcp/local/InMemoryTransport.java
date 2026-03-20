@@ -6,6 +6,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
+import org.eclipse.core.runtime.ILog;
+import org.eclipse.e4.core.di.annotations.Creatable;
+
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.json.McpJsonMapperSupplier;
 import io.modelcontextprotocol.json.TypeRef;
@@ -17,6 +20,8 @@ import io.modelcontextprotocol.spec.McpServerTransport;
 import io.modelcontextprotocol.spec.McpServerTransportProvider;
 import io.modelcontextprotocol.spec.ProtocolVersions;
 import io.modelcontextprotocol.util.Assert;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
@@ -29,15 +34,25 @@ import reactor.core.scheduler.Schedulers;
  * <p>This implementation creates a pair of transports (client and server) that are linked to each other,
  * with messages from one being delivered to the other.</p>
  */
+@Singleton
+@Creatable
 public class InMemoryTransport 
 {
+    private final ILog logger;
+    
+    @Inject
+    public InMemoryTransport( ILog logger )
+    {
+        this.logger = logger;
+    }
+    
     /**
      * Creates a connected pair of client and server transports.
      * 
      * @param jsonMapper The McpJsonMapper to use for serialization
      * @return A pair containing client and server transports
      */
-    public static TransportPair createTransportPair(McpJsonMapper jsonMapper) {
+    public TransportPair createTransportPair(McpJsonMapper jsonMapper) {
         // Create message queues for bidirectional communication
         BlockingQueue<McpSchema.JSONRPCMessage> clientToServerQueue = new LinkedBlockingQueue<>();
         BlockingQueue<McpSchema.JSONRPCMessage> serverToClientQueue = new LinkedBlockingQueue<>();
@@ -48,10 +63,10 @@ public class InMemoryTransport
 
         // Create the transports
         InMemoryClientTransport clientTransport = new InMemoryClientTransport(
-                serverToClientQueue, clientToServerQueue, clientErrorSink, jsonMapper);
+                serverToClientQueue, clientToServerQueue, clientErrorSink, jsonMapper, logger);
         
         InMemoryServerTransportProvider serverTransportProvider = new InMemoryServerTransportProvider(
-                jsonMapper, clientToServerQueue, serverToClientQueue, serverErrorSink);
+                jsonMapper, clientToServerQueue, serverToClientQueue, serverErrorSink, logger);
 
         return new TransportPair(clientTransport, serverTransportProvider);
     }
@@ -61,7 +76,7 @@ public class InMemoryTransport
      * 
      * @return A pair containing client and server transports
      */
-    public static TransportPair createEntangledTransportPair() {
+    public TransportPair createEntangledTransportPair() {
         McpJsonMapperSupplier jsonMapperSupplier = new JacksonMcpJsonMapperSupplier();
         return createTransportPair(jsonMapperSupplier.get());
     }
@@ -96,23 +111,27 @@ public class InMemoryTransport
         private final Sinks.Many<McpSchema.JSONRPCMessage> inboundSink;
         private final Sinks.Many<String> errorSink;
         private final McpJsonMapper jsonMapper;
+        private final ILog logger;
         private volatile boolean isClosing = false;
 
         InMemoryClientTransport(
                 BlockingQueue<McpSchema.JSONRPCMessage> inboundQueue,
                 BlockingQueue<McpSchema.JSONRPCMessage> outboundQueue,
                 Sinks.Many<String> errorSink,
-                McpJsonMapper jsonMapper) {
+                McpJsonMapper jsonMapper,
+                ILog logger ) {
             
             Assert.notNull(inboundQueue, "Inbound queue cannot be null");
             Assert.notNull(outboundQueue, "Outbound queue cannot be null");
             Assert.notNull(errorSink, "Error sink cannot be null");
             Assert.notNull(jsonMapper, "JsonMapper cannot be null");
+            Assert.notNull(logger, "ILog cannot be null");
             
             this.inboundQueue = inboundQueue;
             this.outboundQueue = outboundQueue;
             this.errorSink = errorSink;
             this.jsonMapper = jsonMapper;
+            this.logger = logger;
             this.inboundSink = Sinks.many().unicast().onBackpressureBuffer();
         }
 
@@ -128,13 +147,13 @@ public class InMemoryTransport
                         while (!isClosing) {
                             McpSchema.JSONRPCMessage message = inboundQueue.take();
                             if (!inboundSink.tryEmitNext(message).isSuccess() && !isClosing) {
-//                                logger.error("Failed to emit inbound message: " + message);
+                                logger.error("Failed to emit inbound message: " + message);
                                 break;
                             }
                         }
                     } catch (InterruptedException e) {
                         if (!isClosing) {
-//                            logger.error("Interrupted while waiting for messages", e);
+                            logger.error("Interrupted while waiting for messages", e);
                         }
                         Thread.currentThread().interrupt();
                     } finally {
@@ -202,6 +221,7 @@ public class InMemoryTransport
         private final BlockingQueue<McpSchema.JSONRPCMessage> inboundQueue;
         private final BlockingQueue<McpSchema.JSONRPCMessage> outboundQueue;
         private final Sinks.Many<String> errorSink;
+        private final ILog logger;
         private McpServerSession session;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
@@ -209,17 +229,20 @@ public class InMemoryTransport
                 McpJsonMapper jsonMapper,
                 BlockingQueue<McpSchema.JSONRPCMessage> inboundQueue,
                 BlockingQueue<McpSchema.JSONRPCMessage> outboundQueue,
-                Sinks.Many<String> errorSink) {
+                Sinks.Many<String> errorSink,
+                ILog logger) {
             
             Assert.notNull(jsonMapper, "JsonMapper cannot be null");
             Assert.notNull(inboundQueue, "Inbound queue cannot be null");
             Assert.notNull(outboundQueue, "Outbound queue cannot be null");
             Assert.notNull(errorSink, "Error sink cannot be null");
+            Assert.notNull(logger, "Logger sink cannot be null");
             
             this.jsonMapper = jsonMapper;
             this.inboundQueue = inboundQueue;
             this.outboundQueue = outboundQueue;
             this.errorSink = errorSink;
+            this.logger = logger;
         }
 
         @Override
@@ -230,7 +253,7 @@ public class InMemoryTransport
         @Override
         public void setSessionFactory(McpServerSession.Factory sessionFactory) {
             // Create a single session for the in-memory connection
-            var transport = new InMemorySessionTransport();
+            var transport = new InMemorySessionTransport(logger);
             this.session = sessionFactory.create(transport);
             transport.initProcessing();
         }
@@ -258,8 +281,10 @@ public class InMemoryTransport
             private final Sinks.Many<McpSchema.JSONRPCMessage> inboundSink;
             private final Sinks.Many<McpSchema.JSONRPCMessage> outboundSink;
             private final AtomicBoolean isStarted = new AtomicBoolean(false);
+            private final ILog logger;
 
-            public InMemorySessionTransport() {
+            public InMemorySessionTransport(ILog logger) {
+                this.logger = logger;
                 this.inboundSink = Sinks.many().unicast().onBackpressureBuffer();
                 this.outboundSink = Sinks.many().unicast().onBackpressureBuffer();
             }
@@ -301,7 +326,11 @@ public class InMemoryTransport
 
             private void handleIncomingMessages() {
                 this.inboundSink.asFlux()
-                    .flatMap(message -> session.handle(message))
+                    .flatMap(message -> session.handle(message)
+                        .onErrorResume(e -> {
+                            logger.error("Error handling MCP message: " + e.getMessage(), e);
+                            return Mono.empty();
+                        }))
                     .doOnTerminate(() -> {
                         this.outboundSink.tryEmitComplete();
                     })

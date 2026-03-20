@@ -348,7 +348,9 @@ public class ChatViewPresenter implements IResourceCacheListener
 
     public void applyToView( Consumer<? super ChatView> consumer )
     {
-        partAccessor.findMessageView().ifPresent( consumer );
+        uiSync.asyncExec( () -> {
+            partAccessor.findMessageView().ifPresent( consumer );
+        });
     }
 
     public void onImageSelected( Image image )

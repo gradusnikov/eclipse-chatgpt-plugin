@@ -25,10 +25,6 @@
 	<classpathentry exported="true" kind="lib" path="plugins/com.github.gradusnikov.eclipse.plugin.assistai.dependencies/flexmark/flexmark-util-sequence-0.64.8.jar"/>
 	<classpathentry exported="true" kind="lib" path="plugins/com.github.gradusnikov.eclipse.plugin.assistai.dependencies/flexmark/flexmark-util-visitor-0.64.8.jar"/>
 	<classpathentry exported="true" kind="lib" path="plugins/com.github.gradusnikov.eclipse.plugin.assistai.dependencies/flexmark/jsoup-1.15.4.jar"/>
-	<classpathentry exported="true" kind="lib" path="plugins/com.github.gradusnikov.eclipse.plugin.assistai.dependencies/mcp/byte-buddy-1.14.9.jar"/>
-	<classpathentry exported="true" kind="lib" path="plugins/com.github.gradusnikov.eclipse.plugin.assistai.dependencies/mcp/jakarta.servlet-api-6.1.0.jar"/>
-	<classpathentry exported="true" kind="lib" path="plugins/com.github.gradusnikov.eclipse.plugin.assistai.dependencies/mcp/reactive-streams-1.0.4.jar"/>
-	<classpathentry exported="true" kind="lib" path="plugins/com.github.gradusnikov.eclipse.plugin.assistai.dependencies/mcp/reactor-core-3.7.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="plugins/com.github.gradusnikov.eclipse.plugin.assistai.dependencies/selenium/auto-service-annotations-1.1.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="plugins/com.github.gradusnikov.eclipse.plugin.assistai.dependencies/selenium/byte-buddy-1.14.5.jar"/>
 	<classpathentry exported="true" kind="lib" path="plugins/com.github.gradusnikov.eclipse.plugin.assistai.dependencies/selenium/checker-qual-3.33.0.jar"/>

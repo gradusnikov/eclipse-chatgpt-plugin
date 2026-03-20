@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Provider;
@@ -121,40 +122,58 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
         {
             // Split by "function_call" to get individual calls
             String[] parts = json.split("\"function_call\"\\s*:\\s*");
-            
+
+            // First pass: parse all valid function calls
+            var parsedCalls = new java.util.ArrayList<FunctionCall>();
             for (String part : parts)
             {
                 if (part.isBlank()) continue;
-                
+
                 // Find the start of the JSON object
                 int startIdx = part.indexOf('{');
                 if (startIdx == -1) continue;
-                
+
                 String functionCallJson = toValidFunctionCallJson(part, startIdx);
-                
+
                 logger.info("Function call json:\n" + functionCallJson);
-                
+
                 // Parse JSON manually to extract fields
                 var jsonNode = mapper.readTree(functionCallJson);
                 String id = jsonNode.has("id") ? jsonNode.get("id").asText() : null;
                 String name = jsonNode.get("name").asText();
                 @SuppressWarnings("unchecked")
                 Map<String, Object> arguments = mapper.convertValue(
-                    jsonNode.has("arguments") ? jsonNode.get("arguments") : mapper.createObjectNode(), 
+                    jsonNode.has("arguments") ? jsonNode.get("arguments") : mapper.createObjectNode(),
                     Map.class
                 );
                 String thoughtSignature = jsonNode.has("thoughtSignature") ? jsonNode.get("thoughtSignature").asText() : null;
-                
+
                 var functionCall = new FunctionCall(id, name, arguments, thoughtSignature);
-                
+
                 // Check if tool is allowed before scheduling
                 if ( !conversationContext.isToolAllowed( name ) )
                 {
                     logger.warn( "Tool not allowed in context " + conversationContext.getContextId() + ": " + name );
                     continue;
                 }
-                
-                scheduleFunctionCall(functionCall);
+
+                parsedCalls.add(functionCall);
+            }
+
+            // Create a coordinated continuation callback that only fires
+            // when ALL parallel tool calls have completed
+            AtomicInteger pendingCalls = new AtomicInteger(parsedCalls.size());
+            Runnable coordinatedContinue = (onContinue != null && !parsedCalls.isEmpty()) ? () -> {
+                if (pendingCalls.decrementAndGet() == 0)
+                {
+                    onContinue.run();
+                }
+            } : null;
+
+            // Second pass: schedule all function calls with coordinated continuation
+            for (FunctionCall functionCall : parsedCalls)
+            {
+                scheduleFunctionCall(functionCall, coordinatedContinue);
                 logger.info("Job scheduled: " + functionCall.id());
             }
         }
@@ -287,12 +306,12 @@ public class FunctionCallSubscriber implements Flow.Subscriber<Incoming>
         return braceCount;
     }
     
-    private void scheduleFunctionCall( FunctionCall functionCall )
+    private void scheduleFunctionCall( FunctionCall functionCall, Runnable continueCallback )
     {
         ExecuteFunctionCallJob job = executeFunctionCallJobProvider.get();
         job.setFunctionCall( functionCall );
         job.setConversationContext( conversationContext );
-        job.setOnContinue( onContinue );
+        job.setOnContinue( continueCallback );
         job.schedule();
     }
 

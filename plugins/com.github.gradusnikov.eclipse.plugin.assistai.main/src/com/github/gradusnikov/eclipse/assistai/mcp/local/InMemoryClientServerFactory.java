@@ -28,7 +28,7 @@ import jakarta.inject.Singleton;
 public class InMemoryClientServerFactory
 {
     private final McpServerFactory mcpServerFactory;
-    
+    private final InMemoryTransport inMemoryTransport;
     /**
      * Record representing a synchronized MCP client-server pair that communicate
      * through an in-memory transport.
@@ -36,10 +36,12 @@ public class InMemoryClientServerFactory
     public record InMemorySyncClientServer( McpSyncClient client, McpSyncServer server ) {};
     
     @Inject
-    public InMemoryClientServerFactory(McpServerFactory serverFactory )
+    public InMemoryClientServerFactory(McpServerFactory serverFactory, InMemoryTransport inMemoryTransport )
     {
         Objects.requireNonNull( serverFactory );
+        Objects.requireNonNull( inMemoryTransport );
         this.mcpServerFactory = serverFactory;
+        this.inMemoryTransport = inMemoryTransport;
     }
     
     /**
@@ -55,7 +57,7 @@ public class InMemoryClientServerFactory
     public InMemorySyncClientServer creteInMemorySyncClientServerPair( Object serverImplementation )
     {
         // create built-in MCP client server
-        var transports =  InMemoryTransport.createEntangledTransportPair();
+        var transports =  inMemoryTransport.createEntangledTransportPair();
 
         var server = mcpServerFactory.createSyncServer(serverImplementation, transports.getServerTransport() );
         

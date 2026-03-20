@@ -127,10 +127,9 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
         if ( Objects.nonNull(currentFunctionCallMessage) )
         {
         	presenter.endMessageFromAssistant( currentFunctionCallMessage );
-        	currentMessage = null;
+        	currentFunctionCallMessage = null;
         }
     	subscription = null;
-        subscription.request(1);
     }
     
 
