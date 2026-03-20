@@ -2457,7 +2457,12 @@ public class CodeEditingService
                 revealLineInEditor(file, firstHunkLine);
             });
 
+            // Compute affected line range from hunks for the response
+            int firstLine = hunks.stream().mapToInt(h -> h.originalStart).min().orElse(1);
+            int lastLine = hunks.stream().mapToInt(h -> h.originalStart + h.originalCount).max().orElse(firstLine);
+
             return "Success: Patch applied to file '" + filePath + "' in project '" + projectName + "'.\n" +
+                   "Affected lines: " + firstLine + "-" + lastLine + "\n" +
                    "Changes:\n```diff\n" + diff + "\n```";
         }
         catch (CoreException | IOException e)

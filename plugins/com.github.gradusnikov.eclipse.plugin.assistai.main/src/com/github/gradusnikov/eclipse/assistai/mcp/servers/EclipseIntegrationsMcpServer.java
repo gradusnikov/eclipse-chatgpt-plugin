@@ -121,13 +121,18 @@ public class EclipseIntegrationsMcpServer
                 Optional.ofNullable(maxResults).map(Integer::parseInt).orElse(0));
     }
 
-    @Tool(name = "readProjectResource", description = "Read the content of a text resource from a specified project.", type = "object")
+    @Tool(name = "readProjectResource", description = "Read the content of a text resource from a specified project. Supports line numbers and reading specific line ranges to avoid loading entire large files.", type = "object")
     public String readProjectResource(
             @ToolParam(name = "projectName", description = "The name of the project containing the resource", required = true) String projectName,
-            @ToolParam(name = "resourcePath", description = "The path to the resource relative to the project root", required = true) String resourcePath)
+            @ToolParam(name = "resourcePath", description = "The path to the resource relative to the project root", required = true) String resourcePath,
+            @ToolParam(name = "showLineNumbers", description = "If 'true', prepends line numbers to each line (like cat -n). Useful for creating accurate patches. Default: 'false'", required = false) String showLineNumbers,
+            @ToolParam(name = "startLine", description = "Optional 1-based start line to read from. If omitted, reads from the beginning.", required = false) String startLine,
+            @ToolParam(name = "endLine", description = "Optional 1-based end line to read to (inclusive). If omitted, reads to the end.", required = false) String endLine)
     {
-        // Use resource-aware method and serialize for caching
-        ResourceToolResult result = resourceService.readProjectResourceWithResource(projectName, resourcePath);
+        boolean lineNumbers = Optional.ofNullable(showLineNumbers).map(Boolean::parseBoolean).orElse(false);
+        int start = Optional.ofNullable(startLine).map(Integer::parseInt).orElse(0);
+        int end = Optional.ofNullable(endLine).map(Integer::parseInt).orElse(0);
+        ResourceToolResult result = resourceService.readProjectResourceWithResource(projectName, resourcePath, lineNumbers, start, end);
         return ResourceResultSerializer.serialize(result);
     }
 

@@ -127,9 +127,14 @@ public class ResourceService
      * 
      * @param projectName The name of the project containing the resource
      * @param filePath The path to the resource file relative to the project root
+     * @param showLineNumbers Whether to prepend line numbers to each line
      * @return The content of the resource as a formatted string
      */
-    public String readProjectResource(String projectName, String filePath)
+    public String readProjectResource(String projectName, String filePath) {
+        return readProjectResource(projectName, filePath, false, 0, 0);
+    }
+
+    public String readProjectResource(String projectName, String filePath, boolean showLineNumbers, int startLine, int endLine)
     {
         // Get the project
         IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
@@ -156,10 +161,27 @@ public class ResourceService
             String lang = ResourceUtilities.getResourceFileType(file);
             // Prepare the response
             StringBuilder response = new StringBuilder();
-            response.append("# Content of ").append(filePath).append(" in project ").append(projectName).append("\n\n");
+            var lines = ResourceUtilities.readFileLines(file);
+            int totalLines = lines.size();
+            int effectiveStart = (startLine > 0) ? Math.min(startLine, totalLines) : 1;
+            int effectiveEnd = (endLine > 0) ? Math.min(endLine, totalLines) : totalLines;
+
+            response.append("# Content of ").append(filePath).append(" in project ").append(projectName);
+            if (startLine > 0 || endLine > 0) {
+                response.append(" (lines ").append(effectiveStart).append("-").append(effectiveEnd).append(" of ").append(totalLines).append(")");
+            }
+            response.append("\n\n");
             response.append("```");
-            response.append(lang);
-            response.append(ResourceUtilities.readFileContent(file));
+            response.append(lang).append("\n");
+            int width = String.valueOf(totalLines).length();
+            for (int i = effectiveStart - 1; i < effectiveEnd; i++)
+            {
+                if (showLineNumbers) {
+                    response.append(String.format("%" + width + "d\t%s\n", i + 1, lines.get(i)));
+                } else {
+                    response.append(lines.get(i)).append("\n");
+                }
+            }
             response.append("\n```\n");
             return response.toString();
 
@@ -179,7 +201,11 @@ public class ResourceService
      * @return ResourceToolResult with content and cacheable descriptor,
      *         or a transient result if there was an error
      */
-    public ResourceToolResult readProjectResourceWithResource(String projectName, String filePath)
+    public ResourceToolResult readProjectResourceWithResource(String projectName, String filePath) {
+        return readProjectResourceWithResource(projectName, filePath, false, 0, 0);
+    }
+
+    public ResourceToolResult readProjectResourceWithResource(String projectName, String filePath, boolean showLineNumbers, int startLine, int endLine)
     {
         final String toolName = "readProjectResource";
 
@@ -211,9 +237,26 @@ public class ResourceService
 
             // Prepare the response
             StringBuilder content = new StringBuilder();
-            content.append("# Content of ").append(filePath).append(" in project ").append(projectName).append("\n\n");
+            var lines = ResourceUtilities.readFileLines(file);
+            int totalLines = lines.size();
+            int effectiveStart = (startLine > 0) ? Math.min(startLine, totalLines) : 1;
+            int effectiveEnd = (endLine > 0) ? Math.min(endLine, totalLines) : totalLines;
+
+            content.append("# Content of ").append(filePath).append(" in project ").append(projectName);
+            if (startLine > 0 || endLine > 0) {
+                content.append(" (lines ").append(effectiveStart).append("-").append(effectiveEnd).append(" of ").append(totalLines).append(")");
+            }
+            content.append("\n\n");
             content.append("```").append(lang).append("\n");
-            content.append(ResourceUtilities.readFileContent(file));
+            int width = String.valueOf(totalLines).length();
+            for (int i = effectiveStart - 1; i < effectiveEnd; i++)
+            {
+                if (showLineNumbers) {
+                    content.append(String.format("%" + width + "d\t%s\n", i + 1, lines.get(i)));
+                } else {
+                    content.append(lines.get(i)).append("\n");
+                }
+            }
             content.append("\n```\n");
 
             // Return cacheable result with IFile reference
