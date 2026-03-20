@@ -210,4 +210,15 @@ public class EclipseCodeEditingMcpServer
         int endLineNum = Integer.parseInt(endLine);
         return codeEditingService.deleteLinesInFile(projectName, filePath, startLineNum, endLineNum);
     }
+
+    @Tool(name="applyPatch", description="Applies a unified diff patch to a file. The patch should be in standard unified diff format with @@ hunk headers. Context lines are used for fuzzy matching, so the patch can be applied even if line numbers have shifted. This is more reliable than replaceString for multi-hunk edits. Optionally shows Eclipse's Apply Patch dialog for user review.", type="object")
+    public String applyPatch(
+        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
+        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
+        @ToolParam(name="patch", description="The unified diff content to apply. Should contain @@ hunk headers and lines prefixed with ' ' (context), '-' (remove), or '+' (add). File headers (--- and +++) are optional.", required=true) String patch,
+        @ToolParam(name="showDialog", description="If 'true', shows Eclipse's Apply Patch wizard dialog for user review instead of applying directly. Default is 'false'.", required=false) String showDialog)
+    {
+        boolean showPatchDialog = Optional.ofNullable(showDialog).map(Boolean::parseBoolean).orElse(false);
+        return codeEditingService.applyPatch(projectName, filePath, patch, showPatchDialog);
+    }
 }

@@ -2241,6 +2241,372 @@ public class CodeEditingService
     }
 
     /**
+     * Applies a unified diff patch to a file in the specified project.
+     * Parses the diff hunks and applies them to produce the modified file content.
+     * Optionally shows Eclipse's Apply Patch wizard dialog for user review.
+     *
+     * @param projectName The name of the project containing the file
+     * @param filePath The path to the file relative to the project root
+     * @param patch The unified diff content to apply
+     * @param showDialog Whether to show Eclipse's Apply Patch wizard dialog
+     * @return A status message indicating success or failure
+     */
+    public String applyPatch(String projectName, String filePath, String patch, boolean showDialog)
+    {
+        Objects.requireNonNull(projectName, "Project name cannot be null");
+        Objects.requireNonNull(filePath, "File path cannot be null");
+        Objects.requireNonNull(patch, "Patch content cannot be null");
+
+        if (projectName.isEmpty())
+        {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+        }
+        if (filePath.isEmpty())
+        {
+            throw new IllegalArgumentException("Error: File path cannot be empty.");
+        }
+        if (patch.isBlank())
+        {
+            throw new IllegalArgumentException("Error: Patch content cannot be empty.");
+        }
+
+        try
+        {
+            // Get the project and file
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject(projectName);
+
+            if (!project.exists())
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+            }
+            if (!project.isOpen())
+            {
+                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+            }
+
+            IPath path = IPath.fromPath(Path.of(filePath));
+            IFile file = project.getFile(path);
+
+            if (!file.exists())
+            {
+                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+            }
+
+            // Refresh the editor if the file is open
+            sync.syncExec(() ->
+            {
+                safeOpenEditor(file);
+                refreshEditor(file);
+            });
+
+            // Read the original file content
+            List<String> originalLines = ResourceUtilities.readFileLines(file);
+
+            // Parse and apply the unified diff
+            List<String> patchedLines = applyUnifiedDiff(originalLines, patch);
+
+            // Build the patched content
+            StringBuilder patchedContent = new StringBuilder();
+            for (int i = 0; i < patchedLines.size(); i++)
+            {
+                patchedContent.append(patchedLines.get(i));
+                if (i < patchedLines.size() - 1)
+                {
+                    patchedContent.append("\n");
+                }
+            }
+            // Ensure trailing newline
+            if (!patchedContent.toString().endsWith("\n"))
+            {
+                patchedContent.append("\n");
+            }
+
+            var patchedContentString = patchedContent.toString();
+
+            if (showDialog)
+            {
+                // Show the Apply Patch wizard dialog on the UI thread asynchronously
+                // so the MCP tool call returns immediately without waiting for user interaction
+                var fullPatch = buildFullUnifiedDiff(filePath, patch);
+                sync.asyncExec(() ->
+                {
+                    var patchHelper = new com.github.gradusnikov.eclipse.assistai.view.ApplyPatchWizardHelper();
+                    patchHelper.showApplyPatchWizardDialog(fullPatch, filePath, projectName);
+                });
+                return "Success: Apply Patch dialog shown for file '" + filePath + "' in project '" + projectName + "'. The user will review and apply the patch via the dialog.";
+            }
+
+            // Generate a diff for the response (comparing original to patched)
+            String diff = generateCodeDiff(projectName, filePath, patchedContentString, 3);
+
+            // Write back to the file
+            try (ByteArrayInputStream source = new ByteArrayInputStream(
+                    patchedContentString.getBytes(Charset.forName(file.getCharset()))))
+            {
+                file.setContents(source, IResource.FORCE, null);
+            }
+
+            // Refresh the editor
+            sync.asyncExec(() ->
+            {
+                refreshEditor(file);
+            });
+
+            return "Success: Patch applied to file '" + filePath + "' in project '" + projectName + "'.\n" +
+                   "Changes:\n```diff\n" + diff + "\n```";
+        }
+        catch (CoreException | IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Builds a full unified diff string with proper file headers,
+     * ensuring the patch content has --- and +++ headers.
+     */
+    private String buildFullUnifiedDiff(String filePath, String patch)
+    {
+        StringBuilder fullPatch = new StringBuilder();
+        // Check if the patch already has file headers
+        boolean hasHeaders = false;
+        for (String line : patch.split("\n"))
+        {
+            if (line.startsWith("---") || line.startsWith("+++"))
+            {
+                hasHeaders = true;
+                break;
+            }
+            if (line.startsWith("@@"))
+            {
+                break; // reached hunks without finding headers
+            }
+        }
+        if (!hasHeaders)
+        {
+            // Use paths without a/ b/ prefix so Eclipse's patch dialog
+            // can match them relative to the project root
+            fullPatch.append("--- ").append(filePath).append("\n");
+            fullPatch.append("+++ ").append(filePath).append("\n");
+        }
+        fullPatch.append(patch);
+        return fullPatch.toString();
+    }
+
+    /**
+     * Parses a unified diff and applies it to the given list of original lines.
+     * Supports multiple hunks. Uses context lines for fuzzy matching when
+     * line numbers don't match exactly (e.g., due to prior edits shifting lines).
+     *
+     * @param originalLines The original file content as a list of lines
+     * @param patch The unified diff content
+     * @return The patched file content as a list of lines
+     */
+    private List<String> applyUnifiedDiff(List<String> originalLines, String patch)
+    {
+        List<String> result = new java.util.ArrayList<>(originalLines);
+        var hunks = parseHunks(patch);
+
+        // Apply hunks in reverse order so line number offsets don't shift
+        java.util.Collections.reverse(hunks);
+
+        for (var hunk : hunks)
+        {
+            result = applyHunk(result, hunk);
+        }
+
+        return result;
+    }
+
+    /**
+     * Represents a single hunk from a unified diff.
+     */
+    private static class DiffHunk
+    {
+        int originalStart; // 1-based line number in original file
+        int originalCount; // number of lines from original
+        List<String> contextAndRemoveLines = new java.util.ArrayList<>(); // context (' ') and remove ('-') lines
+        List<String> hunkLines = new java.util.ArrayList<>(); // all lines in the hunk with their prefixes
+    }
+
+    /**
+     * Parses unified diff content into a list of DiffHunk objects.
+     */
+    private List<DiffHunk> parseHunks(String patch)
+    {
+        var hunks = new java.util.ArrayList<DiffHunk>();
+        var lines = patch.split("\n");
+        DiffHunk currentHunk = null;
+
+        for (String line : lines)
+        {
+            // Skip file headers
+            if (line.startsWith("---") || line.startsWith("+++"))
+            {
+                continue;
+            }
+
+            // Parse hunk header: @@ -start,count +start,count @@
+            if (line.startsWith("@@"))
+            {
+                currentHunk = new DiffHunk();
+                hunks.add(currentHunk);
+
+                // Parse the original file range: @@ -start,count +start,count @@
+                var matcher = java.util.regex.Pattern.compile(
+                        "@@ -(\\d+)(?:,(\\d+))? \\+(\\d+)(?:,(\\d+))? @@.*")
+                        .matcher(line);
+                if (matcher.matches())
+                {
+                    currentHunk.originalStart = Integer.parseInt(matcher.group(1));
+                    currentHunk.originalCount = matcher.group(2) != null
+                            ? Integer.parseInt(matcher.group(2))
+                            : 1;
+                }
+                continue;
+            }
+
+            if (currentHunk != null)
+            {
+                if (line.startsWith(" ") || line.startsWith("-") || line.startsWith("+"))
+                {
+                    currentHunk.hunkLines.add(line);
+                }
+                // Handle lines that are just empty (context lines with no trailing space)
+                else if (line.isEmpty())
+                {
+                    currentHunk.hunkLines.add(" ");
+                }
+            }
+        }
+
+        return hunks;
+    }
+
+    /**
+     * Applies a single hunk to the file content.
+     * Uses context lines for fuzzy matching to find the correct position.
+     */
+    private List<String> applyHunk(List<String> lines, DiffHunk hunk)
+    {
+        // Build the expected original block (context + removed lines)
+        var expectedLines = new java.util.ArrayList<String>();
+        for (String hunkLine : hunk.hunkLines)
+        {
+            if (hunkLine.startsWith(" ") || hunkLine.startsWith("-"))
+            {
+                expectedLines.add(hunkLine.substring(1));
+            }
+        }
+
+        // Try to find the matching position
+        int matchPos = findMatchPosition(lines, expectedLines, hunk.originalStart - 1);
+
+        if (matchPos < 0)
+        {
+            throw new RuntimeException(
+                    "Error: Could not find matching context for hunk at line " + hunk.originalStart +
+                    ". The file may have been modified since the diff was generated.");
+        }
+
+        // Build the replacement block (context + added lines)
+        var replacementLines = new java.util.ArrayList<String>();
+        for (String hunkLine : hunk.hunkLines)
+        {
+            if (hunkLine.startsWith(" "))
+            {
+                replacementLines.add(hunkLine.substring(1));
+            }
+            else if (hunkLine.startsWith("+"))
+            {
+                replacementLines.add(hunkLine.substring(1));
+            }
+            // '-' lines are skipped (they are removed)
+        }
+
+        // Replace the matched range with the new content
+        var result = new java.util.ArrayList<String>();
+        // Add lines before the match
+        for (int i = 0; i < matchPos; i++)
+        {
+            result.add(lines.get(i));
+        }
+        // Add replacement lines
+        result.addAll(replacementLines);
+        // Add lines after the matched block
+        for (int i = matchPos + expectedLines.size(); i < lines.size(); i++)
+        {
+            result.add(lines.get(i));
+        }
+
+        return result;
+    }
+
+    /**
+     * Finds the position in the file where the expected lines match.
+     * First tries the exact position from the hunk header, then searches
+     * nearby positions (fuzzy matching) in case the file has shifted.
+     *
+     * @param lines The current file lines
+     * @param expectedLines The lines expected at the match position (context + removed)
+     * @param hintPosition The position suggested by the hunk header (0-based)
+     * @return The 0-based position where the match was found, or -1 if not found
+     */
+    private int findMatchPosition(List<String> lines, List<String> expectedLines, int hintPosition)
+    {
+        if (expectedLines.isEmpty())
+        {
+            // Pure insertion hunk â use the hint position directly
+            return Math.min(hintPosition, lines.size());
+        }
+
+        // Try exact position first
+        if (matchesAt(lines, expectedLines, hintPosition))
+        {
+            return hintPosition;
+        }
+
+        // Search nearby (within 50 lines in each direction)
+        int maxSearchDistance = 50;
+        for (int offset = 1; offset <= maxSearchDistance; offset++)
+        {
+            // Try below
+            if (matchesAt(lines, expectedLines, hintPosition + offset))
+            {
+                return hintPosition + offset;
+            }
+            // Try above
+            if (matchesAt(lines, expectedLines, hintPosition - offset))
+            {
+                return hintPosition - offset;
+            }
+        }
+
+        return -1;
+    }
+
+    /**
+     * Checks if the expected lines match the file content at the given position.
+     */
+    private boolean matchesAt(List<String> lines, List<String> expectedLines, int position)
+    {
+        if (position < 0 || position + expectedLines.size() > lines.size())
+        {
+            return false;
+        }
+        for (int i = 0; i < expectedLines.size(); i++)
+        {
+            if (!lines.get(position + i).equals(expectedLines.get(i)))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+
+    /**
      * Formats a code completion snippet using Eclipse's code formatter.
      * The completion is formatted in context by combining it with the code before the cursor,
      * formatting the combined code, and then extracting the formatted completion.

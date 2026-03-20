@@ -44,14 +44,37 @@ public class ApplyPatchWizardHelper
      */
     public void showApplyPatchWizardDialog(String patch, String targetPath) 
     {
+        showApplyPatchWizardDialog(patch, targetPath, null);
+    }
+
+    /**
+     * Displays the apply patch wizard dialog to the user, allowing them to apply a patch to a specified target path.
+     *
+     * @param patch The patch content as a string.
+     * @param targetPath The target path where the patch will be applied.
+     * @param projectName The name of the project to apply the patch to, or null to use the currently open editor's project.
+     */
+    public void showApplyPatchWizardDialog(String patch, String targetPath, String projectName) 
+    {
         // Create an IStorage object to wrap the InputStream
         var patchStorage = new PatchStorage( patch );
         var window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
         var part = window.getActivePage().getActivePart();
         
-        // TODO: for the moment assume the target is associated with the project of currently opened editor
-        // which may not be true
-        var target = getProjectOfCurrentlyOpenedEditor().get();
+        IProject target = null;
+        if ( projectName != null && !projectName.isEmpty() )
+        {
+            target = org.eclipse.core.resources.ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+            if ( !target.exists() || !target.isOpen() )
+            {
+                logger.error( "Project '" + projectName + "' not found or not open, falling back to active editor project." );
+                target = null;
+            }
+        }
+        if ( target == null )
+        {
+            target = getProjectOfCurrentlyOpenedEditor().orElse(null);
+        }
         
         if ( Objects.isNull( target ) )
         {
