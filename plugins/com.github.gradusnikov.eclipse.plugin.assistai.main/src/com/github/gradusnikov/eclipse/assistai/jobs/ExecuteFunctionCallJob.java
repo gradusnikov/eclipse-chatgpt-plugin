@@ -140,10 +140,7 @@ public class ExecuteFunctionCallJob extends Job
     private IStatus handleToolNotAllowed( String toolName )
     {
         // Create an error result for disallowed tool
-        CallToolResult errorResult = new CallToolResult(
-            List.of( new McpSchema.TextContent( "Tool '" + toolName + "' is not allowed in this context." ) ),
-            true // isError
-        );
+        var errorResult = CallToolResult.builder().addTextContent( "Tool '" + toolName + "' is not allowed in this context." ).isError( true ).build();
         return handleFunctionResult( errorResult );
     }
 

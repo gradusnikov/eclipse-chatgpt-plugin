@@ -18,10 +18,18 @@ import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerFactory;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerRepository;
 
-import io.modelcontextprotocol.json.McpJsonMapperSupplier;
-import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapperSupplier;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+
+import io.modelcontextprotocol.json.McpJsonMapper;
+import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapperSupplier;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
+import io.modelcontextprotocol.spec.McpSchema;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -43,7 +51,8 @@ public class HttpMcpServerRegistry
     private final ArrayList<String> endpoints;
 
     private Tomcat tomcat;
-    private McpJsonMapperSupplier jsonMapperSupplier;
+
+    private JacksonMcpJsonMapperSupplier jsonMapperSupplier;
 
     
     @Inject
