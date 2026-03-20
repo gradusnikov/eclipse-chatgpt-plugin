@@ -12,6 +12,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.DuckDuckSearchMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseCodeEditingMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseIntegrationsMcpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseRunnerMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.MemoryMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.ReadWebPageMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.TimeMcpServer;
@@ -29,7 +30,8 @@ class McpServerBuiltins
             TimeMcpServer.class,
             ReadWebPageMcpServer.class,
             MemoryMcpServer.class,
-            EclipseCodeEditingMcpServer.class
+            EclipseCodeEditingMcpServer.class,
+            EclipseRunnerMcpServer.class
     };
     
     public List<McpServerDescriptor> listBuiltInImplementations()
