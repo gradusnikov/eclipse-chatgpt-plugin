@@ -397,10 +397,11 @@ public class CodeEditingService
 	            file.setContents(source, IResource.FORCE, null);
 	        }
 	        
-	        // Try to open the file in the editor, but don't fail if we can't
-	        // Try to refresh the editor if the file is open
+	        // Refresh and reveal the changed location in the editor
+	        final int revealLine = effectiveStartLine + 1; // convert back to 1-based
 	        sync.asyncExec(() -> {
 	        	refreshEditor(file);
+	        	revealLineInEditor(file, revealLine);
 	        });
 	
 	        
@@ -518,10 +519,10 @@ public class CodeEditingService
 	        // Add this line to refresh the parent container (or project)
 	        file.getParent().refreshLocal(IResource.DEPTH_ONE, null);
 
-	        // Try to open the file in the editor, but don't fail if we can't
-	        // Try to refresh the editor if the file is open
+	        // Refresh and reveal the insertion point in the editor
 	        sync.syncExec( () -> {
-	        	refreshEditor(file);	
+	        	refreshEditor(file);
+	        	revealLineInEditor(file, atLine);
 	        });
 	        
 	        return "Success: file '" + filePath + "' in project '" + projectName + "' was updated.\n" +
@@ -816,7 +817,7 @@ public class CodeEditingService
                 file.setContents(source, IResource.FORCE, null);
             }
 
-            sync.asyncExec(() -> refreshEditor(file));
+            sync.asyncExec(() -> { refreshEditor(file); revealLineInEditor(file, 1); });
 
             String diff = generateCodeDiff(projectName, filePath, formattedContent, 3);
             return "Success: File '" + filePath + "' formatted.\nChanges:\n```diff\n" + diff + "\n```";
@@ -897,7 +898,7 @@ public class CodeEditingService
 	        // Try to open the file in the editor, but don't fail if we can't
 	        sync.syncExec(() -> {
 	        	safeOpenEditor(file);
-	        	refreshEditor(file);
+	        	revealLineInEditor(file, 1);
 	        });
 	        
 	        return "Success: File '" + normalizedPath + "' created in project '" + projectName + "'.";
@@ -935,6 +936,48 @@ public class CodeEditingService
 				        logger.error(e.getMessage(), e);
 					}
 				});
+	}
+
+	/**
+	 * Opens a file in the editor and scrolls to the specified line,
+	 * placing the cursor at the beginning of that line.
+	 * 
+	 * @param file The file to open
+	 * @param lineNumber The 1-based line number to reveal
+	 */
+	private void revealLineInEditor(IFile file, int lineNumber)
+	{
+	    Optional.ofNullable(PlatformUI.getWorkbench())
+	            .map(IWorkbench::getActiveWorkbenchWindow)
+	            .map(IWorkbenchWindow::getActivePage)
+	            .ifPresent(page -> {
+	                try
+	                {
+	                    var editor = IDE.openEditor(page, file);
+	                    if (editor instanceof ITextEditor)
+	                    {
+	                        var textEditor = (ITextEditor) editor;
+	                        var provider = textEditor.getDocumentProvider();
+	                        var document = provider.getDocument(textEditor.getEditorInput());
+	                        if (document != null && lineNumber > 0)
+	                        {
+	                            // Convert 1-based line to 0-based for IDocument
+	                            int line = Math.min(lineNumber - 1, document.getNumberOfLines() - 1);
+	                            int offset = document.getLineOffset(line);
+	                            textEditor.selectAndReveal(offset, 0);
+	                        }
+	                        editor.setFocus();
+	                    }
+	                    else if (editor != null)
+	                    {
+	                        editor.setFocus();
+	                    }
+	                }
+	                catch (Exception e)
+	                {
+	                    logger.error("Error revealing line in editor: " + e.getMessage());
+	                }
+	            });
 	}
 
 	
@@ -2185,7 +2228,7 @@ public class CodeEditingService
             sync.asyncExec(() -> 
             {
                 safeOpenEditor(file);
-                refreshEditor(file);
+                revealLineInEditor(file, 1);
             });
             
             return "Success: Content of file '" + filePath + "' replaced in project '" + projectName + "'.";
@@ -2286,6 +2329,7 @@ public class CodeEditingService
             {
                 safeOpenEditor(file);
                 refreshEditor(file);
+                revealLineInEditor(file, startLine);
             });
             
             int deletedCount = endLine - startLine + 1;
@@ -2405,9 +2449,12 @@ public class CodeEditingService
             }
 
             // Refresh the editor
+            var hunks = parseHunks(patch);
+            final int firstHunkLine = hunks.isEmpty() ? 1 : hunks.get(0).originalStart;
             sync.asyncExec(() ->
             {
                 refreshEditor(file);
+                revealLineInEditor(file, firstHunkLine);
             });
 
             return "Success: Patch applied to file '" + filePath + "' in project '" + projectName + "'.\n" +
