@@ -159,7 +159,7 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
         }
         
         // Model-specific parameters
-        if (!model.modelName().matches("^o1(-.*)?")) {
+        if (!model.modelName().matches("^o\\d+(-.*)?$")) {
             requestBody.put("temperature", model.temperature() / 10.0);
         }
         
@@ -312,8 +312,8 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
                 "description", Optional.ofNullable(tool.description()).orElse(""),
                 "parameters", Map.of(
                         "type", tool.inputSchema().type(),
-                        "properties", tool.inputSchema().properties()),
-                "required", Optional.ofNullable(tool.inputSchema().required()).orElse(List.of())
+                        "properties", tool.inputSchema().properties(),
+                        "required", Optional.ofNullable(tool.inputSchema().required()).orElse(List.of()))
         );
     }
     

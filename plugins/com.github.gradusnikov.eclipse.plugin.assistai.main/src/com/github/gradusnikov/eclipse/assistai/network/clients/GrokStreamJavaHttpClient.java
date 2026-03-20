@@ -128,7 +128,7 @@ public class GrokStreamJavaHttpClient extends AbstractLanguageModelClient
             requestBody.put("messages", messages);
             requestBody.put("temperature", model.temperature() / 10.0);
             requestBody.put("stream", true);
-            requestBody.put("max_tokens", 10000);
+            requestBody.put("max_completion_tokens", 10000);
 
             // Add tools if function calling is enabled
             if (model.functionCalling()) {
@@ -277,7 +277,7 @@ public class GrokStreamJavaHttpClient extends AbstractLanguageModelClient
                 .version(HttpClient.Version.HTTP_1_1)
                 .header("Authorization", "Bearer " + model.apiKey())
                 .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
+                .header("Accept", "text/event-stream")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
             logger.info("Sending request to Grok API.");

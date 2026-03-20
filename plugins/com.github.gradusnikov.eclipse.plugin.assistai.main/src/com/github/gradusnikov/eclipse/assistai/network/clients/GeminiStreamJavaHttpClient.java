@@ -11,7 +11,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Flow;
 import java.util.concurrent.SubmissionPublisher;
@@ -48,6 +47,7 @@ import jakarta.inject.Inject;
 public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
 {
     private SubmissionPublisher<Incoming> publisher;
+    private final List<Flow.Subscriber<Incoming>> subscribers = new ArrayList<>();
     
     private Supplier<Boolean> isCancelled = () -> false;
 
@@ -70,7 +70,7 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
     @Override
     public synchronized void subscribe(Flow.Subscriber<Incoming> subscriber)
     {
-        publisher.subscribe(subscriber);
+        subscribers.add(subscriber);
     }
 
     static ArrayNode toolToJson(String toolName, Tool tool) {
@@ -145,8 +145,7 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
             var requestBody = new LinkedHashMap<String, Object>();
             var messages = new ArrayList<Map<String, Object>>();
     
-            // Add system message if provided
-            // note gemini does not support system messages
+            // System instruction support
             String systemPrompt = promptRepository.getPrompt( Prompts.SYSTEM.name() );
             
             // Inject cached resources block at the beginning of system prompt
@@ -157,9 +156,9 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
             }
             
             if (!systemPrompt.isEmpty()) {
-                ChatMessage systemMessage = new ChatMessage( UUID.randomUUID().toString(), "user");
-                systemMessage.setContent(systemPrompt);
-                messages.add(toJsonPayload(systemMessage, model));
+                requestBody.put("system_instruction", Map.of(
+                        "parts", List.of(Map.of("text", systemPrompt))
+                ));
             }
             
             // Add all messages from prompt
@@ -169,14 +168,13 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
                 .forEach(messages::add);
     
             // Add required fields for Gemini API
-            requestBody.put("model", model.modelName());
             requestBody.put("contents", messages);
             
             // Add generation configuration
             var generationConfig = new LinkedHashMap<String, Object>();
             
             // Add temperature configuration if applicable
-            if (!model.modelName().matches("^o\\d{1}(-.*)?")){
+            if (!model.modelName().matches("^o\\d+(-.*)?$")){
                 generationConfig.put("temperature", model.temperature() / 10.0);
             }
             
@@ -255,13 +253,13 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
                     // Function response
                     var functionCall = message.getFunctionCall();
                     
-                    // FIXME: google is precise about the declared function return type and the actual value
-                    // if function was declared an object, and it returns just a string, then it has to 
-                    // be converted into an object. Normally it should be parsed with  objectMapper.readTree(message.getContent())
-                    userMessage.put("parts", List.of(Map.of("functionResponse", Map.of(
-                            "name", functionCall.name(),
-                            "response", Map.of("result", message.getContent().toString() ) // for the moment treat everything as text  
-                    ))));
+                    var functionResponseMap = new LinkedHashMap<String, Object>();
+                    functionResponseMap.put("name", functionCall.name());
+                    functionResponseMap.put("response", Map.of("result", message.getContent().toString()));
+                    if (functionCall.id() != null) {
+                        functionResponseMap.put("id", functionCall.id());
+                    }
+                    userMessage.put("parts", List.of(Map.of("functionResponse", functionResponseMap)));
                 }
                 else if ("assistant".equals(message.getRole()) && Objects.nonNull(message.getFunctionCall()))
                 {
@@ -391,6 +389,13 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
             // This is critical for streaming use cases where the caller expects to receive
             // each chunk as it arrives from the API.
             publisher = new SubmissionPublisher<>(Runnable::run, Flow.defaultBufferSize());
+            
+            // Add all subscribers that were registered before run() was called
+            synchronized (this) {
+                for (Flow.Subscriber<Incoming> subscriber : subscribers) {
+                    publisher.subscribe(subscriber);
+                }
+            }
 
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
@@ -459,9 +464,13 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
                                             var functionCall = part.get("functionCall");
                                             String functionName = functionCall.get("name").asText();
                                             
-                                            // Submit function call name and thoughtSignature
+                                            // Extract function call id (required for Gemini 3+)
+                                            String functionId = functionCall.has("id") ? functionCall.get("id").asText() : "";
+                                            
+                                            // Submit function call name, id, and thoughtSignature
                                             StringBuilder fcJson = new StringBuilder();
-                                            fcJson.append("\"function_call\" : { \n \"name\": \"").append(functionName).append("\"");
+                                            fcJson.append("\"function_call\" : { \n \"id\": \"").append(functionId).append("\"");
+                                            fcJson.append(",\n \"name\": \"").append(functionName).append("\"");
                                             
                                             // Add thoughtSignature if present
                                             if (part.has("thoughtSignature")) {

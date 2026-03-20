@@ -93,8 +93,7 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
             var messages = new ArrayList<Map<String, Object>>();
     
             var systemMessage = new LinkedHashMap<String, Object> ();
-//            systemMessage.put("role", "system");
-            systemMessage.put("role", "user");
+            systemMessage.put("role", "developer");
             
             String systemPrompt = promptRepository.getPrompt( Prompts.SYSTEM.name() );
             
@@ -114,19 +113,20 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
             requestBody.put("model", model.modelName() );
             if ( model.functionCalling() )
             {
-                ArrayNode functions = objectMapper.createArrayNode();
+                ArrayNode tools = objectMapper.createArrayNode();
                 for ( var tool : listAvailableTools().entrySet() )
                 {
-                    functions.addAll( toolToJson( tool.getKey(), tool.getValue() ) );
+                    tools.addAll( toolToJson( tool.getKey(), tool.getValue() ) );
                 }                
-                if ( !functions.isEmpty() )
+                if ( !tools.isEmpty() )
                 {
-                    requestBody.put("functions", functions );
+                    requestBody.put("tools", tools );
+                    requestBody.put("tool_choice", "auto");
                 }
             }
             requestBody.put("messages", messages);
-            // o1 and o1-mini models do not support temperature
-            if ( !model.modelName().matches( "^o\\d{1}(-.*)?$" ) )
+            // reasoning models (o1, o3, o4-mini, etc.) do not support temperature
+            if ( !model.modelName().matches( "^o\\d+(-.*)?$" ) )
             {
                 requestBody.put("temperature", model.temperature()/10);
             }
@@ -144,17 +144,20 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
     
     static ArrayNode toolToJson(String toolName, Tool tool)
     {
-        List<Map<String, Object>> toolObject = new ArrayList<>();
-        toolObject.add( Map.of( "name", toolName,
-                "type", tool.inputSchema().type(),
-                "description", Optional.ofNullable( tool.description() ).orElse( "" ),
-                "parameters", Map.of(
-                                "type", tool.inputSchema().type(), 
-                                "properties", tool.inputSchema().properties()),
-                "required", Optional.ofNullable(tool.inputSchema().required()).orElse( List.of() ) 
-                ));
+        var functionObj = new LinkedHashMap<String, Object>();
+        functionObj.put( "name", toolName );
+        functionObj.put( "description", Optional.ofNullable( tool.description() ).orElse( "" ) );
+        functionObj.put( "parameters", Map.of(
+                        "type", tool.inputSchema().type(), 
+                        "properties", tool.inputSchema().properties(),
+                        "required", Optional.ofNullable(tool.inputSchema().required()).orElse( List.of() ) ) );
+
+        var toolObject = new LinkedHashMap<String, Object>();
+        toolObject.put( "type", "function" );
+        toolObject.put( "function", functionObj );
+
         var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        var functionsJsonNode= objectMapper.valueToTree( toolObject );
+        var functionsJsonNode = objectMapper.valueToTree( List.of( toolObject ) );
         return (ArrayNode) functionsJsonNode; 
     }
     
@@ -169,17 +172,21 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
             
             if ( model.functionCalling() )
             {
-                // function call results
-                if ( Objects.nonNull( message.getName() ) )
+                if ( "assistant".equals( message.getRole() ) && Objects.nonNull( message.getFunctionCall() ) )
                 {
-                    userMessage.put( "name", message.getName() );
+                    var toolCallObj = new LinkedHashMap<String, Object>();
+                    toolCallObj.put( "id", message.getFunctionCall().id() );
+                    toolCallObj.put( "type", "function" );
+                    toolCallObj.put( "function", Map.of(
+                            "name", message.getFunctionCall().name(),
+                            "arguments", objectMapper.writeValueAsString( message.getFunctionCall().arguments() ) ) );
+                    userMessage.put( "tool_calls", List.of( toolCallObj ) );
                 }
-                if ( "assistant".equals( message.getRole() ) &&  Objects.nonNull( message.getFunctionCall() ) )
+                if ( "function".equals( message.getRole() ) && Objects.nonNull( message.getFunctionCall() ) )
                 {
-                    var functionCallObject = new LinkedHashMap<String, String> ();
-                    functionCallObject.put( "name", message.getFunctionCall().name() );
-                    functionCallObject.put( "arguments", objectMapper.writeValueAsString(  message.getFunctionCall().arguments() ) );
-                    userMessage.put( "function_call", functionCallObject );
+                    role = "tool";
+                    userMessage.put( "role", role );
+                    userMessage.put( "tool_call_id", message.getFunctionCall().id() );
                 }
             }
             
@@ -326,16 +333,21 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
     							        publisher.submit(new Incoming(Incoming.Type.CONTENT, content));
     							    }
     							}
-    							if ( node.has( "function_call" ) )
+    							if ( node.has( "tool_calls" ) )
     							{
-    							    var functionNode = node.get( "function_call" );
-    							    if ( functionNode.has( "name" ) )
+    							    var toolCalls = node.get( "tool_calls" );
+    							    for ( var toolCall : toolCalls )
     							    {
-    							        publisher.submit( new Incoming(Incoming.Type.FUNCTION_CALL, String.format( "\"function_call\" : { \n \"name\": \"%s\",\n \"arguments\" :", functionNode.get("name").asText() ) ) );
-    							    }
-    							    if ( functionNode.has( "arguments" ) )
-    							    {
-    							        publisher.submit( new Incoming(Incoming.Type.FUNCTION_CALL, node.get("function_call").get("arguments").asText()) );
+    							        var functionNode = toolCall.get( "function" );
+    							        if ( functionNode.has( "name" ) )
+    							        {
+    							            var toolId = toolCall.has( "id" ) ? toolCall.get( "id" ).asText() : "";
+    							            publisher.submit( new Incoming(Incoming.Type.FUNCTION_CALL, String.format( "\"function_call\" : { \n \"id\": \"%s\",\n \"name\": \"%s\",\n \"arguments\" :", toolId, functionNode.get("name").asText() ) ) );
+    							        }
+    							        if ( functionNode.has( "arguments" ) )
+    							        {
+    							            publisher.submit( new Incoming(Incoming.Type.FUNCTION_CALL, functionNode.get("arguments").asText()) );
+    							        }
     							    }
     							}
     						}
