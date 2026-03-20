@@ -284,12 +284,12 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
     	    }
     		
     	    HttpClient client = HttpClient.newBuilder()
-    		                              .connectTimeout( Duration.ofSeconds(configuration.getConnectionTimoutSeconds()) )
+    		                              .connectTimeout( model.connectionTimeout() )
     		                              .build();
     		
     		String requestBody = getRequestBody(prompt, model);
             HttpRequest request = HttpRequest.newBuilder().uri(URI.create(model.apiUrl()))
-                    .timeout( Duration.ofSeconds( configuration.getRequestTimoutSeconds() ) )
+                    .timeout( model.requestTimeout() )
                     .version(HttpClient.Version.HTTP_1_1)
     				.header("Authorization", "Bearer " + model.apiKey())
     				.header("Accept", "text/event-stream")

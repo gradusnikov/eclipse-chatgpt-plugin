@@ -45,6 +45,10 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
 
     private Text       apiKey;
 
+    private Text       connectionTimeout;
+
+    private Text       requestTimeout;
+
     private Text       modelName;
 
     private Button     withVision;
@@ -126,6 +130,8 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
                 "openai", 
                 apiUrl.getText(), 
                 apiKey.getText(), 
+                parseTimeout(connectionTimeout.getText(), 10),
+                parseTimeout(requestTimeout.getText(), 30),
                 modelName.getText(),
                 withTemperature.getSelection(), 
                 withVision.getSelection(), 
@@ -168,6 +174,8 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
 
         apiUrl = addTextField( form, "API Url:");
         apiKey = addTextField( form, "API Key:");
+        connectionTimeout = addTextField( form, "Connection Timeout (s):");
+        requestTimeout = addTextField( form, "Request Timeout (s):");
         modelName = addTextField( form, "Model Name:");
         withVision = addCheckField( form, "With Vision:");
         withFunctionCalls = addCheckField( form, "With Function Calls:");
@@ -254,6 +262,8 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         uiSync.asyncExec( () -> {
             apiUrl.setText( modelApiDescriptor.apiUrl() );
             apiKey.setText( modelApiDescriptor.apiKey() );
+            connectionTimeout.setText( String.valueOf(modelApiDescriptor.connectionTimeoutSeconds()) );
+            requestTimeout.setText( String.valueOf(modelApiDescriptor.requestTimeoutSeconds()) );
             modelName.setText( modelApiDescriptor.modelName() );
             withTemperature.setSelection( modelApiDescriptor.temperature() );
             withVision.setSelection( modelApiDescriptor.vision() );
@@ -267,6 +277,8 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         uiSync.asyncExec( () -> {
             apiUrl.setText( "" );
             apiKey.setText( "" );
+            connectionTimeout.setText( "10" );
+            requestTimeout.setText( "30" );
             modelName.setText( "" );
             withTemperature.setSelection( 0 );
             withVision.setSelection( false );
@@ -296,4 +308,13 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         } );
     }
 
+    private static int parseTimeout(String text, int defaultValue)
+    {
+        try {
+            int value = Integer.parseInt(text.trim());
+            return value > 0 ? value : defaultValue;
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
 }

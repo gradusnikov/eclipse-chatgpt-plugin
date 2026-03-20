@@ -398,7 +398,7 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
             }
 
             HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(configuration.getConnectionTimoutSeconds()))
+                    .connectTimeout(model.connectionTimeout())
                     .build();
 
             String requestBody = getRequestBody(prompt, model);
@@ -408,7 +408,7 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
             
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(apiUrl))
-                    .timeout(Duration.ofSeconds(configuration.getRequestTimoutSeconds()))
+                    .timeout(model.requestTimeout())
                     .header("Content-Type", "application/json")
                     .header("x-goog-api-key", model.apiKey())
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))
