@@ -743,6 +743,254 @@ public class JavaLaunchService
     }
 
     /**
+     * Evaluates a Java expression in the context of a suspended debug frame.
+     *
+     * @param nameOrClass A substring to match against the debug launch
+     * @param expression The Java expression to evaluate
+     * @return The result of the evaluation
+     */
+    public String evaluateExpression(String nameOrClass, String expression)
+    {
+        Objects.requireNonNull(nameOrClass, "Name or class filter cannot be null");
+        Objects.requireNonNull(expression, "Expression cannot be null");
+
+        try
+        {
+            ILaunch launch = findDebugLaunch(nameOrClass);
+            if (launch == null)
+            {
+                return "No active debug session found matching '" + nameOrClass + "'.";
+            }
+
+            for (IDebugTarget target : launch.getDebugTargets())
+            {
+                if (target instanceof org.eclipse.jdt.debug.core.IJavaDebugTarget)
+                {
+                    var javaTarget = (org.eclipse.jdt.debug.core.IJavaDebugTarget) target;
+                    for (IThread thread : target.getThreads())
+                    {
+                        if (thread.isSuspended() && thread instanceof org.eclipse.jdt.debug.core.IJavaThread)
+                        {
+                            var javaThread = (org.eclipse.jdt.debug.core.IJavaThread) thread;
+                            IStackFrame[] frames = thread.getStackFrames();
+                            if (frames.length > 0 && frames[0] instanceof org.eclipse.jdt.debug.core.IJavaStackFrame)
+                            {
+                                var javaFrame = (org.eclipse.jdt.debug.core.IJavaStackFrame) frames[0];
+
+                                // Use the evaluation engine
+                                var project = org.eclipse.jdt.core.JavaCore.create(
+                                        org.eclipse.core.resources.ResourcesPlugin.getWorkspace().getRoot())
+                                        .getJavaProjects();
+
+                                // Find the right project
+                                org.eclipse.jdt.core.IJavaProject javaProject = null;
+                                try
+                                {
+                                    String projectName = launch.getLaunchConfiguration().getAttribute(
+                                            IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, "");
+                                    if (!projectName.isEmpty())
+                                    {
+                                        javaProject = org.eclipse.jdt.core.JavaCore.create(
+                                                org.eclipse.core.resources.ResourcesPlugin.getWorkspace()
+                                                        .getRoot().getProject(projectName));
+                                    }
+                                }
+                                catch (CoreException e) { /* ignore */ }
+
+                                if (javaProject == null && project.length > 0)
+                                {
+                                    javaProject = project[0];
+                                }
+
+                                var engine = org.eclipse.jdt.debug.eval.EvaluationManager
+                                        .newAstEvaluationEngine(javaProject, javaTarget);
+
+                                var latch = new CountDownLatch(1);
+                                var resultHolder = new String[1];
+
+                                engine.evaluate(expression, javaFrame, new org.eclipse.jdt.debug.eval.IEvaluationListener()
+                                {
+                                    @Override
+                                    public void evaluationComplete(org.eclipse.jdt.debug.eval.IEvaluationResult result)
+                                    {
+                                        try
+                                        {
+                                            if (result.hasErrors())
+                                            {
+                                                var errors = result.getErrorMessages();
+                                                resultHolder[0] = "Evaluation error: " + String.join("; ", errors);
+                                            }
+                                            else
+                                            {
+                                                var value = result.getValue();
+                                                if (value != null)
+                                                {
+                                                    resultHolder[0] = value.getValueString()
+                                                            + " (" + value.getReferenceTypeName() + ")";
+                                                }
+                                                else
+                                                {
+                                                    resultHolder[0] = "null";
+                                                }
+                                            }
+                                        }
+                                        catch (Exception e)
+                                        {
+                                            resultHolder[0] = "Error reading result: " + e.getMessage();
+                                        }
+                                        finally
+                                        {
+                                            latch.countDown();
+                                        }
+                                    }
+                                }, org.eclipse.debug.core.DebugEvent.EVALUATION_IMPLICIT, false);
+
+                                boolean completed = latch.await(10, TimeUnit.SECONDS);
+                                engine.dispose();
+
+                                if (!completed)
+                                {
+                                    return "Evaluation timed out after 10 seconds.";
+                                }
+
+                                return "Expression: " + expression + "\nResult: " + resultHolder[0];
+                            }
+                        }
+                    }
+                }
+            }
+
+            return "No suspended thread found for evaluation.";
+        }
+        catch (Exception e)
+        {
+            logger.error("Error evaluating expression", e);
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Sets a conditional breakpoint at the specified location.
+     *
+     * @param projectName The project name
+     * @param typeName The fully qualified type name
+     * @param lineNumber The 1-based line number
+     * @param condition The Java boolean expression that must evaluate to true for the breakpoint to trigger
+     * @param hitCount Optional hit count (breakpoint triggers only after being hit N times)
+     * @return A status message
+     */
+    public String setConditionalBreakpoint(String projectName, String typeName, int lineNumber,
+                                           String condition, int hitCount)
+    {
+        Objects.requireNonNull(projectName, "Project name cannot be null");
+        Objects.requireNonNull(typeName, "Type name cannot be null");
+        Objects.requireNonNull(condition, "Condition cannot be null");
+
+        try
+        {
+            IProject project = org.eclipse.core.resources.ResourcesPlugin.getWorkspace()
+                    .getRoot().getProject(projectName);
+            if (!project.exists())
+            {
+                return "Error: Project '" + projectName + "' does not exist.";
+            }
+
+            // Remove any existing breakpoint at this location first
+            IBreakpoint[] breakpoints = DebugPlugin.getDefault().getBreakpointManager().getBreakpoints();
+            for (IBreakpoint bp : breakpoints)
+            {
+                if (bp instanceof IJavaLineBreakpoint)
+                {
+                    IJavaLineBreakpoint lineBreakpoint = (IJavaLineBreakpoint) bp;
+                    if (typeName.equals(lineBreakpoint.getTypeName())
+                            && lineNumber == lineBreakpoint.getLineNumber())
+                    {
+                        bp.delete();
+                    }
+                }
+            }
+
+            // Create a new conditional line breakpoint
+            IJavaLineBreakpoint bp = JDIDebugModel.createLineBreakpoint(
+                    project, typeName, lineNumber, -1, -1, 0, true, null);
+
+            bp.setCondition(condition);
+            bp.setConditionEnabled(true);
+
+            if (hitCount > 0)
+            {
+                bp.setHitCount(hitCount);
+            }
+
+            var result = "Conditional breakpoint set at " + typeName + ":" + lineNumber
+                    + "\n  Condition: " + condition;
+            if (hitCount > 0)
+            {
+                result += "\n  Hit count: " + hitCount;
+            }
+            return result;
+        }
+        catch (Exception e)
+        {
+            logger.error("Error setting conditional breakpoint", e);
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Triggers a hot code replace in an active debug session.
+     * This pushes changed classes into the running JVM without restarting.
+     *
+     * @param nameOrClass A substring to match against the debug launch
+     * @return A status message
+     */
+    public String hotCodeReplace(String nameOrClass)
+    {
+        Objects.requireNonNull(nameOrClass, "Name or class filter cannot be null");
+
+        try
+        {
+            ILaunch launch = findDebugLaunch(nameOrClass);
+            if (launch == null)
+            {
+                return "No active debug session found matching '" + nameOrClass + "'.";
+            }
+
+            for (IDebugTarget target : launch.getDebugTargets())
+            {
+                if (target instanceof org.eclipse.jdt.debug.core.IJavaDebugTarget)
+                {
+                    var javaTarget = (org.eclipse.jdt.debug.core.IJavaDebugTarget) target;
+                    if (javaTarget.supportsHotCodeReplace())
+                    {
+                        // Trigger a build first to compile latest changes
+                        org.eclipse.core.resources.ResourcesPlugin.getWorkspace().build(
+                                org.eclipse.core.resources.IncrementalProjectBuilder.INCREMENTAL_BUILD,
+                                new org.eclipse.core.runtime.NullProgressMonitor());
+
+                        // The JDT debug framework automatically performs hot code replace
+                        // when a build completes and classes change while debugging.
+                        // We just need to ensure the build happens.
+
+                        return "Hot code replace triggered. Changed classes will be reloaded in the debug session.";
+                    }
+                    else
+                    {
+                        return "Error: The target JVM does not support hot code replace.";
+                    }
+                }
+            }
+
+            return "Error: No Java debug target found.";
+        }
+        catch (Exception e)
+        {
+            logger.error("Error performing hot code replace", e);
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    /**
      * Finds an active debug launch matching the given name/class filter.
      */
     private ILaunch findDebugLaunch(String nameOrClass)

@@ -89,12 +89,14 @@ public class EclipseIntegrationsMcpServer
         return projectService.getProjectProperties(projectName);
     }
 
-    @Tool(name = "getProjectLayout", description = "Get the file and folder structure of a specified project in a hierarchical format suitable for LLM processing.", type = "object")
+    @Tool(name = "getProjectLayout", description = "Get the file and folder structure of a specified project in a hierarchical format. For large projects, use scopePath to limit to a subdirectory and/or maxDepth to limit tree depth.", type = "object")
     public String getProjectLayout(
-            @ToolParam(name = "projectName", description = "The name of the project to analyze", required = true) String projectName)
+            @ToolParam(name = "projectName", description = "The name of the project to analyze", required = true) String projectName,
+            @ToolParam(name = "scopePath", description = "Optional path relative to the project root to limit the listing (e.g., 'src/main/java/com/example'). If omitted, shows the entire project.", required = false) String scopePath,
+            @ToolParam(name = "maxDepth", description = "Optional maximum depth of the directory tree to display (e.g., '3' for 3 levels deep). If omitted, shows all levels.", required = false) String maxDepth)
     {
-        // Use resource-aware method and serialize for caching
-        ResourceToolResult result = projectService.getProjectLayoutWithResource(projectName);
+        int depth = Optional.ofNullable(maxDepth).map(Integer::parseInt).orElse(-1);
+        ResourceToolResult result = projectService.getProjectLayoutWithResource(projectName, scopePath, depth);
         return ResourceResultSerializer.serialize(result);
     }
 
@@ -240,6 +242,41 @@ public class EclipseIntegrationsMcpServer
             @ToolParam(name = "projectName", description = "The name of the Maven project", required = true) String projectName)
     {
         return mavenService.getProjectDependencies(projectName);
+    }
+
+    // Code Analysis Tools
+
+    @Tool(name = "getTypeHierarchy", description = "Retrieves the type hierarchy (supertypes, implemented interfaces, and subtypes) for a given Java class or interface.", type = "object")
+    public String getTypeHierarchy(
+            @ToolParam(name = "fullyQualifiedClassName", description = "The fully qualified name of the class (e.g., 'com.example.MyClass')", required = true) String fullyQualifiedClassName)
+    {
+        return codeAnalysisService.getTypeHierarchy(fullyQualifiedClassName);
+    }
+
+    @Tool(name = "findReferences", description = "Finds all references/usages of a Java type, method, or field across the entire workspace. Essential before renaming or deleting code elements.", type = "object")
+    public String findReferences(
+            @ToolParam(name = "fullyQualifiedClassName", description = "The fully qualified name of the class containing the element", required = true) String fullyQualifiedClassName,
+            @ToolParam(name = "elementName", description = "Optional method or field name to search for. If omitted, searches for references to the class itself.", required = false) String elementName)
+    {
+        return codeAnalysisService.findReferences(fullyQualifiedClassName, elementName);
+    }
+
+    @Tool(name = "getQuickFixes", description = "Gets available quick fixes for compilation errors in a Java file. Shows problem details and suggested corrections for each error.", type = "object")
+    public String getQuickFixes(
+            @ToolParam(name = "projectName", description = "The name of the project containing the file", required = true) String projectName,
+            @ToolParam(name = "filePath", description = "The path to the Java file relative to the project root", required = true) String filePath,
+            @ToolParam(name = "lineNumber", description = "Optional line number to filter fixes for a specific error", required = false) String lineNumber)
+    {
+        return codeAnalysisService.getQuickFixes(projectName, filePath,
+                Optional.ofNullable(lineNumber).map(Integer::parseInt).orElse(null));
+    }
+
+    @Tool(name = "getImportSuggestions", description = "Finds import candidates for unresolved types in a Java file. Shows matching fully qualified names from the workspace for each unresolved type error.", type = "object")
+    public String getImportSuggestions(
+            @ToolParam(name = "projectName", description = "The name of the project containing the file", required = true) String projectName,
+            @ToolParam(name = "filePath", description = "The path to the Java file relative to the project root", required = true) String filePath)
+    {
+        return codeAnalysisService.getImportSuggestions(projectName, filePath);
     }
 
     // Search Service Tools

@@ -134,4 +134,38 @@ public class EclipseRunnerMcpServer
     {
         return javaLaunchService.stepReturn(nameOrClass);
     }
+
+    @Tool(name = "evaluateExpression",
+          description = "Evaluates a Java expression in the context of a suspended debug frame. The application must be stopped at a breakpoint. Can evaluate any valid Java expression including method calls, field access, arithmetic, etc.",
+          type = "object")
+    public String evaluateExpression(
+            @ToolParam(name = "nameOrClass", description = "A substring to match against the debug session name or main class") String nameOrClass,
+            @ToolParam(name = "expression", description = "The Java expression to evaluate (e.g., 'myList.size()', 'x + y', 'this.toString()')") String expression)
+    {
+        return javaLaunchService.evaluateExpression(nameOrClass, expression);
+    }
+
+    @Tool(name = "setConditionalBreakpoint",
+          description = "Sets a breakpoint with a condition expression. The breakpoint only triggers when the condition evaluates to true. Replaces any existing breakpoint at the same location.",
+          type = "object")
+    public String setConditionalBreakpoint(
+            @ToolParam(name = "projectName", description = "The name of the project containing the source file") String projectName,
+            @ToolParam(name = "typeName", description = "The fully qualified type name (e.g., 'com.example.Main')") String typeName,
+            @ToolParam(name = "lineNumber", description = "The 1-based line number where the breakpoint should be set") String lineNumber,
+            @ToolParam(name = "condition", description = "A Java boolean expression (e.g., 'i > 100', 'name.equals(\"test\")')") String condition,
+            @ToolParam(name = "hitCount", description = "Optional: breakpoint triggers only after being hit N times. Default: '0' (disabled)", required = false) String hitCount)
+    {
+        int hitCountInt = Optional.ofNullable(hitCount).map(Integer::parseInt).orElse(0);
+        return javaLaunchService.setConditionalBreakpoint(projectName, typeName,
+                Integer.parseInt(lineNumber), condition, hitCountInt);
+    }
+
+    @Tool(name = "hotCodeReplace",
+          description = "Triggers hot code replace (HCR) in an active debug session. Compiles the latest code changes and pushes them into the running JVM without restarting the application. The JVM must support HCR (most standard JVMs do).",
+          type = "object")
+    public String hotCodeReplace(
+            @ToolParam(name = "nameOrClass", description = "A substring to match against the debug session name or main class") String nameOrClass)
+    {
+        return javaLaunchService.hotCodeReplace(nameOrClass);
+    }
 }

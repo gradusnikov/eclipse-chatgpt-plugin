@@ -221,4 +221,12 @@ public class EclipseCodeEditingMcpServer
         boolean showPatchDialog = Optional.ofNullable(showDialog).map(Boolean::parseBoolean).orElse(false);
         return codeEditingService.applyPatch(projectName, filePath, patch, showPatchDialog);
     }
+
+    @Tool(name="formatFile", description="Formats an entire Java file using Eclipse's code formatter (equivalent to Ctrl+Shift+F). Applies the project-specific or workspace formatter settings.", type="object")
+    public String formatFile(
+        @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
+        @ToolParam(name="filePath", description="The path to the Java file relative to the project root. Do not include project name!", required=true) String filePath)
+    {
+        return codeEditingService.formatFile(projectName, filePath);
+    }
 }

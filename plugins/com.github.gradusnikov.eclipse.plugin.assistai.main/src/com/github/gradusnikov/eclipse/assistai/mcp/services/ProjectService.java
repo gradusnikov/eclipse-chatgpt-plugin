@@ -160,6 +160,19 @@ public class ProjectService {
      */
     public String getProjectLayout(String projectName) 
     {
+        return getProjectLayout(projectName, null, -1);
+    }
+
+    /**
+     * Gets the file and folder structure of a specified project, optionally scoped to a subdirectory.
+     * 
+     * @param projectName The name of the project to analyze
+     * @param scopePath Optional path relative to the project root to limit the listing (e.g., "src/main/java")
+     * @param maxDepth Maximum depth of the directory tree to display (-1 for unlimited)
+     * @return A hierarchical representation of the project structure
+     */
+    public String getProjectLayout(String projectName, String scopePath, int maxDepth) 
+    {
         IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
         if (project == null || !project.exists()) 
         {
@@ -169,8 +182,24 @@ public class ProjectService {
         StringBuilder result = new StringBuilder();
         try 
         {
-            result.append("# Project Structure: ").append(projectName).append("\n\n");
-            collectResourcesForLLM(project, 0, result); // Start with the project root
+            IResource startResource = project;
+            if (scopePath != null && !scopePath.isBlank())
+            {
+                IResource scoped = project.findMember(scopePath);
+                if (scoped == null || !scoped.exists())
+                {
+                    return "Error: Path '" + scopePath + "' not found in project '" + projectName + "'.";
+                }
+                startResource = scoped;
+                result.append("# Project Structure: ").append(projectName).append("/").append(scopePath).append("\n\n");
+            }
+            else
+            {
+                result.append("# Project Structure: ").append(projectName).append("\n\n");
+            }
+
+            int effectiveMaxDepth = maxDepth > 0 ? maxDepth : Integer.MAX_VALUE;
+            collectResourcesForLLM(startResource, 0, effectiveMaxDepth, result);
         } 
         catch (CoreException e)
         {
@@ -253,6 +282,10 @@ public class ProjectService {
      * @throws CoreException if an error occurs
      */
     private void collectResourcesForLLM(IResource resource, int depth, StringBuilder result) throws CoreException {
+        collectResourcesForLLM(resource, depth, Integer.MAX_VALUE, result);
+    }
+
+    private void collectResourcesForLLM(IResource resource, int depth, int maxDepth, StringBuilder result) throws CoreException {
         // Use proper indentation with markdown list formatting
         String indent = "";
         for (int i = 0; i < depth; i++) 
@@ -275,14 +308,24 @@ public class ProjectService {
         result.append( type );
         result.append("\n");
     
-        // If the resource is a container, list its children
-        if (resource instanceof IContainer) 
+        // If the resource is a container, list its children (respecting maxDepth)
+        if (resource instanceof IContainer && depth < maxDepth) 
         {
             IContainer container = (IContainer) resource;
             IResource[] members = container.members();
             for (IResource member : members) 
             {
-                collectResourcesForLLM(member, depth + 1, result);
+                collectResourcesForLLM(member, depth + 1, maxDepth, result);
+            }
+        }
+        else if (resource instanceof IContainer && depth >= maxDepth)
+        {
+            // Indicate there are more contents not shown
+            IContainer container = (IContainer) resource;
+            int childCount = container.members().length;
+            if (childCount > 0)
+            {
+                result.append(indent).append("    ").append("... (").append(childCount).append(" items)\n");
             }
         }
     }
@@ -707,6 +750,13 @@ public class ProjectService {
      *         or a transient result if there was an error
      */
     public ResourceToolResult getProjectLayoutWithResource(String projectName) {
+        return getProjectLayoutWithResource(projectName, null, -1);
+    }
+
+    /**
+     * Gets the project layout with resource metadata for caching, with optional scope and depth.
+     */
+    public ResourceToolResult getProjectLayoutWithResource(String projectName, String scopePath, int maxDepth) {
         final String toolName = "getProjectLayout";
         
         IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
@@ -725,14 +775,13 @@ public class ProjectService {
         }
         
         try {
-            StringBuilder result = new StringBuilder();
-            result.append("# Project Structure: ").append(projectName).append("\n\n");
-            collectResourcesForLLM(project, 0, result);
+            // Delegate to the main method that handles scope and depth
+            String content = getProjectLayout(projectName, scopePath, maxDepth);
             
             // Return cacheable result for project layout
-            return ResourceToolResult.forProjectLayout(projectName, result.toString(), toolName);
+            return ResourceToolResult.forProjectLayout(projectName, content, toolName);
             
-        } catch (CoreException e) {
+        } catch (Exception e) {
             logger.error(e.getMessage(), e);
             return ResourceToolResult.transientResult(
                 "Error retrieving project layout: " + e.getMessage(), 

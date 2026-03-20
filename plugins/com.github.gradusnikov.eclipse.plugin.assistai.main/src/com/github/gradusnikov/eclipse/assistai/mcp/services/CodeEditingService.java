@@ -770,6 +770,63 @@ public class CodeEditingService
 	}
 
 
+    /**
+     * Formats an entire Java file using Eclipse's code formatter.
+     *
+     * @param projectName The project name
+     * @param filePath The file path relative to the project root
+     * @return A status message
+     */
+    public String formatFile(String projectName, String filePath)
+    {
+        Objects.requireNonNull(projectName);
+        Objects.requireNonNull(filePath);
+
+        try
+        {
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject(projectName);
+            if (!project.exists() || !project.isOpen())
+            {
+                return "Error: Project '" + projectName + "' not found or not open.";
+            }
+
+            IPath path = IPath.fromPath(Path.of(filePath));
+            IFile file = project.getFile(path);
+            if (!file.exists())
+            {
+                return "Error: File '" + filePath + "' not found.";
+            }
+
+            // Read the file content
+            String originalContent = ResourceUtilities.readFileContent(file);
+
+            // Format using Eclipse's formatter
+            String formattedContent = formatCode(originalContent, projectName);
+
+            if (formattedContent.equals(originalContent))
+            {
+                return "File '" + filePath + "' is already properly formatted.";
+            }
+
+            // Write back
+            try (ByteArrayInputStream source = new ByteArrayInputStream(
+                    formattedContent.getBytes(Charset.forName(file.getCharset()))))
+            {
+                file.setContents(source, IResource.FORCE, null);
+            }
+
+            sync.asyncExec(() -> refreshEditor(file));
+
+            String diff = generateCodeDiff(projectName, filePath, formattedContent, 3);
+            return "Success: File '" + filePath + "' formatted.\nChanges:\n```diff\n" + diff + "\n```";
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Error formatting file: " + e.getMessage(), e);
+        }
+    }
+
 	public String createFileAndOpen(String projectName, String filePath, String content) 
 	{
 		Objects.requireNonNull(projectName);
