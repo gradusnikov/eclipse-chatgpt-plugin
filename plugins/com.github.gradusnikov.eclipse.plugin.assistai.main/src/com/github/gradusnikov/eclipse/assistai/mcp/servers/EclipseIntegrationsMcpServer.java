@@ -15,6 +15,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.ConsoleService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.JavaDocService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.MavenService;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.OutlineService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ProjectService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ResourceService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.SearchService;
@@ -58,6 +59,9 @@ public class EclipseIntegrationsMcpServer
     @Inject
     private MavenService mavenService;
 
+    @Inject
+    private OutlineService outlineService;
+
     @Tool(name = "formatCode", description = "Formats code according to the current Eclipse formatter settings.", type = "object")
     public String formatCode(
             @ToolParam(name = "code", description = "The code to be formatted", required = true) String code,
@@ -79,6 +83,39 @@ public class EclipseIntegrationsMcpServer
     {
         // Use resource-aware method and serialize for caching
         ResourceToolResult result = javaDocService.getSourceWithResource(fullyQualifiedClassName);
+        return ResourceResultSerializer.serialize(result);
+    }
+
+    @Tool(name = "getClassOutline", description = "Returns a compact outline of a Java class: class declaration, field declarations, method signatures (no bodies), and inner types â all with line numbers. Much more token-efficient than getSource for understanding class structure. Use this first, then getMethodSource for specific methods.", type = "object")
+    public String getClassOutline(
+            @ToolParam(name = "fullyQualifiedClassName", description = "A fully qualified class name (e.g. 'com.example.MyClass')", required = true) String fullyQualifiedClassName,
+            @ToolParam(name = "includeFields", description = "Whether to include field declarations (default: true)", required = false) String includeFields)
+    {
+        boolean fields = Optional.ofNullable(includeFields).map(Boolean::parseBoolean).orElse(true);
+        ResourceToolResult result = outlineService.getClassOutline(fullyQualifiedClassName, fields);
+        return ResourceResultSerializer.serialize(result);
+    }
+
+    @Tool(name = "getMethodSource", description = "Returns the source code of specific method(s) with line numbers. Accepts comma-separated method names to retrieve multiple methods in one call. Use after getClassOutline to read only the methods you need.", type = "object")
+    public String getMethodSource(
+            @ToolParam(name = "fullyQualifiedClassName", description = "A fully qualified class name (e.g. 'com.example.MyClass')", required = true) String fullyQualifiedClassName,
+            @ToolParam(name = "methodNames", description = "Comma-separated method names to retrieve (e.g. 'findById,save,delete')", required = true) String methodNames,
+            @ToolParam(name = "methodSignature", description = "Optional parameter type hint to disambiguate overloaded methods (e.g. 'String')", required = false) String methodSignature,
+            @ToolParam(name = "includeJavadoc", description = "Whether to include Javadoc comments (default: true)", required = false) String includeJavadoc)
+    {
+        boolean javadoc = Optional.ofNullable(includeJavadoc).map(Boolean::parseBoolean).orElse(true);
+        ResourceToolResult result = outlineService.getMethodSource(fullyQualifiedClassName, methodNames, methodSignature, javadoc);
+        return ResourceResultSerializer.serialize(result);
+    }
+
+    @Tool(name = "getFilteredSource", description = "Returns source code with optional import exclusion and selective method expansion. Methods not in the expand list are collapsed to their signature with line ranges. Line numbers always match the original file for accurate editing.", type = "object")
+    public String getFilteredSource(
+            @ToolParam(name = "fullyQualifiedClassName", description = "A fully qualified class name (e.g. 'com.example.MyClass')", required = true) String fullyQualifiedClassName,
+            @ToolParam(name = "excludeImports", description = "Whether to collapse the import block (default: true)", required = false) String excludeImports,
+            @ToolParam(name = "methodNames", description = "Comma-separated method names to fully expand. Methods not listed are collapsed to signatures. If omitted, all methods are expanded.", required = false) String methodNames)
+    {
+        boolean noImports = Optional.ofNullable(excludeImports).map(Boolean::parseBoolean).orElse(true);
+        ResourceToolResult result = outlineService.getFilteredSource(fullyQualifiedClassName, noImports, methodNames);
         return ResourceResultSerializer.serialize(result);
     }
 
@@ -121,18 +158,20 @@ public class EclipseIntegrationsMcpServer
                 Optional.ofNullable(maxResults).map(Integer::parseInt).orElse(0));
     }
 
-    @Tool(name = "readProjectResource", description = "Read the content of a text resource from a specified project. Supports line numbers and reading specific line ranges to avoid loading entire large files.", type = "object")
+    @Tool(name = "readProjectResource", description = "Read the content of a text resource from a specified project. Supports line numbers, reading specific line ranges, and collapsing Java imports to reduce token usage.", type = "object")
     public String readProjectResource(
             @ToolParam(name = "projectName", description = "The name of the project containing the resource", required = true) String projectName,
             @ToolParam(name = "resourcePath", description = "The path to the resource relative to the project root", required = true) String resourcePath,
             @ToolParam(name = "showLineNumbers", description = "If 'true', prepends line numbers to each line (like cat -n). Useful for creating accurate patches. Default: 'false'", required = false) String showLineNumbers,
             @ToolParam(name = "startLine", description = "Optional 1-based start line to read from. If omitted, reads from the beginning.", required = false) String startLine,
-            @ToolParam(name = "endLine", description = "Optional 1-based end line to read to (inclusive). If omitted, reads to the end.", required = false) String endLine)
+            @ToolParam(name = "endLine", description = "Optional 1-based end line to read to (inclusive). If omitted, reads to the end.", required = false) String endLine,
+            @ToolParam(name = "excludeImports", description = "If 'true', collapses Java import statements into a single summary line. Line numbers are preserved for accurate editing. Default: 'false'", required = false) String excludeImports)
     {
         boolean lineNumbers = Optional.ofNullable(showLineNumbers).map(Boolean::parseBoolean).orElse(false);
         int start = Optional.ofNullable(startLine).map(Integer::parseInt).orElse(0);
         int end = Optional.ofNullable(endLine).map(Integer::parseInt).orElse(0);
-        ResourceToolResult result = resourceService.readProjectResourceWithResource(projectName, resourcePath, lineNumbers, start, end);
+        boolean noImports = Optional.ofNullable(excludeImports).map(Boolean::parseBoolean).orElse(false);
+        ResourceToolResult result = resourceService.readProjectResourceWithResource(projectName, resourcePath, lineNumbers, start, end, noImports);
         return ResourceResultSerializer.serialize(result);
     }
 

@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:ai.google.dev)",
+      "WebFetch(domain:docs.x.ai)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:cookbook.openai.com)",
+      "mcp__eclipse-coder__replaceString",
+      "mcp__eclipse-ide__getCompilationErrors",
+      "mcp__eclipse-ide__getConsoleOutput",
+      "mcp__eclipse-ide__listProjects",
+      "mcp__eclipse-ide__getProjectProperties",
+      "mcp__eclipse-ide__getProjectLayout",
+      "mcp__eclipse-coder__insertIntoFile",
+      "mcp__eclipse-coder__createFile",
+      "Bash(mkdir -p /mnt/e/devel/eclipse-wokrspaces/eclipse-plugins/AssistAI/.claude/skills/eclipse-edit)",
+      "Bash(mkdir -p /mnt/e/devel/eclipse-wokrspaces/eclipse-plugins/AssistAI/.claude/skills/eclipse-analyze)",
+      "Bash(mkdir -p /mnt/e/devel/eclipse-wokrspaces/eclipse-plugins/AssistAI/.claude/skills/eclipse-run)",
+      "Bash(mkdir -p /mnt/e/devel/eclipse-wokrspaces/eclipse-plugins/AssistAI/.claude/skills/eclipse-debug)",
+      "Bash(mkdir -p /mnt/e/devel/eclipse-wokrspaces/eclipse-plugins/AssistAI/.claude/skills/eclipse-test)",
+      "mcp__eclipse-coder__applyPatch",
+      "Bash(gh api:*)",
+      "Bash(curl:*)",
+      "mcp__eclipse-ide__getProjectDependencies",
+      "mcp__eclipse-ide__getCurrentlyOpenedFile",
+      "mcp__eclipse-ide__getSource",
+      "mcp__eclipse-ide__findReferences",
+      "mcp__eclipse-ide__fileSearch",
+      "mcp__eclipse-ide__findFiles"
+    ]
+  }
+}

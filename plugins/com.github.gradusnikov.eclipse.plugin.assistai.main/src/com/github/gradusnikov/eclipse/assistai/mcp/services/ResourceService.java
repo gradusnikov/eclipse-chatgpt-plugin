@@ -202,10 +202,15 @@ public class ResourceService
      *         or a transient result if there was an error
      */
     public ResourceToolResult readProjectResourceWithResource(String projectName, String filePath) {
-        return readProjectResourceWithResource(projectName, filePath, false, 0, 0);
+        return readProjectResourceWithResource(projectName, filePath, false, 0, 0, false);
     }
 
     public ResourceToolResult readProjectResourceWithResource(String projectName, String filePath, boolean showLineNumbers, int startLine, int endLine)
+    {
+        return readProjectResourceWithResource(projectName, filePath, showLineNumbers, startLine, endLine, false);
+    }
+
+    public ResourceToolResult readProjectResourceWithResource(String projectName, String filePath, boolean showLineNumbers, int startLine, int endLine, boolean excludeImports)
     {
         final String toolName = "readProjectResource";
 
@@ -249,8 +254,43 @@ public class ResourceService
             content.append("\n\n");
             content.append("```").append(lang).append("\n");
             int width = String.valueOf(totalLines).length();
+
+            // Detect import block for collapsing
+            int importStart = -1;
+            int importEnd = -1;
+            if (excludeImports && "java".equals(lang))
+            {
+                for (int idx = 0; idx < lines.size(); idx++)
+                {
+                    String trimmed = lines.get(idx).trim();
+                    if (trimmed.startsWith("import "))
+                    {
+                        if (importStart == -1) importStart = idx;
+                        importEnd = idx;
+                    }
+                }
+            }
+
             for (int i = effectiveStart - 1; i < effectiveEnd; i++)
             {
+                if (importStart >= 0 && i >= importStart && i <= importEnd)
+                {
+                    if (i == importStart)
+                    {
+                        if (showLineNumbers)
+                        {
+                            content.append(String.format("%" + width + "s\t// ... imports omitted (lines %d-%d)\n",
+                                    "", importStart + 1, importEnd + 1));
+                        }
+                        else
+                        {
+                            content.append("// ... imports omitted (lines ")
+                                   .append(importStart + 1).append("-").append(importEnd + 1).append(")\n");
+                        }
+                    }
+                    continue;
+                }
+
                 if (showLineNumbers) {
                     content.append(String.format("%" + width + "d\t%s\n", i + 1, lines.get(i)));
                 } else {
