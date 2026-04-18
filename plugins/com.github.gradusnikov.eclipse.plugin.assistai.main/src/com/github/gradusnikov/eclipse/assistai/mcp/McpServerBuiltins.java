@@ -49,7 +49,8 @@ class McpServerBuiltins
                 "", 
                 Collections.emptyList(),
                 true, 
-                true );
+                true,
+                Collections.emptyList() );
     }
 
     public Class<?> findImplementation( String name )

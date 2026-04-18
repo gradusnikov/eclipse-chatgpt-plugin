@@ -1,5 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.mcp;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -10,8 +11,16 @@ public record McpServerDescriptor( String uid,
                                    String command, 
                                    List<EnvironmentVariable> environmentVariables, 
                                    boolean enabled, 
-                                   boolean builtIn )
+                                   boolean builtIn,
+                                   List<String> excludedTools )
 {
+    public McpServerDescriptor {
+        if ( excludedTools == null )
+        {
+            excludedTools = Collections.emptyList();
+        }
+    }
+    
     public enum Status {NOT_CONNECTED, RUNNING, FAILED};
     public record EnvironmentVariable( String name, String value ) {};
     

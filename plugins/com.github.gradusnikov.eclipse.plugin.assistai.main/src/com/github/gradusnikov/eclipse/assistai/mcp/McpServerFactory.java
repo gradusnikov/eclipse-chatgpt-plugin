@@ -2,10 +2,13 @@ package com.github.gradusnikov.eclipse.assistai.mcp;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -166,10 +169,15 @@ public class McpServerFactory
 
     public McpSyncServer createSyncServer( Object serverImplementation, McpServerTransportProvider transportProvider )
     {
+        return createSyncServer( serverImplementation, transportProvider, Collections.emptySet() );
+    }
+
+    public McpSyncServer createSyncServer( Object serverImplementation, McpServerTransportProvider transportProvider, Collection<String> excludedTools )
+    {
         requireMcpServerAnnotation( serverImplementation );
 
         var info     = createImplementationInfo( serverImplementation );
-        var toolSpecifications = createToolSpecifications( serverImplementation );
+        var toolSpecifications = createToolSpecifications( serverImplementation, excludedTools );
         var capabilities = createCapabilities();
         return McpServer.sync( transportProvider )
                         .serverInfo( info )
@@ -177,12 +185,18 @@ public class McpServerFactory
                         .tools( toolSpecifications )
                         .build();
     }
+
     public McpSyncServer createSyncServer( Object serverImplementation, HttpServletStreamableServerTransportProvider transportProvider )
+    {
+        return createSyncServer( serverImplementation, transportProvider, Collections.emptySet() );
+    }
+
+    public McpSyncServer createSyncServer( Object serverImplementation, HttpServletStreamableServerTransportProvider transportProvider, Collection<String> excludedTools )
     {
         requireMcpServerAnnotation( serverImplementation );
 
         var info     = createImplementationInfo( serverImplementation );
-        var toolSpecifications = createToolSpecifications( serverImplementation );
+        var toolSpecifications = createToolSpecifications( serverImplementation, excludedTools );
         var capabilities = createCapabilities();
         return McpServer.sync( transportProvider )
                 .serverInfo( info )
@@ -191,16 +205,18 @@ public class McpServerFactory
                 .build();
     }
 
-    private List<SyncToolSpecification> createToolSpecifications( Object serverImplementation )
+    private List<SyncToolSpecification> createToolSpecifications( Object serverImplementation, Collection<String> excludedTools )
     {
+        var excluded = Set.copyOf( excludedTools );
         var executor = new ToolExecutor( serverImplementation );
         var tools    = extractAnnotatedTools( executor.getFunctions() );
         if ( tools.isEmpty() )
         {
             logger.warn( "No tools found in " + serverImplementation.getClass() );
         }
-        // map all tools to SyncToolSpecification
-        var toolSpecifications = tools.stream().map( tool -> 
+        var toolSpecifications = tools.stream()
+                .filter( tool -> !excluded.contains( tool.name() ) )
+                .map( tool -> 
                     McpServerFeatures.SyncToolSpecification.builder()
                     .tool( tool )
                     .callHandler( (exchange, request) ->  executeCallTool( executor, tool, request.arguments() ) )
@@ -208,6 +224,14 @@ public class McpServerFactory
                 ).collect( Collectors.toList() );
         
         return toolSpecifications;
+    }
+    
+    public List<String> listToolNames( Object serverImplementation )
+    {
+        var executor = new ToolExecutor( serverImplementation );
+        return extractAnnotatedTools( executor.getFunctions() ).stream()
+                .map( McpSchema.Tool::name )
+                .collect( Collectors.toList() );
     }
 
     private void requireMcpServerAnnotation( Object serverImplementation )

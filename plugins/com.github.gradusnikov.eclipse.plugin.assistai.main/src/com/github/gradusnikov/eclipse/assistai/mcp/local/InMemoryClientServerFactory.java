@@ -56,10 +56,14 @@ public class InMemoryClientServerFactory
      */
     public InMemorySyncClientServer creteInMemorySyncClientServerPair( Object serverImplementation )
     {
-        // create built-in MCP client server
+        return creteInMemorySyncClientServerPair( serverImplementation, java.util.Collections.emptyList() );
+    }
+
+    public InMemorySyncClientServer creteInMemorySyncClientServerPair( Object serverImplementation, java.util.Collection<String> excludedTools )
+    {
         var transports =  inMemoryTransport.createEntangledTransportPair();
 
-        var server = mcpServerFactory.createSyncServer(serverImplementation, transports.getServerTransport() );
+        var server = mcpServerFactory.createSyncServer(serverImplementation, transports.getServerTransport(), excludedTools );
         
         McpSyncClient client = buildClient( server.getServerInfo(), transports.getClientTransport() );
         

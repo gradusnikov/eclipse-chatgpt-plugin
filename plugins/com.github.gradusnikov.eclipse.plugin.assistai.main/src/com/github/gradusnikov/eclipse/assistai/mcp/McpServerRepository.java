@@ -1,7 +1,10 @@
 package com.github.gradusnikov.eclipse.assistai.mcp;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
@@ -83,6 +86,22 @@ public class McpServerRepository
     {
         getPreferenceStore().setToDefault( PreferenceConstants.ASSISTAI_DEFINED_MCP_SERVERS );
         logger.info( "MCP Servers re-set to defaults" );
-        
+    }
+
+    public List<String> listToolsForServer( String serverName )
+    {
+        try
+        {
+            Class<?> clazz = findImplementation( serverName );
+            return Stream.of( clazz.getDeclaredMethods() )
+                    .filter( m -> m.isAnnotationPresent( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool.class ) )
+                    .map( m -> m.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool.class ).name() )
+                    .sorted()
+                    .collect( Collectors.toList() );
+        }
+        catch ( IllegalArgumentException e )
+        {
+            return Collections.emptyList();
+        }
     }
 }

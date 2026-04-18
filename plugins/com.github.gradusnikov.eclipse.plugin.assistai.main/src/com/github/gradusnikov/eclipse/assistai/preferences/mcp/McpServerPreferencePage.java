@@ -1,6 +1,7 @@
 package com.github.gradusnikov.eclipse.assistai.preferences.mcp;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -12,6 +13,7 @@ import org.eclipse.jface.preference.PreferencePage;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.CheckboxTableViewer;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
+import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.viewers.TableViewerColumn;
 import org.eclipse.jface.window.Window;
@@ -78,6 +80,12 @@ public class McpServerPreferencePage extends PreferencePage implements IWorkbenc
     private Button                       removeEnvButton;
 
     private Button                       editEnvButton;
+
+    private CheckboxTableViewer          toolTableViewer;
+
+    private Table                        toolTable;
+
+    private Label                        toolsLabel;
 
     private List<EnvironmentVariable>    currentEnvVars = new ArrayList<>();
 
@@ -249,11 +257,35 @@ public class McpServerPreferencePage extends PreferencePage implements IWorkbenc
         commandTextData.right = new FormAttachment(100, -10);
         commandText.setLayoutData(commandTextData);
 
+        // Tools label
+        toolsLabel = new Label( form, SWT.NONE );
+        toolsLabel.setText( "Tools:" );
+        FormData toolsLabelData = new FormData();
+        toolsLabelData.top = new FormAttachment( commandText, 15 );
+        toolsLabelData.left = new FormAttachment( 0, 10 );
+        toolsLabel.setLayoutData( toolsLabelData );
+
+        // Tools checkbox table
+        toolTableViewer = CheckboxTableViewer.newCheckList( form, SWT.BORDER | SWT.V_SCROLL );
+        toolTable = toolTableViewer.getTable();
+        toolTable.setHeaderVisible( false );
+        toolTable.setLinesVisible( false );
+
+        FormData toolTableData = new FormData();
+        toolTableData.top = new FormAttachment( toolsLabel, 5 );
+        toolTableData.left = new FormAttachment( 0, 10 );
+        toolTableData.right = new FormAttachment( 100, -10 );
+        toolTableData.bottom = new FormAttachment( 50, 0 );
+        toolTable.setLayoutData( toolTableData );
+
+        toolTableViewer.setContentProvider( ArrayContentProvider.getInstance() );
+        toolTableViewer.setLabelProvider( new LabelProvider() );
+
         // Environment variables label
         Label envLabel = new Label( form, SWT.NONE );
         envLabel.setText( "Environment Variables:" );
         FormData envLabelData = new FormData();
-        envLabelData.top = new FormAttachment( commandText, 20 );
+        envLabelData.top = new FormAttachment( toolTable, 10 );
         envLabelData.left = new FormAttachment( 0, 10 );
         envLabel.setLayoutData( envLabelData );
 
@@ -353,6 +385,17 @@ public class McpServerPreferencePage extends PreferencePage implements IWorkbenc
 
     private void initializeDetailsListeners()
     {
+        // Tool checkbox listener
+        toolTableViewer.addCheckStateListener( event -> {
+            String toolName = (String) event.getElement();
+            boolean checked = event.getChecked();
+            int serverIndex = serverTable.getSelectionIndex();
+            if ( serverIndex != -1 )
+            {
+                presenter.toggleToolEnabled( serverIndex, toolName, checked );
+            }
+        } );
+
         // Environment variables buttons
         addEnvButton.addListener( SWT.Selection, e -> {
             String[] result = openEnvironmentVariableDialog( "Add Environment Variable", "", "" );
@@ -436,7 +479,7 @@ public class McpServerPreferencePage extends PreferencePage implements IWorkbenc
         }
 
         // Create updated server descriptor
-        McpServerDescriptor updatedServer = new McpServerDescriptor( "", nameText.getText(), commandText.getText(), currentEnvVars, true,  false ); 
+        McpServerDescriptor updatedServer = new McpServerDescriptor( "", nameText.getText(), commandText.getText(), currentEnvVars, true, false, Collections.emptyList() ); 
 
         presenter.saveServer( selectedIndex, updatedServer );
         super.performApply();
@@ -496,10 +539,26 @@ public class McpServerPreferencePage extends PreferencePage implements IWorkbenc
             nameText.setText( "" );
             commandText.setText( "" );
 
+            // Clear tools
+            toolTableViewer.setInput( Collections.emptyList() );
+            toolTableViewer.refresh();
+
             // Clear environment variables
             currentEnvVars.clear();
             envTableViewer.setInput( currentEnvVars );
             envTableViewer.refresh();
+        } );
+    }
+
+    public void showToolList( List<String> allTools, List<String> excludedTools )
+    {
+        uiSync.asyncExec( () -> {
+            toolTableViewer.setInput( allTools );
+            for ( String tool : allTools )
+            {
+                toolTableViewer.setChecked( tool, !excludedTools.contains( tool ) );
+            }
+            toolTableViewer.refresh();
         } );
     }
 
@@ -526,6 +585,10 @@ public class McpServerPreferencePage extends PreferencePage implements IWorkbenc
             nameText.setEnabled(editable);
             commandLabel.setEnabled(editable);
             commandText.setEnabled(editable);
+
+            // Tools stay enabled even for built-in servers
+            toolsLabel.setEnabled( true );
+            toolTable.setEnabled( true );
 
             // Additionally, enable/disable the environment variable controls
             if ( envTableViewer != null )

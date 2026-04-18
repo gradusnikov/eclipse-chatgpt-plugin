@@ -129,7 +129,7 @@ public class InMemoryMcpClientRetistry
             {
                 var implementation = mcpServerRepository.makeImplementation( updated.name() );
 
-                InMemorySyncClientServer  clientServerPair = factory.creteInMemorySyncClientServerPair( implementation );
+                InMemorySyncClientServer  clientServerPair = factory.creteInMemorySyncClientServerPair( implementation, updated.excludedTools() );
                 addClient( updated.name(), clientServerPair.client() );
                 servers.add( clientServerPair.server() );
             }

@@ -1,5 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.preferences.mcp;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -16,6 +17,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor.McpServerDescriptorWithStatus;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor.Status;
+import com.github.gradusnikov.eclipse.assistai.mcp.http.HttpMcpServerRegistry;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerRepository;
 
@@ -32,6 +34,7 @@ public class McpServerPreferencePresenter
 
     private static final int MCP_SERVER_PING_TIMEOUT_SECONDS = 1;
     private final InMemoryMcpClientRetistry clientRetistry;
+    private final HttpMcpServerRegistry httpMcpServerRegistry;
     private final McpServerRepository mcpServerRepository;
     private final ILog logger;
     
@@ -39,15 +42,18 @@ public class McpServerPreferencePresenter
 
     @Inject
     public McpServerPreferencePresenter( InMemoryMcpClientRetistry mcpClientRetistry,
+                                         HttpMcpServerRegistry httpMcpServerRegistry,
                                          McpServerRepository mcpServerRepository,
                                          ILog logger
                                          )
     {
         Objects.requireNonNull( mcpClientRetistry );
+        Objects.requireNonNull( httpMcpServerRegistry );
         Objects.requireNonNull( mcpServerRepository );
         Objects.requireNonNull( logger );
         
         this.clientRetistry = mcpClientRetistry;
+        this.httpMcpServerRegistry = httpMcpServerRegistry;
         this.mcpServerRepository = mcpServerRepository;
         this.logger = logger;
     }
@@ -125,10 +131,11 @@ public class McpServerPreferencePresenter
                                                                    server.command(), 
                                                                    server.environmentVariables(), 
                                                                    enabled, 
-                                                                   server.builtIn() );
+                                                                   server.builtIn(),
+                                                                   server.excludedTools() );
             servers.set( serverIndex, updated );
             mcpServerRepository.save( servers );
-//            view.showServers( getServersWithStatus() );
+            restartServers();
         }
     }
 
@@ -148,7 +155,7 @@ public class McpServerPreferencePresenter
             {
                 servers.remove( selectedIndex );
                 mcpServerRepository.save( servers );
-                clientRetistry.restart();
+                restartServers();
                 view.showServers( getServersWithStatus() );
                 view.clearServerDetails();
                 view.setDetailsEditable( false );
@@ -201,11 +208,12 @@ public class McpServerPreferencePresenter
                                                                updatedServerStub.command(),
                                                                updatedServerStub.environmentVariables(), 
                                                                updatedServerStub.enabled(), 
-                                                               false );
+                                                               false,
+                                                               updatedServerStub.excludedTools() );
 
         update.accept( toStore );
         mcpServerRepository.save( storedDescriptors );
-        clientRetistry.restart();
+        restartServers();
         view.showServers( getServersWithStatus() );
         view.clearServerDetails();
     }
@@ -225,12 +233,47 @@ public class McpServerPreferencePresenter
             view.showServerDetails( selected );
             view.setDetailsEditable( !selected.builtIn() );
             view.setRemoveEditable( !selected.builtIn() );
+            var allTools = mcpServerRepository.listToolsForServer( selected.name() );
+            view.showToolList( allTools, selected.excludedTools() );
         }
         else
         {
             view.clearServerDetails();
             view.setDetailsEditable( false );
         }
+    }
+
+    public void toggleToolEnabled( int serverIndex, String toolName, boolean enabled )
+    {
+        var servers = mcpServerRepository.listStoredServers();
+        if ( serverIndex >= 0 && serverIndex < servers.size() )
+        {
+            McpServerDescriptor server = servers.get( serverIndex );
+            List<String> excludedTools = new ArrayList<>( server.excludedTools() );
+            if ( enabled )
+            {
+                excludedTools.remove( toolName );
+            }
+            else
+            {
+                if ( !excludedTools.contains( toolName ) )
+                {
+                    excludedTools.add( toolName );
+                }
+            }
+            McpServerDescriptor updated = new McpServerDescriptor( server.uid(),
+                    server.name(), server.command(), server.environmentVariables(),
+                    server.enabled(), server.builtIn(), excludedTools );
+            servers.set( serverIndex, updated );
+            mcpServerRepository.save( servers );
+            restartServers();
+        }
+    }
+
+    private void restartServers()
+    {
+        clientRetistry.restart();
+        httpMcpServerRegistry.restart();
     }
 
     /**
@@ -252,7 +295,7 @@ public class McpServerPreferencePresenter
     public void onPerformDefaults()
     {
         mcpServerRepository.setToDefault();
-        clientRetistry.restart();
+        restartServers();
         view.showServers( getServersWithStatus() );
         view.clearServerDetails();
         view.setDetailsEditable( false );

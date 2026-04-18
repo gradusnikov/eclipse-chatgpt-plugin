@@ -83,13 +83,18 @@ public class HttpMcpServerRegistry
     public void handleShutdown()
     {
         servers.forEach( McpSyncServer::closeGracefully );
-        try
+        if ( tomcat != null )
         {
-            tomcat.stop();
-        }
-        catch ( LifecycleException e )
-        {
-            logger.error( "Tomcat server failed to stop: " + e.getMessage(), e );
+            try
+            {
+                tomcat.stop();
+                tomcat.destroy();
+            }
+            catch ( LifecycleException e )
+            {
+                logger.error( "Tomcat server failed to stop: " + e.getMessage(), e );
+            }
+            tomcat = null;
         }
     }
 
@@ -97,18 +102,6 @@ public class HttpMcpServerRegistry
     public void init()
     {
         logger.info( "Initializing MCP Http Server." );
-        servers.clear();
-        endpoints.clear();
-        // Create Tomcat and ONE context upfront
-        tomcat = createTomcatServer();
-        
-        String baseDir = System.getProperty("java.io.tmpdir");
-        Context context = tomcat.addContext("", baseDir);  // Create context once
-        
-        var builtin = mcpServerRepository.listBuiltInServers();
-        var stored  = mcpServerRepository.listStoredServers();
-        initializeBuiltInServers(context, stored, builtin);  // Pass context
-
         restart();
     }
     
@@ -125,7 +118,7 @@ public class HttpMcpServerRegistry
             {
                 var implementation = mcpServerRepository.makeImplementation( updated.name() );
                 var transportProvider = createStreamableHttpTransportProvider( updated.name() );
-                var server = mcpServerFactory.createSyncServer( implementation, transportProvider );
+                var server = mcpServerFactory.createSyncServer( implementation, transportProvider, updated.excludedTools() );
                 servers.add( server );
                 addServlet(context, updated.name(), transportProvider);  // Pass context and name
             }
@@ -188,40 +181,56 @@ public class HttpMcpServerRegistry
 
     public boolean isRunning()
     {
-        return LifecycleState.STARTED.equals( tomcat.getServer().getState() );
+        return tomcat != null && LifecycleState.STARTED.equals( tomcat.getServer().getState() );
     }
 
     public void restart()
     {
-        try
-        {
-            if ( isRunning() )
-            {
-                logger.info( "Stopping MCP Http Server." );
-                tomcat.stop();
-                logger.info( "MCP Http Server state: " + tomcat.getServer().getState() + " ." );
-            }
-        }
-        catch ( LifecycleException e )
-        {
-            logger.error( "Error stopping Tomcat server: " + e.getMessage(), e );
-            throw new RuntimeException( e );
-        }
-        if ( httpServerPreferncesProvider.isEnabled() )
+        // Full teardown
+        servers.forEach( McpSyncServer::closeGracefully );
+        servers.clear();
+        endpoints.clear();
+
+        if ( tomcat != null )
         {
             try
             {
-                logger.info( "Starting MCP Http Server." );
-                tomcat.start();
-                logger.info( "MCP Http Server state: " + tomcat.getServer().getState() + " @" + tomcat.getServer().getAddress() + ":" + tomcat.getServer().getPort() );
-                logger.info( "MCP Http Server endpoints:\n " + listEndpoints().stream().collect( Collectors.joining("\n") ) );
+                logger.info( "Stopping MCP Http Server." );
+                tomcat.stop();
+                tomcat.destroy();
             }
             catch ( LifecycleException e )
             {
-                logger.error( "Error starting MCP Http Server: " + e.getMessage(), e );
+                logger.error( "Error stopping Tomcat server: " + e.getMessage(), e );
             }
+            tomcat = null;
         }
 
+        if ( !httpServerPreferncesProvider.isEnabled() )
+        {
+            return;
+        }
+
+        // Full rebuild
+        try
+        {
+            tomcat = createTomcatServer();
+            String baseDir = System.getProperty( "java.io.tmpdir" );
+            Context context = tomcat.addContext( "", baseDir );
+
+            var builtin = mcpServerRepository.listBuiltInServers();
+            var stored = mcpServerRepository.listStoredServers();
+            initializeBuiltInServers( context, stored, builtin );
+
+            logger.info( "Starting MCP Http Server." );
+            tomcat.start();
+            logger.info( "MCP Http Server state: " + tomcat.getServer().getState() + " @" + tomcat.getServer().getAddress() + ":" + tomcat.getServer().getPort() );
+            logger.info( "MCP Http Server endpoints:\n " + listEndpoints().stream().collect( Collectors.joining( "\n" ) ) );
+        }
+        catch ( LifecycleException e )
+        {
+            logger.error( "Error starting MCP Http Server: " + e.getMessage(), e );
+        }
     }
     
     

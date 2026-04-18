@@ -30,6 +30,8 @@ AssistAI is an Eclipse IDE plugin that brings a Large Language Model (LLM) assis
 - [NEW] The AssistAI plugin is now a MCP Server accessible via HTTP. This means that you can configure Claude Code or Claude Desktop client to directly interact with your Eclipse IDE via MCP - this way you can let Claude use it's own planning, search tools and system tools, and still maintain the code by Eclipse (history, etc.). It also means that you don't need Claude API keys when using Claude Desktop.
 - [NEW] New cached resource management and smart resource caching - LLM always sees the current version of files that are attached to the context (always up to date, no multiple copies)
 - [NEW] In-text code completion with Alt+/ 
+- [NEW] Token-efficient code navigation — class outlines, selective method reading, and import filtering to minimize context window usage
+- [NEW] Per-server tool filtering — enable/disable individual MCP tools per server to reduce token overhead
 
 
 You can also pose general questions to LLM, just like with the regular AI chatbot interface.
@@ -82,6 +84,9 @@ To use a local or third-party model, configure it using the OpenAI protocol form
 | formatCode | Formats code according to the current Eclipse formatter settings. |
 | getJavaDoc | Get the JavaDoc for the given compilation unit. |
 | getSource | Get the source for the given class. |
+| getClassOutline | Returns a compact class outline — declarations, field declarations, and method signatures (no bodies) with line numbers. Reduces a 500-line class to ~30 lines. |
+| getMethodSource | Returns the source of specific methods by name (comma-separated). Supports overload disambiguation via `methodSignature`. |
+| getFilteredSource | Returns full source with non-selected methods collapsed to one-line signatures. Provides full context while focusing on methods of interest. |
 | getProjectProperties | Retrieves the properties and configuration of a specified project. |
 | getProjectLayout | Get the file and folder structure of a specified project. Supports `scopePath` to limit to a subdirectory and `maxDepth` to control tree depth for large projects. |
 | getMethodCallHierarchy | Retrieves the call hierarchy (callers) for a specified method. |
@@ -90,7 +95,7 @@ To use a local or third-party model, configure it using the OpenAI protocol form
 | getCompilationErrors | Retrieves compilation errors and problems from the workspace or a project. |
 | getQuickFixes | Gets available quick fixes for compilation errors in a Java file. |
 | getImportSuggestions | Finds import candidates for unresolved types in a Java file. |
-| readProjectResource | Read the content of a text resource from a specified project. |
+| readProjectResource | Read the content of a text resource from a specified project. Supports `excludeImports` to collapse Java import blocks. |
 | listProjects | List all available projects in the workspace with their detected natures. |
 | getCurrentlyOpenedFile | Gets information about the currently active file in the Eclipse editor. |
 | getEditorSelection | Gets the currently selected text or lines in the active editor. |
@@ -255,6 +260,21 @@ To enable the filesystem MCP (e.g., [filesystem](https://github.com/modelcontext
 #### Notes
 - The `${workspace_loc}` variable specifies the workspace folder accessible to the MCP. When using WSL, this path is automatically converted to a Unix-style path for compatibility.  Other eclipse variables are available (`${project_loc}`, etc.)
 - **Security Warning:** Use MCP servers cautiously, as they grant LLMs access to read or modify sensitive data in your project directory, which could be accidentally altered or deleted by the LLM.
+
+### Per-Server Tool Filtering
+
+Each MCP server can have individual tools enabled or disabled. This is useful for reducing the token overhead of tool configuration JSON sent to the LLM, or for excluding tools that are not relevant to your workflow.
+
+1. **Open the Preferences**  
+   Navigate to *Window > Preferences > Assist AI > MCP Servers*.
+
+2. **Select a Server**  
+   Click on a server in the list (works for both built-in and user-defined servers).
+
+3. **Toggle Tools**  
+   In the **Tools** section of the details panel, uncheck any tools you want to exclude. Changes take effect immediately — both the internal MCP client and the HTTP MCP server are restarted automatically.
+
+Excluded tools will not appear in `tools/list` responses and will not be available to the LLM.
 
 ### HTTP MCP Server - Exposing Eclipse Tools to External Clients
 
