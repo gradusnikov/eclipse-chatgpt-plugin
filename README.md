@@ -296,47 +296,51 @@ Configure models in *Window > Preferences > Assist AI > Models*.
 
 ## Screenshots
 
-1. Agentic coding with Eclipse MCP tools
+1. claude-code controlling the Eclipse IDE via MCP
+
+    ![Eclipse MCP](src/website/how-it-works-mcp.png)
+
+2. Agentic coding with Eclipse MCP tools
 
    ![Eclipse Coder](src/website/eclipse-coder.gif)
 
-2. Discussing code in the built-in chat
+3. Discussing code in the built-in chat
 
    ![Discuss](src/website/how-it-works-discuss.gif)
 
-3. Refactoring selected code
+4. Refactoring selected code
 
    ![Refactor](src/website/how-it-works-refactor.gif)
 
-4. Generating documentation
+5. Generating documentation
 
    ![Document](src/website/how-it-works-document.gif)
 
-5. Generating JUnit tests
+6. Generating JUnit tests
 
    ![JUnit Test Generation](src/website/how-it-works-junit.gif)
 
-6. Git commit message generation
+7. Git commit message generation
 
    ![Git Commit Message](src/website/how-it-works-gitcomment.gif)
 
-7. Fixing compilation errors with patches
+8. Fixing compilation errors with patches
 
    ![Fix Errors](src/website/how-it-works-fixerrors-1.gif)
 
-8. Tool calls for context-aware answers
+9. Tool calls for context-aware answers
 
    ![Function calling](src/website/how-it-works-function-calls.gif)
 
-9. Vision model — discuss images
+10. Vision model — discuss images
 
    ![Vision](src/website/how-it-works-vision.png)
 
-10. LaTeX and table rendering
+11. LaTeX and table rendering
 
     <img src="src/website/latex-rendering.png" alt="Math rendering" style="zoom:50%;" />
 
-11. Configuring MCP servers
+12. Configuring MCP servers
 
     ![MCP](src/website/mpc-support.png)
 
