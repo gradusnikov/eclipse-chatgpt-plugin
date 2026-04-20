@@ -118,12 +118,18 @@ public class ResourceCache implements IResourceChangeListener {
         
         URI uri = descriptor.uri();
         
-        // Check if we're updating an existing resource
         CachedResource existing = resources.get(uri);
         int newVersion = existing != null ? existing.version() + 1 : 1;
         
-        // Create new cached resource
-        CachedResource cached = CachedResource.create(descriptor, content, newVersion);
+        long fileModTime = 0;
+        if (descriptor.workspacePath() != null) {
+            var wsFile = descriptor.toWorkspaceFile();
+            if (wsFile.isPresent()) {
+                fileModTime = wsFile.get().getLocalTimeStamp();
+            }
+        }
+        
+        CachedResource cached = CachedResource.create(descriptor, content, newVersion, fileModTime);
         
         // Evict if necessary before adding
         evictIfNecessary(cached.estimateTokens());
@@ -440,36 +446,30 @@ public class ResourceCache implements IResourceChangeListener {
     private synchronized void updateCachedResource(IFile file, IPath path) {
         URI uri = workspacePathIndex.get(path);
         if (uri == null) {
-            // Not in cache, nothing to update
             return;
         }
         
         CachedResource existing = resources.get(uri);
         if (existing == null) {
-            // Not in cache, nothing to update
             return;
         }
         
         try {
-            // Read new content from file
             String newContent = readFileContent(file);
             
-            // Create updated cached resource with incremented version
             ResourceDescriptor descriptor = existing.descriptor();
             int newVersion = existing.version() + 1;
-            CachedResource updated = CachedResource.create(descriptor, newContent, newVersion);
+            long fileModTime = file.getLocalTimeStamp();
+            CachedResource updated = CachedResource.create(descriptor, newContent, newVersion, fileModTime);
             
-            // Replace in cache
             resources.put(uri, updated);
             
-            // Fire update event
             fireCacheEvent(new ResourceCacheEvent(this, ResourceCacheEvent.Type.UPDATED, updated));
             
             logger.info("ResourceCache: Updated " + path + " (v" + newVersion + ", ~" + updated.estimateTokens() + " tokens)");
             
         } catch (Exception e) {
             logger.error("ResourceCache: Failed to update cached resource " + path + ", invalidating instead", e);
-            // Fall back to invalidation if we can't read the file
             invalidate(path);
         }
     }

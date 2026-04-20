@@ -11,39 +11,55 @@ public record CachedResource(
     String content,
     Instant cachedAt,
     int version,
-    long contentHash      // For change detection
+    long contentHash,
+    Instant fileModifiedAt
 ) {
     
-    /**
-     * Creates a new cached resource with version 1.
-     */
     public static CachedResource create(ResourceDescriptor descriptor, String content) {
         return create(descriptor, content, 1);
     }
     
-    /**
-     * Creates a new cached resource with specified version.
-     */
     public static CachedResource create(ResourceDescriptor descriptor, String content, int version) {
         return new CachedResource(
             descriptor,
             content,
             Instant.now(),
             version,
-            content != null ? content.hashCode() : 0
+            content != null ? content.hashCode() : 0,
+            null
         );
     }
     
-    /**
-     * Creates an updated version of this resource with new content.
-     */
+    public static CachedResource create(ResourceDescriptor descriptor, String content, int version, long fileModificationTime) {
+        return new CachedResource(
+            descriptor,
+            content,
+            Instant.now(),
+            version,
+            content != null ? content.hashCode() : 0,
+            fileModificationTime > 0 ? Instant.ofEpochMilli(fileModificationTime) : null
+        );
+    }
+    
     public CachedResource withUpdatedContent(String newContent) {
         return new CachedResource(
             descriptor,
             newContent,
             Instant.now(),
             version + 1,
-            newContent != null ? newContent.hashCode() : 0
+            newContent != null ? newContent.hashCode() : 0,
+            fileModifiedAt
+        );
+    }
+    
+    public CachedResource withUpdatedContent(String newContent, long fileModificationTime) {
+        return new CachedResource(
+            descriptor,
+            newContent,
+            Instant.now(),
+            version + 1,
+            newContent != null ? newContent.hashCode() : 0,
+            fileModificationTime > 0 ? Instant.ofEpochMilli(fileModificationTime) : null
         );
     }
     
@@ -70,13 +86,17 @@ public record CachedResource(
     public String toXmlElement() {
         StringBuilder sb = new StringBuilder();
         sb.append(String.format(
-            "<resource uri=\"%s\" type=\"%s\" name=\"%s\" version=\"%d\" cached=\"%s\">\n",
+            "<resource uri=\"%s\" type=\"%s\" name=\"%s\" version=\"%d\" cached=\"%s\"",
             escapeXml(descriptor.uri().toString()),
             descriptor.type(),
             escapeXml(descriptor.displayName()),
             version,
             cachedAt
         ));
+        if (fileModifiedAt != null) {
+            sb.append(String.format(" fileModified=\"%s\"", fileModifiedAt));
+        }
+        sb.append(">\n");
         sb.append(content);
         sb.append("\n</resource>");
         return sb.toString();

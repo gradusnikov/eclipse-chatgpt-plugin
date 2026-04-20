@@ -11,6 +11,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.DuckDuckSearchMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseCodeEditingMcpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseContextMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseIntegrationsMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseRunnerMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.MemoryMcpServer;
@@ -31,7 +32,8 @@ class McpServerBuiltins
             ReadWebPageMcpServer.class,
             MemoryMcpServer.class,
             EclipseCodeEditingMcpServer.class,
-            EclipseRunnerMcpServer.class
+            EclipseRunnerMcpServer.class,
+            EclipseContextMcpServer.class
     };
     
     public List<McpServerDescriptor> listBuiltInImplementations()
