@@ -7,6 +7,7 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.IPath;
+import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.IType;
 
 /**
@@ -95,6 +96,35 @@ public record ResourceDescriptor(
             uri,
             ResourceType.JAVA_TYPE,
             type.getElementName() + ".java",
+            workspacePath,
+            toolName
+        );
+    }
+    
+    /**
+     * Creates descriptor from a JDT IMethod.
+     * URI uses fragment syntax: jdt:///com.example.MyClass#methodName
+     */
+    public static ResourceDescriptor fromJavaMethod(IMethod method, String toolName) {
+        IType declaringType = method.getDeclaringType();
+        String fqn = declaringType.getFullyQualifiedName();
+        String methodName = method.getElementName();
+        URI uri = URI.create("jdt:///" + fqn + "%23" + encode(methodName));
+        
+        IPath workspacePath = null;
+        try {
+            IResource resource = declaringType.getResource();
+            if (resource != null) {
+                workspacePath = resource.getFullPath();
+            }
+        } catch (Exception e) {
+            // Ignore - might be from a JAR
+        }
+        
+        return new ResourceDescriptor(
+            uri,
+            ResourceType.JAVA_TYPE,
+            declaringType.getElementName() + "#" + methodName,
             workspacePath,
             toolName
         );

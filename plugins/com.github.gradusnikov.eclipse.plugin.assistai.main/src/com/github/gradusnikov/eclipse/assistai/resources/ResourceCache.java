@@ -18,6 +18,12 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.ListenerList;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.IJavaElement;
+import org.eclipse.jdt.core.IMethod;
+import org.eclipse.jdt.core.ISourceReference;
+import org.eclipse.jdt.core.IType;
+import org.eclipse.jdt.core.JavaCore;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -455,9 +461,16 @@ public class ResourceCache implements IResourceChangeListener {
         }
         
         try {
-            String newContent = readFileContent(file);
-            
             ResourceDescriptor descriptor = existing.descriptor();
+            String newContent;
+            
+            if (descriptor.type() == ResourceDescriptor.ResourceType.JAVA_TYPE
+                    && uri.getScheme() != null && uri.getScheme().equals("jdt")) {
+                newContent = readJavaElementContent(file, uri);
+            } else {
+                newContent = readFileContent(file);
+            }
+            
             int newVersion = existing.version() + 1;
             long fileModTime = file.getLocalTimeStamp();
             CachedResource updated = CachedResource.create(descriptor, newContent, newVersion, fileModTime);
@@ -489,6 +502,59 @@ public class ResourceCache implements IResourceChangeListener {
             }
             return content.toString();
         }
+    }
+    
+    /**
+     * Reads the source of a Java element (type or method) identified by a jdt:// URI.
+     * Falls back to reading the whole file if the element cannot be resolved.
+     */
+    private String readJavaElementContent(IFile file, URI uri) throws CoreException, java.io.IOException {
+        String decodedPath = uri.getPath().substring(1); // strip leading /
+        
+        IJavaElement element = JavaCore.create(file);
+        if (element instanceof ICompilationUnit cu) {
+            if (decodedPath.contains("#")) {
+                String fqn = decodedPath.substring(0, decodedPath.indexOf('#'));
+                String methodName = decodedPath.substring(decodedPath.indexOf('#') + 1);
+                IType type = cu.findPrimaryType();
+                if (type != null) {
+                    for (IMethod method : type.getMethods()) {
+                        if (method.getElementName().equals(methodName)) {
+                            String source = method.getSource();
+                            if (source != null && !source.isBlank()) {
+                                return formatContent(fqn + "#" + methodName, source);
+                            }
+                        }
+                    }
+                }
+            } else {
+                IType type = cu.findPrimaryType();
+                if (type != null) {
+                    String source = ((ISourceReference) type).getSource();
+                    if (source != null && !source.isBlank()) {
+                        return formatContent(decodedPath, source);
+                    }
+                }
+            }
+        }
+        
+        return readFileContent(file);
+    }
+    
+    /**
+     * Formats content with a label header and line numbers, matching ResourceCacheHelper format.
+     */
+    private String formatContent(String label, String content) {
+        String[] lines = content.split("\n");
+        int numDigits = Integer.toString(lines.length).length();
+        
+        StringBuilder out = new StringBuilder();
+        out.append("=== FILE: ").append(label).append(" ===\n");
+        for (int i = 0; i < lines.length; i++) {
+            out.append(String.format("%0" + numDigits + "d: %s\n", i + 1, lines[i]));
+        }
+        out.append("=== END FILE ===\n");
+        return out.toString();
     }
     
     /**

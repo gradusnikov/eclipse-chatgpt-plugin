@@ -17,6 +17,10 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.content.IContentTypeManager;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.jdt.core.IMethod;
+import org.eclipse.jdt.core.ISourceReference;
+import org.eclipse.jdt.core.IType;
+import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.swt.graphics.ImageData;
 
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
@@ -117,6 +121,77 @@ public class ResourceCacheHelper
         catch (CoreException e)
         {
             logger.error("Error adding workspace directory to cache: " + container.getFullPath(), e);
+        }
+    }
+    
+    /**
+     * Adds a Java type (class/interface/enum) to the resource cache using its source.
+     */
+    public void addJavaType(IType type)
+    {
+        if (type == null)
+        {
+            return;
+        }
+        try
+        {
+            String source = ((ISourceReference) type).getSource();
+            if (source == null || source.isBlank())
+            {
+                // Fall back to the underlying file
+                IResource resource = type.getResource();
+                if (resource instanceof IFile file)
+                {
+                    addWorkspaceFile(file);
+                }
+                return;
+            }
+            String formattedContent = formatFileContent(type.getFullyQualifiedName(), source);
+            ResourceDescriptor descriptor = ResourceDescriptor.fromJavaType(type, TOOL_NAME);
+            resourceCache.put(descriptor, formattedContent);
+            logger.info("Added Java type to cache: " + type.getFullyQualifiedName());
+        }
+        catch (JavaModelException e)
+        {
+            logger.error("Error adding Java type to cache: " + type.getFullyQualifiedName(), e);
+            // Fall back to file
+            IResource resource = type.getResource();
+            if (resource instanceof IFile file)
+            {
+                addWorkspaceFile(file);
+            }
+        }
+    }
+    
+    /**
+     * Adds a single Java method to the resource cache.
+     * Only the method source is cached, keeping the LLM focused on the relevant code.
+     */
+    public void addJavaMethod(IMethod method)
+    {
+        if (method == null)
+        {
+            return;
+        }
+        try
+        {
+            String source = method.getSource();
+            if (source == null || source.isBlank())
+            {
+                addJavaType(method.getDeclaringType());
+                return;
+            }
+            IType declaringType = method.getDeclaringType();
+            String label = declaringType.getFullyQualifiedName() + "#" + method.getElementName();
+            String formattedContent = formatFileContent(label, source);
+            ResourceDescriptor descriptor = ResourceDescriptor.fromJavaMethod(method, TOOL_NAME);
+            resourceCache.put(descriptor, formattedContent);
+            logger.info("Added Java method to cache: " + label);
+        }
+        catch (JavaModelException e)
+        {
+            logger.error("Error adding Java method to cache: " + method.getElementName(), e);
+            addJavaType(method.getDeclaringType());
         }
     }
     

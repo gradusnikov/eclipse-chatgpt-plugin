@@ -89,6 +89,11 @@
             sequence="Alt+/"
             contextId="org.eclipse.jdt.ui.javaEditorScope">
       </key>
+      <key
+            commandId="com.github.gradusnikov.eclipse.plugin.assistai.main.command.addToResources"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="Ctrl+Alt+A">
+      </key>
    </extension>
 
 </plugin>

@@ -26,6 +26,7 @@ import org.eclipse.ui.PlatformUI;
 
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor.ResourceType;
 import com.github.gradusnikov.eclipse.assistai.view.ResourcesPresenter.ResourceNode;
+import com.github.gradusnikov.eclipse.assistai.view.dnd.DropManager;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -40,6 +41,9 @@ public class ResourcesView
 {
     @Inject
     private ResourcesPresenter presenter;
+    
+    @Inject
+    private DropManager dropManager;
     
     private TreeViewer treeViewer;
     private Label statsLabel;
@@ -90,6 +94,9 @@ public class ResourcesView
         
         // Context menu
         createContextMenu();
+        
+        // Enable drag-and-drop onto the tree
+        dropManager.registerDropTarget( treeViewer.getTree() );
         
         // Stats label at the bottom
         statsLabel = new Label(parent, SWT.NONE);
