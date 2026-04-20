@@ -1,398 +1,363 @@
 <p align="center"><img src="src/website/logo_110_80.png"></p>
 
+# AssistAI - Eclipse IDE as an MCP Server for AI Agents
 
-# AssistAI - A LLM (ChatGPT) Plugin for Eclipse IDE
+AssistAI is an Eclipse IDE plugin that exposes your entire development environment as an **MCP (Model Context Protocol) server**. External AI agents — Claude Code, OpenAI Codex, Claude Desktop, or any MCP-compatible client — can read, navigate, edit, build, test, run, and debug your Java projects directly through Eclipse, preserving workspace sync, local history, and incremental compilation.
 
-AssistAI is an Eclipse IDE plugin that brings a Large Language Model (LLM) assistant (similar to ChatGPT) into your development environment. This an experimental plugin..
+AssistAI also includes a built-in LLM chat view for quick inline interactions with any supported model.
+
+## Why MCP through Eclipse?
+
+When AI agents edit files through the filesystem directly, Eclipse doesn't know anything changed. Editors show stale content, incremental compilation misses updates, and local history gaps appear.
+
+AssistAI solves this by routing all operations through Eclipse APIs:
+
+- **Edits go through JDT** — incremental compilation fires immediately, errors update in real time
+- **Refactorings use Eclipse's refactoring engine** — renames, moves, and package restructures update all references across the workspace
+- **File reads reflect the editor buffer** — agents always see the latest unsaved content, not the on-disk version
+- **Local history is preserved** — every change is tracked, undoable through Eclipse's local history
+- **Tests run inside Eclipse** — JUnit results, console output, and compilation errors are accessible as tool responses
+
+## Getting Started with External Agents
+
+### 1. Enable the HTTP MCP Server
+
+1. Open *Window > Preferences > Assist AI > HTTP MCP Server*
+2. Check **Enable HTTP MCP Server**
+3. Set **Hostname** and **Port** (defaults: `localhost:8124`)
+4. Click **Generate** to create an authentication token
+5. Click **Apply** — the server starts immediately
+
+The status panel shows all available endpoints:
+- `http://localhost:8124/mcp/eclipse-ide` — code analysis, navigation, search, testing, builds
+- `http://localhost:8124/mcp/eclipse-coder` — file editing, refactoring, patching, formatting
+- `http://localhost:8124/mcp/eclipse-runner` — launch, debug, breakpoints, stepping
+- `http://localhost:8124/mcp/eclipse-context` — resource cache, file local history, version tracking
+
+### 2. Connect Your Agent
+
+#### Claude Code
+
+Add to your Claude Code MCP settings (`.claude/settings.json` or project-level):
+
+```json
+{
+  "mcpServers": {
+    "eclipse-ide": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote", "http://localhost:8124/mcp/eclipse-ide",
+        "--allow-http",
+        "--header", "Authorization: Bearer YOUR_TOKEN"
+      ]
+    },
+    "eclipse-coder": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote", "http://localhost:8124/mcp/eclipse-coder",
+        "--allow-http",
+        "--header", "Authorization: Bearer YOUR_TOKEN"
+      ]
+    },
+    "eclipse-runner": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote", "http://localhost:8124/mcp/eclipse-runner",
+        "--allow-http",
+        "--header", "Authorization: Bearer YOUR_TOKEN"
+      ]
+    }
+  }
+}
+```
+
+> On Windows with WSL, use `"command": "wsl"` and prepend `"npx"` to the args array.
+
+#### Claude Desktop
+
+Add to your Claude Desktop configuration file:
+- Windows: `%APPDATA%\Roaming\Claude\claude_desktop_config.json`
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
+
+Use the same `mcpServers` format as above.
+
+#### OpenAI Codex / Other MCP Clients
+
+Any client that supports MCP over Streamable HTTP can connect directly to the endpoint URLs. Use the `Authorization: Bearer <token>` header for authentication.
+
+### 3. What Agents Can Do
+
+With the MCP tools, an external agent can:
+
+- **Read and navigate code** — project layout, class outlines, method source, type hierarchies, call hierarchies, find references
+- **Edit code** — create files, apply unified diffs, replace strings, delete lines, replace entire files
+- **Refactor** — rename types/packages, move types, organize imports — all through Eclipse's refactoring engine
+- **Build and test** — run Maven builds, execute JUnit tests (all, by package, class, or method), read compilation errors, get quick-fix suggestions
+- **Search** — text search, regex search, file glob search, search-and-replace across the workspace
+- **Run and debug** — launch Java applications, set breakpoints (including conditional), step through code, inspect stack traces, evaluate expressions, hot-swap code
+- **Access context** — read JavaDoc, console output, editor selection, effective POM, project dependencies
+- **Browse and restore file history** — list Local History versions, view old content, restore to any previous version, diff current vs. historical
+- **Inspect the resource cache** — see what files/classes are loaded in the conversation context, read cached content without I/O
+
+### 4. Guiding Agents with Eclipse Context
+
+External agents don't know what you're looking at in Eclipse — unless they ask. AssistAI provides MCP tools that let agents pick up context from your IDE session, so you can guide their work by simply opening files, selecting code, or running programs:
+
+| What you do in Eclipse | Tool the agent calls | What the agent sees |
+|------------------------|---------------------|---------------------|
+| Open a file in the editor | `getCurrentlyOpenedFile` | Full file content with path, project name, and line numbers |
+| Select a code region | `getEditorSelection` | Selected text with start/end line numbers and surrounding file context |
+| Run or debug a program | `getConsoleOutput` | Recent stdout/stderr from Eclipse console(s) |
+| Have compilation errors | `getCompilationErrors` | All errors/warnings with file, line, and message |
+| Open a specific class | `getClassOutline` | Compact structure — fields, method signatures, line numbers |
+
+**Workflow tip:** When asking an agent to fix something, open the relevant file in Eclipse first, select the problem area, and tell the agent to check your selection. This gives the agent precise context without you having to describe file paths or paste code.
+
+**Token-efficient navigation:** Instead of reading entire files, agents can use `getClassOutline` to see the structure (~30 lines for a 500-line class), then `getMethodSource` to read only the methods they need, or `getFilteredSource` to see the full file with irrelevant methods collapsed to one-line signatures. The `readProjectResource` tool supports `excludeImports` to further reduce token usage.
+
+**Resource cache:** Files and classes read through Eclipse MCP tools are automatically cached with version tracking and file modification timestamps (tied to Eclipse's Local History). Agents can call `listCachedResources` to see what's already loaded, or `getCachedResource` to re-read cached content instantly — no disk I/O, no re-parsing.
+
+**Local History:** Eclipse automatically maintains a Local History for every file modified through the IDE. Agents can browse past versions (`getFileHistory`), read historical content (`getFileHistoryContent`), compare with the current version (`compareWithHistory`), or restore to any previous state (`restoreFileVersion`). This is more powerful than a simple undo — it preserves every edit across the entire session, including changes made by the agent itself.
 
 
-## Features
-
-- Refactor selected code snippets with LLM
-- Generate JavaDoc comments for chosen classes or methods with LLM's help
-- Create JUnit tests for selected classes or methods using LLM's assistance
-- Engage in a conversation with LLM about the content of the currently opened file
-- Fix compilation errors with LLM's guidance
-- Copy code blocks generated by LLM to the clipboard
-- Produce Git commit comments based on changes in staged files
-- Customize pre-defined prompts
-- Using the built in tools (MPC) AssistAI can:
-  - use JavaDoc or related source code to better understand the context
-  - perform a web search using [DuckDuckGo](https://duckduckgo.com/)
-  - read a content of a web page
-- Create contexts for the LLM that include source files or images 
-- Use the vision model to discuss a image content
-- Switch between defined LLMs
-- Added support for interfacing with [Model Context Protocol (MPC)](https://modelcontextprotocol.io/introduction) servers. The plugin is a MCP Client. You can interface your favorite MCP servers using **any** of the supported LLMs (not limited to Claude). 
-- Now you can give control to LLM to modify your project files, access error logs, console output, and more... use Claude, sit back, vibe, and watch them tokens burn
-- Discuss about math, or tabular data. The chat component now supports latex and table rendering
-- Added tools that AI agents can use to execute and review JUnit tests
-- [NEW] The AssistAI plugin is now a MCP Server accessible via HTTP. This means that you can configure Claude Code or Claude Desktop client to directly interact with your Eclipse IDE via MCP - this way you can let Claude use it's own planning, search tools and system tools, and still maintain the code by Eclipse (history, etc.). It also means that you don't need Claude API keys when using Claude Desktop.
-- [NEW] New cached resource management and smart resource caching - LLM always sees the current version of files that are attached to the context (always up to date, no multiple copies)
-- [NEW] In-text code completion with Alt+/ 
-- [NEW] Token-efficient code navigation — class outlines, selective method reading, and import filtering to minimize context window usage
-- [NEW] Per-server tool filtering — enable/disable individual MCP tools per server to reduce token overhead
-
-
-You can also pose general questions to LLM, just like with the regular AI chatbot interface.
-
-## Supported Models
-
-AssistAI supports multiple LLM providers through different API protocols:
-
-| Provider | Protocol | Sample Models | MCP / tools | Vision | Notes |
-|----------|----------|--------------|----------------|--------|-------|
-| OpenAI | OpenAI API | gpt-5 | ✅ | ✅ | Default integration |
-| Anthropic | Claude API | claude-sonnet-4-5-20250929 | ✅ | ✅ | Native Claude API integration |
-| Groq | OpenAI API | qwen-qwq-32b, llama3-70b-8192 | ✅ | ✅ | Uses OpenAI-compatible API |
-| DeepSeek | DeepSeek API | deepseek-chat | ✅ | ❌ | Specialized integration |
-| Google | Gemini API | gemini-2.5-flash, gemini-3-pro-preview | ✅ | ✅ | Specialized integration |
-| Grok | Grok API | grok-4, grok-code-fast | ✅ | ✅ | Specialized integration |
-| Local/Self-hosted | OpenAI API | Any local model via Ollama, LM Studio, etc. | Varies | Varies | Configure with OpenAI-compatible endpoint |
-| Other 3rd party | OpenAI API | Various models from providers like Together.ai, Anyscale, etc. | Varies | Varies | Use OpenAI-compatible settings |
-
-To use a local or third-party model, configure it using the OpenAI protocol format in the Models preferences section with the appropriate endpoint URL.
-
-## Built-in MCP tools
+## MCP Tool Reference
 
 ### eclipse-coder — Code Editing
 
 | Tool | Description |
 |------|-------------|
-| createFile | Creates a new file in the specified project, adds it to the project, and opens it in the editor. |
-| insertIntoFile | Inserts content at a specific position in an existing file. |
-| replaceString | Replaces a specific string in a file with a new string, optionally within a specified line range. |
-| applyPatch | Applies a unified diff patch to a file with fuzzy context matching. More reliable than replaceString for multi-hunk edits. Optionally shows Eclipse's Apply Patch dialog. |
-| formatFile | Formats an entire Java file using Eclipse's code formatter (Ctrl+Shift+F). |
-| undoEdit | Undoes the last edit operation by restoring a file from its backup. |
-| createDirectories | Creates a directory structure (recursively) in the specified project. |
-| renameFile | Renames a file in the specified project. |
-| deleteFile | Deletes a file from the specified project. |
-| replaceFileContent | Replaces the entire content of a file with new content. |
-| deleteLinesInFile | Deletes a range of lines in a file, using 1-based line indexing. |
-| refactorRenameJavaType | Renames a Java class/interface/enum using Eclipse's refactoring mechanism, updating the type name, file name, and all references throughout the workspace. |
-| refactorMoveJavaType | Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism, updating the package declaration and all references. |
-| refactorRenamePackage | Renames a Java package using Eclipse's refactoring mechanism, updating all package declarations and references throughout the workspace. |
-| moveResource | Moves a file or folder to a different location within the project. |
-| organizeImports | Organizes imports in a Java file (removes unused, adds missing, sorts). Equivalent to Ctrl+Shift+O. |
-| organizeImportsInPackage | Organizes imports in all Java files within a package. |
+| createFile | Creates a new file, adds it to the project, and opens it in the editor |
+| insertIntoFile | Inserts content at a specific position in an existing file |
+| replaceString | Replaces a specific string in a file, optionally within a line range |
+| applyPatch | Applies a unified diff patch with fuzzy context matching — preferred for multi-hunk edits |
+| formatFile | Formats a Java file using Eclipse's code formatter |
+| undoEdit | Restores a file from its backup (undo last edit) |
+| createDirectories | Creates a directory structure recursively |
+| renameFile | Renames a file in a project |
+| deleteFile | Deletes a file from a project |
+| replaceFileContent | Replaces the entire content of a file |
+| deleteLinesInFile | Deletes a range of lines (1-based indexing) |
+| refactorRenameJavaType | Renames a Java type using Eclipse's refactoring, updating all references |
+| refactorMoveJavaType | Moves a Java type to a different package, updating all references |
+| refactorRenamePackage | Renames a package, updating all declarations and references |
+| moveResource | Moves a file or folder to a different location |
+| organizeImports | Organizes imports in a Java file (Ctrl+Shift+O equivalent) |
+| organizeImportsInPackage | Organizes imports in all Java files within a package |
 
 ### eclipse-ide — Code Analysis, Navigation & Build
 
 | Tool | Description |
 |------|-------------|
-| formatCode | Formats code according to the current Eclipse formatter settings. |
-| getJavaDoc | Get the JavaDoc for the given compilation unit. |
-| getSource | Get the source for the given class. |
-| getClassOutline | Returns a compact class outline — declarations, field declarations, and method signatures (no bodies) with line numbers. Reduces a 500-line class to ~30 lines. |
-| getMethodSource | Returns the source of specific methods by name (comma-separated). Supports overload disambiguation via `methodSignature`. |
-| getFilteredSource | Returns full source with non-selected methods collapsed to one-line signatures. Provides full context while focusing on methods of interest. |
-| getProjectProperties | Retrieves the properties and configuration of a specified project. |
-| getProjectLayout | Get the file and folder structure of a specified project. Supports `scopePath` to limit to a subdirectory and `maxDepth` to control tree depth for large projects. |
-| getMethodCallHierarchy | Retrieves the call hierarchy (callers) for a specified method. |
-| getTypeHierarchy | Retrieves the type hierarchy (supertypes, interfaces, and subtypes) for a given Java class or interface. |
-| findReferences | Finds all references/usages of a Java type, method, or field across the entire workspace. |
-| getCompilationErrors | Retrieves compilation errors and problems from the workspace or a project. |
-| getQuickFixes | Gets available quick fixes for compilation errors in a Java file. |
-| getImportSuggestions | Finds import candidates for unresolved types in a Java file. |
-| readProjectResource | Read the content of a text resource from a specified project. Supports `excludeImports` to collapse Java import blocks. |
-| listProjects | List all available projects in the workspace with their detected natures. |
-| getCurrentlyOpenedFile | Gets information about the currently active file in the Eclipse editor. |
-| getEditorSelection | Gets the currently selected text or lines in the active editor. |
-| getConsoleOutput | Retrieves the recent output from Eclipse console(s). |
-| runAllTests | Runs all tests in a specified project and returns the results. |
-| runPackageTests | Runs tests in a specific package and returns the results. |
-| runClassTests | Runs tests for a specific class and returns the results. |
-| runTestMethod | Runs a specific test method and returns the results. |
-| findTestClasses | Finds all test classes in a project. |
-| runMavenBuild | Runs a Maven build with the specified goals on a project. |
-| getEffectivePom | Gets the effective POM for a Maven project. |
-| listMavenProjects | Lists all available Maven projects in the workspace. |
-| getProjectDependencies | Gets Maven project dependencies. |
-| fileSearch | Searches for a plain substring in workspace files using Eclipse's text search engine. |
-| fileSearchRegExp | Searches workspace files using a Java regular expression via Eclipse's text search engine. |
-| findFiles | Finds workspace files matching the given glob patterns. |
-| searchAndReplace | Search and replace across multiple files in the workspace using Eclipse's text search engine. |
+| getSource | Full source of a class |
+| getClassOutline | Compact class outline — declarations and method signatures (no bodies) with line numbers |
+| getMethodSource | Source of specific methods by name, with overload disambiguation |
+| getFilteredSource | Full source with non-selected methods collapsed to signatures |
+| readProjectResource | Read a text resource, with optional import block collapsing |
+| getJavaDoc | JavaDoc for a compilation unit |
+| formatCode | Format code using Eclipse formatter settings |
+| getProjectProperties | Project properties and configuration |
+| getProjectLayout | File/folder structure with `scopePath` and `maxDepth` support |
+| listProjects | All workspace projects with detected natures |
+| listMavenProjects | All Maven projects in the workspace |
+| getCurrentlyOpenedFile | Currently active file in the editor |
+| getEditorSelection | Selected text or lines in the active editor |
+| getConsoleOutput | Recent Eclipse console output |
+| getMethodCallHierarchy | Call hierarchy (callers) for a method |
+| getTypeHierarchy | Type hierarchy (supertypes, interfaces, subtypes) |
+| findReferences | All references to a type, method, or field across the workspace |
+| getCompilationErrors | Compilation errors from the workspace or a project |
+| getQuickFixes | Available quick fixes for compilation errors |
+| getImportSuggestions | Import candidates for unresolved types |
+| fileSearch | Substring search in workspace files |
+| fileSearchRegExp | Regex search in workspace files |
+| findFiles | Glob pattern file search |
+| searchAndReplace | Search and replace across multiple files |
+| runAllTests | Run all tests in a project |
+| runPackageTests | Run tests in a specific package |
+| runClassTests | Run tests for a specific class |
+| runTestMethod | Run a specific test method |
+| findTestClasses | Find all test classes in a project |
+| runMavenBuild | Run a Maven build with specified goals |
+| getEffectivePom | Effective POM for a Maven project |
+| getProjectDependencies | Maven project dependencies |
 
 ### eclipse-runner — Launch, Debug & Breakpoints
 
 | Tool | Description |
 |------|-------------|
-| runJavaApplication | Launches a Java application in run mode with optional program/VM arguments and configurable timeout. |
-| debugJavaApplication | Launches a Java application in debug mode. Stops at breakpoints. |
-| stopApplication | Stops a running or debugging Java application by name or main class match. |
-| listActiveLaunches | Lists all currently running or debugging applications with their status and mode. |
-| toggleBreakpoint | Sets or removes a line breakpoint at the specified location. |
-| setConditionalBreakpoint | Sets a breakpoint with a condition expression and optional hit count. |
-| listBreakpoints | Lists all breakpoints with their location, enabled status, and conditions. |
-| removeAllBreakpoints | Removes all breakpoints from the workspace. |
-| getStackTrace | Gets the stack trace of all threads for a suspended debug session, including local variables. |
-| evaluateExpression | Evaluates a Java expression in the context of a suspended debug frame. |
-| resumeDebug | Resumes execution of a suspended debug session. |
-| stepOver | Steps over the current line in a suspended debug session. |
-| stepInto | Steps into the method call at the current line in a suspended debug session. |
-| stepReturn | Steps out of the current method in a suspended debug session. |
-| hotCodeReplace | Pushes code changes into a running debug session without restarting (Hot Code Replace). |
+| runJavaApplication | Launch in run mode with optional arguments and timeout |
+| debugJavaApplication | Launch in debug mode, stops at breakpoints |
+| stopApplication | Stop a running/debugging application |
+| listActiveLaunches | List all running/debugging applications |
+| toggleBreakpoint | Set or remove a line breakpoint |
+| setConditionalBreakpoint | Breakpoint with condition expression and optional hit count |
+| listBreakpoints | List all breakpoints with status and conditions |
+| removeAllBreakpoints | Remove all breakpoints |
+| getStackTrace | Stack trace of all threads with local variables |
+| evaluateExpression | Evaluate a Java expression in a suspended debug frame |
+| resumeDebug | Resume execution of a suspended session |
+| stepOver | Step over the current line |
+| stepInto | Step into the method call |
+| stepReturn | Step out of the current method |
+| hotCodeReplace | Push code changes into a running debug session without restarting |
 
-### Other Tools
+### eclipse-context — Resource Cache & Local History
 
-| MCP Server | Tool | Description |
-|------------|------|-------------|
-| duck-duck-search | webSearch | Performs a search using a Duck Duck Go search engine and returns the search result json. |
-| memory | think | Use this tool to think about something without obtaining new information or performing changes. |
-| webpage-reader | readWebPage | Reads the content of the given web site and returns its content as a markdown text. |
-| time | currentTime | Returns the current date and time in the following format: yyyy-MM-dd HH:mm:ss |
-| time | convertTimeZone | Converts time from one time zone to another. |
+| Tool | Description |
+|------|-------------|
+| listCachedResources | Lists all resources in the conversation cache — URIs, types, versions, timestamps, token estimates |
+| getCachedResource | Gets cached resource content by URI without disk I/O |
+| getCacheStats | Cache statistics: resource count, token usage, limits |
+| getFileHistory | Lists Local History versions of a file with timestamps and sizes |
+| getFileHistoryContent | Reads the content of a specific Local History version |
+| restoreFileVersion | Restores a file to a specific Local History version |
+| compareWithHistory | Shows a unified diff between current content and a historical version |
+
+### Utility Servers
+
+| Server | Tool | Description |
+|--------|------|-------------|
+| duck-duck-search | webSearch | Web search via DuckDuckGo |
+| memory | think | Scratchpad for reasoning without side effects |
+| webpage-reader | readWebPage | Fetch a web page and return it as markdown |
+| time | currentTime | Current date and time |
+| time | convertTimeZone | Convert time between time zones |
 
 
-
-## Context
-
-The plugin leverages the OpenAI API to send predefined prompts to the LLM. These prompts include relevant context from your IDE, such as:
-
-- File name
-- Content of the opened file
-- Selected class or method name
-
-If you're not satisfied with the results, you can ask follow-up questions to LLM. Your inquiries, along with the complete conversation history, will be sent to LLM, ensuring more precise answers.
-
-Use the "Clear" button to reset the conversation context. Press the "Stop" button to halt LLM's response generation.
-
-Current LLM context resources are accessible with the *View > AssistAI > AI Resources*
-
-### Smart Resource Caching
-
-AssistAI remembers the files you've asked it to look at during a conversation. When you ask LLM to read the same file multiple times (for example, while iterating on code changes), it automatically keeps only the latest version—so LLM always sees your current code, not outdated copies. The plugin also detects when you edit files in Eclipse and refreshes its cache automatically. This means faster responses, lower token usage, and no confusion from LLM seeing old versions of your code mixed with new ones. Just remember save the file!
-
-## Usage Examples
-
-1. Vibe-coding ;)
-
-   ![Eclipse Coder](src/website/eclipse-coder.gif)
-
-1. Learn new things
-
-   <img src="src/website/latex-rendering.png" alt="Math rendering" style="zoom:50%;" />
-
-1. To discuss the class you're working on, select "Discuss" from the "Code Assist AI" context menu and ask any question about the code.
-
-![Discuss with ChatGPT](src/website/how-it-works-discuss.gif)
-
-2. To refactor a code snippet, select it and choose "Refactor" from the "Code Assist AI" context menu.
-
-![Refactor with ChatGPT](src/website/how-it-works-refactor.gif)
-
-3. You can also ask ChatGPT to document a selected class or method using the "Document" command:
-
-![Document with ChatGPT](src/website/how-it-works-document.gif)
-
-4. Additionally, you can request ChatGPT to generate a JUnit test:
-
-![JUnit Test Generation](src/website/how-it-works-junit.gif)
-
-5. After staging all modified files, ask ChatGPT to create a Git commit message:
-
-![Git Commit Message Generation](src/website/how-it-works-gitcomment.gif)
-
-6. If you have errors in your code, ChatGPT can generate a patch to solve your issues. Select "Fix Errors" command, copy patch contents using the "Copy Code" button, and paste it to your project with CTRL+v, or you can use "Apply Patch" button that will open the patch import window. 
-
-   The "Apply Patch" button is active whenever ChatGPT returns a *diff* code block. When interacting with ChatGPT (i.e. performing a code review) you can ask it to format its answers this way using a following prompt: "Return your answer in diff format using full paths".
-
-![Git Commit Message Generation](src/website/how-it-works-fixerrors-1.gif)
-
-7. AssistAI can use function calls to get the related source code or JavaDoc to better understand the problem and provide you with a more accurate solution.
-
-![Function calling](src/website/how-it-works-function-calls.gif)
-
-8. Using the context menu Paste an image from a Cliboard or drag-and-drop an image file to discuss it with the ChatGPT. 
-
-![Vision](src/website/how-it-works-vision.png)
-
-9. Configure and use MPC servers. Fill in MCP server details: *name*, *command (CLI)*, *enviromnent variables*, and allow the LLM to use external tools.
-![MPC](src/website/mpc-support.png)
-
-## Installation
-
-### Plugin Installation
-
-The easiest way to install the plugin is to use the Eclipse Marketplace. Just drag the "Install" button below into your running Eclipse workspace.
-
-<p align="center"><a href="https://marketplace.eclipse.org/marketplace-client-intro?mpc_install=5602936" class="drag" title="Drag to your running Eclipse* workspace. *Requires Eclipse Marketplace Client"><img style="width:80px;" typeof="foaf:Image" class="img-responsive" src="https://marketplace.eclipse.org/sites/all/themes/solstice/public/images/marketplace/btn-install.svg" alt="Drag to your running Eclipse* workspace. *Requires Eclipse Marketplace Client" /></a></p>
-
-Alternatively you can configure an update site:
-
-1. In Eclipse IDE, open *Help > Install new software*
-2. Click the *Add* button to open the "add repository" window, and input `AssistAI` as *Name* and `https://gradusnikov.github.io/eclipse-chatgpt-plugin/` as *Location*
-3. Click *Add*
-4. Back in *Install* window, choose *AssistAI* from the  *Work with:* list
-4. Select "Assist AI" from the plugin list and proceed to the next step by clicking the *Next* button
-5. Accept any certificate warnings (note: this is a self-signed plugin, so you will be warned about potential security risks)
-
-### Configuration
-
-After installing the plugin, configure access to the **OpenAI API**:
-
-1. Open *Window > Preferences > Assist AI* preferences
-2. Configure your models *Window > Preferences > Assist AI* preferences > Models
-   
-3. Select the model you want to use from a dropdown list: *Window > Preferences > Assist AI* preferences. You can switch between the defined models here.
-
-### Configuring MCP Servers
-
-MCP servers provide LLMs with tools to interact with files, databases, and APIs. These tools can transform this plugin into an alternative to Cursor or MANUS. Several built-in MCP servers exist, such as DuckDuckGo search, web fetching, or Eclipse integrations, but you can easily add any MCP server that provides a stdio interface.
-
-#### Adding the Filesystem MCP Server
-To enable the filesystem MCP (e.g., [filesystem](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem)), which allows LLMs to read or modify files, follow these steps:
-
-1. **Open the Preferences**  
-   Navigate to *Window > Preferences > Assist AI > MCP Servers* and click **Add**.
-
-2. **Configure the Server**  
-   Fill in the configuration details:  
-   ```  
-   Name: server-filesystem  
-   Command: wsl.exe npx -y @modelcontextprotocol/server-filesystem ${workspace_loc}  
-   ```
-
-3. **Optional Environment Variables**  
-   Define environment variables if required (e.g., API keys).
-
-#### Notes
-- The `${workspace_loc}` variable specifies the workspace folder accessible to the MCP. When using WSL, this path is automatically converted to a Unix-style path for compatibility.  Other eclipse variables are available (`${project_loc}`, etc.)
-- **Security Warning:** Use MCP servers cautiously, as they grant LLMs access to read or modify sensitive data in your project directory, which could be accidentally altered or deleted by the LLM.
+## Configuration
 
 ### Per-Server Tool Filtering
 
-Each MCP server can have individual tools enabled or disabled. This is useful for reducing the token overhead of tool configuration JSON sent to the LLM, or for excluding tools that are not relevant to your workflow.
+Each MCP server can have individual tools enabled or disabled to reduce token overhead or exclude irrelevant tools.
 
-1. **Open the Preferences**  
-   Navigate to *Window > Preferences > Assist AI > MCP Servers*.
+1. Navigate to *Window > Preferences > Assist AI > MCP Servers*
+2. Select a server (works for both built-in and user-defined)
+3. In the **Tools** section, uncheck tools you want to exclude
 
-2. **Select a Server**  
-   Click on a server in the list (works for both built-in and user-defined servers).
+Changes take effect immediately — both the internal MCP client and the HTTP server restart automatically. Excluded tools won't appear in `tools/list` responses.
 
-3. **Toggle Tools**  
-   In the **Tools** section of the details panel, uncheck any tools you want to exclude. Changes take effect immediately — both the internal MCP client and the HTTP MCP server are restarted automatically.
+### Adding External MCP Servers
 
-Excluded tools will not appear in `tools/list` responses and will not be available to the LLM.
+AssistAI is also an MCP *client* — you can connect external MCP servers (stdio-based) and use their tools through any of the supported LLMs.
 
-### HTTP MCP Server - Exposing Eclipse Tools to External Clients
-
-AssistAI now supports exposing its internal MCP servers (eclipse-ide, eclipse-coder, etc.) as HTTP endpoints. This allows external AI clients like Claude Desktop, Cursor, or any other MCP-compatible application to use Eclipse IDE capabilities remotely.
-
-#### Enabling the HTTP MCP Server
-
-1. **Open the Preferences**  
-   Navigate to *Window > Preferences > Assist AI > HTTP MCP Server*.
-
-2. **Configure the Server**  
-   - Check **Enable HTTP MCP Server**
-   - Set **Hostname** (default: `localhost`)
-   - Set **Port** (default: `8124`)
-   - Click **Generate** to create a new authentication token, or use an existing one
-   - Click **Apply** to start the server
-
-3. **Verify Server Status**  
-   The **Server Status** section will show "HTTP Server is running" when active.
-
-4. **View Enabled Endpoints**  
-   The **Enabled Endpoints** section displays all available MCP servers exposed via HTTP:
-   - `http://localhost:8124/mcp/eclipse-ide`
-   - `http://localhost:8124/mcp/eclipse-coder`
-   - `http://localhost:8124/mcp/eclipse-runner`
-   - `http://localhost:8124/mcp/duck-duck-search`
-   - `http://localhost:8124/mcp/webpage-reader`
-   - `http://localhost:8124/mcp/time`
-   - `http://localhost:8124/mcp/memory`
-
-#### Integrating with Claude Desktop
-
-To connect Claude Desktop to your Eclipse HTTP MCP Server:
-
-1. **Locate Claude Configuration File**  
-   Open the Claude Desktop configuration file:
-   - Windows: `%APPDATA%\Roaming\Claude\claude_desktop_config.json`
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Linux: `~/.config/Claude/claude_desktop_config.json`
-
-2. **Add MCP Server Configuration**  
-   Add entries for each Eclipse MCP server you want to use:
-
-   ```json
-   {
-     "mcpServers": {
-       "eclipse-ide": {
-         "command": "wsl",
-         "args": [
-           "npx", "-y", "mcp-remote", "http://172.24.208.1:8124/mcp/eclipse-ide", "--allow-http"
-         ]
-       },
-       "eclipse-coder": {
-         "command": "wsl",
-         "args": [
-           "npx", "-y", "mcp-remote", "http://172.24.208.1:8124/mcp/eclipse-coder", "--allow-http"
-         ]
-       }
-     }
-   }
+1. Open *Window > Preferences > Assist AI > MCP Servers* and click **Add**
+2. Configure the server:
    ```
-
-   **Notes:**
-   - Replace `172.24.208.1:8124` with your actual hostname and port
-   - Use `wsl` command on Windows to run npx through WSL
-   - On macOS/Linux, use `"command": "npx"` directly
-   - The `--allow-http` flag is required for non-HTTPS connections
-   - Add authentication header if using auth token (see below)
-
-3. **Using Authentication Token**  
-   If you configured an authentication token in Eclipse, add it to the args:
-
-   ```json
-   {
-     "mcpServers": {
-       "eclipse-coder": {
-         "command": "wsl",
-         "args": [
-           "npx", "-y", "mcp-remote", "http://172.24.208.1:8124/mcp/eclipse-coder", 
-           "--allow-http",
-           "--header", "Authorization: Bearer de34508b-e69b-4d93-8910-470c61c9f098"
-         ]
-       }
-     }
-   }
+   Name: server-filesystem
+   Command: npx -y @modelcontextprotocol/server-filesystem ${workspace_loc}
    ```
+3. Define environment variables if needed (e.g., API keys)
 
-4. **Restart Claude Desktop**  
-   Close and reopen Claude Desktop for the changes to take effect.
+The `${workspace_loc}` variable resolves to the workspace folder. Other Eclipse variables are available (`${project_loc}`, etc.).
 
-#### Use Cases
+> **Security:** MCP servers grant LLMs access to read and modify data. Use them cautiously.
 
-With HTTP MCP Server enabled, external AI clients can:
+### HTTP MCP Server Security
 
-- **Read and modify Eclipse project files** using `eclipse-coder` tools (including unified diff patching)
-- **Access project structure and properties** using `eclipse-ide` tools
-- **Navigate code** with type hierarchy, find references, and call hierarchy tools
-- **Run and analyze JUnit tests** in your Eclipse workspace
-- **Read compilation errors** and get quick fix suggestions and import candidates
-- **Format code** according to Eclipse formatter settings
-- **Access JavaDoc and source code** for better context understanding
-- **Launch and stop Java applications** in run or debug mode using `eclipse-runner` tools
-- **Debug interactively** — set breakpoints (including conditional), step through code, inspect stack traces, evaluate expressions, and hot-swap code changes
-
-This feature enables powerful AI-assisted development workflows where Claude or other AI assistants can directly interact with your Eclipse IDE environment.
-
-#### Security Considerations
-
-- **Local Network Only:** By default, the server binds to `localhost`. Only expose to external networks if necessary.
-- **Authentication Token:** Always use an authentication token when exposing the server beyond localhost.
-- **Firewall Rules:** Ensure your firewall allows connections only from trusted sources.
-- **HTTPS:** Consider using a reverse proxy with HTTPS for production use.
-- **Access Control:** The AI client will have full access to all tools exposed by the enabled MCP servers.
+- **Local network only** by default — only expose externally if necessary
+- **Authentication token** — always use one when exposing beyond localhost
+- **Firewall rules** — allow connections only from trusted sources
+- **HTTPS** — consider a reverse proxy with TLS for production use
+- **Access control** — connected agents have access to all tools on enabled endpoints
 
 
-### Add ChatGPT View
+## Built-in Chat View
 
-Add the *ChatGPT View* to your IDE:
+AssistAI includes a built-in LLM chat panel for direct interaction without external agents. Open it via *Window > Show View > Other > Code Assist AI > AssistAI Chat*.
 
-1. Open *Window > Show View > Other*
-2. Select *ChatGPT View* from the *Code Assist AI* category
+Features:
+- Refactor, document, or generate tests for selected code via context menu
+- Fix compilation errors with LLM guidance
+- Discuss code with full file context
+- Generate git commit messages from staged changes
+- Drag-and-drop images for vision model discussions
+- LaTeX and table rendering in responses
+- In-text code completion with Alt+/
+- Smart resource caching — LLM always sees the latest version of attached files
+- Customizable pre-defined prompts
+- Switch between models on the fly
+
+### Supported Models
+
+| Provider | Protocol | Sample Models | MCP / Tools | Vision |
+|----------|----------|--------------|-------------|--------|
+| OpenAI | OpenAI API | gpt-5 | Yes | Yes |
+| Anthropic | Claude API | claude-sonnet-4-5-20250929 | Yes | Yes |
+| Google | Gemini API | gemini-2.5-flash, gemini-3-pro-preview | Yes | Yes |
+| Grok | Grok API | grok-4, grok-code-fast | Yes | Yes |
+| Groq | OpenAI API | qwen-qwq-32b, llama3-70b-8192 | Yes | Yes |
+| DeepSeek | DeepSeek API | deepseek-chat | Yes | No |
+| Local/Self-hosted | OpenAI API | Ollama, LM Studio, etc. | Varies | Varies |
+| Other 3rd party | OpenAI API | Together.ai, Anyscale, etc. | Varies | Varies |
+
+Configure models in *Window > Preferences > Assist AI > Models*.
+
+
+## Screenshots
+
+1. Agentic coding with Eclipse MCP tools
+
+   ![Eclipse Coder](src/website/eclipse-coder.gif)
+
+2. Discussing code in the built-in chat
+
+   ![Discuss](src/website/how-it-works-discuss.gif)
+
+3. Refactoring selected code
+
+   ![Refactor](src/website/how-it-works-refactor.gif)
+
+4. Generating documentation
+
+   ![Document](src/website/how-it-works-document.gif)
+
+5. Generating JUnit tests
+
+   ![JUnit Test Generation](src/website/how-it-works-junit.gif)
+
+6. Git commit message generation
+
+   ![Git Commit Message](src/website/how-it-works-gitcomment.gif)
+
+7. Fixing compilation errors with patches
+
+   ![Fix Errors](src/website/how-it-works-fixerrors-1.gif)
+
+8. Tool calls for context-aware answers
+
+   ![Function calling](src/website/how-it-works-function-calls.gif)
+
+9. Vision model — discuss images
+
+   ![Vision](src/website/how-it-works-vision.png)
+
+10. LaTeX and table rendering
+
+    <img src="src/website/latex-rendering.png" alt="Math rendering" style="zoom:50%;" />
+
+11. Configuring MCP servers
+
+    ![MCP](src/website/mpc-support.png)
+
+
+## Installation
+
+### Eclipse Marketplace
+
+Drag the button below into your running Eclipse workspace:
+
+<p align="center"><a href="https://marketplace.eclipse.org/marketplace-client-intro?mpc_install=5602936" class="drag" title="Drag to your running Eclipse* workspace. *Requires Eclipse Marketplace Client"><img style="width:80px;" typeof="foaf:Image" class="img-responsive" src="https://marketplace.eclipse.org/sites/all/themes/solstice/public/images/marketplace/btn-install.svg" alt="Drag to your running Eclipse* workspace. *Requires Eclipse Marketplace Client" /></a></p>
+
+### Update Site
+
+1. In Eclipse, open *Help > Install New Software*
+2. Click *Add*, enter `AssistAI` as Name and `https://gradusnikov.github.io/eclipse-chatgpt-plugin/` as Location
+3. Select "Assist AI" from the plugin list and proceed through the wizard
+4. Accept certificate warnings (self-signed plugin)
+
+### Initial Setup
+
+1. Open *Window > Preferences > Assist AI*
+2. Configure your models in *Preferences > Assist AI > Models*
+3. To use with external agents, enable the HTTP MCP Server (see above)
