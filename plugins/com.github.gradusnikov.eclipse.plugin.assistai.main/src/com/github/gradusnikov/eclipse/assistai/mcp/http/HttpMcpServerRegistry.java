@@ -10,6 +10,8 @@ import org.apache.catalina.Context;
 import org.apache.catalina.LifecycleException;
 import org.apache.catalina.LifecycleState;
 import org.apache.catalina.startup.Tomcat;
+import org.apache.tomcat.util.descriptor.web.FilterDef;
+import org.apache.tomcat.util.descriptor.web.FilterMap;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.workbench.lifecycle.PostWorkbenchClose;
@@ -18,18 +20,9 @@ import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerFactory;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerRepository;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-
-import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapperSupplier;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
-import io.modelcontextprotocol.spec.McpSchema;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -134,7 +127,7 @@ public class HttpMcpServerRegistry
         wrapper.setLoadOnStartup(1);
         wrapper.setAsyncSupported(true);
         context.addChild(wrapper);
-        context.addServletMappingDecoded("/mcp/" + serverName + "/*", "mcpServlet_" + serverName);
+        context.addServletMappingDecoded(MCP_ENDPOINT + "/" + serverName + "/*", "mcpServlet_" + serverName);
 
         // Track the endpoint
         endpoints.add(serverName);
@@ -156,7 +149,7 @@ public class HttpMcpServerRegistry
         String baseUrl = "http://" + config.hostname() + ":" + config.port();
         
         return endpoints.stream()
-                .map(name -> baseUrl + "/mcp/" + name)
+                .map(name -> baseUrl + MCP_ENDPOINT + "/"  + name)
                 .toList();
     }
 
@@ -221,6 +214,26 @@ public class HttpMcpServerRegistry
             var builtin = mcpServerRepository.listBuiltInServers();
             var stored = mcpServerRepository.listStoredServers();
             initializeBuiltInServers( context, stored, builtin );
+
+            String token = httpServerPreferncesProvider.get().token();
+            if ( token != null && !token.isBlank() )
+            {
+                FilterDef filterDef = new FilterDef();
+                filterDef.setFilterName( "bearerAuth" );
+                filterDef.setFilter( new BearerTokenAuthenticationFilter( token ) );
+                context.addFilterDef( filterDef );
+
+                FilterMap filterMap = new FilterMap();
+                filterMap.setFilterName( "bearerAuth" );
+                filterMap.addURLPattern( MCP_ENDPOINT + "/*" );
+                context.addFilterMap( filterMap );
+
+                logger.info( "MCP Http Server: Bearer token authentication enabled." );
+            }
+            else
+            {
+                logger.warn( "MCP Http Server: No authentication token configured - server is unprotected!" );
+            }
 
             logger.info( "Starting MCP Http Server." );
             tomcat.start();
