@@ -300,6 +300,55 @@ public class UnitTestService {
     }
     
     /**
+     * Detects the appropriate JUnit test kind loader based on the project's classpath.
+     * Checks from newest to oldest version and returns the first match.
+     */
+    private String detectJUnitTestKind(IJavaProject javaProject) throws JavaModelException {
+        // JUnit 5 (Jupiter)
+        if (javaProject.findType("org.junit.jupiter.api.Test") != null) {
+            return "org.eclipse.jdt.junit.loader.junit5";
+        }
+        // JUnit 4
+        if (javaProject.findType("org.junit.Test") != null) {
+            return "org.eclipse.jdt.junit.loader.junit4";
+        }
+        // JUnit 3
+        if (javaProject.findType("junit.framework.TestCase") != null) {
+            return "org.eclipse.jdt.junit.loader.junit3";
+        }
+        // Default fallback
+        return "org.eclipse.jdt.junit.loader.junit5";
+    }
+    
+    private String buildLaunchName(IJavaProject javaProject, IPackageFragment packageFragment,
+                                   IType testClass, String methodName) {
+        String projectName = javaProject.getElementName();
+        if (testClass != null && methodName != null) {
+            return projectName + " - " + testClass.getFullyQualifiedName() + "." + methodName;
+        }
+        if (testClass != null) {
+            return projectName + " - " + testClass.getFullyQualifiedName();
+        }
+        if (packageFragment != null) {
+            return projectName + " - " + packageFragment.getElementName();
+        }
+        return projectName + " - All Tests";
+    }
+    
+    private ILaunchConfiguration findExistingLaunchConfig(ILaunchManager launchManager, String name) {
+        try {
+            for (ILaunchConfiguration config : launchManager.getLaunchConfigurations()) {
+                if (config.getName().equals(name)) {
+                    return config;
+                }
+            }
+        } catch (CoreException e) {
+            logger.error("Error searching for existing launch configuration", e);
+        }
+        return null;
+    }
+    
+    /**
      * Finds a method in a type by name.
      */
     private IMethod findMethod(IType type, String methodName) throws JavaModelException {
@@ -381,9 +430,17 @@ public class UnitTestService {
                 ILaunchConfigurationType type = launchManager.getLaunchConfigurationType(
                         "org.eclipse.jdt.junit.launchconfig");
                 
-                // Create a temporary launch configuration
-                ILaunchConfigurationWorkingCopy workingCopy = type.newInstance(null, 
-                        "UnitTestService-" + System.currentTimeMillis());
+                // Build a deterministic launch name based on the test target
+                String launchName = buildLaunchName(javaProject, packageFragment, testClass, methodName);
+                
+                // Reuse existing launch configuration or create a new one
+                ILaunchConfigurationWorkingCopy workingCopy;
+                ILaunchConfiguration existing = findExistingLaunchConfig(launchManager, launchName);
+                if (existing != null) {
+                    workingCopy = existing.getWorkingCopy();
+                } else {
+                    workingCopy = type.newInstance(null, launchName);
+                }
                 
                 // Set the project name
                 workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, 
@@ -407,8 +464,9 @@ public class UnitTestService {
                             javaProject.getPath().toString());
                 }
                 
-                // Set JUnit 5 as the test runner
-                workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND", "org.eclipse.jdt.junit.loader.junit5");
+                // Detect the appropriate JUnit version from the project's classpath
+                String testKind = detectJUnitTestKind(javaProject);
+                workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND", testKind);
                 
                 // Create the actual configuration
                 ILaunchConfiguration configuration = workingCopy.doSave();

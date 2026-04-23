@@ -209,48 +209,48 @@ public class EclipseIntegrationsMcpServer
 
     // Unit Test Service Tools
 
-    @Tool(name = "runAllTests", description = "Runs all tests in a specified project and returns the results.", type = "object")
+    @Tool(name = "runAllTests", description = "Runs all JUnit tests in a specified project and returns the results. Use findTestClasses first if unsure which project contains tests. The projectName must be the test project (e.g. 'my.app.tests'), not the main source project.", type = "object")
     public String runAllTests(
-            @ToolParam(name = "projectName", description = "The name of the project containing the tests", required = true) String projectName,
+            @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test classes (use listProjects to find it)", required = true) String projectName,
             @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout)
     {
         return unitTestService.runAllTests(projectName, Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60));
     }
 
-    @Tool(name = "runPackageTests", description = "Runs tests in a specific package and returns the results.", type = "object")
+    @Tool(name = "runPackageTests", description = "Runs all JUnit tests in a specific package and returns the results.", type = "object")
     public String runPackageTests(
-            @ToolParam(name = "projectName", description = "The name of the project containing the tests", required = true) String projectName,
-            @ToolParam(name = "packageName", description = "The fully qualified package name containing the tests", required = true) String packageName,
+            @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test classes (use listProjects to find it)", required = true) String projectName,
+            @ToolParam(name = "packageName", description = "The fully qualified package name (e.g. 'com.example.service')", required = true) String packageName,
             @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout)
     {
         return unitTestService.runPackageTests(projectName, packageName,
                 Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60));
     }
 
-    @Tool(name = "runClassTests", description = "Runs tests for a specific class and returns the results.", type = "object")
+    @Tool(name = "runClassTests", description = "Runs all JUnit tests in a specific test class and returns the results.", type = "object")
     public String runClassTests(
-            @ToolParam(name = "projectName", description = "The name of the project containing the tests", required = true) String projectName,
-            @ToolParam(name = "className", description = "The fully qualified name of the test class", required = true) String className,
+            @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test class (use listProjects to find it)", required = true) String projectName,
+            @ToolParam(name = "className", description = "The fully qualified class name including package (e.g. 'com.example.MyServiceTest')", required = true) String className,
             @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout)
     {
         return unitTestService.runClassTests(projectName, className,
                 Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60));
     }
 
-    @Tool(name = "runTestMethod", description = "Runs a specific test method and returns the results.", type = "object")
+    @Tool(name = "runTestMethod", description = "Runs a single JUnit test method and returns the results.", type = "object")
     public String runTestMethod(
-            @ToolParam(name = "projectName", description = "The name of the project containing the tests", required = true) String projectName,
-            @ToolParam(name = "className", description = "The fully qualified name of the test class", required = true) String className,
-            @ToolParam(name = "methodName", description = "The name of the test method to run", required = true) String methodName,
+            @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test class (use listProjects to find it)", required = true) String projectName,
+            @ToolParam(name = "className", description = "The fully qualified class name including package (e.g. 'com.example.MyServiceTest')", required = true) String className,
+            @ToolParam(name = "methodName", description = "The test method name without parentheses (e.g. 'testCreate')", required = true) String methodName,
             @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout)
     {
         return unitTestService.runTestMethod(projectName, className, methodName,
                 Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60));
     }
 
-    @Tool(name = "findTestClasses", description = "Finds all test classes in a project.", type = "object")
+    @Tool(name = "findTestClasses", description = "Finds all test classes in a project. Use this before runAllTests or runClassTests to discover the correct project name and fully qualified class names.", type = "object")
     public String findTestClasses(
-            @ToolParam(name = "projectName", description = "The name of the project to search", required = true) String projectName)
+            @ToolParam(name = "projectName", description = "The exact Eclipse project name to search (use listProjects to find it)", required = true) String projectName)
     {
         return unitTestService.findTestClasses(projectName);
     }
