@@ -3,5 +3,5 @@
    <description name="AssistAI - a AI code assistant plugin for Eclipse IDE" url="https://gradusnikov.github.io/eclipse-chatgpt-plugin/">
       AssistAI - a AI code assistant plugin for Eclipse IDE
    </description>
-   <feature url="features/com.github.gradusnikov.eclipse.assistai_1.0.7.202604241154.jar" id="com.github.gradusnikov.eclipse.assistai" version="1.0.7.202604241154"/>
+   <feature url="features/com.github.gradusnikov.eclipse.assistai_1.0.7.202604241923.jar" id="com.github.gradusnikov.eclipse.assistai" version="1.0.7.202604241923"/>
 </site>
