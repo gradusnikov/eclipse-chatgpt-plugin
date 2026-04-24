@@ -13,6 +13,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeAnalysisService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ConsoleService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.MarkdownService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.JavaDocService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.MavenService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.OutlineService;
@@ -61,6 +62,9 @@ public class EclipseIntegrationsMcpServer
 
     @Inject
     private OutlineService outlineService;
+
+    @Inject
+    private MarkdownService markdownService;
 
     @Tool(name = "formatCode", description = "Formats code according to the current Eclipse formatter settings.", type = "object")
     public String formatCode(
@@ -361,6 +365,25 @@ public class EclipseIntegrationsMcpServer
     {
         String[] patterns = normalizeFileNamePatterns(fileNamePatterns);
         return searchService.searchAndReplace(containingText, replacementText, patterns).toString();
+    }
+
+    @Tool(name = "getMarkdownOutline", description = "Returns the heading structure (table of contents) of a Markdown file with line numbers and section sizes. Use this to understand a large Markdown document before fetching specific sections with getMarkdownSection.", type = "object")
+    public String getMarkdownOutline(
+            @ToolParam(name = "projectName", description = "The name of the project containing the Markdown file", required = true) String projectName,
+            @ToolParam(name = "resourcePath", description = "The path to the Markdown file relative to the project root (e.g., 'docs/README.md')", required = true) String resourcePath)
+    {
+        return markdownService.getOutline(projectName, resourcePath);
+    }
+
+    @Tool(name = "getMarkdownSection", description = "Reads a specific section from a Markdown file by heading name or index. Returns the section content with line numbers. Use getMarkdownOutline first to see available headings.", type = "object")
+    public String getMarkdownSection(
+            @ToolParam(name = "projectName", description = "The name of the project containing the Markdown file", required = true) String projectName,
+            @ToolParam(name = "resourcePath", description = "The path to the Markdown file relative to the project root", required = true) String resourcePath,
+            @ToolParam(name = "heading", description = "The heading to find â either a 1-based index from the outline, or a text substring to match (case-insensitive)", required = true) String heading,
+            @ToolParam(name = "includeSubsections", description = "If 'true', includes all subsections under the matched heading. If 'false', returns only the content up to the next heading of any level. Default: true", required = false) String includeSubsections)
+    {
+        boolean includeSubs = Optional.ofNullable(includeSubsections).map(Boolean::parseBoolean).orElse(true);
+        return markdownService.getSection(projectName, resourcePath, heading, includeSubs);
     }
 
     private static String[] normalizeFileNamePatterns(Object fileNamePatterns)

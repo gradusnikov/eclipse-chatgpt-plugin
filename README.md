@@ -2,7 +2,7 @@
 
 # AssistAI - Eclipse IDE as an MCP Server for AI Agents
 
-AssistAI is an Eclipse IDE plugin that exposes your entire development environment as an **MCP (Model Context Protocol) server**. External AI agents — Claude Code, OpenAI Codex, Claude Desktop, or any MCP-compatible client — can read, navigate, edit, build, test, run, and debug your Java projects directly through Eclipse, preserving workspace sync, local history, and incremental compilation.
+AssistAI is an Eclipse IDE plugin that exposes your entire development environment as an **MCP (Model Context Protocol) server**. External AI agents -- Claude Code, OpenAI Codex, Claude Desktop, or any MCP-compatible client -- can read, navigate, edit, build, test, run, and debug your Java projects directly through Eclipse, preserving workspace sync, local history, and incremental compilation.
 
 AssistAI also includes a built-in LLM chat view for quick inline interactions with any supported model.
 
@@ -12,11 +12,11 @@ When AI agents edit files through the filesystem directly, Eclipse doesn't know 
 
 AssistAI solves this by routing all operations through Eclipse APIs:
 
-- **Edits go through JDT** — incremental compilation fires immediately, errors update in real time
-- **Refactorings use Eclipse's refactoring engine** — renames, moves, and package restructures update all references across the workspace
-- **File reads reflect the editor buffer** — agents always see the latest unsaved content, not the on-disk version
-- **Local history is preserved** — every change is tracked, undoable through Eclipse's local history
-- **Tests run inside Eclipse** — JUnit results, console output, and compilation errors are accessible as tool responses
+- **Edits go through JDT** -- incremental compilation fires immediately, errors update in real time
+- **Refactorings use Eclipse's refactoring engine** -- renames, moves, and package restructures update all references across the workspace
+- **File reads reflect the editor buffer** -- agents always see the latest unsaved content, not the on-disk version
+- **Local history is preserved** -- every change is tracked, undoable through Eclipse's local history
+- **Tests run inside Eclipse** -- JUnit results, console output, and compilation errors are accessible as tool responses
 
 ## Getting Started with External Agents
 
@@ -26,13 +26,14 @@ AssistAI solves this by routing all operations through Eclipse APIs:
 2. Check **Enable HTTP MCP Server**
 3. Set **Hostname** and **Port** (defaults: `localhost:8124`)
 4. Click **Generate** to create an authentication token
-5. Click **Apply** — the server starts immediately
+5. Click **Apply** -- the server starts immediately
 
 The status panel shows all available endpoints:
-- `http://localhost:8124/mcp/eclipse-ide` — code analysis, navigation, search, testing, builds
-- `http://localhost:8124/mcp/eclipse-coder` — file editing, refactoring, patching, formatting
-- `http://localhost:8124/mcp/eclipse-runner` — launch, debug, breakpoints, stepping
-- `http://localhost:8124/mcp/eclipse-context` — resource cache, file local history, version tracking
+- `http://localhost:8124/mcp/eclipse-ide` -- code analysis, navigation, search, testing, builds
+- `http://localhost:8124/mcp/eclipse-coder` -- file editing, refactoring, patching, formatting
+- `http://localhost:8124/mcp/eclipse-runner` -- launch, debug, breakpoints, stepping
+- `http://localhost:8124/mcp/eclipse-context` -- resource cache, file local history, version tracking
+- `http://localhost:8124/mcp/eclipse-git` -- git status, log, staging, commit, diff, branches, stash
 
 ### 2. Connect Your Agent
 
@@ -66,6 +67,14 @@ Add to your Claude Code MCP settings (`.claude/settings.json` or project-level):
         "--allow-http",
         "--header", "Authorization: Bearer YOUR_TOKEN"
       ]
+    },
+    "eclipse-git": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote", "http://localhost:8124/mcp/eclipse-git",
+        "--allow-http",
+        "--header", "Authorization: Bearer YOUR_TOKEN"
+      ]
     }
   }
 }
@@ -90,19 +99,21 @@ Any client that supports MCP over Streamable HTTP can connect directly to the en
 
 With the MCP tools, an external agent can:
 
-- **Read and navigate code** — project layout, class outlines, method source, type hierarchies, call hierarchies, find references
-- **Edit code** — create files, apply unified diffs, replace strings, delete lines, replace entire files
-- **Refactor** — rename types/packages, move types, organize imports — all through Eclipse's refactoring engine
-- **Build and test** — run Maven builds, execute JUnit tests (all, by package, class, or method), read compilation errors, get quick-fix suggestions
-- **Search** — text search, regex search, file glob search, search-and-replace across the workspace
-- **Run and debug** — launch Java applications, set breakpoints (including conditional), step through code, inspect stack traces, evaluate expressions, hot-swap code
-- **Access context** — read JavaDoc, console output, editor selection, effective POM, project dependencies
-- **Browse and restore file history** — list Local History versions, view old content, restore to any previous version, diff current vs. historical
-- **Inspect the resource cache** — see what files/classes are loaded in the conversation context, read cached content without I/O
+- **Read and navigate code** -- project layout, class outlines, method source, type hierarchies, call hierarchies, find references
+- **Edit code** -- create files, apply unified diffs, replace strings, delete lines, replace entire files
+- **Refactor** -- rename types/packages, move types, organize imports -- all through Eclipse's refactoring engine
+- **Build and test** -- run Maven builds, execute JUnit tests (all, by package, class, or method), read compilation errors, get quick-fix suggestions
+- **Search** -- text search, regex search, file glob search, search-and-replace across the workspace
+- **Run and debug** -- launch Java applications, set breakpoints (including conditional), step through code, inspect stack traces, evaluate expressions, hot-swap code
+- **Access context** -- read JavaDoc, console output, editor selection, effective POM, project dependencies
+- **Browse and restore file history** -- list Local History versions, view old content, restore to any previous version, diff current vs. historical
+- **Inspect the resource cache** -- see what files/classes are loaded in the conversation context, read cached content without I/O
+- **Manage Git repositories** -- status, log, diff, stage, commit, branch, checkout, stash -- all through EGit, keeping Eclipse workspace in sync
+- **Navigate large documents** -- get the heading outline of a Markdown file, then fetch specific sections without loading the entire content
 
 ### 4. Guiding Agents with Eclipse Context
 
-External agents don't know what you're looking at in Eclipse — unless they ask. AssistAI provides MCP tools that let agents pick up context from your IDE session, so you can guide their work by simply opening files, selecting code, or running programs:
+External agents don't know what you're looking at in Eclipse -- unless they ask. AssistAI provides MCP tools that let agents pick up context from your IDE session, so you can guide their work by simply opening files, selecting code, or running programs:
 
 | What you do in Eclipse | Tool the agent calls | What the agent sees |
 |------------------------|---------------------|---------------------|
@@ -110,27 +121,27 @@ External agents don't know what you're looking at in Eclipse — unless they ask
 | Select a code region | `getEditorSelection` | Selected text with start/end line numbers and surrounding file context |
 | Run or debug a program | `getConsoleOutput` | Recent stdout/stderr from Eclipse console(s) |
 | Have compilation errors | `getCompilationErrors` | All errors/warnings with file, line, and message |
-| Open a specific class | `getClassOutline` | Compact structure — fields, method signatures, line numbers |
+| Open a specific class | `getClassOutline` | Compact structure -- fields, method signatures, line numbers |
 
 **Workflow tip:** When asking an agent to fix something, open the relevant file in Eclipse first, select the problem area, and tell the agent to check your selection. This gives the agent precise context without you having to describe file paths or paste code.
 
 **Token-efficient navigation:** Instead of reading entire files, agents can use `getClassOutline` to see the structure (~30 lines for a 500-line class), then `getMethodSource` to read only the methods they need, or `getFilteredSource` to see the full file with irrelevant methods collapsed to one-line signatures. The `readProjectResource` tool supports `excludeImports` to further reduce token usage.
 
-**Resource cache:** Files and classes read through Eclipse MCP tools are automatically cached with version tracking and file modification timestamps (tied to Eclipse's Local History). Agents can call `listCachedResources` to see what's already loaded, or `getCachedResource` to re-read cached content instantly — no disk I/O, no re-parsing.
+**Resource cache:** Files and classes read through Eclipse MCP tools are automatically cached with version tracking and file modification timestamps (tied to Eclipse's Local History). Agents can call `listCachedResources` to see what's already loaded, or `getCachedResource` to re-read cached content instantly -- no disk I/O, no re-parsing.
 
-**Local History:** Eclipse automatically maintains a Local History for every file modified through the IDE. Agents can browse past versions (`getFileHistory`), read historical content (`getFileHistoryContent`), compare with the current version (`compareWithHistory`), or restore to any previous state (`restoreFileVersion`). This is more powerful than a simple undo — it preserves every edit across the entire session, including changes made by the agent itself.
+**Local History:** Eclipse automatically maintains a Local History for every file modified through the IDE. Agents can browse past versions (`getFileHistory`), read historical content (`getFileHistoryContent`), compare with the current version (`compareWithHistory`), or restore to any previous state (`restoreFileVersion`). This is more powerful than a simple undo -- it preserves every edit across the entire session, including changes made by the agent itself.
 
 
 ## MCP Tool Reference
 
-### eclipse-coder — Code Editing
+### eclipse-coder -- Code Editing
 
 | Tool | Description |
 |------|-------------|
 | createFile | Creates a new file, adds it to the project, and opens it in the editor |
 | insertIntoFile | Inserts content at a specific position in an existing file |
 | replaceString | Replaces a specific string in a file, optionally within a line range |
-| applyPatch | Applies a unified diff patch with fuzzy context matching — preferred for multi-hunk edits |
+| applyPatch | Applies a unified diff patch with fuzzy context matching -- preferred for multi-hunk edits |
 | formatFile | Formats a Java file using Eclipse's code formatter |
 | undoEdit | Restores a file from its backup (undo last edit) |
 | createDirectories | Creates a directory structure recursively |
@@ -145,12 +156,12 @@ External agents don't know what you're looking at in Eclipse — unless they ask
 | organizeImports | Organizes imports in a Java file (Ctrl+Shift+O equivalent) |
 | organizeImportsInPackage | Organizes imports in all Java files within a package |
 
-### eclipse-ide — Code Analysis, Navigation & Build
+### eclipse-ide -- Code Analysis, Navigation & Build
 
 | Tool | Description |
 |------|-------------|
 | getSource | Full source of a class |
-| getClassOutline | Compact class outline — declarations and method signatures (no bodies) with line numbers |
+| getClassOutline | Compact class outline -- declarations and method signatures (no bodies) with line numbers |
 | getMethodSource | Source of specific methods by name, with overload disambiguation |
 | getFilteredSource | Full source with non-selected methods collapsed to signatures |
 | readProjectResource | Read a text resource, with optional import block collapsing |
@@ -181,8 +192,10 @@ External agents don't know what you're looking at in Eclipse — unless they ask
 | runMavenBuild | Run a Maven build with specified goals |
 | getEffectivePom | Effective POM for a Maven project |
 | getProjectDependencies | Maven project dependencies |
+| getMarkdownOutline | Heading structure (TOC) of a Markdown file with line numbers and section sizes |
+| getMarkdownSection | Read a specific section from a Markdown file by heading name or index |
 
-### eclipse-runner — Launch, Debug & Breakpoints
+### eclipse-runner -- Launch, Debug & Breakpoints
 
 | Tool | Description |
 |------|-------------|
@@ -202,17 +215,35 @@ External agents don't know what you're looking at in Eclipse — unless they ask
 | stepReturn | Step out of the current method |
 | hotCodeReplace | Push code changes into a running debug session without restarting |
 
-### eclipse-context — Resource Cache & Local History
+### eclipse-context -- Resource Cache & Local History
 
 | Tool | Description |
 |------|-------------|
-| listCachedResources | Lists all resources in the conversation cache — URIs, types, versions, timestamps, token estimates |
+| listCachedResources | Lists all resources in the conversation cache -- URIs, types, versions, timestamps, token estimates |
 | getCachedResource | Gets cached resource content by URI without disk I/O |
 | getCacheStats | Cache statistics: resource count, token usage, limits |
 | getFileHistory | Lists Local History versions of a file with timestamps and sizes |
 | getFileHistoryContent | Reads the content of a specific Local History version |
 | restoreFileVersion | Restores a file to a specific Local History version |
 | compareWithHistory | Shows a unified diff between current content and a historical version |
+
+### eclipse-git -- Git Operations (EGit)
+
+| Tool | Description |
+|------|-------------|
+| gitStatus | Working tree status -- staged, unstaged, untracked files, branch tracking info |
+| gitLog | Commit history with author, date, and message |
+| gitDiff | Unified diff of working tree or staged changes |
+| gitAdd | Stage files for commit (supports patterns, '.' for all) |
+| gitCommit | Commit staged changes with a message |
+| gitReset | Unstage files from the index |
+| gitBranch | List branches (local or including remote) |
+| gitCreateBranch | Create a new branch from HEAD or a specified start point |
+| gitDeleteBranch | Delete a branch (with optional force) |
+| gitCheckout | Switch to a branch |
+| gitStash | Stash working directory changes |
+| gitStashPop | Apply and drop the most recent stash |
+| gitStashList | List all stash entries |
 
 ### Utility Servers
 
@@ -235,11 +266,11 @@ Each MCP server can have individual tools enabled or disabled to reduce token ov
 2. Select a server (works for both built-in and user-defined)
 3. In the **Tools** section, uncheck tools you want to exclude
 
-Changes take effect immediately — both the internal MCP client and the HTTP server restart automatically. Excluded tools won't appear in `tools/list` responses.
+Changes take effect immediately -- both the internal MCP client and the HTTP server restart automatically. Excluded tools won't appear in `tools/list` responses.
 
 ### Adding External MCP Servers
 
-AssistAI is also an MCP *client* — you can connect external MCP servers (stdio-based) and use their tools through any of the supported LLMs.
+AssistAI is also an MCP *client* -- you can connect external MCP servers (stdio-based) and use their tools through any of the supported LLMs.
 
 1. Open *Window > Preferences > Assist AI > MCP Servers* and click **Add**
 2. Configure the server:
@@ -255,11 +286,11 @@ The `${workspace_loc}` variable resolves to the workspace folder. Other Eclipse 
 
 ### HTTP MCP Server Security
 
-- **Local network only** by default — only expose externally if necessary
-- **Authentication token** — always use one when exposing beyond localhost
-- **Firewall rules** — allow connections only from trusted sources
-- **HTTPS** — consider a reverse proxy with TLS for production use
-- **Access control** — connected agents have access to all tools on enabled endpoints
+- **Local network only** by default -- only expose externally if necessary
+- **Authentication token** -- always use one when exposing beyond localhost
+- **Firewall rules** -- allow connections only from trusted sources
+- **HTTPS** -- consider a reverse proxy with TLS for production use
+- **Access control** -- connected agents have access to all tools on enabled endpoints
 
 
 ## Built-in Chat View
@@ -274,7 +305,7 @@ Features:
 - Drag-and-drop images for vision model discussions
 - LaTeX and table rendering in responses
 - In-text code completion with Alt+/
-- Smart resource caching — LLM always sees the latest version of attached files
+- Smart resource caching -- LLM always sees the latest version of attached files
 - Customizable pre-defined prompts
 - Switch between models on the fly
 
@@ -332,7 +363,7 @@ Configure models in *Window > Preferences > Assist AI > Models*.
 
    ![Function calling](src/website/how-it-works-function-calls.gif)
 
-10. Vision model — discuss images
+10. Vision model -- discuss images
 
    ![Vision](src/website/how-it-works-vision.png)
 
