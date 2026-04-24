@@ -302,10 +302,24 @@ public class UnitTestService {
     /**
      * Detects the appropriate JUnit test kind loader based on the project's classpath.
      * Checks from newest to oldest version and returns the first match.
+     * <p>
+     * Note: JUnit 5 and the future JUnit 6 both use the same Jupiter annotations
+     * ({@code org.junit.jupiter.api.Test}). The distinction is made by the jar's
+     * major version (5.x vs 6.x). Since JUnit 6 is not yet released, we default
+     * to the {@code junit5} loader for all Jupiter-based projects. When JUnit 6
+     * jars become available, the version check below will select {@code junit6}
+     * automatically.
      */
     private String detectJUnitTestKind(IJavaProject javaProject) throws JavaModelException {
-        // JUnit 5 (Jupiter)
-        if (javaProject.findType("org.junit.jupiter.api.Test") != null) {
+        // JUnit 5 / 6 (Jupiter) – both share org.junit.jupiter.api.Test
+        IType jupiterTest = javaProject.findType("org.junit.jupiter.api.Test");
+        if (jupiterTest != null) {
+            // Check the Jupiter API jar version to distinguish 5.x from a future 6.x
+            IPackageFragmentRoot root = (IPackageFragmentRoot) jupiterTest.getPackageFragment().getParent();
+            String jarName = jupiterTest.getPath().lastSegment();
+            if (jarName != null && jarName.startsWith("junit-jupiter-api-6")) {
+                return "org.eclipse.jdt.junit.loader.junit6";
+            }
             return "org.eclipse.jdt.junit.loader.junit5";
         }
         // JUnit 4
@@ -316,7 +330,7 @@ public class UnitTestService {
         if (javaProject.findType("junit.framework.TestCase") != null) {
             return "org.eclipse.jdt.junit.loader.junit3";
         }
-        // Default fallback
+        // Default fallback – JUnit 5 is the most common modern version
         return "org.eclipse.jdt.junit.loader.junit5";
     }
     
