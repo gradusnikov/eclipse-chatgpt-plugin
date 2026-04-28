@@ -11,6 +11,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.text.StringEscapeUtils;
+import org.eclipse.core.runtime.ILog;
+import org.eclipse.core.runtime.Platform;
 
 /**
  * A utility class for parsing and converting a text prompt to an HTML formatted
@@ -18,6 +20,7 @@ import org.apache.commons.text.StringEscapeUtils;
  */
 public class MarkdownParser
 {
+    private static final ILog LOG = Platform.getLog( MarkdownParser.class );
 
     /**
      * Enum representing the different parsing states
@@ -247,7 +250,7 @@ public class MarkdownParser
         }
         catch ( Exception e )
         {
-            // Add error handling
+            LOG.error( "Error parsing content: " + e.getMessage() + "\nContent:\n" + prompt, e );
             out.append( "<div class=\"error\">Error parsing content: " ).append( e.getMessage() ).append( "</div>" );
         }
         return out.toString();
@@ -613,11 +616,16 @@ public class MarkdownParser
      * @return Line with inline code converted to HTML spans containing base64 encoded content
      */
     private static String convertInlineCodeToHtml(String line) {
-        return CODE_INLINE_PATTERN.matcher(line).replaceAll(match -> {
-            String content = match.group(1);
-            String base64Content = content;
-            return "<span class=\"inline-code\">" + base64Content + "</span>";
-        });
+        Matcher matcher = CODE_INLINE_PATTERN.matcher( line );
+        StringBuilder sb = new StringBuilder();
+        while ( matcher.find() )
+        {
+            String content = matcher.group( 1 );
+            String html = "<span class=\"inline-code\">" + content + "</span>";
+            matcher.appendReplacement( sb, Matcher.quoteReplacement( html ) );
+        }
+        matcher.appendTail( sb );
+        return sb.toString();
     }
 
     /**
@@ -628,18 +636,29 @@ public class MarkdownParser
      * @return Line with LaTeX expressions converted to HTML spans
      */
     private static String convertInLineLatexToHtml(String line) {
-        return LATEX_INLINE_PATTERN.matcher(line).replaceAll(match -> {
-            // Check each capture group since we don't know which pattern matched
-            for (int i = 1; i <= match.groupCount(); i++) {
-                String content = match.group(i);
-                if (content != null) 
+        Matcher matcher = LATEX_INLINE_PATTERN.matcher( line );
+        StringBuilder sb = new StringBuilder();
+        while ( matcher.find() )
+        {
+            String html = null;
+            for ( int i = 1; i <= matcher.groupCount(); i++ )
+            {
+                String content = matcher.group( i );
+                if ( content != null )
                 {
                     content = StringEscapeUtils.unescapeHtml4( content );
-                    String base64Content = Base64.getEncoder().encodeToString(content.getBytes());
-                    return "<span class=\"inline-latex\">" + base64Content + "</span>";
+                    String base64Content = Base64.getEncoder().encodeToString( content.getBytes() );
+                    html = "<span class=\"inline-latex\">" + base64Content + "</span>";
+                    break;
                 }
             }
-            return match.group(); // fallback, shouldn't happen
-        });
+            if ( html == null )
+            {
+                html = matcher.group();
+            }
+            matcher.appendReplacement( sb, Matcher.quoteReplacement( html ) );
+        }
+        matcher.appendTail( sb );
+        return sb.toString();
     }    
 }
