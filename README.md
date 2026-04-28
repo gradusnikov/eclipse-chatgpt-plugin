@@ -293,6 +293,65 @@ The `${workspace_loc}` variable resolves to the workspace folder. Other Eclipse 
 - **Access control** -- connected agents have access to all tools on enabled endpoints
 
 
+### AI File Access Control (`.aiignore`)
+
+AssistAI enforces file-level access restrictions so that sensitive files are never sent to AI models -- whether through the built-in chat or external MCP clients. The `AiIgnoreService` uses `.gitignore`-style pattern matching (powered by JGit) to determine which files are excluded.
+
+#### Per-Project Rules
+
+Place a `.aiignore` file in the root of any Eclipse project. The syntax follows `.gitignore` conventions:
+
+```
+# Exclude private keys and certificates
+*.pem
+*.key
+
+# Exclude secrets directory
+secret/
+
+# Exclude all .env files
+.env*
+
+# Exclude all properties except application.properties
+*.properties
+!application.properties
+
+# Exclude credentials anywhere in the tree
+**/credentials.json
+```
+
+#### Disabling AI for an Entire Project
+
+Create an empty `.noai` file in the project root. When present, all AI access to the project is denied â no pattern matching is performed.
+
+#### Supported File Names
+
+The service checks for ignore files in this order:
+
+1. The filename configured in preferences (default: `.aiignore`)
+2. `.aiignore` (fallback if a different name is configured)
+3. `.aiexclude` (legacy fallback)
+
+#### Pattern Syntax
+
+| Pattern | Matches |
+|---------|---------|
+| `*.pem` | All `.pem` files |
+| `secret/` | The `secret` directory (not a file named `secret`) |
+| `.env*` | `.env`, `.env.local`, `.env.production` |
+| `!file` | Negation - re-includes a previously excluded file |
+| `**/name` | `name` at any directory depth |
+| `path/to/dir/` | A specific directory path |
+
+Rules are evaluated in order; the **last matching rule wins**. Negation patterns (`!`) can override earlier excludes.
+
+#### Behavior
+
+- Rules are cached per project and automatically reloaded when `.aiignore` or `.noai` files change
+- Excluded files cause MCP tools to throw an `AiAccessDeniedException` with a descriptive message
+- Global patterns from preferences are prepended to per-project rules
+
+
 ## Built-in Chat View
 
 AssistAI includes a built-in LLM chat panel for direct interaction without external agents. Open it via *Window > Show View > Other > Code Assist AI > AssistAI Chat*.
