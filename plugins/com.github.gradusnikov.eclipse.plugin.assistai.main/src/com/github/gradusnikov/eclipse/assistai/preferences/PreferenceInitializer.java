@@ -68,6 +68,10 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
         store.setDefault(PreferenceConstants.ASSISTAI_COMPLETION_TIMEOUT_SECONDS, 8);
         store.setDefault(PreferenceConstants.ASSISTAI_COMPLETION_HOTKEY, PreferenceConstants.ASSISTAI_COMPLETION_HOTKEY_DEFAULT);
 
+        // AI Ignore defaults
+        store.setDefault(PreferenceConstants.ASSISTAI_IGNORE_FILENAME, ".aiignore");
+        store.setDefault(PreferenceConstants.ASSISTAI_GLOBAL_EXCLUDE_PATTERNS, "*.pem\n*.key\n*.env\n.env.*\ncredentials.json\nsecrets.properties");
+
         PromptLoader promptLoader = new PromptLoader();
         for ( Prompts prompt : Prompts.values() )
         {

@@ -26,4 +26,8 @@ public class PreferenceConstants
     
     // Default hotkey: Alt+/ (cross-platform friendly)
     public static final String ASSISTAI_COMPLETION_HOTKEY_DEFAULT = "Alt+/";
+
+    // AI Ignore preferences
+    public static final String ASSISTAI_IGNORE_FILENAME = "AssistAIIgnoreFilename";
+    public static final String ASSISTAI_GLOBAL_EXCLUDE_PATTERNS = "AssistAIGlobalExcludePatterns";
 }

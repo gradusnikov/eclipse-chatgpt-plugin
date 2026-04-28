@@ -31,6 +31,8 @@ import org.eclipse.jdt.core.Signature;
 import org.eclipse.jdt.internal.corext.callhierarchy.CallHierarchy;
 import org.eclipse.jdt.internal.corext.callhierarchy.MethodWrapper;
 
+import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
+
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
@@ -45,6 +47,9 @@ public class CodeAnalysisService
     
     @Inject
     ILog logger;
+
+    @Inject
+    AiIgnoreService aiIgnoreService;
     
     /**
      * Retrieves the call hierarchy for a specified method.
@@ -369,7 +374,8 @@ public class CodeAnalysisService
      * Helper method to read file content
      */
     private String readFileContent(IFile file) throws CoreException, IOException {
-        
+        aiIgnoreService.assertAccessAllowed(file);
+
         try (InputStream is = file.getContents()) 
         {
             ByteArrayOutputStream result = new ByteArrayOutputStream();

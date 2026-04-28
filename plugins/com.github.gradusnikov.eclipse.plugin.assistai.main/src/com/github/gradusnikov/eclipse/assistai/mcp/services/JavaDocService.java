@@ -25,6 +25,7 @@ import org.eclipse.jface.text.Document;
 import org.eclipse.ui.editors.text.TextFileDocumentProvider;
 
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
+import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
 import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
 
 import jakarta.inject.Inject;
@@ -37,6 +38,9 @@ public class JavaDocService {
     
     @Inject
     private ILog logger;
+
+    @Inject
+    private AiIgnoreService aiIgnoreService;
     
     /**
      * Retrieves the attached JavaDoc documentation for a given class within the available Java projects.
@@ -236,6 +240,10 @@ public class JavaDocService {
                 
                 // Check if the resource is a file
                 if (resource instanceof IFile file) {
+                    if (aiIgnoreService.isExcluded(file)) {
+                        return ResourceToolResult.transientResult(
+                                "Access denied: '" + fullyQualifiedClassName + "' is excluded from AI processing by .aiignore.", toolName);
+                    }
                     TextFileDocumentProvider provider = new TextFileDocumentProvider();
                     provider.connect(file);
                     Document document = (Document) provider.getDocument(file);

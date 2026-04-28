@@ -27,6 +27,7 @@ import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
 
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
+import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
 
 import jakarta.inject.Inject;
 
@@ -39,6 +40,9 @@ public class ProjectService {
     
     @Inject
     ILog logger;
+
+    @Inject
+    AiIgnoreService aiIgnoreService;
     
     /**
      * Lists all available projects in the workspace with their detected natures.
@@ -286,6 +290,11 @@ public class ProjectService {
     }
 
     private void collectResourcesForLLM(IResource resource, int depth, int maxDepth, StringBuilder result) throws CoreException {
+        if (aiIgnoreService.isExcluded(resource))
+        {
+            return;
+        }
+
         // Use proper indentation with markdown list formatting
         String indent = "";
         for (int i = 0; i < depth; i++) 

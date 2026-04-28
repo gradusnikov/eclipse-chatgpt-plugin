@@ -25,6 +25,7 @@ import org.eclipse.search.core.text.TextSearchMatchAccess;
 import org.eclipse.search.core.text.TextSearchRequestor;
 import org.eclipse.search.core.text.TextSearchScope;
 
+import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
 import jakarta.inject.Inject;
@@ -38,6 +39,9 @@ import jakarta.inject.Singleton;
 public class SearchService
 {
     private final ILog logger;
+
+    @Inject
+    AiIgnoreService aiIgnoreService;
 
     public record SearchResult(IFile file, int lineNumber, String lineContent)
     {
@@ -127,7 +131,7 @@ public class SearchService
             @Override
             public boolean acceptFile(IFile file) throws CoreException
             {
-                return file != null && file.isAccessible();
+                return file != null && file.isAccessible() && !aiIgnoreService.isExcluded(file);
             }
 
             @Override
@@ -253,7 +257,7 @@ public class SearchService
             @Override
             public boolean acceptFile(IFile file) throws CoreException
             {
-                return file != null && file.isAccessible();
+                return file != null && file.isAccessible() && !aiIgnoreService.isExcluded(file);
             }
 
             @Override

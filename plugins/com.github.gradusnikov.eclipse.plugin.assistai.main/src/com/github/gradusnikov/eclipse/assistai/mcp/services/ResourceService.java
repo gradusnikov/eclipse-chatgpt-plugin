@@ -22,6 +22,7 @@ import org.eclipse.search.core.text.TextSearchRequestor;
 import org.eclipse.search.core.text.TextSearchScope;
 
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
+import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
 import jakarta.inject.Inject;
@@ -38,6 +39,9 @@ public class ResourceService
 
     @Inject
     ILog logger;
+
+    @Inject
+    AiIgnoreService aiIgnoreService;
 
     /**
      * Finds workspace files matching the given glob patterns.
@@ -70,10 +74,10 @@ public class ResourceService
             {
                 if (matches.size() >= limit)
                 {
-                    return false; // stop accepting more files
+                    return false;
                 }
 
-                return file != null && file.isAccessible();
+                return file != null && file.isAccessible() && !aiIgnoreService.isExcluded(file);
             }
 
             @Override
@@ -156,6 +160,9 @@ public class ResourceService
         {
             throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
         }
+
+        aiIgnoreService.assertAccessAllowed(file);
+
         try
         {
             String lang = ResourceUtilities.getResourceFileType(file);
@@ -234,6 +241,12 @@ public class ResourceService
         {
             return ResourceToolResult.transientResult(
                     "Error: File '" + filePath + "' does not exist in project '" + projectName + "'.", toolName);
+        }
+
+        if (aiIgnoreService.isExcluded(file))
+        {
+            return ResourceToolResult.transientResult(
+                    "Access denied: '" + filePath + "' is excluded from AI processing by .aiignore.", toolName);
         }
 
         try

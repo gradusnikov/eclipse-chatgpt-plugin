@@ -17,6 +17,7 @@ import org.eclipse.core.runtime.IPath;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
 
+import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
 import jakarta.inject.Inject;
@@ -29,6 +30,9 @@ public class LocalHistoryService
 
     @Inject
     UISynchronize sync;
+
+    @Inject
+    AiIgnoreService aiIgnoreService;
 
     private static final DateTimeFormatter TIMESTAMP_FMT = DateTimeFormatter
             .ofPattern( "yyyy-MM-dd HH:mm:ss" )
@@ -246,6 +250,7 @@ public class LocalHistoryService
         {
             throw new RuntimeException( "File '" + filePath + "' not found in project '" + projectName + "'" );
         }
+        aiIgnoreService.assertAccessAllowed( file );
         return file;
     }
 

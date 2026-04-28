@@ -74,6 +74,7 @@ import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import com.github.gradusnikov.eclipse.assistai.completion.CompletionContext;
+import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
 import jakarta.inject.Inject;
@@ -90,6 +91,9 @@ public class CodeEditingService
     
     @Inject
     CodeAnalysisService codeAnalysisService;
+
+    @Inject
+    AiIgnoreService aiIgnoreService;
     
 	/**
 	 * Creates a directory structure (recursively) in the specified project.
@@ -302,6 +306,9 @@ public class CodeEditingService
 	        {
 	            throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
 	        }
+
+		        aiIgnoreService.assertAccessAllowed(file);
+
 	        // Try to refresh the editor if the file is open
 	        sync.syncExec(() -> 
 	        {
@@ -465,6 +472,9 @@ public class CodeEditingService
 	        {
 	            throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
 	        }
+
+		        aiIgnoreService.assertAccessAllowed(file);
+
 	        // Try to refresh the editor if the file is open
 	        sync.syncExec(() -> 
 	        {
@@ -2145,6 +2155,8 @@ public class CodeEditingService
             {
                 throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
             }
+            aiIgnoreService.assertAccessAllowed(file);
+
             
             // Close the editor if the file is open
             sync.syncExec(() -> 
@@ -2212,6 +2224,8 @@ public class CodeEditingService
             {
                 throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
             }
+
+            aiIgnoreService.assertAccessAllowed(file);
             
             // Backup the file before modification
             backupFile(file);
@@ -2283,6 +2297,8 @@ public class CodeEditingService
             {
                 throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
             }
+
+            aiIgnoreService.assertAccessAllowed(file);
             
             // Backup the file before modification
             backupFile(file);
@@ -2393,6 +2409,9 @@ public class CodeEditingService
             {
                 throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
             }
+
+            aiIgnoreService.assertAccessAllowed(file);
+
 
             // Refresh the editor if the file is open
             sync.syncExec(() ->

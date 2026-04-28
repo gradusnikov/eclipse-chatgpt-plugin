@@ -29,6 +29,7 @@ import org.eclipse.jdt.core.Signature;
 import org.eclipse.jface.text.Document;
 
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
+import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -39,6 +40,9 @@ public class OutlineService
 {
     @Inject
     ILog logger;
+
+    @Inject
+    AiIgnoreService aiIgnoreService;
 
     /**
      * Returns a compact outline of a Java class: class declaration, fields,
@@ -59,6 +63,12 @@ public class OutlineService
                 ICompilationUnit cu = type.getCompilationUnit();
                 if (cu == null)
                     continue;
+
+                if (cu.getResource() != null && aiIgnoreService.isExcluded(cu.getResource()))
+                {
+                    return ResourceToolResult.transientResult(
+                            "Access denied: '" + fullyQualifiedClassName + "' is excluded from AI processing by .aiignore.", toolName);
+                }
 
                 String source = cu.getBuffer().getContents();
                 Document doc = new Document(source);
@@ -161,6 +171,12 @@ public class OutlineService
                 ICompilationUnit cu = type.getCompilationUnit();
                 if (cu == null)
                     continue;
+
+                if (cu.getResource() != null && aiIgnoreService.isExcluded(cu.getResource()))
+                {
+                    return ResourceToolResult.transientResult(
+                            "Access denied: '" + fullyQualifiedClassName + "' is excluded from AI processing by .aiignore.", toolName);
+                }
 
                 String source = cu.getBuffer().getContents();
                 String[] lines = source.split("\n", -1);
@@ -266,6 +282,12 @@ public class OutlineService
                 ICompilationUnit cu = type.getCompilationUnit();
                 if (cu == null)
                     continue;
+
+                if (cu.getResource() != null && aiIgnoreService.isExcluded(cu.getResource()))
+                {
+                    return ResourceToolResult.transientResult(
+                            "Access denied: '" + fullyQualifiedClassName + "' is excluded from AI processing by .aiignore.", toolName);
+                }
 
                 String source = cu.getBuffer().getContents();
                 String[] lines = source.split("\n", -1);
