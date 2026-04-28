@@ -33,6 +33,7 @@ Export-Package:
  org.apache.catalina.core,
  org.apache.catalina.startup,
  org.apache.catalina.util,
+ org.apache.catalina.valves,
  org.apache.catalina.webresources,
  org.apache.fontbox.ttf,
  org.apache.tika,
