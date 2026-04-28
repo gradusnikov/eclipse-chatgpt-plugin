@@ -125,11 +125,7 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
                 }
             }
             requestBody.put("messages", messages);
-            // reasoning models (o1, o3, o4-mini, etc.) do not support temperature
-            if ( !model.modelName().matches( "^o\\d+(-.*)?$" ) )
-            {
-                requestBody.put("temperature", model.temperature()/10);
-            }
+            model.scaledTemperature().ifPresent( temp -> requestBody.put("temperature", temp  ) );
             requestBody.put("stream", true);
     
             String jsonString;

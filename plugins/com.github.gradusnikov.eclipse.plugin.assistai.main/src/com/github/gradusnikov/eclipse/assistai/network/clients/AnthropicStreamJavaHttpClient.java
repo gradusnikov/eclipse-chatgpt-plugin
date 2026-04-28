@@ -145,7 +145,7 @@ public class AnthropicStreamJavaHttpClient extends AbstractLanguageModelClient
             // Add required fields for Anthropic API
             requestBody.put("model", model.modelName());
             requestBody.put("messages", messages);
-            requestBody.put("temperature", model.temperature() / 10.0);
+            model.scaledTemperature().ifPresent( temp -> requestBody.put("temperature", temp  ) );
             requestBody.put("stream", true);
             requestBody.put("max_tokens", 10000); // Configurable limit
             

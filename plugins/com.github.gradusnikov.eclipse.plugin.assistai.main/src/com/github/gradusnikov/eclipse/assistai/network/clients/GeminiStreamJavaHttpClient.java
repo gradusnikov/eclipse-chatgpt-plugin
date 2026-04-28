@@ -173,10 +173,7 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
             // Add generation configuration
             var generationConfig = new LinkedHashMap<String, Object>();
             
-            // Add temperature configuration if applicable
-            if (!model.modelName().matches("^o\\d+(-.*)?$")){
-                generationConfig.put("temperature", model.temperature() / 10.0);
-            }
+            model.scaledTemperature().ifPresent( temp -> generationConfig.put("temperature", temp  ) );
             
             // Gemini doesn't use 'stream' directly in the body but in the URL or as a query parameter
             // So we're removing it from the body

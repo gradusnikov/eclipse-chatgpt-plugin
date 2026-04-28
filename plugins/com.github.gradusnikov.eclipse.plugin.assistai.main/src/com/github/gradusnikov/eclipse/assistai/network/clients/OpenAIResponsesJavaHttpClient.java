@@ -159,9 +159,7 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
         }
         
         // Model-specific parameters
-        if (!model.modelName().matches("^o\\d+(-.*)?$")) {
-            requestBody.put("temperature", model.temperature() / 10.0);
-        }
+        model.scaledTemperature().ifPresent( temp -> requestBody.put("temperature", temp  ) );
         
         // Streaming
         requestBody.put("stream", true);

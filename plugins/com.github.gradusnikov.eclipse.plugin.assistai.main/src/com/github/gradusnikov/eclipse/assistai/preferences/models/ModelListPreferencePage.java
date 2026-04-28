@@ -187,7 +187,7 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
     private Scale addScaleField( Composite form, String labelText)
     {
         Scale scale = new Scale( form, SWT.NONE );
-        scale.setMinimum( 0 );
+        scale.setMinimum( -1 );
         scale.setMaximum( 10 );
         scale.setIncrement( 1 );
         scale.setPageIncrement( 1 );

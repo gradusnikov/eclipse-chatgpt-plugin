@@ -126,7 +126,7 @@ public class GrokStreamJavaHttpClient extends AbstractLanguageModelClient
 
             requestBody.put("model", model.modelName());
             requestBody.put("messages", messages);
-            requestBody.put("temperature", model.temperature() / 10.0);
+            model.scaledTemperature().ifPresent( temp -> requestBody.put("temperature", temp  ) );
             requestBody.put("stream", true);
             requestBody.put("max_completion_tokens", 10000);
 

@@ -1,6 +1,7 @@
 package com.github.gradusnikov.eclipse.assistai.models;
 
 import java.time.Duration;
+import java.util.Optional;
 
 /**
  * 
@@ -17,7 +18,9 @@ public record ModelApiDescriptor(
          boolean vision,
          boolean functionCalling
          ) {
-       
+   
+    public static final int TEMPERATURE_NOT_SUPPORTED = -1;
+    
     public static ModelApiDescriptor copyWithUid( String uid, ModelApiDescriptor stub) {
         return new ModelApiDescriptor(
                     uid,
@@ -44,4 +47,11 @@ public record ModelApiDescriptor(
     {
         return Duration.ofSeconds(requestTimeoutSeconds > 0 ? requestTimeoutSeconds : 30);
     }
+    
+    public Optional<Float> scaledTemperature()
+    {
+        return temperature >= 0 ? Optional.empty() : Optional.of( Float.valueOf( (float)temperature/10.0f ) );
+        
+    }
+    
 } 
