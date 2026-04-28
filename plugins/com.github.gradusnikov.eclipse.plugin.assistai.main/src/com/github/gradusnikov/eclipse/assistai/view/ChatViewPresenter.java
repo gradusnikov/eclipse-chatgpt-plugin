@@ -242,7 +242,7 @@ public class ChatViewPresenter implements IResourceCacheListener
             messageView.setFocus();
             if ( message.getContent().isBlank() )
             {
-            	conversation.removeLastMessage();
+            	conversation.removeMessageById(message.getId());
             	messageView.removeMessage(message.getId());
             }
         } );
