@@ -13,8 +13,11 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.e4.core.di.annotations.Optional;
 import org.eclipse.e4.ui.di.Focus;
+import org.eclipse.e4.ui.di.UIEventTopic;
 import org.eclipse.e4.ui.di.UISynchronize;
+import org.eclipse.e4.ui.css.swt.theme.IThemeEngine;
 import org.eclipse.jface.fieldassist.ContentProposalAdapter;
 import org.eclipse.jface.fieldassist.IContentProposal;
 import org.eclipse.jface.fieldassist.IContentProposalProvider;
@@ -96,6 +99,10 @@ public class ChatView
     
     @Inject
     private AssistaiSharedFonts sharedFonts;
+
+    @Inject
+    @Optional
+    private IThemeEngine themeEngine;
 
     private Browser              browser;
     
@@ -665,7 +672,7 @@ public class ChatView
         String htmlTemplate = """
                 <!DOCTYPE html>
                 <html>
-                    <style>${css}</style>
+                    <style id="theme-css">${css}</style>
                     <style>${fonts}</style>
                     <script>${js}</script>
                     <body>
@@ -703,12 +710,42 @@ public class ChatView
      */
     private String loadCss()
     {
-        String[] cssFiles = { "textview.css", "dark.min.css", "fa6.all.min.css", "katex.min.css" };
+        boolean dark = isDarkTheme();
+        String[] cssFiles = dark
+                ? new String[] { "textview.css", "dark.min.css", "fa6.all.min.css", "katex.min.css" }
+                : new String[] { "textview-light.css", "light.min.css", "fa6.all.min.css", "katex.min.css" };
         var cssContent = Arrays.stream( cssFiles )
                                .map( file -> "css/" + file)
                                .map( sharedFiles::readFile )
                                .collect( Collectors.joining( "\n" ) );
         return cssContent;
+    }
+
+    private boolean isDarkTheme()
+    {
+        if ( themeEngine != null && themeEngine.getActiveTheme() != null )
+        {
+            return themeEngine.getActiveTheme().getId().toLowerCase().contains( "dark" );
+        }
+        return true;
+    }
+
+    private void applyThemeCss()
+    {
+        if ( browser == null || browser.isDisposed() )
+        {
+            return;
+        }
+        String css = loadCss();
+        String base64Css = java.util.Base64.getEncoder().encodeToString( css.getBytes( java.nio.charset.StandardCharsets.UTF_8 ) );
+        browser.execute( "document.getElementById('theme-css').textContent = atob('" + base64Css + "');" );
+    }
+
+    @Inject
+    @Optional
+    void onThemeChanged( @UIEventTopic("org/eclipse/e4/ui/css/swt/theme/ThemeManager/THEME_CHANGED") Object event )
+    {
+        uiSync.asyncExec( () -> applyThemeCss() );
     }
 
     /**

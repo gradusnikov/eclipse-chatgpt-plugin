@@ -1,0 +1,303 @@
+/* Reset some basic elements */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #ffffff;
+  color: #24292f;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+  padding: 0;
+}
+
+li {
+    margin-left: 1em;
+}
+
+/* Chat container */
+#content {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Message styling */
+.chat-bubble {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  margin: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.chat-bubble.me {
+  background-color: #f6f8fa;
+}
+
+.chat-bubble.you {
+  background-color: #ffffff;
+}
+
+/* Ensure inline elements stay inline */
+.chat-bubble i, .chat-bubble em, .chat-bubble b, .chat-bubble strong, .chat-bubble span, .chat-bubble a {
+  display: inline;
+  white-space: normal;
+}
+
+.chat-bubble pre, .chat-bubble pre span {
+  white-space: pre;	
+}
+/* Code formatting */
+code {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  background-color: rgba(175, 184, 193, 0.2);
+  border-radius: 3px;
+  font-size: 12px;
+  padding: 0.1em 0.3em;
+  margin: 0;
+  white-space: break-spaces;
+}
+
+/* Code blocks */
+.codeBlock {
+  margin: 8px 0;
+}
+
+pre {
+  background-color: #f6f8fa;
+  border-radius: 5px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow: auto;
+  padding: 12px;
+  margin: 0;
+}
+
+pre code {
+  background-color: transparent;
+  border-radius: 0;
+  font-size: inherit;
+  margin: 0;
+  padding: 0;
+  white-space: pre;
+  overflow-wrap: normal;
+  display: block;
+}
+
+/* Code block buttons */
+.codeBlockButtons {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+.codeBlockButtons input[type="button"] {
+  background-color: #f6f8fa;
+  border: 1px solid #d0d7de;
+  border-radius: 4px;
+  color: #57606a;
+  cursor: pointer;
+  font-size: 11px;
+  margin-left: 6px;
+  padding: 3px 8px;
+}
+
+.codeBlockButtons input[type="button"]:hover {
+  background-color: #eaeef2;
+}
+
+/* Links */
+a {
+  color: #0969da;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Fix for images */
+.chat-bubble img {
+  max-width: 100%;
+  display: block;
+  margin: 10px 0;
+}
+
+/* Syntax highlighting adjustments */
+.hljs {
+  background: transparent !important;
+}
+
+/* Summary elements */
+summary {
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 10px;
+  color: #0969da;
+}
+
+
+.chat-bubble.hidden {
+    display: none;
+}
+
+
+/* Default visibility */
+.diff-only { display: none; }
+.code-only { display: inline; }
+
+/* Conditional visibility based on parent class */
+.diff-block .diff-only { display: inline; }
+.diff-block .code-only { display: none; }
+
+/* Error styling */
+.error {
+    color: #cf222e;
+    background-color: #ffebe9;
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+/* Make inline katex elements not wrap */
+.inline-katex, .inline-latex, 
+.inline-katex *, .inline-latex * {
+    white-space: nowrap !important;
+}
+
+/* Center block katex elements */
+.block-katex, .block-latex {
+    display: block !important;
+    text-align: center !important;
+    margin: 1em auto !important;
+    white-space: nowrap !important;
+}
+
+/* Apply nowrap to all descendants of block-katex/latex */
+.block-katex *, .block-latex * {
+    white-space: nowrap !important;
+}
+
+/* Make inline katex elements not wrap */
+.inline-katex, .inline-latex, 
+.inline-katex *, .inline-latex * {
+    white-space: nowrap !important;
+}
+
+/* Center block katex elements */
+.block-katex, .block-latex {
+    display: block !important;
+    text-align: center !important;
+    margin: 1em auto !important;
+    white-space: nowrap !important;
+}
+
+/* Apply nowrap to all descendants of block-katex/latex */
+.block-katex *, .block-latex * {
+    white-space: nowrap !important;
+}
+
+/* Table styling */
+.markdown-table {
+  border-collapse: collapse;
+  margin: 15px 0;
+  width: 100%;
+  border: 1px solid #d0d7de;
+}
+
+.markdown-table th,
+.markdown-table td {
+  border: 1px solid #d0d7de;
+  padding: 8px 12px;
+}
+
+.markdown-table th {
+  background-color: #f6f8fa;
+  font-weight: bold;
+}
+
+.markdown-table tr:nth-child(even) {
+  background-color: #f6f8fa;
+}
+
+.markdown-table tr:hover {
+  background-color: #eaeef2;
+}
+
+/* Message toolbar and remove icon */
+.message-toolbar { position: relative; text-align: right; margin-bottom: 4px; display: none; }
+.chat-bubble .message-toolbar {
+    display: none !important;
+}
+.chat-bubble:hover .message-toolbar {
+    display: block !important;
+}
+
+/* Notification system */
+#notification-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  pointer-events: none;
+}
+
+.notification {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-size: 13px;
+  font-weight: 500;
+  pointer-events: auto;
+  animation: slideDown 0.3s ease-out;
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.notification i:first-child {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.notification-message {
+  flex: 1;
+  word-wrap: break-word;
+}
+
+.notification-close {
+  cursor: pointer;
+  font-size: 16px;
+  flex-shrink: 0;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.notification-close:hover {
+  opacity: 1;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
