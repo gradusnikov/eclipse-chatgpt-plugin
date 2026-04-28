@@ -10,8 +10,7 @@ import org.apache.catalina.Context;
 import org.apache.catalina.LifecycleException;
 import org.apache.catalina.LifecycleState;
 import org.apache.catalina.startup.Tomcat;
-import org.apache.tomcat.util.descriptor.web.FilterDef;
-import org.apache.tomcat.util.descriptor.web.FilterMap;
+
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.workbench.lifecycle.PostWorkbenchClose;
@@ -218,15 +217,7 @@ public class HttpMcpServerRegistry
             String token = httpServerPreferncesProvider.get().token();
             if ( token != null && !token.isBlank() )
             {
-                FilterDef filterDef = new FilterDef();
-                filterDef.setFilterName( "bearerAuth" );
-                filterDef.setFilter( new BearerTokenAuthenticationFilter( token ) );
-                context.addFilterDef( filterDef );
-
-                FilterMap filterMap = new FilterMap();
-                filterMap.setFilterName( "bearerAuth" );
-                filterMap.addURLPattern( MCP_ENDPOINT + "/*" );
-                context.addFilterMap( filterMap );
+                context.getPipeline().addValve( new BearerTokenAuthenticationValve( token ) );
 
                 logger.info( "MCP Http Server: Bearer token authentication enabled." );
             }
