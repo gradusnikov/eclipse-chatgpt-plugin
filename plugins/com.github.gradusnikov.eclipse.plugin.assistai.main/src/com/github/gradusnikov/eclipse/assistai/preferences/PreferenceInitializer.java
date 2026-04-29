@@ -59,8 +59,13 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
         // Initialize HTTP MCP Server defaults
         store.setDefault(PreferenceConstants.ASSISTAI_MCP_HTTP_HOSTNAME, "localhost");
         store.setDefault(PreferenceConstants.ASSISTAI_MCP_HTTP_PORT, 8080);
-        store.setDefault(PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN, UUID.randomUUID().toString());
         store.setDefault(PreferenceConstants.ASSISTAI_MCP_HTTP_ENABLED, false);
+        // Generate auth token once and persist it — using setDefault(randomUUID) would
+        // produce a new token on every Eclipse restart since defaults are not persisted.
+        if ( store.getString(PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN).isBlank() )
+        {
+            store.setValue(PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN, UUID.randomUUID().toString());
+        }
 
         // Initialize Code Completion defaults
         store.setDefault(PreferenceConstants.ASSISTAI_COMPLETION_ENABLED, true);
