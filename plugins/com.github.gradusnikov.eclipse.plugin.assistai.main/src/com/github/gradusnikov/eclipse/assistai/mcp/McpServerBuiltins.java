@@ -13,6 +13,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.servers.DuckDuckSearchMcpServ
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseCodeEditingMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseContextMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseGitMcpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.servers.PDEMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseIntegrationsMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseRunnerMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.MemoryMcpServer;
@@ -35,7 +36,8 @@ class McpServerBuiltins
             EclipseCodeEditingMcpServer.class,
             EclipseRunnerMcpServer.class,
             EclipseContextMcpServer.class,
-            EclipseGitMcpServer.class
+            EclipseGitMcpServer.class,
+            PDEMcpServer.class
     };
     
     public List<McpServerDescriptor> listBuiltInImplementations()
