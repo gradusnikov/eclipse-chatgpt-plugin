@@ -1,4 +1,5 @@
-name: Deploy Eclipse Update Site to Pages
+name: Build and Deploy Eclipse Update Site
+
 on:
   push:
     branches: ["main"]
@@ -14,44 +15,49 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-        
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Install Xvfb (required for useUIHarness=true on Linux)
+        run: sudo apt-get install -y xvfb
+
+      - name: Build with Tycho
+        run: mvn --batch-mode --no-transfer-progress clean verify
+            -Dtycho.disableP2Mirrors=true
+
       - name: Prepare Eclipse Update Site
         run: |
-          # Create a deployment directory
           mkdir -p deploy
-          
-          # Copy the index.html and web directory
+
+          # Copy the generated p2 repository from the Tycho repository module
+          cp -r releng/com.github.gradusnikov.eclipse.assistai.repository/target/repository/. deploy/
+
+          # Copy static site assets
           cp site/index.html deploy/
           cp -r site/web deploy/ || true
-          
-          # Copy the plugin files
-          cp -r site/plugins deploy/ || true
-          cp -r site/features deploy/ || true
-          
-          # Copy other required files
-          cp site/site.xml deploy/ || true
-          cp site/artifacts.jar deploy/ || true
-          cp site/content.jar deploy/ || true
-          
-          # List the files that will be deployed
-          ls -la deploy
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: 'deploy'
-          
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

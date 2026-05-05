@@ -247,7 +247,7 @@ public class ConsoleService
                 // Write to the console using MessageConsole's output stream
                 console.newMessageStream().println(message);
             } catch (Exception e) {
-                logger.error("Error writing to console: " + e.getMessage(), e);
+                logger.log(org.eclipse.core.runtime.Status.error("Error writing to console: " + e.getMessage(), e));
             }
         });
     }
@@ -344,12 +344,12 @@ public class ConsoleService
                         view.display(newConsole);
                     }
                 } catch (Exception e) {
-                    logger.error("Failed to show console view", e);
+                    logger.log(org.eclipse.core.runtime.Status.error("Failed to show console view", e));
                 }
                 
-                logger.info("Console '" + consoleName + "' cleared successfully.");
+                logger.log(new org.eclipse.core.runtime.Status(org.eclipse.core.runtime.IStatus.INFO, "com.github.gradusnikov.eclipse.plugin.assistai.main", "Console '" + consoleName + "' cleared successfully."));
             } catch (Exception e) {
-                logger.error("Error clearing console: " + e.getMessage(), e);
+                logger.log(org.eclipse.core.runtime.Status.error("Error clearing console: " + e.getMessage(), e));
             }
         });
     }
