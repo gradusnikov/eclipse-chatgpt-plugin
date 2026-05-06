@@ -53,6 +53,7 @@ jobs:
           mkdir -p deploy
           cp -r releng/com.github.gradusnikov.eclipse.assistai.repository/target/repository/. deploy/
           cp site/index.html deploy/
+          cp site/site.xml deploy/
           cp -r site/web deploy/ || true
 
       - name: Upload artifact
