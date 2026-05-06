@@ -55,6 +55,9 @@ jobs:
           cp site/index.html deploy/
           cp site/site.xml deploy/
           cp -r site/web deploy/ || true
+          # Replace qualifier placeholder with actual version from the built feature jar
+          FEATURE_VERSION=$(basename deploy/features/com.github.gradusnikov.eclipse.assistai_*.jar .jar | sed 's/com.github.gradusnikov.eclipse.assistai_//')
+          sed -i "s/1.0.7.qualifier/$FEATURE_VERSION/g" deploy/site.xml
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
