@@ -17,6 +17,7 @@ Require-Bundle: junit-jupiter-api,
  junit-platform-commons,
  org.eclipse.jdt.core,
  org.eclipse.jdt.launching,
+ org.eclipse.pde.core,
  slf4j.api
 Automatic-Module-Name: com.github.gradusnikov.eclipse.plugin.assistai.main.tests
 Bundle-RequiredExecutionEnvironment: JavaSE-23

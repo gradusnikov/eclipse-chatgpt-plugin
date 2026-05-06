@@ -42,6 +42,8 @@ Require-Bundle: org.eclipse.e4.ui.services,
  org.eclipse.ltk.core.refactoring,
  org.eclipse.ltk.ui.refactoring,
  org.eclipse.jdt.core.manipulation,
+ org.eclipse.pde.core,
+ org.eclipse.pde.launching,
  jakarta.annotation-api;bundle-version="2.1.1",
  jakarta.inject.jakarta.inject-api;bundle-version="2.0.1"
 Bundle-RequiredExecutionEnvironment: JavaSE-21
