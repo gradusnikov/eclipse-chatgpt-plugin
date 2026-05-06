@@ -25,6 +25,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.McpServerDescriptor;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpServerRepository;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryClientServerFactory.InMemorySyncClientServer;
 import com.github.gradusnikov.eclipse.assistai.tools.EclipseVariableUtilities;
+import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 
 import io.modelcontextprotocol.client.McpClient;
@@ -32,6 +33,7 @@ import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapperSupplier;
+import io.modelcontextprotocol.json.schema.jackson2.JacksonJsonSchemaValidatorSupplier;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpClientTransport;
 import jakarta.annotation.PostConstruct;
@@ -173,7 +175,9 @@ public class InMemoryMcpClientRetistry
             JacksonMcpJsonMapperSupplier jsonMapperSupplier = new JacksonMcpJsonMapperSupplier();
             
             McpClientTransport mcpTransport = new StdioClientTransport(stdioParameters, jsonMapperSupplier.get() );
-            McpSyncClient client = McpClient.sync(mcpTransport).build();
+            McpSyncClient client = McpClient.sync(mcpTransport)
+                    .jsonSchemaValidator( new JacksonJsonSchemaValidatorSupplier().get() )
+                    .build();
             addClient(userMcp.name(), client);
         }
     }

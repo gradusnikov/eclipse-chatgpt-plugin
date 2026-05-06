@@ -1,25 +1,154 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <?pde version="3.8"?>
 <target name="AssistAI Target Platform" sequenceNumber="11">
-  <locations>
+	<locations>
 
-    <!-- Eclipse 2026-03 (4.39) release train — single planner location.
+		<!-- Eclipse 2026-03 (4.39) release train — single planner location.
          Planner mode follows all transitive requirements automatically.
          EGit, JGit, M2E and all third-party bundles (JNA, commons, slf4j,
          jakarta.*) are already part of this release train. -->
-    <location includeAllPlatforms="false" includeConfigurePhase="false" includeMode="planner" includeSource="true" type="InstallableUnit">
-      <unit id="org.eclipse.sdk.feature.group"         version="0.0.0"/>
-      <unit id="org.eclipse.egit.feature.group"        version="0.0.0"/>
-      <unit id="org.eclipse.jgit.feature.group"        version="0.0.0"/>
-      <unit id="org.eclipse.m2e.feature.feature.group" version="0.0.0"/>
-      <!-- jakarta.servlet-api is not required by any SDK feature but our dependencies bundle needs it -->
-      <unit id="jakarta.servlet-api"                  version="0.0.0"/>
-      <!-- Third-party bundles needed by our plugins but not pulled in by the SDK features -->
-      <unit id="org.apache.commons.lang3"             version="0.0.0"/>
-      <unit id="org.apache.commons.text"              version="0.0.0"/>
-      <unit id="org.apache.commons.commons-io"        version="0.0.0"/>
-      <repository location="https://download.eclipse.org/releases/2026-03/"/>
-    </location>
-
-  </locations>
+		<location includeAllPlatforms="false" includeConfigurePhase="false"
+			includeMode="planner" includeSource="true" type="InstallableUnit">
+			<unit id="org.eclipse.sdk.feature.group" version="0.0.0" />
+			<unit id="org.eclipse.egit.feature.group" version="0.0.0" />
+			<unit id="org.eclipse.jgit.feature.group" version="0.0.0" />
+			<unit id="org.eclipse.m2e.feature.feature.group" version="0.0.0" />
+			<!-- jakarta.servlet-api is not required by any SDK feature but our
+			dependencies bundle needs it -->
+			<unit id="jakarta.servlet-api" version="0.0.0" />
+			<!-- Third-party bundles needed by our plugins but not pulled in by
+			the SDK features -->
+			<unit id="org.apache.commons.lang3" version="0.0.0" />
+			<unit id="org.apache.commons.text" version="0.0.0" />
+			<unit id="org.apache.commons.commons-io" version="0.0.0" />
+			<repository
+				location="https://download.eclipse.org/releases/2026-03/" />
+		</location>
+		<location includeDependencyDepth="direct"
+			includeDependencyScopes="compile" includeSource="true"
+			missingManifest="generate" type="Maven">
+			<dependencies>
+				<dependency>
+					<groupId>com.fasterxml.jackson.core</groupId>
+					<artifactId>jackson-annotations</artifactId>
+					<version>2.21</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>com.fasterxml.jackson.core</groupId>
+					<artifactId>jackson-core</artifactId>
+					<version>2.21.3</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>com.fasterxml.jackson.core</groupId>
+					<artifactId>jackson-databind</artifactId>
+					<version>2.21.3</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>com.networknt</groupId>
+					<artifactId>json-schema-validator</artifactId>
+					<version>2.0.1</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>io.modelcontextprotocol.sdk</groupId>
+					<artifactId>mcp-core</artifactId>
+					<version>1.1.2</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>io.projectreactor</groupId>
+					<artifactId>reactor-core</artifactId>
+					<version>3.8.5</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>org.apache.pdfbox</groupId>
+					<artifactId>fontbox</artifactId>
+					<version>2.0.36</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>org.apache.tika</groupId>
+					<artifactId>tika-core</artifactId>
+					<version>3.3.0</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>org.apache.tika</groupId>
+					<artifactId>tika-parser-text-module</artifactId>
+					<version>3.3.0</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>org.jsoup</groupId>
+					<artifactId>jsoup</artifactId>
+					<version>1.22.2</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>org.jspecify</groupId>
+					<artifactId>jspecify</artifactId>
+					<version>1.0.0</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>org.reactivestreams</groupId>
+					<artifactId>reactive-streams</artifactId>
+					<version>1.0.4</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>org.yaml</groupId>
+					<artifactId>snakeyaml</artifactId>
+					<version>2.6</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>com.vladsch.flexmark</groupId>
+					<artifactId>flexmark-html2md-converter</artifactId>
+					<version>0.64.8</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>com.vladsch.flexmark</groupId>
+					<artifactId>flexmark-util-builder</artifactId>
+					<version>0.64.8</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>com.vladsch.flexmark</groupId>
+					<artifactId>flexmark-util-sequence</artifactId>
+					<version>0.64.8</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>com.vladsch.flexmark</groupId>
+					<artifactId>flexmark-util-format</artifactId>
+					<version>0.64.8</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>com.vladsch.flexmark</groupId>
+					<artifactId>flexmark-util-dependency</artifactId>
+					<version>0.64.8</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>com.vladsch.flexmark</groupId>
+					<artifactId>flexmark-util-collection</artifactId>
+					<version>0.64.8</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>org.apache.tomcat</groupId>
+					<artifactId>tomcat-annotations-api</artifactId>
+					<version>11.0.21</version>
+					<type>jar</type>
+				</dependency>
+			</dependencies>
+		</location>
+	</locations>
 </target>

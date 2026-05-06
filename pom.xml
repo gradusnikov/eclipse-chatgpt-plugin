@@ -11,7 +11,6 @@
 
   <modules>
     <module>releng/com.github.gradusnikov.eclipse.assistai.target</module>
-    <module>plugins/com.github.gradusnikov.eclipse.plugin.assistai.dependencies</module>
     <module>plugins/com.github.gradusnikov.eclipse.plugin.assistai.main</module>
     <module>features/com.github.gradusnikov.eclipse.feature.assistai</module>
     <module>tests/com.github.gradusnikov.eclipse.plugin.assistai.main.tests</module>

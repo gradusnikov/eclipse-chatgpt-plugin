@@ -19,6 +19,8 @@ import org.osgi.framework.FrameworkUtil;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
 
+import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapperSupplier;
+import io.modelcontextprotocol.json.schema.jackson2.JacksonJsonSchemaValidatorSupplier;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
@@ -183,6 +185,8 @@ public class McpServerFactory
                         .serverInfo( info )
                         .capabilities( capabilities )
                         .tools( toolSpecifications )
+                        .jsonMapper( new JacksonMcpJsonMapperSupplier().get() )
+                        .jsonSchemaValidator( new JacksonJsonSchemaValidatorSupplier().get() )
                         .build();
     }
 
@@ -202,6 +206,8 @@ public class McpServerFactory
                 .serverInfo( info )
                 .capabilities( capabilities )
                 .tools( toolSpecifications )
+                .jsonMapper( new JacksonMcpJsonMapperSupplier().get() )
+                .jsonSchemaValidator( new JacksonJsonSchemaValidatorSupplier().get() )
                 .build();
     }
 

@@ -1,13 +1,16 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.servers;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
@@ -27,48 +30,41 @@ public class ReadWebPageMcpServer
     public String readWebPage(
             @ToolParam(name="url", description="A web site URL", required=true) String url)
     {
-        String content = "";
-        WebDriver driver = null;
         try
         {
-            ChromeOptions options = new ChromeOptions();
-            options.addArguments( "--headless" ); // Run Chrome in headless mode
-            options.addArguments( "--disable-gpu" );
-            options.addArguments( "--window-size=1920,1200" );
-            options.addArguments( "--ignore-certificate-errors" );
-            options.addArguments( "--silent" );
-
-            driver = new ChromeDriver( options );
             logger.info( "Fetching web page: " + url );
 
-            driver.get( url );
-            // You may need to wait for the page to load or for JavaScript to
-            // execute
+            HttpClient client = HttpClient.newBuilder()
+                    .followRedirects( HttpClient.Redirect.NORMAL )
+                    .connectTimeout( Duration.ofSeconds( 15 ) )
+                    .build();
 
-            String pageSource = driver.getPageSource();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri( URI.create( url ) )
+                    .timeout( Duration.ofSeconds( 30 ) )
+                    .header( "User-Agent", "Mozilla/5.0 (compatible; AssistAI/1.0)" )
+                    .GET()
+                    .build();
 
-            Document document = Jsoup.parse( pageSource );
+            HttpResponse<String> response = client.send( request, HttpResponse.BodyHandlers.ofString() );
+            String html = response.body();
+
+            Document document = Jsoup.parse( html );
+            StringBuilder content = new StringBuilder();
+            var converter = FlexmarkHtmlConverter.builder().build();
 
             for ( Element body : document.getElementsByTag( "body" ) )
             {
-                String bodyHTML = body.toString();
-                var converter = FlexmarkHtmlConverter.builder().build();
-                content += converter.convert( bodyHTML );
+                content.append( converter.convert( body.toString() ) );
             }
-            logger.info( "Web page content " + url + "\n\n" + content );
+
+            String result = content.toString();
+            logger.info( "Web page content " + url + "\n\n" + result );
+            return result;
         }
         catch ( Exception e )
         {
             throw new RuntimeException( e );
         }
-        finally
-        {
-            if ( driver != null )
-            {
-                driver.quit(); // Close the browser
-            }
-        }
-
-        return content;
     }
 }

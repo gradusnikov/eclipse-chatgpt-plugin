@@ -9,6 +9,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.McpServerFactory;
 
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.json.schema.jackson2.JacksonJsonSchemaValidatorSupplier;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpClientTransport;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -80,7 +81,10 @@ public class InMemoryClientServerFactory
      */
     private McpSyncClient buildClient( McpSchema.Implementation info, McpClientTransport clientTransport )
     {
-        McpSyncClient client = McpClient.sync( clientTransport ).clientInfo( info ).build();
+        McpSyncClient client = McpClient.sync( clientTransport )
+                .clientInfo( info )
+                .jsonSchemaValidator( new JacksonJsonSchemaValidatorSupplier().get() )
+                .build();
         return client;
     }
 }
