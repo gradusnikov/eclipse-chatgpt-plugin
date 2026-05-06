@@ -1,4 +1,5 @@
-name: Deploy Eclipse Update Site to Pages
+name: Build and Deploy Eclipse Update Site
+
 on:
   push:
     branches: ["main"]
@@ -14,44 +15,57 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-        
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-        
+        uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Install and start Xvfb (required for useUIHarness=true on Linux)
+        run: |
+          sudo apt-get install -y xvfb
+          Xvfb :99 -screen 0 1024x768x24 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      - name: Build with Tycho
+        run: mvn --batch-mode --no-transfer-progress clean verify
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: test-logs
+          path: |
+            **/target/test-workspace/.metadata/.log
+            **/target/surefire-reports/
+          if-no-files-found: ignore
+          include-hidden-files: true
+
       - name: Prepare Eclipse Update Site
         run: |
-          # Create a deployment directory
           mkdir -p deploy
-          
-          # Copy the index.html and web directory
-          cp site/index.html deploy/
-          cp -r site/web deploy/ || true
-          
-          # Copy the plugin files
-          cp -r site/plugins deploy/ || true
-          cp -r site/features deploy/ || true
-          
-          # Copy other required files
-          cp site/site.xml deploy/ || true
-          cp site/artifacts.jar deploy/ || true
-          cp site/content.jar deploy/ || true
-          
-          # List the files that will be deployed
-          ls -la deploy
+          # Deploy the Tycho-generated p2 repository directly
+          cp -r releng/com.github.gradusnikov.eclipse.assistai.repository/target/repository/. deploy/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: 'deploy'
-          
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

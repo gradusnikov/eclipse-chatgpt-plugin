@@ -1,1 +1,6 @@
+/@dot
+/exports
 bin/
+**/bin/
+*.class
+**/target/
