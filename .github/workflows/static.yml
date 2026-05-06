@@ -57,7 +57,9 @@ jobs:
           cp -r site/web deploy/ || true
           # Replace version qualifier placeholder with the actual resolved version
           FEATURE_VERSION=$(basename deploy/features/com.github.gradusnikov.eclipse.assistai_*.jar .jar | sed 's/com.github.gradusnikov.eclipse.assistai_//')
-          sed -i "s/[0-9]\+\.[0-9]\+\.[0-9]\+\.qualifier/$FEATURE_VERSION/g" deploy/site.xml
+          echo "Resolved feature version: $FEATURE_VERSION"
+          sed -i -E "s/[0-9]+\.[0-9]+\.[0-9]+\.qualifier/$FEATURE_VERSION/g" deploy/site.xml
+          cat deploy/site.xml
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
