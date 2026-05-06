@@ -30,33 +30,35 @@ public class TimeMcpServer
             @ToolParam(name="sourceZone", description = "Source time zone id such as, such as Europe/Paris or CST. Default: system time zone") String sourceZone, 
             @ToolParam(name="targetZone", description = "Target time zone id, such as Europer/Paris or CST. Default: UTC") String targetZone)
     {
-        
-        // Get source and target time zones from parameters
-        var sourceZoneId = ZoneId.of( Optional.ofNullable( sourceZone ).orElse( ZoneId.systemDefault().getId() ) );
-        var targetZoneId = ZoneId.of(Optional.ofNullable( targetZone ).orElse( "UTC" ) );
-        
-        if ( sourceZone.equals( targetZone ) )
+        try
         {
-            return timeString;
-        }
-        
-        try 
-        {
-            // Default to current time if not provided
+            // Resolve nulls to defaults
+            String resolvedSource = Optional.ofNullable( sourceZone ).orElse( ZoneId.systemDefault().getId() );
+            String resolvedTarget = Optional.ofNullable( targetZone ).orElse( "UTC" );
+
+            // Get source and target time zones from parameters
+            var sourceZoneId = ZoneId.of( resolvedSource );
+            var targetZoneId = ZoneId.of( resolvedTarget );
+
+            if ( resolvedSource.equals( resolvedTarget ) )
+            {
+                return timeString;
+            }
+
+            // Parse and convert
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
             var time = formatter.parse( timeString + " " + sourceZoneId.getId() );
             var zoneTime = ZonedDateTime.from( time );
-            
-            // Then convert to the target time zone
+
+            // Convert to the target time zone
             ZonedDateTime convertedTime = zoneTime.withZoneSameInstant( targetZoneId );
-            
+
             // Format the result
-            return convertedTime.format(formatter);
-        } 
+            return convertedTime.format( formatter );
+        }
         catch (Exception e)
         {
-            throw new RuntimeException( "Error converting time zone: " + e.getMessage() + 
-                   ". Valid zone IDs include: " + ZoneId.getAvailableZoneIds() );
+            return "Error converting time zone: " + e.getMessage();
         }
     }
 }

@@ -141,10 +141,10 @@ public class ConversationContextTest
                 .build();
         
         FunctionCall functionCall = new FunctionCall( "call-1", "test-tool", null, null );
-        CallToolResult result = new CallToolResult( 
-            List.of( new McpSchema.TextContent( "result" ) ), 
-            false 
-        );
+        CallToolResult result = CallToolResult.builder()
+            .addTextContent( "result" )
+            .isError( false )
+            .build();
         
         context.handleFunctionResult( functionCall, result );
         
@@ -161,10 +161,10 @@ public class ConversationContextTest
                 .build();
         
         FunctionCall functionCall = new FunctionCall( "call-1", "test-tool", null, null );
-        CallToolResult result = new CallToolResult( 
-            List.of( new McpSchema.TextContent( "result" ) ), 
-            false 
-        );
+        CallToolResult result = CallToolResult.builder()
+            .addTextContent( "result" )
+            .isError( false )
+            .build();
         
         // Should not throw
         assertDoesNotThrow( () -> {

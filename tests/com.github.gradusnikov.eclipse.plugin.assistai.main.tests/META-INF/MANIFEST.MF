@@ -10,8 +10,7 @@ Export-Package: com.github.gradusnikov.eclipse.plugin.assistai.main,
  com.github.gradusnikov.eclipse.assistai.chat,
  com.github.gradusnikov.eclipse.assistai.prompt,
  com.github.gradusnikov.eclipse.assistai.services,
- com.github.gradusnikov.eclipse.assistai.tools,
- com.github.gradusnikov.eclipse.plugin.assistai.main.agents
+ com.github.gradusnikov.eclipse.assistai.tools
 Fragment-Host: com.github.gradusnikov.eclipse.plugin.assistai.main
 Require-Bundle: junit-jupiter-api,
  junit-platform-commons,

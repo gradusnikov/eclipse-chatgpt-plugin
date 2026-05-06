@@ -4,6 +4,9 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiConsumer;
+
+import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 
 /**
  * Wraps a Conversation and provides context-specific configuration and continuation control.
@@ -15,12 +18,16 @@ public class ConversationContext
     private final String contextId;
     private final Conversation conversation;
     private final Set<String> allowedTools;
+    private final BiConsumer<FunctionCall, CallToolResult> onFunctionResult;
+    private final Runnable onConversationContinue;
     
     private ConversationContext(Builder builder)
     {
         this.contextId = builder.contextId != null ? builder.contextId : UUID.randomUUID().toString();
         this.conversation = Objects.requireNonNull(builder.conversation, "Conversation cannot be null");
         this.allowedTools = builder.allowedTools != null ? Set.copyOf(builder.allowedTools) : null;
+        this.onFunctionResult = builder.onFunctionResult;
+        this.onConversationContinue = builder.onConversationContinue;
     }
     
     /**
@@ -72,6 +79,36 @@ public class ConversationContext
     }
     
     /**
+     * Invokes the onFunctionResult callback if one was registered.
+     */
+    public void handleFunctionResult(FunctionCall functionCall, CallToolResult result)
+    {
+        if (onFunctionResult != null)
+        {
+            onFunctionResult.accept(functionCall, result);
+        }
+    }
+    
+    /**
+     * Returns true if a conversation continue callback is registered.
+     */
+    public boolean shouldContinueConversation()
+    {
+        return onConversationContinue != null;
+    }
+    
+    /**
+     * Invokes the onConversationContinue callback if one was registered.
+     */
+    public void continueConversation()
+    {
+        if (onConversationContinue != null)
+        {
+            onConversationContinue.run();
+        }
+    }
+    
+    /**
      * Creates a new builder for ConversationContext.
      */
     public static Builder builder()
@@ -87,6 +124,8 @@ public class ConversationContext
         private String contextId;
         private Conversation conversation;
         private Set<String> allowedTools;
+        private BiConsumer<FunctionCall, CallToolResult> onFunctionResult;
+        private Runnable onConversationContinue;
         
         /**
          * Sets the context ID. If not set, a random UUID will be generated.
@@ -113,6 +152,24 @@ public class ConversationContext
         public Builder allowedTools(Set<String> tools)
         {
             this.allowedTools = tools;
+            return this;
+        }
+        
+        /**
+         * Sets the callback to invoke when a function result is available.
+         */
+        public Builder onFunctionResult(BiConsumer<FunctionCall, CallToolResult> callback)
+        {
+            this.onFunctionResult = callback;
+            return this;
+        }
+        
+        /**
+         * Sets the callback to invoke when conversation should continue.
+         */
+        public Builder onConversationContinue(Runnable callback)
+        {
+            this.onConversationContinue = callback;
             return this;
         }
         
