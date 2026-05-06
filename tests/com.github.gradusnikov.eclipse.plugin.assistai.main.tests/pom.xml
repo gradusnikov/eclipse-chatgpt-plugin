@@ -34,7 +34,7 @@
           <appArgLine>-data ${project.build.directory}/test-workspace</appArgLine>
           <!-- Explicitly include tests that can run with UI harness.
                Excluded:
-                 SdkHttpStreamingTest      - URL handler factory conflict in OSGi runtime
+                 SdkHttpStreamingTest      - manual dev test; blocks on System.in.read() in @BeforeEach to keep Tomcat running for interactive Claude Code testing
                  ChatMessageFactoryTest    - requires full interactive SWT workbench
                  ReadabilityTest           - requires Chrome browser
                  PDEServicePluginTest      - requires full PDE runtime -->
