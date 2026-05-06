@@ -150,9 +150,8 @@ public class ChatMessageFactoryTest {
     
     @Test
     public void testCreateUserChatMessage_Document() throws CoreException {
-        // Setup test data
-        promptRepository.setPrompt(Prompts.DOCUMENT.name(), "Create documentation for ${selectedContent}");
-//        editorService.setEditorSelection("TestClass");
+        // Setup test data - use ${currentFileName} which resolves deterministically from the opened file
+        promptRepository.setPrompt(Prompts.DOCUMENT.name(), "Create documentation for ${currentFileName}");
         
         IFile testFile = createFile( "/src/Test.java", """
                 publi static void main(String[] args) {
@@ -166,7 +165,7 @@ public class ChatMessageFactoryTest {
         assertNotNull(message);
         assertNotNull(message.getId());
         assertEquals("user", message.getRole());
-        assertEquals("Create documentation for TestClass", message.getContent());
+        assertEquals("Create documentation for Test.java", message.getContent());
     }
 //    
 //    @Test
