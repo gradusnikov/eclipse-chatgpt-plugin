@@ -2,7 +2,7 @@ name: Build and Deploy Eclipse Update Site
 
 on:
   push:
-    branches: ["main"]
+    branches: ["servoy"]
   workflow_dispatch:
 
 permissions:
@@ -28,12 +28,25 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Install Xvfb (required for useUIHarness=true on Linux)
-        run: sudo apt-get install -y xvfb
+      - name: Install and start Xvfb (required for useUIHarness=true on Linux)
+        run: |
+          sudo apt-get install -y xvfb
+          Xvfb :99 -screen 0 1024x768x24 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
 
       - name: Build with Tycho
         run: mvn --batch-mode --no-transfer-progress clean verify
-            -Dtycho.disableP2Mirrors=true
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: |
+            **/target/test-workspace/.metadata/.log
+            **/target/surefire-reports/
+          if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Prepare Eclipse Update Site
         run: |
