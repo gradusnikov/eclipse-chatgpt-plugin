@@ -51,8 +51,9 @@ jobs:
       - name: Prepare Eclipse Update Site
         run: |
           mkdir -p deploy
-          # Deploy the Tycho-generated p2 repository directly
           cp -r releng/com.github.gradusnikov.eclipse.assistai.repository/target/repository/. deploy/
+          cp site/index.html deploy/
+          cp -r site/web deploy/ || true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
