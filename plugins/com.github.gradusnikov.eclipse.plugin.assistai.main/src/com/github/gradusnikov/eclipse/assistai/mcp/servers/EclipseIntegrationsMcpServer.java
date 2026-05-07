@@ -319,6 +319,14 @@ public class EclipseIntegrationsMcpServer
                 Optional.ofNullable(lineNumber).map(Integer::parseInt).orElse(null));
     }
 
+    @Tool(name = "executeQuickFix", description = "Applies a specific quick fix proposal to a compilation problem. Use getCompilationErrors or getQuickFixes first to obtain the Marker ID and proposal index.", type = "object")
+    public String executeQuickFix(
+            @ToolParam(name = "markerId", description = "The Marker ID of the problem (from getCompilationErrors or getQuickFixes)", required = true) String markerId,
+            @ToolParam(name = "proposalIndex", description = "The 0-based index of the quick fix proposal to apply (from the quick fixes list)", required = true) String proposalIndex)
+    {
+        return codeAnalysisService.executeQuickFix(Long.parseLong(markerId), Integer.parseInt(proposalIndex));
+    }
+
     @Tool(name = "getImportSuggestions", description = "Finds import candidates for unresolved types in a Java file. Shows matching fully qualified names from the workspace for each unresolved type error.", type = "object")
     public String getImportSuggestions(
             @ToolParam(name = "projectName", description = "The name of the project containing the file", required = true) String projectName,

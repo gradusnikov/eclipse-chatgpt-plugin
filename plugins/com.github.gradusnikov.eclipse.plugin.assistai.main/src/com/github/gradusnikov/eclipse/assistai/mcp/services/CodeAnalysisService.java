@@ -30,6 +30,7 @@ import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.core.Signature;
 import org.eclipse.jdt.internal.corext.callhierarchy.CallHierarchy;
 import org.eclipse.jdt.internal.corext.callhierarchy.MethodWrapper;
+import org.eclipse.jdt.ui.text.java.IJavaCompletionProposal;
 
 import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
 
@@ -309,7 +310,10 @@ public class CodeAnalysisService
                     result.append("- **").append(severityText).append("** at ").append(lineStr).append(": ")
                           .append(message).append("\n");
                     
-                    // If this is a Java problem, try to get more context
+                    // Emit the marker's unique ID so it can be referenced by executeQuickFix
+                    result.append("  - Marker ID: ").append(marker.getId()).append("\n");
+
+                    // Java-specific: emit internal problem ID
                     if (marker.getType().equals(IJavaModelMarker.JAVA_MODEL_PROBLEM_MARKER)) 
                     {
                         var sourceId = marker.getAttribute(IJavaModelMarker.ID);
@@ -317,42 +321,55 @@ public class CodeAnalysisService
                         {
                             result.append("  - Problem ID: ").append(sourceId).append("\n");
                         }
-                        
-                        // Try to get source code snippet if line number is available
-                        if (lineNumber != null && marker.getResource() instanceof IFile) 
+                    }
+
+                    // Context snippet â any marker attached to an IFile with a line number
+                    if (lineNumber != null && marker.getResource() instanceof IFile ifile)
+                    {
+                        try 
                         {
-                            try 
+                            String fileContent = readFileContent(ifile);
+                            String[] lines = fileContent.split("\n");
+                            
+                            if (lineNumber > 0 && lineNumber <= lines.length) 
                             {
-                                IFile file = (IFile) marker.getResource();
-                                String fileContent = readFileContent(file);
-                                String[] lines = fileContent.split("\n");
-                                
-                                if (lineNumber > 0 && lineNumber <= lines.length) 
+                                int startLine = Math.max(1, lineNumber - 1);
+                                int endLine = Math.min(lines.length, lineNumber + 1);
+                                // Use a neutral fence (no language tag) for non-Java files
+                                String ext = ifile.getFileExtension();
+                                String lang = ext != null ? ext : "";
+                                result.append("  - Context:\n```").append(lang).append("\n");
+                                for (int i = startLine - 1; i < endLine; i++) 
                                 {
-                                    int startLine = Math.max(1, lineNumber - 1);
-                                    int endLine = Math.min(lines.length, lineNumber + 1);
-                                    
-                                    result.append("  - Context:\n```java\n");
-                                    for (int i = startLine - 1; i < endLine; i++) 
-                                    {
-                                        if (i == lineNumber - 1) 
-                                        {
-                                            result.append("> "); // Highlight the error line
-                                        }
-                                        else 
-                                        {
-                                            result.append("  ");
-                                        }
-                                        result.append(lines[i]).append("\n");
-                                    }
-                                    result.append("```\n");
+                                    result.append(i == lineNumber - 1 ? "> " : "  ");
+                                    result.append(lines[i]).append("\n");
                                 }
-                            } 
-                            catch (Exception e) 
+                                result.append("```\n");
+                            }
+                        } 
+                        catch (Exception e) 
+                        {
+                            // Skip context if we can't read the file
+                        }
+                    }
+
+                    // Inline quick fix proposals â works for any marker type
+                    try
+                    {
+                        List<QuickFix> fixes = collectQuickFixes(marker);
+                        if (!fixes.isEmpty())
+                        {
+                            result.append("  - Quick fixes:\n");
+                            for (int i = 0; i < fixes.size(); i++)
                             {
-                                // Skip context if we can't read the file
+                                result.append("    - [").append(i).append("] ")
+                                      .append(fixes.get(i).label()).append("\n");
                             }
                         }
+                    }
+                    catch (Exception e)
+                    {
+                        // Quick fix collection is best-effort
                     }
                 }
                 
@@ -692,11 +709,12 @@ public class CodeAnalysisService
 
     /**
      * Gets available quick fixes for compilation errors in a file.
+     * Uses Eclipse's JavaCorrectionProcessor to collect real IJavaCompletionProposal instances.
      *
      * @param projectName The project name
      * @param filePath The file path relative to the project
      * @param lineNumber Optional line number to filter fixes for
-     * @return A formatted string listing available quick fixes
+     * @return A formatted string listing available quick fixes with proposal indices
      */
     public String getQuickFixes(String projectName, String filePath, Integer lineNumber)
     {
@@ -714,7 +732,6 @@ public class CodeAnalysisService
                 return "Error: File '" + filePath + "' not found.";
             }
 
-            // Get problem markers for the file
             IMarker[] markers = file.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_ZERO);
 
             var result = new StringBuilder();
@@ -735,36 +752,39 @@ public class CodeAnalysisService
 
                 result.append("## ").append(sevText).append(" at line ").append(markerLine).append("\n");
                 result.append("Message: ").append(message).append("\n");
+                result.append("Marker ID: ").append(marker.getId()).append("\n");
 
-                // Try to get quick fix proposals via JDT
+                var problemId = marker.getAttribute(IJavaModelMarker.ID);
+                if (problemId != null)
+                {
+                    result.append("Problem ID: ").append(problemId).append("\n");
+                }
+
                 try
                 {
-                    IJavaProject javaProject = JavaCore.create(project);
-                    ICompilationUnit cu = JavaCore.createCompilationUnitFrom(file);
-                    if (cu != null)
+                    List<QuickFix> fixes = collectQuickFixes(marker);
+                    if (fixes.isEmpty())
                     {
-                        // Get the problem ID from the marker
-                        var problemId = marker.getAttribute(IJavaModelMarker.ID);
-                        if (problemId != null)
+                        result.append("No quick fixes available.\n");
+                    }
+                    else
+                    {
+                        result.append("Quick fixes (use proposal index with executeQuickFix):\n");
+                        for (int i = 0; i < fixes.size(); i++)
                         {
-                            result.append("Problem ID: ").append(problemId).append("\n");
-                        }
-
-                        // List corrections using marker attributes
-                        var args = (String[]) marker.getAttribute("arguments");
-                        if (args != null && args.length > 0)
-                        {
-                            result.append("Suggestions:\n");
-                            for (String arg : args)
+                            QuickFix fix = fixes.get(i);
+                            result.append("  [").append(i).append("] ").append(fix.label());
+                            if (fix.description() != null && !fix.description().isBlank())
                             {
-                                result.append("  - ").append(arg).append("\n");
+                                result.append(" â ").append(fix.description());
                             }
+                            result.append("\n");
                         }
                     }
                 }
                 catch (Exception e)
                 {
-                    // Quick fix retrieval is best-effort
+                    result.append("Could not retrieve quick fixes: ").append(e.getMessage()).append("\n");
                 }
 
                 result.append("\n");
@@ -786,6 +806,217 @@ public class CodeAnalysisService
             return "Error getting quick fixes: " + e.getMessage();
         }
     }
+
+    /**
+     * Unified quick fix descriptor â wraps either a JDT IJavaCompletionProposal
+     * or a platform IMarkerResolution so both can be presented and applied uniformly.
+     */
+    private record QuickFix(String label, String description, java.util.function.Consumer<IMarker> applyFn)
+    {
+        void apply(IMarker marker) { applyFn.accept(marker); }
+    }
+
+    /**
+     * Executes a specific quick fix proposal for a problem marker.
+     *
+     * @param markerId      The marker ID as returned by getCompilationErrors or getQuickFixes
+     * @param proposalIndex The index of the proposal to apply (0-based, from the quick fixes list)
+     * @return Result message indicating success or failure
+     */
+    public String executeQuickFix(long markerId, int proposalIndex)
+    {
+        try
+        {
+            IMarker marker = findMarkerById(markerId);
+            if (marker == null)
+            {
+                return "Error: Marker with ID " + markerId + " not found. It may have been resolved already.";
+            }
+
+            List<QuickFix> fixes = collectQuickFixes(marker);
+            if (fixes.isEmpty())
+            {
+                return "Error: No quick fix proposals available for marker " + markerId + ".";
+            }
+            if (proposalIndex < 0 || proposalIndex >= fixes.size())
+            {
+                return "Error: Proposal index " + proposalIndex + " is out of range (0-" + (fixes.size() - 1) + ").";
+            }
+
+            QuickFix fix = fixes.get(proposalIndex);
+            fix.apply(marker);
+            return "Quick fix applied: \"" + fix.label() + "\" on marker " + markerId + ".";
+        }
+        catch (Exception e)
+        {
+            logger.error(e.getMessage(), e);
+            return "Error applying quick fix: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Collects quick fix proposals for any problem marker using two mechanisms:
+     * 1. Platform IMarkerHelpRegistry (works for all marker types: JDT, PDE, m2e, build path, â¦)
+     * 2. JDT JavaCorrectionProcessor (Java-only, richer proposals; deduped against registry results)
+     */
+    private List<QuickFix> collectQuickFixes(IMarker marker)
+    {
+        List<QuickFix> fixes = new ArrayList<>();
+
+        // --- Mechanism 1: Platform IMarkerHelpRegistry (generic, all marker types) ---
+        try
+        {
+            org.eclipse.ui.ide.IDE.getMarkerHelpRegistry();  // touch to ensure registry is initialized
+            org.eclipse.ui.IMarkerHelpRegistry registry = org.eclipse.ui.ide.IDE.getMarkerHelpRegistry();
+            if (registry.hasResolutions(marker))
+            {
+                for (org.eclipse.ui.IMarkerResolution r : registry.getResolutions(marker))
+                {
+                    String label = r.getLabel();
+                    String desc = (r instanceof org.eclipse.ui.IMarkerResolution2 r2) ? r2.getDescription() : null;
+                    fixes.add(new QuickFix(label, desc, m -> r.run(m)));
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            // registry lookup is best-effort
+        }
+
+        // --- Mechanism 2: JDT JavaCorrectionProcessor (Java markers only, supplements registry) ---
+        try
+        {
+            if (marker.getType().equals(IJavaModelMarker.JAVA_MODEL_PROBLEM_MARKER)
+                    && marker.getResource() instanceof IFile file)
+            {
+                ICompilationUnit cu = (ICompilationUnit) JavaCore.create(file);
+                if (cu != null && cu.exists())
+                {
+                    int id      = marker.getAttribute(IJavaModelMarker.ID, -1);
+                    int start   = marker.getAttribute(IMarker.CHAR_START, -1);
+                    int end     = marker.getAttribute(IMarker.CHAR_END, -1);
+                    boolean isError = marker.getAttribute(IMarker.SEVERITY, 0) == IMarker.SEVERITY_ERROR;
+                    String[] args = readMarkerArguments(marker);
+                    String markerType = marker.getType();
+
+                    if (start >= 0 && end >= 0)
+                    {
+                        org.eclipse.jdt.internal.ui.text.correction.ProblemLocation location =
+                            new org.eclipse.jdt.internal.ui.text.correction.ProblemLocation(
+                                start, end - start, id, args, isError, markerType);
+
+                        org.eclipse.jdt.internal.ui.text.correction.AssistContext context =
+                            new org.eclipse.jdt.internal.ui.text.correction.AssistContext(cu, start, end - start);
+
+                        List<IJavaCompletionProposal> jdtProposals = new ArrayList<>();
+                        org.eclipse.jdt.internal.ui.text.correction.JavaCorrectionProcessor.collectCorrections(
+                            context, new org.eclipse.jdt.ui.text.java.IProblemLocation[]{ location }, jdtProposals);
+
+                        jdtProposals.sort((a, b) -> Integer.compare(b.getRelevance(), a.getRelevance()));
+
+                        // Add JDT proposals that aren't already covered by the registry (dedupe by label)
+                        java.util.Set<String> existingLabels = new java.util.HashSet<>();
+                        fixes.forEach(f -> existingLabels.add(f.label()));
+
+                        for (IJavaCompletionProposal p : jdtProposals)
+                        {
+                            String label = p.getDisplayString();
+                            if (existingLabels.add(label))  // true if newly added
+                            {
+                                fixes.add(new QuickFix(label, null, m -> applyJdtProposal(p, m)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            // JDT supplement is best-effort
+        }
+
+        return fixes;
+    }
+
+    /** Applies a JDT IJavaCompletionProposal headlessly. */
+    private void applyJdtProposal(IJavaCompletionProposal proposal, IMarker marker)
+    {
+        try
+        {
+            if (proposal instanceof org.eclipse.jdt.core.manipulation.ICUCorrectionProposal icp)
+            {
+                icp.getTextChange().perform(new NullProgressMonitor());
+            }
+            else
+            {
+                // Fallback via TextFileDocumentProvider
+                IFile file = (IFile) marker.getResource();
+                org.eclipse.ui.editors.text.TextFileDocumentProvider provider =
+                    new org.eclipse.ui.editors.text.TextFileDocumentProvider();
+                provider.connect(file);
+                try
+                {
+                    org.eclipse.jface.text.IDocument doc = provider.getDocument(file);
+                    if (doc == null)
+                    {
+                        throw new RuntimeException("Could not open document for " + file.getFullPath());
+                    }
+                    proposal.apply(doc);
+                    provider.saveDocument(new NullProgressMonitor(), file, doc, true);
+                }
+                finally
+                {
+                    provider.disconnect(file);
+                }
+            }
+        }
+        catch (RuntimeException re)
+        {
+            throw re;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** Reads the raw problem arguments from a marker. */
+    private String[] readMarkerArguments(IMarker marker)
+    {
+        try
+        {
+            Object argsAttr = marker.getAttribute("arguments");
+            if (argsAttr instanceof String[] sa)   return sa;
+            if (argsAttr instanceof String s && !s.isBlank()) return s.split("#");
+        }
+        catch (Exception ex) { /* ignore */ }
+        return new String[0];
+    }
+
+    /**
+     * Finds an IMarker by its numeric ID across the entire workspace.
+     */
+    private IMarker findMarkerById(long markerId)
+    {
+        try
+        {
+            IMarker[] all = ResourcesPlugin.getWorkspace().getRoot()
+                .findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
+            for (IMarker m : all)
+            {
+                if (m.getId() == markerId)
+                {
+                    return m;
+                }
+            }
+        }
+        catch (CoreException e)
+        {
+            // ignore
+        }
+        return null;
+    }
+
 
     /**
      * Gets import suggestions for unresolved types in a compilation unit.

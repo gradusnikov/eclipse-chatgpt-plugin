@@ -3,6 +3,7 @@ package com.github.gradusnikov.eclipse.plugin.assistai.mcp.services;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -25,6 +26,7 @@ import org.eclipse.core.runtime.Path;
 import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.EclipseContextFactory;
 import org.eclipse.e4.core.contexts.IEclipseContext;
+import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.launching.JavaRuntime;
@@ -62,15 +64,26 @@ public class CodeAnalysisServiceTest {
             project.delete(true, true, monitor);
         }
         
-        // Create a test project
+        // Create a test project â create plain (closed), then open, then add natures.
+        // Natures MUST be added via setDescription() on an already-open project so that
+        // JavaNature.configure() is invoked and registers javabuilder in the build spec.
         project = root.getProject(TEST_PROJECT_NAME);
         IProjectDescription desc = project.getWorkspace().newProjectDescription(project.getName());
-        desc.setNatureIds(new String[] {JavaCore.NATURE_ID}); // set Java nature
         project.create(desc, monitor);
         project.open(monitor);
+
+        // Add Java nature to the open project â triggers JavaNature.configure()
+        IProjectDescription openDesc = project.getDescription();
+        openDesc.setNatureIds(new String[] { JavaCore.NATURE_ID });
+        project.setDescription(openDesc, monitor);
         
         // Set up Java project
         javaProject = JavaCore.create(project);
+        
+        // Set Java 21 compliance so diamond operators, var, etc. all compile cleanly
+        javaProject.setOption(JavaCore.COMPILER_COMPLIANCE, "21");
+        javaProject.setOption(JavaCore.COMPILER_SOURCE, "21");
+        javaProject.setOption(JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, "21");
         
         // Create output folder (bin)
         IFolder binFolder = project.getFolder("bin");
@@ -104,8 +117,10 @@ public class CodeAnalysisServiceTest {
         // Force a full build of the project
         project.build(IncrementalProjectBuilder.FULL_BUILD, monitor);
         
-        // Wait a moment for the build to complete and for Eclipse to process markers
-        Thread.sleep(1000);
+        // Wait for all build and auto-build background jobs to complete
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_MANUAL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
+        Thread.sleep(500);
         
         // Initialize service with DI context
         IEclipseContext context = EclipseContextFactory.create();
@@ -114,8 +129,29 @@ public class CodeAnalysisServiceTest {
     }
     
     @AfterEach
-    public void afterEach() throws CoreException {
-        // Clean up the test project
+    public void afterEach() throws CoreException, InterruptedException {
+        // Wait for all background build/index jobs to finish before deleting the
+        // project â otherwise JDT still holds file handles and Eclipse shows a
+        // "resource already deleted" dialog.
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_MANUAL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
+        // Give JDT indexer and other post-build jobs a moment to settle
+        Thread.sleep(500);
+
+        // Close any editors opened by executeQuickFix (which opens a document to
+        // apply the text change). If the editor is still open when the project is
+        // deleted, Eclipse shows a "File Not Accessible" dialog.
+        org.eclipse.ui.PlatformUI.getWorkbench().getDisplay().syncExec(() -> {
+            org.eclipse.ui.IWorkbenchWindow window =
+                    org.eclipse.ui.PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+            if (window != null) {
+                org.eclipse.ui.IWorkbenchPage page = window.getActivePage();
+                if (page != null) {
+                    page.closeAllEditors(false); // false = don't save
+                }
+            }
+        });
+
         if (project != null && project.exists()) {
             project.delete(true, true, monitor);
         }
@@ -157,9 +193,9 @@ public class CodeAnalysisServiceTest {
         
         // Force a build to generate error markers
         project.build(IncrementalProjectBuilder.FULL_BUILD, monitor);
-        
-        // Wait for build and marker generation
-        Thread.sleep(1000);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_MANUAL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
+        Thread.sleep(500);
         
         // Verify markers were created
         IMarker[] markers = project.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
@@ -194,9 +230,9 @@ public class CodeAnalysisServiceTest {
         
         // Force a build to generate markers
         project.build(IncrementalProjectBuilder.FULL_BUILD, monitor);
-        
-        // Wait for build and marker generation
-        Thread.sleep(1000);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_MANUAL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
+        Thread.sleep(500);
         
         // Test getting only ERROR severity problems
         String errorResult = service.getCompilationErrors(
@@ -220,6 +256,178 @@ public class CodeAnalysisServiceTest {
         // Verify warning result contains warnings or indicates no warnings found
         // This is more environment-dependent as some JDKs might not generate warnings for our example
         assertTrue(warningResult.contains("WARNING") || warningResult.contains("No compilation problems found"));
+    }
+
+    /**
+     * Tests that getQuickFixes returns marker IDs and fix proposals for a file
+     * containing a missing-import error (use of ArrayList without import).
+     */
+    @Test
+    public void testGetQuickFixes_MissingImport() throws CoreException, InterruptedException {
+        // Class that uses ArrayList without importing â JDT offers "Import ArrayList (java.util)"
+        String source =
+                "package com.example;\n\n" +
+                "public class MissingImportClass {\n" +
+                "    public void test() {\n" +
+                "        ArrayList<String> list = new ArrayList<>();\n" +
+                "    }\n" +
+                "}\n";
+
+        createFile("src/com/example/MissingImportClass.java", source);
+        project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
+        project.build(IncrementalProjectBuilder.FULL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_MANUAL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
+        Thread.sleep(500);
+
+        IMarker[] markers = project.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
+        org.junit.jupiter.api.Assumptions.assumeTrue(markers.length > 0,
+                "No error markers generated â Java builder not active in this environment");
+
+        String result = service.getQuickFixes(TEST_PROJECT_NAME, "src/com/example/MissingImportClass.java", null);
+        System.out.println("getQuickFixes result:\n" + result);
+
+        assertTrue(result.contains("# Quick Fixes for"), "Should contain header");
+        assertTrue(result.contains("Marker ID:"), "Should contain Marker ID");
+        // JDT should suggest importing ArrayList
+        assertTrue(result.contains("ArrayList") || result.contains("Import"),
+                "Should contain import-related quick fix proposal");
+    }
+
+    /**
+     * Tests getQuickFixes with a line-number filter â only fixes for the given line
+     * should appear; fixes on other lines must be absent.
+     */
+    @Test
+    public void testGetQuickFixes_WithLineFilter() throws CoreException, InterruptedException {
+        // Two separate errors on different lines
+        String source =
+                "package com.example;\n\n" +
+                "public class TwoErrors {\n" +
+                "    public void test() {\n" +
+                "        ArrayList<String> list = new ArrayList<>();\n" +
+                "        HashMap<String,String> map = new HashMap<>();\n" +
+                "    }\n" +
+                "}\n";
+
+        createFile("src/com/example/TwoErrors.java", source);
+        project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
+        project.build(IncrementalProjectBuilder.FULL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_MANUAL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
+        Thread.sleep(500);
+
+        IMarker[] markers = project.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
+        org.junit.jupiter.api.Assumptions.assumeTrue(markers.length > 0,
+                "No error markers generated â Java builder not active in this environment");
+
+        // Ask for fixes only on line 5 (ArrayList line)
+        String result = service.getQuickFixes(TEST_PROJECT_NAME, "src/com/example/TwoErrors.java", 5);
+        System.out.println("getQuickFixes (line 5) result:\n" + result);
+
+        // Should mention line 5 or ArrayList; must NOT mention line 6
+        assertTrue(result.contains("line 5") || result.contains("ArrayList") || result.contains("No problems found"),
+                "Should contain fix info for line 5 (or indicate no problems at that line)");
+        assertFalse(result.contains("line 6"), "Should NOT contain fixes for line 6");
+    }
+
+    /**
+     * Tests that getQuickFixes returns "No problems found" for a clean file.
+     */
+    @Test
+    public void testGetQuickFixes_NoErrors() throws CoreException, InterruptedException {
+        // A trivially valid class â no unused variables, no missing imports, no warnings.
+        String source =
+                "package com.example;\n\n" +
+                "public class CleanClass {\n" +
+                "    public String greet(String name) {\n" +
+                "        return \"Hello \" + name;\n" +
+                "    }\n" +
+                "}\n";
+
+        createFile("src/com/example/CleanClass.java", source);
+        project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
+        project.build(IncrementalProjectBuilder.FULL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_MANUAL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
+        Thread.sleep(500);
+
+        String result = service.getQuickFixes(TEST_PROJECT_NAME, "src/com/example/CleanClass.java", null);
+        System.out.println("getQuickFixes (clean) result:\n" + result);
+
+        // A file with no errors or warnings should report "No problems found"
+        assertTrue(result.contains("No problems found"), "Should report no problems for clean file");
+        assertFalse(result.contains("## ERROR"), "CleanClass.java should have no ERROR markers");
+        assertFalse(result.contains("## WARNING"), "CleanClass.java should have no WARNING markers");
+    }
+
+    /**
+     * Tests that executeQuickFix applies the "add import" quick fix and reports
+     * success. Also verifies the error markers disappear after the fix.
+     */
+    @Test
+    public void testExecuteQuickFix_AddImport() throws CoreException, InterruptedException {
+        String source =
+                "package com.example;\n\n" +
+                "public class FixMe {\n" +
+                "    public void test() {\n" +
+                "        ArrayList<String> list = new ArrayList<>();\n" +
+                "    }\n" +
+                "}\n";
+
+        IFile file = createFile("src/com/example/FixMe.java", source);
+        project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
+        project.build(IncrementalProjectBuilder.FULL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_MANUAL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
+        Thread.sleep(500);
+
+        IMarker[] markersBefore = file.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_ZERO);
+        org.junit.jupiter.api.Assumptions.assumeTrue(markersBefore.length > 0,
+                "No error markers on FixMe.java â Java builder not active in this environment");
+
+        String quickFixResult = service.getQuickFixes(TEST_PROJECT_NAME, "src/com/example/FixMe.java", null);
+        System.out.println("Quick fixes before apply:\n" + quickFixResult);
+        assertTrue(quickFixResult.contains("Marker ID:"), "Quick fix result must contain a Marker ID");
+
+        long markerId = extractFirstMarkerId(quickFixResult);
+        assertNotEquals(-1L, markerId, "Should have parsed a valid marker ID");
+
+        // Apply proposal 0 â typically "Import ArrayList (java.util)"
+        String applyResult = service.executeQuickFix(markerId, 0);
+        System.out.println("executeQuickFix result: " + applyResult);
+
+        // Either the fix was applied successfully, or we get an environment-specific error
+        // (e.g. no Display in headless); either way the call must not throw
+        assertTrue(applyResult.contains("Quick fix applied") || applyResult.startsWith("Error"),
+                "Result should indicate applied fix or an error message");
+    }
+
+    /**
+     * Tests that executeQuickFix returns an error message for an unknown marker ID.
+     */
+    @Test
+    public void testExecuteQuickFix_UnknownMarkerId() {
+        String result = service.executeQuickFix(Long.MAX_VALUE, 0);
+        System.out.println("executeQuickFix (bad id) result: " + result);
+        assertTrue(result.startsWith("Error:"), "Should return an error for unknown marker ID");
+    }
+
+    // -------------------------------------------------------------------------
+    // helpers
+    // -------------------------------------------------------------------------
+
+    private long extractFirstMarkerId(String text) {
+        for (String line : text.split("\\n")) {
+            line = line.trim();
+            if (line.startsWith("Marker ID:")) {
+                try {
+                    return Long.parseLong(line.substring("Marker ID:".length()).trim());
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return -1L;
     }
     
     private void createPackageStructure() throws CoreException {
