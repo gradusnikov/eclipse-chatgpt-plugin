@@ -259,12 +259,11 @@ public class CodeAnalysisServiceTest {
     }
 
     /**
-     * Tests that getQuickFixes returns marker IDs and fix proposals for a file
-     * containing a missing-import error (use of ArrayList without import).
+     * Tests that getCompilationErrors includes Marker IDs and quick-fix proposals
+     * inline for a file containing a missing-import error.
      */
     @Test
-    public void testGetQuickFixes_MissingImport() throws CoreException, InterruptedException {
-        // Class that uses ArrayList without importing â JDT offers "Import ArrayList (java.util)"
+    public void testGetCompilationErrors_IncludesQuickFixes() throws CoreException, InterruptedException {
         String source =
                 "package com.example;\n\n" +
                 "public class MissingImportClass {\n" +
@@ -282,88 +281,20 @@ public class CodeAnalysisServiceTest {
 
         IMarker[] markers = project.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
         org.junit.jupiter.api.Assumptions.assumeTrue(markers.length > 0,
-                "No error markers generated â Java builder not active in this environment");
+                "No error markers generated - Java builder not active in this environment");
 
-        String result = service.getQuickFixes(TEST_PROJECT_NAME, "src/com/example/MissingImportClass.java", null);
-        System.out.println("getQuickFixes result:\n" + result);
+        String result = service.getCompilationErrors(TEST_PROJECT_NAME, "ALL", 50);
+        System.out.println("getCompilationErrors (with quick fixes) result:\n" + result);
 
-        assertTrue(result.contains("# Quick Fixes for"), "Should contain header");
         assertTrue(result.contains("Marker ID:"), "Should contain Marker ID");
-        // JDT should suggest importing ArrayList
+        assertTrue(result.contains("executeQuickFix"), "Should hint to call executeQuickFix");
         assertTrue(result.contains("ArrayList") || result.contains("Import"),
                 "Should contain import-related quick fix proposal");
     }
 
     /**
-     * Tests getQuickFixes with a line-number filter â only fixes for the given line
-     * should appear; fixes on other lines must be absent.
-     */
-    @Test
-    public void testGetQuickFixes_WithLineFilter() throws CoreException, InterruptedException {
-        // Two separate errors on different lines
-        String source =
-                "package com.example;\n\n" +
-                "public class TwoErrors {\n" +
-                "    public void test() {\n" +
-                "        ArrayList<String> list = new ArrayList<>();\n" +
-                "        HashMap<String,String> map = new HashMap<>();\n" +
-                "    }\n" +
-                "}\n";
-
-        createFile("src/com/example/TwoErrors.java", source);
-        project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
-        project.build(IncrementalProjectBuilder.FULL_BUILD, monitor);
-        Job.getJobManager().join(ResourcesPlugin.FAMILY_MANUAL_BUILD, monitor);
-        Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
-        Thread.sleep(500);
-
-        IMarker[] markers = project.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
-        org.junit.jupiter.api.Assumptions.assumeTrue(markers.length > 0,
-                "No error markers generated â Java builder not active in this environment");
-
-        // Ask for fixes only on line 5 (ArrayList line)
-        String result = service.getQuickFixes(TEST_PROJECT_NAME, "src/com/example/TwoErrors.java", 5);
-        System.out.println("getQuickFixes (line 5) result:\n" + result);
-
-        // Should mention line 5 or ArrayList; must NOT mention line 6
-        assertTrue(result.contains("line 5") || result.contains("ArrayList") || result.contains("No problems found"),
-                "Should contain fix info for line 5 (or indicate no problems at that line)");
-        assertFalse(result.contains("line 6"), "Should NOT contain fixes for line 6");
-    }
-
-    /**
-     * Tests that getQuickFixes returns "No problems found" for a clean file.
-     */
-    @Test
-    public void testGetQuickFixes_NoErrors() throws CoreException, InterruptedException {
-        // A trivially valid class â no unused variables, no missing imports, no warnings.
-        String source =
-                "package com.example;\n\n" +
-                "public class CleanClass {\n" +
-                "    public String greet(String name) {\n" +
-                "        return \"Hello \" + name;\n" +
-                "    }\n" +
-                "}\n";
-
-        createFile("src/com/example/CleanClass.java", source);
-        project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
-        project.build(IncrementalProjectBuilder.FULL_BUILD, monitor);
-        Job.getJobManager().join(ResourcesPlugin.FAMILY_MANUAL_BUILD, monitor);
-        Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
-        Thread.sleep(500);
-
-        String result = service.getQuickFixes(TEST_PROJECT_NAME, "src/com/example/CleanClass.java", null);
-        System.out.println("getQuickFixes (clean) result:\n" + result);
-
-        // A file with no errors or warnings should report "No problems found"
-        assertTrue(result.contains("No problems found"), "Should report no problems for clean file");
-        assertFalse(result.contains("## ERROR"), "CleanClass.java should have no ERROR markers");
-        assertFalse(result.contains("## WARNING"), "CleanClass.java should have no WARNING markers");
-    }
-
-    /**
-     * Tests that executeQuickFix applies the "add import" quick fix and reports
-     * success. Also verifies the error markers disappear after the fix.
+     * Tests that executeQuickFix applies the "add import" quick fix obtained via
+     * getCompilationErrors and reports success.
      */
     @Test
     public void testExecuteQuickFix_AddImport() throws CoreException, InterruptedException {
@@ -386,11 +317,12 @@ public class CodeAnalysisServiceTest {
         org.junit.jupiter.api.Assumptions.assumeTrue(markersBefore.length > 0,
                 "No error markers on FixMe.java â Java builder not active in this environment");
 
-        String quickFixResult = service.getQuickFixes(TEST_PROJECT_NAME, "src/com/example/FixMe.java", null);
-        System.out.println("Quick fixes before apply:\n" + quickFixResult);
-        assertTrue(quickFixResult.contains("Marker ID:"), "Quick fix result must contain a Marker ID");
+        // Obtain marker ID the same way an LLM would: via getCompilationErrors
+        String errorsResult = service.getCompilationErrors(TEST_PROJECT_NAME, "ALL", 50);
+        System.out.println("getCompilationErrors before apply:\n" + errorsResult);
+        assertTrue(errorsResult.contains("Marker ID:"), "Errors result must contain a Marker ID");
 
-        long markerId = extractFirstMarkerId(quickFixResult);
+        long markerId = extractFirstMarkerId(errorsResult);
         assertNotEquals(-1L, markerId, "Should have parsed a valid marker ID");
 
         // Apply proposal 0 â typically "Import ArrayList (java.util)"
@@ -420,6 +352,10 @@ public class CodeAnalysisServiceTest {
     private long extractFirstMarkerId(String text) {
         for (String line : text.split("\\n")) {
             line = line.trim();
+            // handle both "Marker ID: 123" and "- Marker ID: 123"
+            if (line.startsWith("- Marker ID:")) {
+                line = line.substring("- ".length()).trim();
+            }
             if (line.startsWith("Marker ID:")) {
                 try {
                     return Long.parseLong(line.substring("Marker ID:".length()).trim());

@@ -309,17 +309,7 @@ public class EclipseIntegrationsMcpServer
         return codeAnalysisService.findReferences(fullyQualifiedClassName, elementName);
     }
 
-    @Tool(name = "getQuickFixes", description = "Gets available quick fixes for compilation errors in a Java file. Shows problem details and suggested corrections for each error.", type = "object")
-    public String getQuickFixes(
-            @ToolParam(name = "projectName", description = "The name of the project containing the file", required = true) String projectName,
-            @ToolParam(name = "filePath", description = "The path to the Java file relative to the project root", required = true) String filePath,
-            @ToolParam(name = "lineNumber", description = "Optional line number to filter fixes for a specific error", required = false) String lineNumber)
-    {
-        return codeAnalysisService.getQuickFixes(projectName, filePath,
-                Optional.ofNullable(lineNumber).map(Integer::parseInt).orElse(null));
-    }
-
-    @Tool(name = "executeQuickFix", description = "Applies a specific quick fix proposal to a compilation problem. Use getCompilationErrors or getQuickFixes first to obtain the Marker ID and proposal index.", type = "object")
+    @Tool(name = "executeQuickFix", description = "Applies a specific quick fix proposal to a compilation problem. Use getCompilationErrors first to obtain the Marker ID and proposal index.", type = "object")
     public String executeQuickFix(
             @ToolParam(name = "markerId", description = "The Marker ID of the problem (from getCompilationErrors or getQuickFixes)", required = true) String markerId,
             @ToolParam(name = "proposalIndex", description = "The 0-based index of the quick fix proposal to apply (from the quick fixes list)", required = true) String proposalIndex)

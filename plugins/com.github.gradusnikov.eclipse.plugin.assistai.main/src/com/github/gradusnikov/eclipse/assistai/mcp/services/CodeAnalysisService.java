@@ -353,24 +353,7 @@ public class CodeAnalysisService
                         }
                     }
 
-                    // Inline quick fix proposals â works for any marker type
-                    try
-                    {
-                        List<QuickFix> fixes = collectQuickFixes(marker);
-                        if (!fixes.isEmpty())
-                        {
-                            result.append("  - Quick fixes:\n");
-                            for (int i = 0; i < fixes.size(); i++)
-                            {
-                                result.append("    - [").append(i).append("] ")
-                                      .append(fixes.get(i).label()).append("\n");
-                            }
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        // Quick fix collection is best-effort
-                    }
+                    appendQuickFixBlock(marker, result, "  ");
                 }
                 
                 result.append("\n");
@@ -707,105 +690,47 @@ public class CodeAnalysisService
         }
     }
 
+
     /**
-     * Gets available quick fixes for compilation errors in a file.
-     * Uses Eclipse's JavaCorrectionProcessor to collect real IJavaCompletionProposal instances.
+     * Appends a quick-fix block for {@code marker} to {@code sb}.
+     * Produces numbered proposals with descriptions and a hint to the LLM to
+     * call {@code executeQuickFix} with the chosen index.
+     * Best-effort â any exception is silently swallowed.
      *
-     * @param projectName The project name
-     * @param filePath The file path relative to the project
-     * @param lineNumber Optional line number to filter fixes for
-     * @return A formatted string listing available quick fixes with proposal indices
+     * @param marker the problem marker
+     * @param sb     the builder to append to
+     * @param indent line prefix (e.g. {@code "  "} for two-space indent)
      */
-    public String getQuickFixes(String projectName, String filePath, Integer lineNumber)
+    private void appendQuickFixBlock(IMarker marker, StringBuilder sb, String indent)
     {
         try
         {
-            IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
-            if (!project.exists() || !project.isOpen())
+            List<QuickFix> fixes = collectQuickFixes(marker);
+            if (fixes.isEmpty())
             {
-                return "Error: Project '" + projectName + "' not found or not open.";
+                sb.append(indent).append("- Quick fixes: none available\n");
             }
-
-            IFile file = project.getFile(filePath);
-            if (!file.exists())
+            else
             {
-                return "Error: File '" + filePath + "' not found.";
-            }
-
-            IMarker[] markers = file.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_ZERO);
-
-            var result = new StringBuilder();
-            result.append("# Quick Fixes for ").append(filePath).append("\n\n");
-
-            int fixCount = 0;
-            for (IMarker marker : markers)
-            {
-                Integer markerLine = (Integer) marker.getAttribute(IMarker.LINE_NUMBER);
-                if (lineNumber != null && markerLine != null && !lineNumber.equals(markerLine))
+                sb.append(indent).append("- Quick fixes (pass index to executeQuickFix):\n");
+                for (int i = 0; i < fixes.size(); i++)
                 {
-                    continue;
-                }
-
-                Integer severity = (Integer) marker.getAttribute(IMarker.SEVERITY);
-                String sevText = severity != null && severity == IMarker.SEVERITY_ERROR ? "ERROR" : "WARNING";
-                String message = (String) marker.getAttribute(IMarker.MESSAGE);
-
-                result.append("## ").append(sevText).append(" at line ").append(markerLine).append("\n");
-                result.append("Message: ").append(message).append("\n");
-                result.append("Marker ID: ").append(marker.getId()).append("\n");
-
-                var problemId = marker.getAttribute(IJavaModelMarker.ID);
-                if (problemId != null)
-                {
-                    result.append("Problem ID: ").append(problemId).append("\n");
-                }
-
-                try
-                {
-                    List<QuickFix> fixes = collectQuickFixes(marker);
-                    if (fixes.isEmpty())
+                    QuickFix fix = fixes.get(i);
+                    sb.append(indent).append("    - [").append(i).append("] ").append(fix.label());
+                    if (fix.description() != null && !fix.description().isBlank())
                     {
-                        result.append("No quick fixes available.\n");
+                        sb.append(" \u2013 ").append(fix.description());
                     }
-                    else
-                    {
-                        result.append("Quick fixes (use proposal index with executeQuickFix):\n");
-                        for (int i = 0; i < fixes.size(); i++)
-                        {
-                            QuickFix fix = fixes.get(i);
-                            result.append("  [").append(i).append("] ").append(fix.label());
-                            if (fix.description() != null && !fix.description().isBlank())
-                            {
-                                result.append(" â ").append(fix.description());
-                            }
-                            result.append("\n");
-                        }
-                    }
+                    sb.append("\n");
                 }
-                catch (Exception e)
-                {
-                    result.append("Could not retrieve quick fixes: ").append(e.getMessage()).append("\n");
-                }
-
-                result.append("\n");
-                fixCount++;
             }
-
-            if (fixCount == 0)
-            {
-                result.append("No problems found");
-                if (lineNumber != null) result.append(" at line ").append(lineNumber);
-                result.append(".\n");
-            }
-
-            return result.toString();
         }
         catch (Exception e)
         {
-            logger.error(e.getMessage(), e);
-            return "Error getting quick fixes: " + e.getMessage();
+            // quick fix collection is best-effort; skip silently
         }
     }
+
 
     /**
      * Unified quick fix descriptor â wraps either a JDT IJavaCompletionProposal
