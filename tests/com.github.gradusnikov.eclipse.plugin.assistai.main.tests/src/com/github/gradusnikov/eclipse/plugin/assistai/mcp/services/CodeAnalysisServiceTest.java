@@ -153,7 +153,16 @@ public class CodeAnalysisServiceTest {
         });
 
         if (project != null && project.exists()) {
-            project.delete(true, true, monitor);
+            // On Windows, file buffers may not release immediately. Retry a few times.
+            for (int attempt = 0; attempt < 5; attempt++) {
+                try {
+                    project.delete(true, true, monitor);
+                    break;
+                } catch (CoreException e) {
+                    if (attempt == 4) throw e;
+                    Thread.sleep(500);
+                }
+            }
         }
     }
     
@@ -297,7 +306,7 @@ public class CodeAnalysisServiceTest {
      * getCompilationErrors and reports success.
      */
     @Test
-    public void testExecuteQuickFix_AddImport() throws CoreException, InterruptedException {
+    public void testExecuteQuickFix_AddImport() throws CoreException, InterruptedException, java.io.IOException {
         String source =
                 "package com.example;\n\n" +
                 "public class FixMe {\n" +
@@ -322,17 +331,35 @@ public class CodeAnalysisServiceTest {
         System.out.println("getCompilationErrors before apply:\n" + errorsResult);
         assertTrue(errorsResult.contains("Marker ID:"), "Errors result must contain a Marker ID");
 
-        long markerId = extractFirstMarkerId(errorsResult);
+        // Find the marker whose index-0 fix is the import fix (JDT ICUCorrectionProposal marker)
+        long markerId = extractMarkerIdWithImportAtIndex0(errorsResult, "Import 'ArrayList'");
+        if (markerId == -1L)
+        {
+            // Fallback: use the first marker ID
+            markerId = extractFirstMarkerId(errorsResult);
+        }
         assertNotEquals(-1L, markerId, "Should have parsed a valid marker ID");
 
-        // Apply proposal 0 â typically "Import ArrayList (java.util)"
-        String applyResult = service.executeQuickFix(markerId, 0);
+        // Find the index of the import fix for this marker
+        int importIndex = extractImportFixIndex(errorsResult, markerId, "Import 'ArrayList'");
+        if (importIndex == -1) importIndex = 0;
+
+        String applyResult = service.executeQuickFix(markerId, importIndex);
         System.out.println("executeQuickFix result: " + applyResult);
 
-        // Either the fix was applied successfully, or we get an environment-specific error
-        // (e.g. no Display in headless); either way the call must not throw
+        // The call must not throw
         assertTrue(applyResult.contains("Quick fix applied") || applyResult.startsWith("Error"),
                 "Result should indicate applied fix or an error message");
+
+        // Verify the fix was actually persisted to disk by reading the file directly.
+        if (applyResult.contains("Quick fix applied"))
+        {
+            file.refreshLocal(IResource.DEPTH_ZERO, monitor);
+            String fileContent = new String(file.getContents(true).readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            System.out.println("File content after fix:\\n" + fileContent);
+            assertTrue(fileContent.contains("import java.util.ArrayList"),
+                    "File on disk should contain the added import after fix is applied. File content: " + fileContent);
+        }
     }
 
     /**
@@ -446,4 +473,66 @@ public class CodeAnalysisServiceTest {
         
         return file;
     }
+
+    /**
+     * Finds the first marker ID in the errorsResult whose index-0 quick-fix proposal label
+     * contains the given fixLabelPrefix. Returns -1 if not found.
+     */
+    private long extractMarkerIdWithImportAtIndex0(String text, String fixLabelPrefix)
+    {
+        long currentMarkerId = -1L;
+        for (String line : text.split("\n"))
+        {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("- Marker ID:"))
+            {
+                try { currentMarkerId = Long.parseLong(trimmed.substring("- Marker ID:".length()).trim()); }
+                catch (NumberFormatException ignored) {}
+            }
+            else if (trimmed.startsWith("- [0]") && currentMarkerId != -1L)
+            {
+                if (trimmed.contains(fixLabelPrefix))
+                    return currentMarkerId;
+            }
+        }
+        return -1L;
+    }
+
+    /**
+     * For the given markerId block in errorsResult, finds the index of the first proposal
+     * whose label contains fixLabelPrefix. Returns -1 if not found.
+     */
+    private int extractImportFixIndex(String text, long markerId, String fixLabelPrefix)
+    {
+        boolean inBlock = false;
+        for (String line : text.split("\n"))
+        {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("- Marker ID:"))
+            {
+                try
+                {
+                    long id = Long.parseLong(trimmed.substring("- Marker ID:".length()).trim());
+                    inBlock = (id == markerId);
+                }
+                catch (NumberFormatException ignored) {}
+            }
+            else if (inBlock && trimmed.startsWith("- ["))
+            {
+                int bracket = trimmed.indexOf(']');
+                if (bracket > 2)
+                {
+                    try
+                    {
+                        int idx = Integer.parseInt(trimmed.substring(2, bracket));
+                        if (trimmed.contains(fixLabelPrefix))
+                            return idx;
+                    }
+                    catch (NumberFormatException ignored) {}
+                }
+            }
+        }
+        return -1;
+    }
+
 }

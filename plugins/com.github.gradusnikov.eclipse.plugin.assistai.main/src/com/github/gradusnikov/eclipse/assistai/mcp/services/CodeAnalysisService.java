@@ -770,7 +770,15 @@ public class CodeAnalysisService
 
             QuickFix fix = fixes.get(proposalIndex);
             fix.apply(marker);
-            return "Quick fix applied: \"" + fix.label() + "\" on marker " + markerId + ".";
+
+            if (marker.getResource() instanceof IFile file)
+            {
+                saveFileBuffer(file);
+                file.refreshLocal(IResource.DEPTH_ZERO, new NullProgressMonitor());
+            }
+
+            String status = marker.exists() ? "applied (marker still present)" : "applied and marker resolved";
+            return "Quick fix applied: \"" + fix.label() + "\" on marker " + markerId + " - " + status;
         }
         catch (Exception e)
         {
@@ -780,40 +788,26 @@ public class CodeAnalysisService
     }
 
     /**
-     * Collects quick fix proposals for any problem marker using two mechanisms:
-     * 1. Platform IMarkerHelpRegistry (works for all marker types: JDT, PDE, m2e, build path, â¦)
-     * 2. JDT JavaCorrectionProcessor (Java-only, richer proposals; deduped against registry results)
+     * Collects quick fix proposals for any problem marker.
+     *
+     * Java markers: calls JavaCorrectionProcessor directly. This produces ICUCorrectionProposal
+     * instances that apply and save headlessly without needing an open editor.
+     * Skips IMarkerHelpRegistry for Java markers because CorrectionMarkerResolution.run()
+     * calls JavaUI.openInEditor() and silently does nothing when no editor is open.
+     *
+     * Non-Java markers (PDE, m2e, build-path, etc.): uses IMarkerHelpRegistry and run().
      */
     private List<QuickFix> collectQuickFixes(IMarker marker)
     {
         List<QuickFix> fixes = new ArrayList<>();
+        java.util.Set<String> seenLabels = new java.util.HashSet<>();
 
-        // --- Mechanism 1: Platform IMarkerHelpRegistry (generic, all marker types) ---
-        try
-        {
-            org.eclipse.ui.ide.IDE.getMarkerHelpRegistry();  // touch to ensure registry is initialized
-            org.eclipse.ui.IMarkerHelpRegistry registry = org.eclipse.ui.ide.IDE.getMarkerHelpRegistry();
-            if (registry.hasResolutions(marker))
-            {
-                for (org.eclipse.ui.IMarkerResolution r : registry.getResolutions(marker))
-                {
-                    String label = r.getLabel();
-                    String desc = (r instanceof org.eclipse.ui.IMarkerResolution2 r2) ? r2.getDescription() : null;
-                    fixes.add(new QuickFix(label, desc, m -> r.run(m)));
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            // registry lookup is best-effort
-        }
-
-        // --- Mechanism 2: JDT JavaCorrectionProcessor (Java markers only, supplements registry) ---
         try
         {
             if (marker.getType().equals(IJavaModelMarker.JAVA_MODEL_PROBLEM_MARKER)
                     && marker.getResource() instanceof IFile file)
             {
+                // Java marker: collect proposals directly from JavaCorrectionProcessor
                 ICompilationUnit cu = (ICompilationUnit) JavaCore.create(file);
                 if (cu != null && cu.exists())
                 {
@@ -822,34 +816,47 @@ public class CodeAnalysisService
                     int end     = marker.getAttribute(IMarker.CHAR_END, -1);
                     boolean isError = marker.getAttribute(IMarker.SEVERITY, 0) == IMarker.SEVERITY_ERROR;
                     String[] args = readMarkerArguments(marker);
-                    String markerType = marker.getType();
 
                     if (start >= 0 && end >= 0)
                     {
                         org.eclipse.jdt.internal.ui.text.correction.ProblemLocation location =
                             new org.eclipse.jdt.internal.ui.text.correction.ProblemLocation(
-                                start, end - start, id, args, isError, markerType);
+                                start, end - start, id, args, isError, marker.getType());
 
                         org.eclipse.jdt.internal.ui.text.correction.AssistContext context =
                             new org.eclipse.jdt.internal.ui.text.correction.AssistContext(cu, start, end - start);
 
-                        List<IJavaCompletionProposal> jdtProposals = new ArrayList<>();
+                        List<IJavaCompletionProposal> proposals = new ArrayList<>();
                         org.eclipse.jdt.internal.ui.text.correction.JavaCorrectionProcessor.collectCorrections(
-                            context, new org.eclipse.jdt.ui.text.java.IProblemLocation[]{ location }, jdtProposals);
+                            context, new org.eclipse.jdt.ui.text.java.IProblemLocation[]{ location }, proposals);
 
-                        jdtProposals.sort((a, b) -> Integer.compare(b.getRelevance(), a.getRelevance()));
+                        proposals.sort((a, b) -> Integer.compare(b.getRelevance(), a.getRelevance()));
 
-                        // Add JDT proposals that aren't already covered by the registry (dedupe by label)
-                        java.util.Set<String> existingLabels = new java.util.HashSet<>();
-                        fixes.forEach(f -> existingLabels.add(f.label()));
-
-                        for (IJavaCompletionProposal p : jdtProposals)
+                        for (IJavaCompletionProposal p : proposals)
                         {
                             String label = p.getDisplayString();
-                            if (existingLabels.add(label))  // true if newly added
+                            if (seenLabels.add(label))
                             {
-                                fixes.add(new QuickFix(label, null, m -> applyJdtProposal(p, m)));
+                                String desc = p.getAdditionalProposalInfo();
+                                    fixes.add(new QuickFix(label, desc, m -> applyJdtProposal(p, m)));
                             }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Non-Java marker: use the registry; run() works for PDE/m2e/build-path fixes
+                org.eclipse.ui.IMarkerHelpRegistry registry = org.eclipse.ui.ide.IDE.getMarkerHelpRegistry();
+                if (registry.hasResolutions(marker))
+                {
+                    for (org.eclipse.ui.IMarkerResolution r : registry.getResolutions(marker))
+                    {
+                        String label = r.getLabel();
+                        if (seenLabels.add(label))
+                        {
+                            String desc = (r instanceof org.eclipse.ui.IMarkerResolution2 r2) ? r2.getDescription() : null;
+                            fixes.add(new QuickFix(label, desc, m -> { r.run(m); }));
                         }
                     }
                 }
@@ -857,53 +864,113 @@ public class CodeAnalysisService
         }
         catch (Exception e)
         {
-            // JDT supplement is best-effort
+            // best-effort
         }
 
         return fixes;
     }
-
     /** Applies a JDT IJavaCompletionProposal headlessly. */
     private void applyJdtProposal(IJavaCompletionProposal proposal, IMarker marker)
     {
         try
         {
+            IFile file = (IFile) marker.getResource();
+
+            // For ICUCorrectionProposal: extract the TextEdit from the TextChange and apply
+            // it directly to a Document built from the current file bytes. This is the only
+            // path that works reliably in both live Eclipse and headless Tycho environments:
+            // - proposal.apply(IDocument) may be a no-op headlessly (needs active editor)
+            // - TextChange.perform() does not modify the document returned by getCurrentDocument()
             if (proposal instanceof org.eclipse.jdt.core.manipulation.ICUCorrectionProposal icp)
             {
-                icp.getTextChange().perform(new NullProgressMonitor());
+                org.eclipse.ltk.core.refactoring.TextChange change = icp.getTextChange();
+                String currentContent = new String(file.getContents(true).readAllBytes(),
+                        java.nio.charset.StandardCharsets.UTF_8);
+                org.eclipse.jface.text.Document doc = new org.eclipse.jface.text.Document(currentContent);
+                org.eclipse.text.edits.TextEdit edit = change.getEdit();
+                if (edit != null)
+                {
+                    edit.apply(doc);
+                }
+                String charset = file.getCharset();
+                byte[] bytes = doc.get().getBytes(java.nio.charset.Charset.forName(charset));
+                file.setContents(new java.io.ByteArrayInputStream(bytes), IResource.FORCE, new NullProgressMonitor());
+                return;
             }
-            else
+
+            // Fallback for non-ICU proposals: use TextFileDocumentProvider.
+            org.eclipse.ui.editors.text.TextFileDocumentProvider provider =
+                new org.eclipse.ui.editors.text.TextFileDocumentProvider();
+            provider.connect(file);
+            try
             {
-                // Fallback via TextFileDocumentProvider
-                IFile file = (IFile) marker.getResource();
-                org.eclipse.ui.editors.text.TextFileDocumentProvider provider =
-                    new org.eclipse.ui.editors.text.TextFileDocumentProvider();
-                provider.connect(file);
-                try
+                org.eclipse.jface.text.IDocument doc = provider.getDocument(file);
+                if (doc == null)
+                    throw new RuntimeException("Could not open document for " + file.getFullPath());
+                proposal.apply(doc);
+                String charset = file.getCharset();
+                byte[] bytes = doc.get().getBytes(java.nio.charset.Charset.forName(charset));
+                file.setContents(new java.io.ByteArrayInputStream(bytes), IResource.FORCE, new NullProgressMonitor());
+            }
+            finally
+            {
+                provider.disconnect(file);
+                // Explicitly disconnect the underlying ITextFileBuffer to release the OS file handle
+                // on Windows, where file handles are not released until the reference count reaches zero.
+                org.eclipse.core.filebuffers.ITextFileBufferManager mgr =
+                    org.eclipse.core.filebuffers.FileBuffers.getTextFileBufferManager();
+                org.eclipse.core.runtime.IPath loc = file.getFullPath();
+                org.eclipse.core.filebuffers.ITextFileBuffer buf =
+                    mgr.getTextFileBuffer(loc, org.eclipse.core.filebuffers.LocationKind.IFILE);
+                if (buf != null)
                 {
-                    org.eclipse.jface.text.IDocument doc = provider.getDocument(file);
-                    if (doc == null)
-                    {
-                        throw new RuntimeException("Could not open document for " + file.getFullPath());
-                    }
-                    proposal.apply(doc);
-                    provider.saveDocument(new NullProgressMonitor(), file, doc, true);
-                }
-                finally
-                {
-                    provider.disconnect(file);
+                    mgr.disconnect(loc, org.eclipse.core.filebuffers.LocationKind.IFILE, new NullProgressMonitor());
                 }
             }
-        }
-        catch (RuntimeException re)
-        {
-            throw re;
         }
         catch (Exception e)
         {
-            throw new RuntimeException(e);
+            throw new RuntimeException("applyJdtProposal failed: " + e.getMessage(), e);
         }
     }
+
+
+
+    /**
+     * Flushes the Eclipse ITextFileBuffer for the given IFile to disk.
+     * IMarkerResolution.run() modifies the file buffer but may not commit it in a headless
+     * (Tycho) environment. This ensures the changes reach disk.
+     * ICUCorrectionProposal already writes via IFile.setContents() inside applyJdtProposal(),
+     * so calling this afterward is harmless -- the buffer will be clean and isDirty() = false.
+     */
+    private void saveFileBuffer(IFile file)
+    {
+        try
+        {
+            org.eclipse.core.filebuffers.ITextFileBufferManager mgr =
+                org.eclipse.core.filebuffers.FileBuffers.getTextFileBufferManager();
+            org.eclipse.core.runtime.IPath location = file.getFullPath();
+            mgr.connect(location, org.eclipse.core.filebuffers.LocationKind.IFILE, new NullProgressMonitor());
+            try
+            {
+                org.eclipse.core.filebuffers.ITextFileBuffer buf =
+                    mgr.getTextFileBuffer(location, org.eclipse.core.filebuffers.LocationKind.IFILE);
+                if (buf != null && buf.isDirty())
+                {
+                    buf.commit(new NullProgressMonitor(), true);
+                }
+            }
+            finally
+            {
+                mgr.disconnect(location, org.eclipse.core.filebuffers.LocationKind.IFILE, new NullProgressMonitor());
+            }
+        }
+        catch (Exception e)
+        {
+            // best-effort: ICUCorrectionProposal already wrote directly via IFile.setContents()
+        }
+    }
+
 
     /** Reads the raw problem arguments from a marker. */
     private String[] readMarkerArguments(IMarker marker)
@@ -972,7 +1039,7 @@ public class CodeAnalysisService
             var result = new StringBuilder();
             result.append("# Import Suggestions for ").append(filePath).append("\n\n");
 
-            IJavaProject javaProject = JavaCore.create(project);
+            JavaCore.create(project);
             int suggestionCount = 0;
 
             for (IMarker marker : markers)
