@@ -1,9 +1,120 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <site>
   <category-def name="assistai" label="AssistAI"/>
+  <category-def name="assistai-deps" label="AssistAI - Third-party Dependencies"/>
+
   <feature url="features/com.github.gradusnikov.eclipse.assistai_1.0.7.qualifier.jar"
            id="com.github.gradusnikov.eclipse.assistai"
            version="0.0.0">
     <category name="assistai"/>
   </feature>
+
+  <!-- Third-party bundles required by AssistAI but not part of the Eclipse
+       release train. Listed here so the p2 repository build includes them
+       and users can install them from this site if not already present.
+       version="0.0.0" means "whatever version is available in the reactor". -->
+
+  <!-- Jackson JSON -->
+  <bundle id="com.fasterxml.jackson.core.jackson-annotations" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="com.fasterxml.jackson.core.jackson-core" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="com.fasterxml.jackson.core.jackson-databind" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+
+  <!-- MCP SDK -->
+  <bundle id="io.modelcontextprotocol.sdk.mcp-core" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+
+  <!-- Reactor / Reactive Streams -->
+  <bundle id="io.projectreactor.reactor-core" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="reactive-streams" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+
+  <!-- Flexmark (HTML to Markdown) -->
+  <bundle id="wrapped.com.vladsch.flexmark.flexmark" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.com.vladsch.flexmark.flexmark-html2md-converter" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.com.vladsch.flexmark.flexmark-ext-emoji" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.com.vladsch.flexmark.flexmark-util" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.com.vladsch.flexmark.flexmark-util-ast" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.com.vladsch.flexmark.flexmark-util-builder" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.com.vladsch.flexmark.flexmark-util-collection" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.com.vladsch.flexmark.flexmark-util-data" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.com.vladsch.flexmark.flexmark-util-dependency" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.com.vladsch.flexmark.flexmark-util-format" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.com.vladsch.flexmark.flexmark-util-html" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.com.vladsch.flexmark.flexmark-util-misc" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.com.vladsch.flexmark.flexmark-util-sequence" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+
+  <!-- jsoup -->
+  <bundle id="org.jsoup" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+
+  <!-- Apache Tika -->
+  <bundle id="org.apache.tika.core" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="org.apache.tika.parser-text-module" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+
+  <!-- Apache PDFBox FontBox -->
+  <bundle id="org.apache.pdfbox.fontbox" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+
+  <!-- Miscellaneous transitive dependencies -->
+  <bundle id="com.networknt.json-schema-validator" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="org.yaml.snakeyaml" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="org.jspecify.jspecify" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.org.jetbrains.annotations" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="wrapped.com.github.albfernandez.juniversalchardet" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="org.apache.tomcat-annotations-api" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+
 </site>

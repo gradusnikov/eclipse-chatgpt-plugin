@@ -34,10 +34,7 @@
           <appArgLine>-data ${project.build.directory}/test-workspace</appArgLine>
           <!-- Explicitly include tests that can run with UI harness.
                Excluded:
-                 SdkHttpStreamingTest      - manual dev test; blocks on System.in.read() in @BeforeEach to keep Tomcat running for interactive Claude Code testing
-                 ChatMessageFactoryTest    - requires full interactive SWT workbench
-                 ReadabilityTest           - requires Chrome browser
-                 PDEServicePluginTest      - requires full PDE runtime -->
+                 ChatMessageFactoryTest    - requires full interactive SWT workbench -->
           <includes>
             <include>**/ConversationContextTest.java</include>
             <include>**/TimeMcpServerTest.java</include>
@@ -45,9 +42,11 @@
             <include>**/MarkdownParserTest.java</include>
             <include>**/PDEServiceTest.java</include>
             <include>**/PDEMcpServerTest.java</include>
+            <include>**/PDEServicePluginTest.java</include>
             <include>**/CodeEditingServiceTest.java</include>
             <include>**/CodeAnalysisServiceTest.java</include>
             <include>**/MavenServiceTest.java</include>
+            <include>**/SdkHttpStreamingTest.java</include>
           </includes>
         </configuration>
       </plugin>
