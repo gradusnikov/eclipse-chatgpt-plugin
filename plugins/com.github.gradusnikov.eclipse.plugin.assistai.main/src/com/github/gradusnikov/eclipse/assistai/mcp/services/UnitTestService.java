@@ -463,9 +463,14 @@ public class UnitTestService {
                         javaProject.getElementName());
                 
                 // Set the test target
+                // CONTAINER must use the Java element handle identifier (e.g. "=ProjectName"),
+                // NOT the IResource path (e.g. "/ProjectName") â the JUnit launcher resolves
+                // the input element via JavaCore.create(handleId), and a resource path causes
+                // "The input element of the launch configuration does not exist".
                 if (testClass != null) {
                     workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, 
                             testClass.getFullyQualifiedName());
+                    workingCopy.setAttribute("org.eclipse.jdt.junit.CONTAINER", "");
                     
                     if (methodName != null && !methodName.isEmpty()) {
                         workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_METHOD", methodName);
@@ -473,11 +478,11 @@ public class UnitTestService {
                 } else if (packageFragment != null) {
                     workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "");
                     workingCopy.setAttribute("org.eclipse.jdt.junit.CONTAINER", 
-                            packageFragment.getPath().toString());
+                            packageFragment.getHandleIdentifier());
                 } else {
                     workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "");
                     workingCopy.setAttribute("org.eclipse.jdt.junit.CONTAINER", 
-                            javaProject.getPath().toString());
+                            javaProject.getHandleIdentifier());
                 }
                 
                 // Detect the appropriate JUnit version from the project's classpath
