@@ -1,7 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.servers;
 
 import java.net.URI;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
