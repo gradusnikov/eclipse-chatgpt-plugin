@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
+import io.modelcontextprotocol.json.schema.jackson2.JacksonJsonSchemaValidatorSupplier;
 import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapperSupplier;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures;
@@ -37,6 +38,19 @@ import io.modelcontextprotocol.spec.McpSchema;
 import jakarta.servlet.Servlet;
 
 /**
+ * Integration test for MCP HTTP streaming transport using an embedded Tomcat server.
+ * <p>
+ * Must be run as a <em>JUnit Plug-in Test</em> (PDE launcher) so that real OSGi
+ * classloader boundaries are active. Running as a plain JUnit test will not reproduce:
+ * <ul>
+ *   <li>{@code ServiceLoader} failures in {@code McpJsonDefaults} â the Jackson
+ *       provider is on the main plugin's {@code Bundle-Classpath} and is invisible
+ *       to {@code mcp-core}'s classloader in OSGi</li>
+ *   <li>Split-package {@code IncompatibleClassChangeError} for
+ *       {@code jakarta.servlet.Servlet} when Tomcat and {@code mcp-core} wire to
+ *       different bundle sources</li>
+ * </ul>
+ * <p>
  * Quick test with Claude Code:
  * <code>
  * claude mcp add --transport http test http://172.24.208.1:8123/mcp/calculator
@@ -151,6 +165,11 @@ public class SdkHttpStreamingTest
                 .tools(syncToolSpecification)
                 .build();
         
+        // Disable Tomcat's URLStreamHandlerFactory registration â inside OSGi (Eclipse/Equinox)
+        // the JVM URL stream handler factory is already set by Equinox at startup.
+        // Attempting to register again throws java.lang.Error: factory already defined.
+        org.apache.catalina.webresources.TomcatURLStreamHandlerFactory.disable();
+        
         // Start Tomcat with the transport provider as servlet (with authentication and HTTPS if enabled)
         tomcat = createTomcatServer("", PORT, transportProvider, true, USE_HTTPS);
         tomcat.start();
@@ -159,7 +178,6 @@ public class SdkHttpStreamingTest
         logger.info( "Tomcat MCP Server started at {}://{}:{}{}", protocol, HOST, PORT, MCP_ENDPOINT );
         logger.info( "Access from Windows: {}://localhost:{}{}", protocol, PORT, MCP_ENDPOINT );
         logger.info( "Access from WSL: {}://{}:{}{}", protocol, getWindowsIPForWSL(), PORT, MCP_ENDPOINT );
-        System.in.read();
     }
     
     @AfterEach
@@ -190,6 +208,7 @@ public class SdkHttpStreamingTest
         
         var client = McpClient.sync(clientTransport)
                 .requestTimeout(Duration.ofSeconds(10))
+                .jsonSchemaValidator(new JacksonJsonSchemaValidatorSupplier().get())
                 .build();
         
         // Initialize the client
@@ -244,6 +263,7 @@ public class SdkHttpStreamingTest
         
         var client = McpClient.sync(clientTransport)
                 .requestTimeout(Duration.ofSeconds(10))
+                .jsonSchemaValidator(new JacksonJsonSchemaValidatorSupplier().get())
                 .build();
         
         // This should fail with 401 Unauthorized
@@ -273,6 +293,7 @@ public class SdkHttpStreamingTest
         
         var client = McpClient.sync(clientTransport)
                 .requestTimeout(Duration.ofSeconds(10))
+                .jsonSchemaValidator(new JacksonJsonSchemaValidatorSupplier().get())
                 .build();
         
         // This should fail with 401 Unauthorized
