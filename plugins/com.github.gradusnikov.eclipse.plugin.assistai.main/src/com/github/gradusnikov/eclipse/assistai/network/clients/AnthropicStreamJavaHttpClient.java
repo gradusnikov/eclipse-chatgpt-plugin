@@ -9,7 +9,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -419,9 +418,6 @@ public class AnthropicStreamJavaHttpClient extends AbstractLanguageModelClient
 	                                        JsonNode toolUseNode = node.get("content_block");
 	                                        String toolName = toolUseNode.get("name").asText();
 	                                        String toolId = toolUseNode.get("id").asText();
-	                                        
-	                                        JsonNode inputNode = toolUseNode.get("input");
-	                                        String arguments = inputNode.toString();
 	                                        
 	                                        publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL, 
 	                                                String.format("\"function_call\" : { \n \"name\": \"%s\",\n \"id\": \"%s\",\n \"arguments\" :", toolName, toolId)));

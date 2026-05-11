@@ -277,18 +277,6 @@ public class ProjectService {
         }
     }
     
-    /**
-     * Collects resources in a hierarchical structure for display.
-     * 
-     * @param resource The starting resource
-     * @param depth The current depth in the hierarchy
-     * @param result The StringBuilder to append results to
-     * @throws CoreException if an error occurs
-     */
-    private void collectResourcesForLLM(IResource resource, int depth, StringBuilder result) throws CoreException {
-        collectResourcesForLLM(resource, depth, Integer.MAX_VALUE, result);
-    }
-
     private void collectResourcesForLLM(IResource resource, int depth, int maxDepth, StringBuilder result) throws CoreException {
         if (aiIgnoreService.isExcluded(resource))
         {

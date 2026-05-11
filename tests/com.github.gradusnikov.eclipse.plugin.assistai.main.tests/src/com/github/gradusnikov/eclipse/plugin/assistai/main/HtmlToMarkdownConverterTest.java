@@ -1,7 +1,6 @@
 package com.github.gradusnikov.eclipse.plugin.assistai.main;
 
 
-import org.hamcrest.Matcher;
 import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.CoreMatchers.is;

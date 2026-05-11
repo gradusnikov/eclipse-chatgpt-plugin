@@ -61,7 +61,8 @@ public class CodeAnalysisService
      * @param maxDepth Maximum depth of the call hierarchy to retrieve
      * @return A formatted string containing the call hierarchy
      */
-    public String getMethodCallHierarchy(String fullyQualifiedClassName, 
+    @SuppressWarnings("restriction")
+	public String getMethodCallHierarchy(String fullyQualifiedClassName, 
                                   String methodName, 
                                   String methodSignature, 
                                   Integer maxDepth)
@@ -389,7 +390,8 @@ public class CodeAnalysisService
         }
     }    
     
-    private void collectCallHierarchy(MethodWrapper[] callers, int level, int maxDepth, StringBuilder result) {
+    @SuppressWarnings("restriction")
+	private void collectCallHierarchy(MethodWrapper[] callers, int level, int maxDepth, StringBuilder result) {
        
         if (level >= maxDepth) 
         {
@@ -447,7 +449,8 @@ public class CodeAnalysisService
         }
     }
     
-    private void collectCalleeHierarchy(MethodWrapper[] callees, int level, int maxDepth, StringBuilder result) {
+    @SuppressWarnings("restriction")
+	private void collectCalleeHierarchy(MethodWrapper[] callees, int level, int maxDepth, StringBuilder result) {
         if (level >= maxDepth) 
         {
             return;
@@ -797,7 +800,8 @@ public class CodeAnalysisService
      *
      * Non-Java markers (PDE, m2e, build-path, etc.): uses IMarkerHelpRegistry and run().
      */
-    private List<QuickFix> collectQuickFixes(IMarker marker)
+    @SuppressWarnings("restriction")
+	private List<QuickFix> collectQuickFixes(IMarker marker)
     {
         List<QuickFix> fixes = new ArrayList<>();
         java.util.Set<String> seenLabels = new java.util.HashSet<>();

@@ -7,7 +7,6 @@ import java.util.Base64;
 import java.util.stream.Collectors;
 
 import org.apache.fontbox.ttf.TTFParser;
-import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.google.common.io.Files;
@@ -17,9 +16,6 @@ import jakarta.inject.Inject;
 @Creatable
 public class AssistaiSharedFonts
 {
-    @Inject
-    private ILog logger;
-    
     @Inject
     private AssistaiSharedFiles sharedFiles;
     

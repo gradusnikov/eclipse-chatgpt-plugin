@@ -27,7 +27,8 @@ public class DuckDuckSearchMcpServer
     @Inject
     ILog logger;
 
-    @Tool(name="webSearch", description="Performs a search using a Duck Duck Go search engine and returns the search result json.", type="object")
+    @SuppressWarnings("deprecation")
+	@Tool(name="webSearch", description="Performs a search using a Duck Duck Go search engine and returns the search result json.", type="object")
     public String webSearch(
             @ToolParam(name="query", description="A search query", required=true) String query)
     {

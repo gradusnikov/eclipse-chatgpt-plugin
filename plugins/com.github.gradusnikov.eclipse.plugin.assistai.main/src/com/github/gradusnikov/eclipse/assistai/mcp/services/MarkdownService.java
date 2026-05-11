@@ -11,20 +11,14 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
-import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
-import jakarta.inject.Inject;
-
 @Creatable
 public class MarkdownService
 {
-    @Inject
-    private ILog logger;
-
     private static final Pattern ATX_HEADING = Pattern.compile("^(#{1,6})\\s+(.+?)\\s*#*\\s*$");
     private static final Pattern SETEXT_H1 = Pattern.compile("^={3,}\\s*$");
     private static final Pattern SETEXT_H2 = Pattern.compile("^-{3,}\\s*$");

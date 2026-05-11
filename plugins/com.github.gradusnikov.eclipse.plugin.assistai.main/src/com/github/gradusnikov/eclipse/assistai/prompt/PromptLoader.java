@@ -29,7 +29,8 @@ public class PromptLoader
 
 	
 
-    public String getDefaultPrompt( String resourceFile )
+    @SuppressWarnings("deprecation")
+	public String getDefaultPrompt( String resourceFile )
     {
         try (var in = FileLocator.toFileURL( new URL( new URL(baseURL), resourceFile )  ).openStream();
              var dis = new DataInputStream(in);)

@@ -2,10 +2,6 @@ package com.github.gradusnikov.eclipse.plugin.assistai.mcp.transport;
 
 import java.io.IOException;
 
-import org.eclipse.e4.core.di.annotations.Creatable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.FilterConfig;

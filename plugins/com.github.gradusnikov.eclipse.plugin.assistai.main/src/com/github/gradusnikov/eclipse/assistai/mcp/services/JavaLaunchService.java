@@ -1,8 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -33,7 +31,6 @@ import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
-import org.eclipse.jdt.debug.core.IJavaBreakpoint;
 import org.eclipse.jdt.debug.core.IJavaLineBreakpoint;
 import org.eclipse.jdt.debug.core.JDIDebugModel;
 import org.eclipse.jdt.launching.IJavaLaunchConfigurationConstants;
@@ -148,8 +145,6 @@ public class JavaLaunchService
             // Capture output
             var outputBuffer = new StringBuilder();
             var errorBuffer = new StringBuilder();
-            var latch = new CountDownLatch(1);
-
             // Launch
             final ILaunch[] launchHolder = new ILaunch[1];
             sync.syncExec(() ->
@@ -771,7 +766,6 @@ public class JavaLaunchService
                     {
                         if (thread.isSuspended() && thread instanceof org.eclipse.jdt.debug.core.IJavaThread)
                         {
-                            var javaThread = (org.eclipse.jdt.debug.core.IJavaThread) thread;
                             IStackFrame[] frames = thread.getStackFrames();
                             if (frames.length > 0 && frames[0] instanceof org.eclipse.jdt.debug.core.IJavaStackFrame)
                             {

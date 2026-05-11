@@ -2554,7 +2554,6 @@ public class CodeEditingService
     {
         int originalStart; // 1-based line number in original file
         int originalCount; // number of lines from original
-        List<String> contextAndRemoveLines = new java.util.ArrayList<>(); // context (' ') and remove ('-') lines
         List<String> hunkLines = new java.util.ArrayList<>(); // all lines in the hunk with their prefixes
     }
 

@@ -15,7 +15,6 @@ import com.github.gradusnikov.eclipse.assistai.mcp.servers.TimeMcpServer;
 public class TimeMcpServerTest {
 
     private TimeMcpServer timeMcpServer;
-    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter OUTPUT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
 
     @BeforeEach

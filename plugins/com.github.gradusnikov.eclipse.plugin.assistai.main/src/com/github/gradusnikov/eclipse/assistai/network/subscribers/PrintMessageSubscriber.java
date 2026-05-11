@@ -7,8 +7,6 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 
-import jakarta.inject.Singleton;
-
 @Creatable
 //@Singleton
 public class PrintMessageSubscriber implements Flow.Subscriber<Incoming>

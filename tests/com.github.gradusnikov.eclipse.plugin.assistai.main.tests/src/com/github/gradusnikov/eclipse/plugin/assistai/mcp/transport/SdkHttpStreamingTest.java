@@ -348,53 +348,6 @@ public class SdkHttpStreamingTest
         }
     }
     
-    /**
-     * Creates an SSL context using the test truststore.
-     * This properly validates certificates signed by our test CA.
-     */
-    private static javax.net.ssl.SSLContext createSSLContextWithTruststore() throws Exception
-    {
-        // Load the truststore from classpath
-        try (InputStream truststoreStream = SdkHttpStreamingTest.class
-                .getResourceAsStream("/test/resources/ssl/test-truststore.jks")) {
-            
-            if (truststoreStream == null) {
-                throw new IOException("Truststore not found in classpath: /test/resources/ssl/test-truststore.jks");
-            }
-            
-            // Load truststore
-            java.security.KeyStore truststore = java.security.KeyStore.getInstance("JKS");
-            truststore.load(truststoreStream, "changeit".toCharArray());
-            
-            // Create TrustManagerFactory
-            javax.net.ssl.TrustManagerFactory tmf = 
-                javax.net.ssl.TrustManagerFactory.getInstance(
-                    javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
-            tmf.init(truststore);
-            
-            // Create SSLContext
-            javax.net.ssl.SSLContext sslContext = javax.net.ssl.SSLContext.getInstance("TLS");
-            sslContext.init(null, tmf.getTrustManagers(), new java.security.SecureRandom());
-            
-            return sslContext;
-        }
-    }
-    
-    /**
-     * Creates an HttpClient configured with our test truststore.
-     */
-    private static java.net.http.HttpClient createHttpClientWithTruststore() throws Exception
-    {
-        if (!USE_HTTPS) {
-            // If not using HTTPS, return default client
-            return java.net.http.HttpClient.newHttpClient();
-        }
-        
-        return java.net.http.HttpClient.newBuilder()
-                .sslContext(createSSLContextWithTruststore())
-                .build();
-    }
-    
     private static Tomcat createTomcatServer(String contextPath, int port, Servlet servlet, boolean useAuth, boolean useHttps)
     {
         var tomcat = new Tomcat();

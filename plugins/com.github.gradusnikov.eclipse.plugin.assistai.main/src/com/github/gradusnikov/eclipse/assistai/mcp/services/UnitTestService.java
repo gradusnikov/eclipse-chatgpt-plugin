@@ -288,9 +288,6 @@ public class UnitTestService {
                 throw new RuntimeException("Error: Method '" + methodName + "' not found in class '" + className + "'.");
             }
             
-            // Create a test name with the specific method
-            String testName = className + "." + methodName;
-            
             // Run the tests
             return launchJUnitTests(javaProject, null, type, timeout, methodName);
             
