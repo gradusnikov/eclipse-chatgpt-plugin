@@ -159,7 +159,8 @@ public class GitService
         }
     }
 
-    public String getLog(String projectName, int maxCount)
+    @SuppressWarnings("deprecation")
+	public String getLog(String projectName, int maxCount)
     {
         Repository repository = getRepository(projectName);
         try (Git git = new Git(repository))
@@ -375,7 +376,7 @@ public class GitService
         Repository repository = getRepository(projectName);
         try (Git git = new Git(repository))
         {
-            var result = git.stashApply().call();
+            git.stashApply().call();
             git.stashDrop().call();
             refreshProject(projectName);
             return "Applied and dropped stash.";

@@ -221,7 +221,6 @@ public class InMemoryTransport
         private final McpJsonMapper jsonMapper;
         private final BlockingQueue<McpSchema.JSONRPCMessage> inboundQueue;
         private final BlockingQueue<McpSchema.JSONRPCMessage> outboundQueue;
-        private final Sinks.Many<String> errorSink;
         private final ILog logger;
         private McpServerSession session;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
@@ -242,7 +241,6 @@ public class InMemoryTransport
             this.jsonMapper = jsonMapper;
             this.inboundQueue = inboundQueue;
             this.outboundQueue = outboundQueue;
-            this.errorSink = errorSink;
             this.logger = logger;
         }
 

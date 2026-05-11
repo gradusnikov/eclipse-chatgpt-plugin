@@ -1,6 +1,5 @@
 package com.github.gradusnikov.eclipse.assistai.view.dnd.handlers;
 
-import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.swt.dnd.TextTransfer;
 import org.eclipse.swt.dnd.Transfer;
@@ -20,9 +19,6 @@ public class TextTransferHandler implements ITransferHandler
     
     @Inject
     private ResourceCacheHelper resourceCacheHelper;
-
-    @Inject
-    private ILog logger;
 
     @Override
     public Transfer getTransferType()

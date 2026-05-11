@@ -33,8 +33,6 @@ import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 public class GhostTextManager
 {
 
-    private final ITextViewer textViewer;
-
     private final StyledText  styledText;
     
     private final UISynchronizeCallable uiSync;
@@ -49,8 +47,6 @@ public class GhostTextManager
     
     // Track which line has vertical indent applied
     private int               indentedLineIndex = -1;
-    private int               appliedIndent = 0;
-
     // Listeners
     private KeyListener       keyListener;
 
@@ -70,7 +66,6 @@ public class GhostTextManager
 
     public GhostTextManager( ITextViewer textViewer, UISynchronizeCallable uiSync )
     {
-        this.textViewer = textViewer;
         this.styledText = textViewer.getTextWidget();
         this.uiSync = uiSync;
         this.isShowing = false;
@@ -372,7 +367,6 @@ public class GhostTextManager
                 int indent = extraLines * lineHeight;
                 styledText.setLineVerticalIndent(nextLine, indent);
                 indentedLineIndex = nextLine;
-                appliedIndent = indent;
             }
         }
         catch (Exception e)
@@ -400,7 +394,6 @@ public class GhostTextManager
                 // Ignore
             }
             indentedLineIndex = -1;
-            appliedIndent = 0;
         }
     }
 
@@ -521,13 +514,10 @@ public class GhostTextManager
                         int lineStartOffset = st.getOffsetAtLine( ghostLine );
                         String currentLineText = st.getLine( ghostLine );
                         
-                        // Calculate indent (spaces/tabs at beginning)
-                        int indentChars = 0;
                         for ( char c : currentLineText.toCharArray() )
                         {
                             if ( c == ' ' || c == '\t' )
                             {
-                                indentChars++;
                             }
                             else
                             {

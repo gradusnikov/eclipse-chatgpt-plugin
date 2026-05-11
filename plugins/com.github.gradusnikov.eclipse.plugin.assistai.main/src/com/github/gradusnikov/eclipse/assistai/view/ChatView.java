@@ -22,8 +22,6 @@ import org.eclipse.jface.fieldassist.ContentProposalAdapter;
 import org.eclipse.jface.fieldassist.IContentProposal;
 import org.eclipse.jface.fieldassist.IContentProposalProvider;
 import org.eclipse.jface.fieldassist.TextContentAdapter;
-import org.eclipse.jface.resource.JFaceResources;
-import org.eclipse.jface.resource.LocalResourceManager;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.browser.Browser;
 import org.eclipse.swt.browser.BrowserFunction;
@@ -100,7 +98,8 @@ public class ChatView
     @Inject
     private AssistaiSharedFonts sharedFonts;
 
-    @Inject
+    @SuppressWarnings("restriction")
+	@Inject
     @Optional
     private IThemeEngine themeEngine;
 
@@ -721,7 +720,8 @@ public class ChatView
         return cssContent;
     }
 
-    private boolean isDarkTheme()
+    @SuppressWarnings("restriction")
+	private boolean isDarkTheme()
     {
         if ( themeEngine != null && themeEngine.getActiveTheme() != null )
         {

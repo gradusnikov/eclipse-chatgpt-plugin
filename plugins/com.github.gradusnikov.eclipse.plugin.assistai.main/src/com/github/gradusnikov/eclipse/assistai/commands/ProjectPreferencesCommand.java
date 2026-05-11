@@ -12,7 +12,6 @@ import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.CoreException;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**

@@ -11,7 +11,6 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
-import com.github.gradusnikov.eclipse.assistai.chat.Conversation;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming;
 import com.github.gradusnikov.eclipse.assistai.chat.Incoming.Type;
 import com.github.gradusnikov.eclipse.assistai.view.ChatViewPresenter;

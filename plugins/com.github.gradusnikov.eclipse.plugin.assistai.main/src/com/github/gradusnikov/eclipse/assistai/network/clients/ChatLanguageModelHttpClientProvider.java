@@ -1,19 +1,16 @@
 package com.github.gradusnikov.eclipse.assistai.network.clients;
 
 
-import java.util.Map;
 import java.util.Optional;
 
 import org.eclipse.e4.core.di.annotations.Creatable;
 
 import com.github.gradusnikov.eclipse.assistai.chat.ConversationContext;
-import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
 import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptorRepository;
 import com.github.gradusnikov.eclipse.assistai.network.subscribers.AppendMessageToViewSubscriber;
 import com.github.gradusnikov.eclipse.assistai.network.subscribers.FunctionCallSubscriber;
 import com.github.gradusnikov.eclipse.assistai.network.subscribers.PrintMessageSubscriber;
 
-import io.modelcontextprotocol.client.McpSyncClient;
 import jakarta.inject.Inject;
 import jakarta.inject.Provider;
 import jakarta.inject.Singleton;

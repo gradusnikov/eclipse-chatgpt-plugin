@@ -355,34 +355,6 @@ public class McpServerPreferencePage extends PreferencePage implements IWorkbenc
         removeEnvButton.setLayoutData( new GridData( SWT.FILL, SWT.CENTER, true, false ) );
     }
 
-    private Text addTextField( Composite form, String labelText )
-    {
-        Label label = new Label( form, SWT.NONE );
-        label.setText( labelText );
-        FormData labelData = new FormData();
-        Control[] children = form.getChildren();
-        if ( children.length == 0 )
-        {
-            // First control, attach to top
-            labelData.top = new FormAttachment( 0, 10 );
-        }
-        else
-        {
-            // Attach below the last control
-            labelData.top = new FormAttachment( children[children.length - 1], 10 );
-        }
-        labelData.left = new FormAttachment( 0, 10 );
-        label.setLayoutData( labelData );
-
-        Text text = new Text( form, SWT.BORDER );
-        FormData textData = new FormData();
-        textData.left = new FormAttachment( 0, 150 );
-        textData.right = new FormAttachment( 100, -10 );
-        textData.top = new FormAttachment( label, 0, SWT.CENTER );
-        text.setLayoutData( textData );
-        return text;
-    }
-
     private void initializeDetailsListeners()
     {
         // Tool checkbox listener
