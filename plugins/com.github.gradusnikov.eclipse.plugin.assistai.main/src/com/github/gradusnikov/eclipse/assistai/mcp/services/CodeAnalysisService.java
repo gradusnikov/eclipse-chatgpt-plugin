@@ -46,6 +46,8 @@ import jakarta.inject.Singleton;
 public class CodeAnalysisService 
 {
     
+    private final java.util.concurrent.ConcurrentHashMap<org.eclipse.core.runtime.IPath, Object> fileLocks = new java.util.concurrent.ConcurrentHashMap<>();
+
     @Inject
     ILog logger;
 
@@ -761,27 +763,42 @@ public class CodeAnalysisService
                 return "Error: Marker with ID " + markerId + " not found. It may have been resolved already.";
             }
 
-            List<QuickFix> fixes = collectQuickFixes(marker);
-            if (fixes.isEmpty())
-            {
-                return "Error: No quick fix proposals available for marker " + markerId + ".";
-            }
-            if (proposalIndex < 0 || proposalIndex >= fixes.size())
-            {
-                return "Error: Proposal index " + proposalIndex + " is out of range (0-" + (fixes.size() - 1) + ").";
-            }
+            Object lock = (marker.getResource() instanceof IFile file)
+                ? fileLocks.computeIfAbsent(file.getFullPath(), k -> new Object())
+                : new Object();
 
-            QuickFix fix = fixes.get(proposalIndex);
-            fix.apply(marker);
-
-            if (marker.getResource() instanceof IFile file)
+            synchronized (lock)
             {
-                saveFileBuffer(file);
-                file.refreshLocal(IResource.DEPTH_ZERO, new NullProgressMonitor());
-            }
+                marker = findMarkerById(markerId);
+                if (marker == null)
+                {
+                    return "Error: Marker with ID " + markerId + " not found. It may have been resolved already.";
+                }
 
-            String status = marker.exists() ? "applied (marker still present)" : "applied and marker resolved";
-            return "Quick fix applied: \"" + fix.label() + "\" on marker " + markerId + " - " + status;
+                List<QuickFix> fixes = collectQuickFixes(marker);
+                if (fixes.isEmpty())
+                {
+                    return "Error: No quick fix proposals available for marker " + markerId + ".";
+                }
+                if (proposalIndex < 0 || proposalIndex >= fixes.size())
+                {
+                    return "Error: Proposal index " + proposalIndex + " is out of range (0-" + (fixes.size() - 1) + ").";
+                }
+
+                QuickFix fix = fixes.get(proposalIndex);
+                fix.apply(marker);
+
+                if (marker.getResource() instanceof IFile f)
+                {
+                    saveFileBuffer(f);
+                    f.refreshLocal(IResource.DEPTH_ZERO, new NullProgressMonitor());
+                }
+
+                waitForAutoBuild();
+
+                String status = marker.exists() ? "applied (marker still present)" : "applied and marker resolved";
+                return "Quick fix applied: \"" + fix.label() + "\" on marker " + markerId + " - " + status;
+            }
         }
         catch (Exception e)
         {
@@ -974,6 +991,28 @@ public class CodeAnalysisService
             // best-effort: ICUCorrectionProposal already wrote directly via IFile.setContents()
         }
     }
+
+    /**
+     * Waits for Eclipse's auto-build to complete so that markers are refreshed
+     * with correct offsets before the next quick fix is applied.
+     */
+    private void waitForAutoBuild()
+    {
+        try
+        {
+            org.eclipse.core.runtime.jobs.Job.getJobManager()
+                .join(ResourcesPlugin.FAMILY_AUTO_BUILD, new NullProgressMonitor());
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+        }
+        catch (Exception e)
+        {
+            // best-effort
+        }
+    }
+
 
 
     /** Reads the raw problem arguments from a marker. */
