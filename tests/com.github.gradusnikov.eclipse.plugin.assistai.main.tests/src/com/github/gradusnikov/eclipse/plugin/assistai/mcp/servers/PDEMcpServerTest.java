@@ -111,7 +111,7 @@ public class PDEMcpServerTest
         try
         {
             // Non-existent project â will get an error string back, not an exception
-            String result = server.runJUnitPluginTests( "NonExistentProject_XYZ", null );
+            String result = server.runJUnitPluginTests( "NonExistentProject_XYZ", null, null );
             assertNotNull( result );
             assertTrue( result.startsWith( "Error" ),
                 "Expected error for non-existent project, got: " + result );
@@ -130,7 +130,7 @@ public class PDEMcpServerTest
     {
         try
         {
-            String result = server.runJUnitPluginTests( "NonExistentProject_XYZ", "30" );
+            String result = server.runJUnitPluginTests( "NonExistentProject_XYZ", "30", null );
             assertNotNull( result );
             assertTrue( result.startsWith( "Error" ),
                 "Expected error for non-existent project, got: " + result );
@@ -147,7 +147,7 @@ public class PDEMcpServerTest
         try
         {
             String result = server.runJUnitPluginTestClass(
-                "NonExistentProject_XYZ", "com.example.MyTest", null );
+                "NonExistentProject_XYZ", "com.example.MyTest", null, null );
             assertNotNull( result );
             assertTrue( result.startsWith( "Error" ),
                 "Expected error for non-existent project, got: " + result );
