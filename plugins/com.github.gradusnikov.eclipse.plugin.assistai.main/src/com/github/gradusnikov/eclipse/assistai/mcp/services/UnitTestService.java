@@ -408,22 +408,6 @@ public class UnitTestService {
     }
     
     /**
-     * Launches JUnit tests using Eclipse's JUnit infrastructure.
-     */
-    private String launchJUnitTests(IJavaProject javaProject, IPackageFragment packageFragment, 
-                                    IType testClass, int timeout) {
-        return launchJUnitTests(javaProject, packageFragment, testClass, timeout, null, false);
-    }
-    
-    /**
-     * Launches JUnit tests using Eclipse's JUnit infrastructure with optional method filtering.
-     */
-    private String launchJUnitTests(IJavaProject javaProject, IPackageFragment packageFragment, 
-                                   IType testClass, int timeout, String methodName) {
-        return launchJUnitTests(javaProject, packageFragment, testClass, timeout, methodName, false);
-    }
-
-    /**
      * Launches JUnit tests using Eclipse's JUnit infrastructure with optional method filtering and coverage.
      */
     private String launchJUnitTests(IJavaProject javaProject, IPackageFragment packageFragment, 

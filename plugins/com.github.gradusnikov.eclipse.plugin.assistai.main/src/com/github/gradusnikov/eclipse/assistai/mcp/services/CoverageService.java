@@ -281,45 +281,4 @@ public class CoverageService
         sb.append( "]" );
         return sb.toString();
     }
-
-    private String formatLineList( List<Integer> lines )
-    {
-        if ( lines.isEmpty() ) return "";
-        if ( lines.size() > 30 )
-        {
-            return lines.size() + " lines";
-        }
-        StringBuilder sb = new StringBuilder();
-        int start = lines.get( 0 );
-        int end = start;
-
-        for ( int i = 1; i < lines.size(); i++ )
-        {
-            if ( lines.get( i ) == end + 1 )
-            {
-                end = lines.get( i );
-            }
-            else
-            {
-                appendRange( sb, start, end );
-                sb.append( ", " );
-                start = lines.get( i );
-                end = start;
-            }
-        }
-        appendRange( sb, start, end );
-        return sb.toString();
-    }
-
-    private void appendRange( StringBuilder sb, int start, int end )
-    {
-        if ( start == end )
-        {
-            sb.append( start );
-        }
-        else
-        {
-            sb.append( start ).append( "-" ).append( end );
-        }
-    }
 }

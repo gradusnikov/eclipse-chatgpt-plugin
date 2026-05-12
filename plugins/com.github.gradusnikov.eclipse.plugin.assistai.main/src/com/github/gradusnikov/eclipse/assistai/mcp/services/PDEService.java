@@ -270,12 +270,6 @@ public class PDEService
     // -------------------------------------------------------------------------
 
     private String launchJUnitPluginTests( IJavaProject javaProject, Object packageFragment,
-                                            IType testClass, int timeout )
-    {
-        return launchJUnitPluginTests( javaProject, packageFragment, testClass, timeout, false );
-    }
-
-    private String launchJUnitPluginTests( IJavaProject javaProject, Object packageFragment,
                                             IType testClass, int timeout, boolean withCoverage )
     {
         CountDownLatch latch = new CountDownLatch( 1 );
