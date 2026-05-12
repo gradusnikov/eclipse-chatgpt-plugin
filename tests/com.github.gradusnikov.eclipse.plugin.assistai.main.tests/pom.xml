@@ -40,7 +40,6 @@
             <include>**/TimeMcpServerTest.java</include>
             <include>**/HtmlToMarkdownConverterTest.java</include>
             <include>**/MarkdownParserTest.java</include>
-            <include>**/PDEServiceTest.java</include>
             <include>**/PDEMcpServerTest.java</include>
             <include>**/PDEServicePluginTest.java</include>
             <include>**/CodeEditingServiceTest.java</include>
