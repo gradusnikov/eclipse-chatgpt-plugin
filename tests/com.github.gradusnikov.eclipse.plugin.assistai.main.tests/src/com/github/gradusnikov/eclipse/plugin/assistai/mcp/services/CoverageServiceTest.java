@@ -1,9 +1,18 @@
 package com.github.gradusnikov.eclipse.plugin.assistai.mcp.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import org.jacoco.core.data.ExecutionDataWriter;
+import org.jacoco.core.data.SessionInfo;
 
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
@@ -232,6 +241,71 @@ public class CoverageServiceTest
         assertEquals( "coverage", coverageService.getCoverageLaunchMode() );
     }
 
+    @Test
+    @Order( 5 )
+    public void testFormatCoverageInfo_nullPath_withProjectName_returnsEmpty()
+    {
+        String result = coverageService.formatCoverageInfo( null, TEST_PROJECT_NAME );
+        assertEquals( "", result );
+    }
+
+    @Test
+    @Order( 6 )
+    public void testFormatCoverageInfo_withPath_nullProjectName_returnsBasicInfo()
+    {
+        String result = coverageService.formatCoverageInfo( "/some/path/coverage.exec", null );
+        assertTrue( result.contains( "--- Coverage ---" ) );
+        assertTrue( result.contains( "Coverage data collected" ) );
+        assertTrue( result.contains( "/some/path/coverage.exec" ) );
+    }
+
+    @Test
+    @Order( 7 )
+    public void testFormatCoverageInfo_invalidExecFile_fallsBackToBasicInfo()
+    {
+        String result = coverageService.formatCoverageInfo( "/nonexistent/path/coverage.exec", TEST_PROJECT_NAME );
+        assertTrue( result.contains( "--- Coverage ---" ) );
+        assertTrue( result.contains( "Coverage data collected" ) );
+    }
+
+    @Test
+    @Order( 8 )
+    public void testFindLatestCoverageFile_returnsNullOrPath()
+    {
+        String result = coverageService.findLatestCoverageFile();
+        if ( result != null )
+        {
+            assertTrue( result.endsWith( ".exec" ) );
+            assertTrue( new File( result ).exists() );
+        }
+    }
+
+    @Test
+    @Order( 9 )
+    public void testFormatCoverageInfo_withValidExecFile_andProject_returnsCoverageReport() throws Exception
+    {
+        assumeTrue( coverageService.isCoverageAvailable(),
+            "Skipping: EclEmma/JaCoCo not installed" );
+
+        Path tempExec = Files.createTempFile( "coverage-test", ".exec" );
+        try ( FileOutputStream fos = new FileOutputStream( tempExec.toFile() ) )
+        {
+            ExecutionDataWriter writer = new ExecutionDataWriter( fos );
+            writer.visitSessionInfo( new SessionInfo( "test-session", System.currentTimeMillis() - 1000, System.currentTimeMillis() ) );
+        }
+
+        try
+        {
+            String result = coverageService.formatCoverageInfo( tempExec.toString(), TEST_PROJECT_NAME );
+            assertTrue( result.contains( "--- Coverage Report ---" ) );
+            assertTrue( result.contains( "All classes fully covered." ) || result.contains( "Classes with incomplete coverage:" ) );
+        }
+        finally
+        {
+            Files.deleteIfExists( tempExec );
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Integration: run tests WITHOUT coverage
     // -------------------------------------------------------------------------
@@ -314,5 +388,51 @@ public class CoverageServiceTest
             assertTrue( result.contains( "Coverage data file:" ),
                 "Expected coverage data file path in result, got: " + result );
         }
+    }
+
+    @Test
+    @Order( 40 )
+    public void testFormatCoverageInfo_withRealExecFile_producesDetailedReport() throws Exception
+    {
+        assumeTrue( coverageService.isCoverageAvailable(),
+            "Skipping: EclEmma/JaCoCo not installed" );
+
+        String execFile = coverageService.findLatestCoverageFile();
+        assumeTrue( execFile != null, "Skipping: no .exec file available from prior coverage run" );
+
+        String result = coverageService.formatCoverageInfo( execFile, TEST_PROJECT_NAME );
+        assertNotNull( result );
+        assertFalse( result.isEmpty() );
+        assertTrue( result.contains( "--- Coverage Report ---" ) );
+        assertTrue( result.contains( "line coverage" ) );
+    }
+
+    @Test
+    @Order( 41 )
+    public void testFormatCoverageInfo_withRealExecFile_noProject_returnsBasicInfo() throws Exception
+    {
+        assumeTrue( coverageService.isCoverageAvailable(),
+            "Skipping: EclEmma/JaCoCo not installed" );
+
+        String execFile = coverageService.findLatestCoverageFile();
+        assumeTrue( execFile != null, "Skipping: no .exec file available from prior coverage run" );
+
+        String result = coverageService.formatCoverageInfo( execFile, null );
+        assertTrue( result.contains( "--- Coverage ---" ) );
+        assertTrue( result.contains( "Coverage data collected" ) );
+        assertFalse( result.contains( "--- Coverage Report ---" ) );
+    }
+
+    @Test
+    @Order( 42 )
+    public void testFindLatestCoverageFile_afterCoverageRun_returnsExecFile()
+    {
+        assumeTrue( coverageService.isCoverageAvailable(),
+            "Skipping: EclEmma/JaCoCo not installed" );
+
+        String execFile = coverageService.findLatestCoverageFile();
+        assertNotNull( execFile, "Expected .exec file after coverage run" );
+        assertTrue( execFile.endsWith( ".exec" ) );
+        assertTrue( new File( execFile ).exists() );
     }
 }

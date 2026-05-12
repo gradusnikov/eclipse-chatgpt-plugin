@@ -106,7 +106,11 @@ public class CoverageService
             }
             catch ( Exception e )
             {
-                logger.error( "Error analyzing coverage data, falling back to basic info", e );
+                if ( logger != null )
+                {
+                    try { logger.error( "Error analyzing coverage data, falling back to basic info", e ); }
+                    catch ( Exception logEx ) { /* logger not fully initialized */ }
+                }
             }
         }
 
