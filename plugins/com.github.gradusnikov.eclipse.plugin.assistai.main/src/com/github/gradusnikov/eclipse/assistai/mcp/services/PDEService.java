@@ -409,7 +409,7 @@ public class PDEService
             if ( useCoverage )
             {
                 String execFile = coverageService.findLatestCoverageFile();
-                results += coverageService.formatCoverageInfo( execFile );
+                results += coverageService.formatCoverageInfo( execFile, javaProject.getProject().getName() );
             }
 
             return results;
