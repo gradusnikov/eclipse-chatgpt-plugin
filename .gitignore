@@ -4,3 +4,4 @@ bin/
 **/bin/
 *.class
 **/target/
+/opencode.json
