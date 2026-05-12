@@ -48,10 +48,12 @@ public class PDEMcpServer
           type = "object")
     public String runJUnitPluginTests(
             @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the plug-in test classes") String projectName,
-            @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout)
+            @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout,
+            @ToolParam(name = "withCoverage", description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false", required = false) String withCoverage)
     {
         int timeoutSeconds = Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60);
-        return pdeService.runJUnitPluginTests(projectName, timeoutSeconds);
+        boolean coverage = Optional.ofNullable(withCoverage).map(Boolean::parseBoolean).orElse(false);
+        return pdeService.runJUnitPluginTests(projectName, timeoutSeconds, coverage);
     }
 
     @Tool(name = "runJUnitPluginTestClass",
@@ -60,9 +62,11 @@ public class PDEMcpServer
     public String runJUnitPluginTestClass(
             @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test class") String projectName,
             @ToolParam(name = "className", description = "The fully qualified class name (e.g., 'com.example.MyPluginTest')") String className,
-            @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout)
+            @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout,
+            @ToolParam(name = "withCoverage", description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false", required = false) String withCoverage)
     {
         int timeoutSeconds = Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60);
-        return pdeService.runJUnitPluginTestClass(projectName, className, timeoutSeconds);
+        boolean coverage = Optional.ofNullable(withCoverage).map(Boolean::parseBoolean).orElse(false);
+        return pdeService.runJUnitPluginTestClass(projectName, className, timeoutSeconds, coverage);
     }
 }

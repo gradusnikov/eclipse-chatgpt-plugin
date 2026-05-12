@@ -52,6 +52,9 @@ public class PDEService
     @Inject
     private UISynchronize sync;
 
+    @Inject
+    private CoverageService coverageService;
+
     // -------------------------------------------------------------------------
     // Target platform
     // -------------------------------------------------------------------------
@@ -203,6 +206,11 @@ public class PDEService
      */
     public String runJUnitPluginTests( String projectName, Integer timeout )
     {
+        return runJUnitPluginTests( projectName, timeout, false );
+    }
+
+    public String runJUnitPluginTests( String projectName, Integer timeout, boolean withCoverage )
+    {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         if ( projectName.isEmpty() )
         {
@@ -216,7 +224,7 @@ public class PDEService
         try
         {
             IJavaProject javaProject = getJavaProject( projectName );
-            return launchJUnitPluginTests( javaProject, null, null, timeout );
+            return launchJUnitPluginTests( javaProject, null, null, timeout, withCoverage );
         }
         catch ( IllegalArgumentException | CoreException e )
         {
@@ -228,6 +236,11 @@ public class PDEService
      * Runs JUnit Plug-in Tests for a specific class.
      */
     public String runJUnitPluginTestClass( String projectName, String className, Integer timeout )
+    {
+        return runJUnitPluginTestClass( projectName, className, timeout, false );
+    }
+
+    public String runJUnitPluginTestClass( String projectName, String className, Integer timeout, boolean withCoverage )
     {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         Objects.requireNonNull( className, "Class name cannot be null" );
@@ -244,7 +257,7 @@ public class PDEService
             {
                 return "Error: Class '" + className + "' not found in project '" + projectName + "'.";
             }
-            return launchJUnitPluginTests( javaProject, null, type, timeout );
+            return launchJUnitPluginTests( javaProject, null, type, timeout, withCoverage );
         }
         catch ( IllegalArgumentException | CoreException e )
         {
@@ -257,7 +270,7 @@ public class PDEService
     // -------------------------------------------------------------------------
 
     private String launchJUnitPluginTests( IJavaProject javaProject, Object packageFragment,
-                                            IType testClass, int timeout )
+                                            IType testClass, int timeout, boolean withCoverage )
     {
         CountDownLatch latch = new CountDownLatch( 1 );
         UnitTestService.TestRunResult[] testRunResults = new UnitTestService.TestRunResult[1];
@@ -354,11 +367,14 @@ public class PDEService
 
             ILaunchConfiguration configuration = workingCopy.doSave();
 
+            boolean useCoverage = withCoverage && coverageService.isCoverageAvailable();
+            String launchMode = useCoverage ? coverageService.getCoverageLaunchMode() : ILaunchManager.RUN_MODE;
+
             CoreException[] launchError = new CoreException[1];
             sync.syncExec( () -> {
                 try
                 {
-                    configuration.launch( ILaunchManager.RUN_MODE, new NullProgressMonitor() );
+                    configuration.launch( launchMode, new NullProgressMonitor() );
                 }
                 catch ( CoreException e )
                 {
@@ -381,7 +397,16 @@ public class PDEService
             {
                 return "Error: No test results collected. The test run may have failed to start.";
             }
-            return testRunResults[0].toString();
+
+            String results = testRunResults[0].toString();
+
+            if ( useCoverage )
+            {
+                String execFile = coverageService.findLatestCoverageFile();
+                results += coverageService.formatCoverageInfo( execFile, javaProject.getProject().getName() );
+            }
+
+            return results;
         }
         catch ( Exception e )
         {

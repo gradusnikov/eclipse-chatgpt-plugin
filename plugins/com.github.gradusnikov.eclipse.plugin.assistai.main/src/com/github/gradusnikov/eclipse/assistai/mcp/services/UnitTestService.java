@@ -46,6 +46,9 @@ public class UnitTestService {
     @Inject
     UISynchronize sync;
     
+    @Inject
+    CoverageService coverageService;
+    
     /**
      * Represents a test result with details about the test execution
      */
@@ -140,6 +143,10 @@ public class UnitTestService {
      * @return A formatted string with test results
      */
     public String runAllTests(String projectName, Integer timeout) {
+        return runAllTests(projectName, timeout, false);
+    }
+
+    public String runAllTests(String projectName, Integer timeout, boolean withCoverage) {
         Objects.requireNonNull(projectName, "Project name cannot be null");
         
         if (projectName.isEmpty()) {
@@ -154,7 +161,7 @@ public class UnitTestService {
             IJavaProject javaProject = getJavaProject( projectName );
             
             // Run the tests
-            return launchJUnitTests(javaProject, null, null, timeout);
+            return launchJUnitTests(javaProject, null, null, timeout, null, withCoverage);
             
         } catch (CoreException e) {
             throw new RuntimeException("Error running tests: " + e.getMessage(), e);
@@ -170,6 +177,10 @@ public class UnitTestService {
      * @return A formatted string with test results
      */
     public String runPackageTests(String projectName, String packageName, Integer timeout) {
+        return runPackageTests(projectName, packageName, timeout, false);
+    }
+
+    public String runPackageTests(String projectName, String packageName, Integer timeout, boolean withCoverage) {
         Objects.requireNonNull(projectName, "Project name cannot be null");
         Objects.requireNonNull(packageName, "Package name cannot be null");
         
@@ -195,7 +206,7 @@ public class UnitTestService {
             }
             
             // Run the tests
-            return launchJUnitTests(javaProject, pkg, null, timeout);
+            return launchJUnitTests(javaProject, pkg, null, timeout, null, withCoverage);
             
         } catch (CoreException e) {
             throw new RuntimeException("Error running tests: " + e.getMessage(), e);
@@ -211,6 +222,10 @@ public class UnitTestService {
      * @return A formatted string with test results
      */
     public String runClassTests(String projectName, String className, Integer timeout) {
+        return runClassTests(projectName, className, timeout, false);
+    }
+
+    public String runClassTests(String projectName, String className, Integer timeout, boolean withCoverage) {
         Objects.requireNonNull(projectName, "Project name cannot be null");
         Objects.requireNonNull(className, "Class name cannot be null");
         
@@ -236,7 +251,7 @@ public class UnitTestService {
             }
             
             // Run the tests
-            return launchJUnitTests(javaProject, null, type, timeout);
+            return launchJUnitTests(javaProject, null, type, timeout, null, withCoverage);
             
         } catch (CoreException e) {
             throw new RuntimeException("Error running tests: " + e.getMessage(), e);
@@ -253,6 +268,10 @@ public class UnitTestService {
      * @return A formatted string with test results
      */
     public String runTestMethod(String projectName, String className, String methodName, Integer timeout) {
+        return runTestMethod(projectName, className, methodName, timeout, false);
+    }
+
+    public String runTestMethod(String projectName, String className, String methodName, Integer timeout, boolean withCoverage) {
         Objects.requireNonNull(projectName, "Project name cannot be null");
         Objects.requireNonNull(className, "Class name cannot be null");
         Objects.requireNonNull(methodName, "Method name cannot be null");
@@ -289,7 +308,7 @@ public class UnitTestService {
             }
             
             // Run the tests
-            return launchJUnitTests(javaProject, null, type, timeout, methodName);
+            return launchJUnitTests(javaProject, null, type, timeout, methodName, withCoverage);
             
         } catch (CoreException e) {
             throw new RuntimeException("Error running tests: " + e.getMessage(), e);
@@ -389,18 +408,10 @@ public class UnitTestService {
     }
     
     /**
-     * Launches JUnit tests using Eclipse's JUnit infrastructure.
+     * Launches JUnit tests using Eclipse's JUnit infrastructure with optional method filtering and coverage.
      */
     private String launchJUnitTests(IJavaProject javaProject, IPackageFragment packageFragment, 
-                                    IType testClass, int timeout) {
-        return launchJUnitTests(javaProject, packageFragment, testClass, timeout, null);
-    }
-    
-    /**
-     * Launches JUnit tests using Eclipse's JUnit infrastructure with optional method filtering.
-     */
-    private String launchJUnitTests(IJavaProject javaProject, IPackageFragment packageFragment, 
-                                   IType testClass, int timeout, String methodName) {
+                                   IType testClass, int timeout, String methodName, boolean withCoverage) {
         final CountDownLatch latch = new CountDownLatch(1);
         final TestRunResult[] testRunResults = new TestRunResult[1];
         
@@ -489,10 +500,14 @@ public class UnitTestService {
                 // Create the actual configuration
                 ILaunchConfiguration configuration = workingCopy.doSave();
                 
+                // Determine launch mode
+                boolean useCoverage = withCoverage && coverageService.isCoverageAvailable();
+                String launchMode = useCoverage ? coverageService.getCoverageLaunchMode() : ILaunchManager.RUN_MODE;
+                
                 // Launch the tests
                 sync.syncExec(() -> {
                     try {
-                        configuration.launch(ILaunchManager.RUN_MODE, new NullProgressMonitor());
+                        configuration.launch(launchMode, new NullProgressMonitor());
                     } catch (CoreException e) {
                         logger.error("Error launching tests", e);
                     }
@@ -509,7 +524,14 @@ public class UnitTestService {
                     return "Error: No test results collected. The test run may have failed to start.";
                 }
                 
-                return testRunResults[0].toString();
+                String results = testRunResults[0].toString();
+                
+                if (useCoverage) {
+                    String execFile = coverageService.findLatestCoverageFile();
+                    results += coverageService.formatCoverageInfo( execFile, javaProject.getProject().getName() );
+                }
+                
+                return results;
                 
             } finally {
                 JUnitCore.removeTestRunListener(listener);
