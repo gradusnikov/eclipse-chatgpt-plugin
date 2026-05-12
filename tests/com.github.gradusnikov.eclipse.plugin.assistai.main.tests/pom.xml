@@ -47,7 +47,25 @@
             <include>**/CodeAnalysisServiceTest.java</include>
             <include>**/MavenServiceTest.java</include>
             <include>**/SdkHttpStreamingTest.java</include>
+            <include>**/CoverageServiceTest.java</include>
           </includes>
+          <dependencies>
+            <dependency>
+              <type>eclipse-plugin</type>
+              <artifactId>org.eclipse.eclemma.core</artifactId>
+              <version>0.0.0</version>
+            </dependency>
+            <dependency>
+              <type>eclipse-plugin</type>
+              <artifactId>org.eclipse.jdt.junit5.runtime</artifactId>
+              <version>0.0.0</version>
+            </dependency>
+            <dependency>
+              <type>eclipse-plugin</type>
+              <artifactId>org.eclipse.jdt.junit.runtime</artifactId>
+              <version>0.0.0</version>
+            </dependency>
+          </dependencies>
         </configuration>
       </plugin>
     </plugins>
