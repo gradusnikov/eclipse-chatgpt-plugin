@@ -1,0 +1,3 @@
+com.github.spotbugs.plugin.eclipse.findbugsMarkerScariest=Error
+com.github.spotbugs.plugin.eclipse.findbugsMarkerScary=Error
+eclipse.preferences.version=1

@@ -48,13 +48,15 @@ public class EclipseVariableUtilities
 	        String variable = matcher.group(1);
 	        String replacement = getVariableValue(variable);
 	        
-	        // Convert Windows path to WSL path if needed
-	        if (isWsl && replacement != null && !replacement.isEmpty()) 
+	        if (replacement == null)
+	        {
+	            replacement = matcher.group(0);
+	        }
+	        else if (isWsl && !replacement.isEmpty()) 
 	        {
 	            replacement = convertToWslPath(replacement);
 	        }
 	        
-	        // Escape backslashes and dollar signs for the replacement
 	        replacement = replacement.replace("\\", "\\\\").replace("$", "\\$");
 	        matcher.appendReplacement(result, replacement);
 	    }
