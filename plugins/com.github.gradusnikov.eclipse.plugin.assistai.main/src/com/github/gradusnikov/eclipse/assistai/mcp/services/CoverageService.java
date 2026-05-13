@@ -6,13 +6,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.jdt.core.IClasspathEntry;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.JavaCore;
 import org.jacoco.core.analysis.Analyzer;
@@ -188,22 +192,77 @@ public class CoverageService
             reader.read();
         }
 
+        Set<String> executedClassNames = executionDataStore.getContents().stream()
+            .map( data -> data.getName() )
+            .collect( Collectors.toSet() );
+
+        if ( executedClassNames.isEmpty() )
+        {
+            return "\n--- Coverage ---\nNo execution data found in coverage file.\n";
+        }
+
         CoverageBuilder coverageBuilder = new CoverageBuilder();
         Analyzer analyzer = new Analyzer( executionDataStore, coverageBuilder );
 
+        List<File> outputLocations = new ArrayList<>();
         IProject[] allProjects = ResourcesPlugin.getWorkspace().getRoot().getProjects();
         for ( IProject project : allProjects )
         {
-            if ( !project.isOpen() || !project.hasNature( JavaCore.NATURE_ID ) )
+            try
             {
-                continue;
+                if ( !project.isOpen() || !project.hasNature( JavaCore.NATURE_ID ) )
+                {
+                    continue;
+                }
+                IJavaProject javaProject = JavaCore.create( project );
+                Set<File> projectOutputs = new HashSet<>();
+                File defaultOutput = project.getLocation().append(
+                    javaProject.getOutputLocation().removeFirstSegments( 1 ) ).toFile();
+                projectOutputs.add( defaultOutput );
+                for ( IClasspathEntry entry : javaProject.getResolvedClasspath( true ) )
+                {
+                    if ( entry.getEntryKind() == IClasspathEntry.CPE_SOURCE && entry.getOutputLocation() != null )
+                    {
+                        File entryOutput = project.getLocation().append(
+                            entry.getOutputLocation().removeFirstSegments( 1 ) ).toFile();
+                        projectOutputs.add( entryOutput );
+                    }
+                }
+                for ( File output : projectOutputs )
+                {
+                    if ( output.exists() )
+                    {
+                        outputLocations.add( output );
+                    }
+                }
             }
-            IJavaProject javaProject = JavaCore.create( project );
-            File outputLocation = project.getLocation().append(
-                javaProject.getOutputLocation().removeFirstSegments( 1 ) ).toFile();
-            if ( outputLocation.exists() )
+            catch ( Exception e )
             {
-                analyzer.analyzeAll( outputLocation );
+                // skip projects that can't be resolved
+            }
+        }
+
+        for ( String className : executedClassNames )
+        {
+            String classFilePath = className.replace( '/', File.separatorChar ) + ".class";
+            for ( File outputLocation : outputLocations )
+            {
+                File classFile = new File( outputLocation, classFilePath );
+                if ( classFile.exists() )
+                {
+                    try ( FileInputStream fis = new FileInputStream( classFile ) )
+                    {
+                        analyzer.analyzeAll( fis, className );
+                    }
+                    catch ( Exception e )
+                    {
+                        if ( logger != null )
+                        {
+                            logger.warn( "Skipping class '" + className + "': " + e.getMessage() );
+                        }
+                    }
+                    break;
+                }
             }
         }
 
