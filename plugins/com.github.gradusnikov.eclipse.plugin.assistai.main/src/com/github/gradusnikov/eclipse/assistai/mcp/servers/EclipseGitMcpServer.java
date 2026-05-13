@@ -124,4 +124,12 @@ public class EclipseGitMcpServer
     {
         return gitService.stashList(projectName);
     }
+
+    @Tool(name = "gitStagePatch", description = "Stages specific changes from a unified diff patch into the index without modifying the working tree. Use this to stage partial file changes for selective commits. The patch must be in standard unified diff format with file headers (--- a/path and +++ b/path) and @@ hunk headers.", type = "object")
+    public String gitStagePatch(
+            @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
+            @ToolParam(name = "patch", description = "A unified diff patch string to stage. Must include file headers (--- a/path, +++ b/path) and @@ hunk headers.", required = true) String patch)
+    {
+        return gitService.stagePatch(projectName, patch);
+    }
 }
