@@ -218,7 +218,7 @@ public class PDEService
         }
         if ( timeout == null || timeout <= 0 )
         {
-            timeout = 120;
+            timeout = 300;
         }
 
         try
@@ -246,7 +246,7 @@ public class PDEService
         Objects.requireNonNull( className, "Class name cannot be null" );
         if ( timeout == null || timeout <= 0 )
         {
-            timeout = 120;
+            timeout = 300;
         }
 
         try
