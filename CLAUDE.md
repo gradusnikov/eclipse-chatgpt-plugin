@@ -49,5 +49,26 @@ This project exposes Eclipse IDE capabilities as MCP tools. When working on code
 - MCP tool annotations: `@McpServer`, `@Tool`, `@ToolParam` in the `mcp/annotations` package
 - Service classes in `mcp/services/` contain business logic; server classes in `mcp/servers/` are thin wrappers
 
+## Testing
+
+Test project: `com.github.gradusnikov.eclipse.plugin.assistai.main.tests`
+
+### Plain JUnit (run with `runClassTests` / `runAllTests`)
+- `com.github.gradusnikov.eclipse.assistai.chat.ConversationContextTest`
+- `com.github.gradusnikov.eclipse.assistai.prompt.MarkdownParserTest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.main.HtmlToMarkdownConverterTest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.servers.TimeMcpServerTest`
+
+### Plugin Tests (run with `runJUnitPluginTestClass` / `runJUnitPluginTests`)
+- `com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactoryTest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.servers.PDEMcpServerTest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.CodeEditingServiceTest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.MavenServiceTest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.CodeAnalysisServiceTest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.CoverageServiceTest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.PDEServicePluginTest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.GitServiceTest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.transport.SdkHttpStreamingTest`
+
 ## Build
-Eclipse PDE project — build via Eclipse or `mvn clean verify` from the repo root.
+Eclipse PDE project — for a full build, run `mvn clean verify` from the repo root via the shell (do not use Eclipse MCP tools for full builds).
