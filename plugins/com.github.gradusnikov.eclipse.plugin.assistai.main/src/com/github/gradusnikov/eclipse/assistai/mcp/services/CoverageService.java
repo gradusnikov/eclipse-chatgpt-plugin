@@ -47,6 +47,60 @@ public class CoverageService
         return COVERAGE_LAUNCH_MODE;
     }
 
+    public String waitForLatestCoverageFile( long launchStartTime, int maxWaitMs )
+    {
+        Path basePath = ResourcesPlugin.getWorkspace().getRoot().getLocation().toFile().toPath()
+            .resolve( ".metadata" ).resolve( ".plugins" ).resolve( ECLEMMA_CORE_BUNDLE );
+
+        if ( !Files.exists( basePath ) )
+        {
+            return null;
+        }
+
+        int elapsed = 0;
+        int pollInterval = 500;
+        while ( elapsed < maxWaitMs )
+        {
+            try
+            {
+                var execFile = Files.walk( basePath, 2 )
+                    .filter( p -> p.toString().endsWith( ".exec" ) )
+                    .filter( p -> {
+                        try
+                        {
+                            return Files.getLastModifiedTime( p ).toMillis() >= launchStartTime;
+                        }
+                        catch ( IOException e )
+                        {
+                            return false;
+                        }
+                    } )
+                    .findFirst();
+                if ( execFile.isPresent() )
+                {
+                    return execFile.get().toString();
+                }
+            }
+            catch ( IOException e )
+            {
+                logger.error( "Error searching for coverage files", e );
+                return null;
+            }
+            try
+            {
+                Thread.sleep( pollInterval );
+            }
+            catch ( InterruptedException e )
+            {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+            elapsed += pollInterval;
+        }
+        logger.warn( "Coverage exec file not found within " + maxWaitMs + "ms" );
+        return null;
+    }
+
     public String findLatestCoverageFile()
     {
         Path basePath = ResourcesPlugin.getWorkspace().getRoot().getLocation().toFile().toPath()
