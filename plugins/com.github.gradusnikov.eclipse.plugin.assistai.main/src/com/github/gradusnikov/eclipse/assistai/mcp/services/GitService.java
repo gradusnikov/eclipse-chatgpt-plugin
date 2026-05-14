@@ -2,6 +2,9 @@ package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Objects;
@@ -21,6 +24,11 @@ import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.lib.BranchTrackingStatus;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectInserter;
+import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.dircache.DirCache;
+import org.eclipse.jgit.dircache.DirCacheEntry;
+import org.eclipse.jgit.dircache.DirCacheEditor;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -201,6 +209,99 @@ public class GitService
         catch (Exception e)
         {
             throw new RuntimeException("Failed to add files: " + e.getMessage(), e);
+        }
+    }
+
+    public String stagePatch(String projectName, String patch)
+    {
+        Repository repository = getRepository(projectName);
+        try (Git gitCmd = new Git(repository))
+        {
+            java.io.File workTree = repository.getWorkTree();
+
+            // Parse the patch to find affected files
+            org.eclipse.jgit.patch.Patch parsedPatch = new org.eclipse.jgit.patch.Patch();
+            parsedPatch.parse(new ByteArrayInputStream(patch.getBytes(StandardCharsets.UTF_8)));
+
+            if (parsedPatch.getFiles().isEmpty())
+            {
+                return "No files affected by patch.";
+            }
+
+            // For each file in the patch: save working tree, restore HEAD, apply patch, stage, restore working tree
+            java.util.Map<java.io.File, byte[]> savedWorkingTree = new java.util.HashMap<>();
+
+            for (var fileHeader : parsedPatch.getFiles())
+            {
+                String filePath = fileHeader.getNewPath();
+                java.io.File file = new java.io.File(workTree, filePath);
+                if (file.exists())
+                {
+                    savedWorkingTree.put(file, Files.readAllBytes(file.toPath()));
+                }
+            }
+
+            // Checkout affected files from HEAD to restore original content
+            var checkoutCmd = gitCmd.checkout();
+            for (var fileHeader : parsedPatch.getFiles())
+            {
+                checkoutCmd.addPath(fileHeader.getNewPath());
+            }
+            checkoutCmd.call();
+
+            // Apply the patch to the now-clean working tree files
+            org.eclipse.jgit.api.ApplyResult result = gitCmd.apply()
+                .setPatch(new ByteArrayInputStream(patch.getBytes(StandardCharsets.UTF_8)))
+                .call();
+
+            // Stage the patched files
+            DirCache dirCache = repository.lockDirCache();
+            try
+            {
+                DirCacheEditor editor = dirCache.editor();
+                ObjectInserter inserter = repository.newObjectInserter();
+
+                for (var file : result.getUpdatedFiles())
+                {
+                    byte[] content = Files.readAllBytes(file.toPath());
+                    ObjectId blobId = inserter.insert(Constants.OBJ_BLOB, content);
+
+                    String repoRelativePath = workTree.toPath()
+                        .relativize(file.toPath()).toString().replace('\\', '/');
+
+                    editor.add(new DirCacheEditor.PathEdit(repoRelativePath)
+                    {
+                        @Override
+                        public void apply(DirCacheEntry ent)
+                        {
+                            ent.setObjectId(blobId);
+                            ent.setFileMode(org.eclipse.jgit.lib.FileMode.REGULAR_FILE);
+                            ent.setLength(content.length);
+                            ent.setLastModified(java.time.Instant.now());
+                        }
+                    });
+                }
+
+                inserter.flush();
+                editor.commit();
+            }
+            finally
+            {
+                dirCache.unlock();
+            }
+
+            // Restore working tree to the original modified state
+            for (var entry : savedWorkingTree.entrySet())
+            {
+                Files.write(entry.getKey().toPath(), entry.getValue());
+            }
+
+            refreshProject(projectName);
+            return "Patch staged successfully. Files: " + result.getUpdatedFiles().size();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to stage patch: " + e.getMessage(), e);
         }
     }
 
