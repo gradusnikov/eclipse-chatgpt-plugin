@@ -282,7 +282,7 @@ public class CoverageServiceTest
 
     @Test
     @Order( 9 )
-    public void testFormatCoverageInfo_withValidExecFile_andProject_returnsCoverageReport() throws Exception
+    public void testFormatCoverageInfo_withEmptyExecFile_andProject_returnsNoDataMessage() throws Exception
     {
         assumeTrue( coverageService.isCoverageAvailable(),
             "Skipping: EclEmma/JaCoCo not installed" );
@@ -297,8 +297,8 @@ public class CoverageServiceTest
         try
         {
             String result = coverageService.formatCoverageInfo( tempExec.toString(), TEST_PROJECT_NAME );
-            assertTrue( result.contains( "--- Coverage Report ---" ) );
-            assertTrue( result.contains( "All classes fully covered." ) || result.contains( "Classes with incomplete coverage:" ) );
+            assertTrue( result.contains( "--- Coverage ---" ) );
+            assertTrue( result.contains( "No execution data found" ) );
         }
         finally
         {

@@ -504,6 +504,7 @@ public class UnitTestService {
                 boolean useCoverage = withCoverage && coverageService.isCoverageAvailable();
                 String launchMode = useCoverage ? coverageService.getCoverageLaunchMode() : ILaunchManager.RUN_MODE;
                 
+                long launchStartTime = System.currentTimeMillis();
                 // Launch the tests
                 sync.syncExec(() -> {
                     try {
@@ -527,7 +528,7 @@ public class UnitTestService {
                 String results = testRunResults[0].toString();
                 
                 if (useCoverage) {
-                    String execFile = coverageService.findLatestCoverageFile();
+                    String execFile = coverageService.waitForLatestCoverageFile( launchStartTime, 10000 );
                     results += coverageService.formatCoverageInfo( execFile, javaProject.getProject().getName() );
                 }
                 

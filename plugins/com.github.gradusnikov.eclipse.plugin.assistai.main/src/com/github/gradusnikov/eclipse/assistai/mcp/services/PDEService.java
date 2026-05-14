@@ -370,6 +370,7 @@ public class PDEService
             boolean useCoverage = withCoverage && coverageService.isCoverageAvailable();
             String launchMode = useCoverage ? coverageService.getCoverageLaunchMode() : ILaunchManager.RUN_MODE;
 
+            long launchStartTime = System.currentTimeMillis();
             CoreException[] launchError = new CoreException[1];
             sync.syncExec( () -> {
                 try
@@ -402,7 +403,7 @@ public class PDEService
 
             if ( useCoverage )
             {
-                String execFile = coverageService.findLatestCoverageFile();
+                String execFile = coverageService.waitForLatestCoverageFile( launchStartTime, 10000 );
                 results += coverageService.formatCoverageInfo( execFile, javaProject.getProject().getName() );
             }
 
