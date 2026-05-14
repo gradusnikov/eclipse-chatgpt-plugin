@@ -154,7 +154,7 @@ public class UnitTestService {
         }
         
         if (timeout == null || timeout <= 0) {
-            timeout = 60; // Default timeout of 60 seconds
+            timeout = 300; // Default timeout of 300 seconds
         }
         
         try {
@@ -193,7 +193,7 @@ public class UnitTestService {
         }
         
         if (timeout == null || timeout <= 0) {
-            timeout = 60; // Default timeout of 60 seconds
+            timeout = 300; // Default timeout of 300 seconds
         }
         
         try {
@@ -238,7 +238,7 @@ public class UnitTestService {
         }
         
         if (timeout == null || timeout <= 0) {
-            timeout = 60; // Default timeout of 60 seconds
+            timeout = 300; // Default timeout of 300 seconds
         }
         
         try {
@@ -289,7 +289,7 @@ public class UnitTestService {
         }
         
         if (timeout == null || timeout <= 0) {
-            timeout = 60; // Default timeout of 60 seconds
+            timeout = 300; // Default timeout of 300 seconds
         }
         
         try {

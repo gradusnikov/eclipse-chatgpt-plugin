@@ -34,6 +34,7 @@ import org.eclipse.pde.core.target.ITargetHandle;
 import org.eclipse.pde.core.target.ITargetPlatformService;
 import org.eclipse.pde.core.target.LoadTargetDefinitionJob;
 import org.eclipse.pde.launching.IPDELauncherConstants;
+import org.eclipse.swt.widgets.Display;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -218,7 +219,7 @@ public class PDEService
         }
         if ( timeout == null || timeout <= 0 )
         {
-            timeout = 120;
+            timeout = 300;
         }
 
         try
@@ -246,7 +247,7 @@ public class PDEService
         Objects.requireNonNull( className, "Class name cannot be null" );
         if ( timeout == null || timeout <= 0 )
         {
-            timeout = 120;
+            timeout = 300;
         }
 
         try
@@ -372,24 +373,42 @@ public class PDEService
 
             long launchStartTime = System.currentTimeMillis();
             CoreException[] launchError = new CoreException[1];
-            sync.syncExec( () -> {
+            org.eclipse.debug.core.ILaunch[] launchRef = new org.eclipse.debug.core.ILaunch[1];
+            sync.asyncExec( () -> {
                 try
                 {
-                    configuration.launch( launchMode, new NullProgressMonitor() );
+                    launchRef[0] = configuration.launch( launchMode, new NullProgressMonitor() );
                 }
                 catch ( CoreException e )
                 {
                     launchError[0] = e;
+                    latch.countDown();
                     logger.log( org.eclipse.core.runtime.Status.error( "Error launching plug-in tests", e ) );
                 }
             } );
+
+            long deadline = System.currentTimeMillis() + timeout * 1000L;
+            Display display = Display.getCurrent();
+            boolean completed = false;
+            while ( !completed && System.currentTimeMillis() < deadline )
+            {
+                if ( display != null && !display.isDisposed() )
+                {
+                    while ( display.readAndDispatch() )
+                    {
+                    }
+                }
+                completed = latch.await( 100, TimeUnit.MILLISECONDS );
+                if ( !completed && launchRef[0] != null && launchRef[0].isTerminated() )
+                {
+                    completed = true;
+                }
+            }
 
             if ( launchError[0] != null )
             {
                 return "Error launching plug-in tests: " + launchError[0].getMessage();
             }
-
-            boolean completed = latch.await( timeout, TimeUnit.SECONDS );
             if ( !completed )
             {
                 return "Error: Test execution timed out after " + timeout + " seconds.";
