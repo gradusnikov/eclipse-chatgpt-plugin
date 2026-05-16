@@ -21,6 +21,12 @@ public class BearerTokenAuthenticationValve extends ValveBase
     @Override
     public void invoke( Request request, Response response ) throws IOException, ServletException
     {
+        if ( isLocalRequest( request ) )
+        {
+            getNext().invoke( request, response );
+            return;
+        }
+
         String authHeader = request.getHeader( "Authorization" );
 
         if ( authHeader == null || !authHeader.startsWith( "Bearer " ) )
@@ -42,5 +48,13 @@ public class BearerTokenAuthenticationValve extends ValveBase
         }
 
         getNext().invoke( request, response );
+    }
+
+    private boolean isLocalRequest( Request request )
+    {
+        String remoteAddr = request.getRemoteAddr();
+        return "127.0.0.1".equals( remoteAddr )
+            || "0:0:0:0:0:0:0:1".equals( remoteAddr )
+            || "::1".equals( remoteAddr );
     }
 }
