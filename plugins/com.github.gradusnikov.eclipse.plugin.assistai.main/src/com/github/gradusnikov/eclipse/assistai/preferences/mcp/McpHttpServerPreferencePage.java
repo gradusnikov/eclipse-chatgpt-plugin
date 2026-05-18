@@ -38,6 +38,7 @@ public class McpHttpServerPreferencePage extends PreferencePage implements IWork
     private Text hostnameText;
     private Text portText;
     private Text tokenText;
+    private Text toolPrefixText;
     private Button enabledCheckbox;
     private Button generateTokenButton;
     private Button copyTokenButton;
@@ -160,6 +161,16 @@ public class McpHttpServerPreferencePage extends PreferencePage implements IWork
                 }
             }
         });
+
+        // Tool Prefix field
+        Label toolPrefixLabel = new Label(configGroup, SWT.NONE);
+        toolPrefixLabel.setText("Tool Prefix:");
+
+        toolPrefixText = new Text(configGroup, SWT.BORDER);
+        toolPrefixText.setToolTipText("Optional prefix prepended to all tool names (e.g. 'tor_' makes 'listProjects' become 'tor_listProjects')");
+        GridData toolPrefixData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        toolPrefixData.horizontalSpan = 2;
+        toolPrefixText.setLayoutData(toolPrefixData);
     }
 
     private void createServerStatusGroup(Composite parent)
@@ -267,9 +278,10 @@ public class McpHttpServerPreferencePage extends PreferencePage implements IWork
         int port = Integer.parseInt(portText.getText().trim());
         String hostname = hostnameText.getText().trim();
         String token = tokenText.getText().trim();
+        String toolPrefix = toolPrefixText.getText().trim();
         boolean enabled = enabledCheckbox.getSelection();
 
-        presenter.savePreferences(port, hostname, token, enabled);
+        presenter.savePreferences(port, hostname, token, toolPrefix, enabled);
     }
 
     @Override
@@ -291,6 +303,7 @@ public class McpHttpServerPreferencePage extends PreferencePage implements IWork
             hostnameText.setText(prefs.hostname() );
             portText.setText(Integer.toString( prefs.port() ));
             tokenText.setText(prefs.token());
+            toolPrefixText.setText( prefs.toolPrefix() != null ? prefs.toolPrefix() : "" );
         });
     }
 

@@ -99,6 +99,7 @@ public class HttpMcpServerRegistry
     
     private void initializeBuiltInServers(Context context, List<McpServerDescriptor> stored, List<McpServerDescriptor> builtin )
     {
+        String toolPrefix = httpServerPreferncesProvider.get().toolPrefix();
         for ( McpServerDescriptor builtInServerDescriptor : builtin )
         {
             McpServerDescriptor updated = stored.stream()
@@ -110,7 +111,7 @@ public class HttpMcpServerRegistry
             {
                 var implementation = mcpServerRepository.makeImplementation( updated.name() );
                 var transportProvider = createStreamableHttpTransportProvider( updated.name() );
-                var server = mcpServerFactory.createSyncServer( implementation, transportProvider, updated.excludedTools() );
+                var server = mcpServerFactory.createSyncServer( implementation, transportProvider, updated.excludedTools(), toolPrefix );
                 servers.add( server );
                 addServlet(context, updated.name(), transportProvider);  // Pass context and name
             }

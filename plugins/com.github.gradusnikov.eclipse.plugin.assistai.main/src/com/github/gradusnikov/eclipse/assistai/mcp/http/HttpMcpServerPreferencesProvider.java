@@ -18,8 +18,9 @@ public class HttpMcpServerPreferencesProvider
         String hostname = preferenceStore.getString(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_HOSTNAME);
         int port = preferenceStore.getInt(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_PORT);
         String token = preferenceStore.getString(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN);
+        String toolPrefix = preferenceStore.getString(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_TOOL_PREFIX);
 
-        return new HttpMcpServerPreferences(port, hostname, token);
+        return new HttpMcpServerPreferences(port, hostname, token, toolPrefix);
     }
 
     public void save(HttpMcpServerPreferences preferences)
@@ -29,6 +30,7 @@ public class HttpMcpServerPreferencesProvider
         preferenceStore.setValue(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_HOSTNAME, preferences.hostname());
         preferenceStore.setValue(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_PORT, preferences.port());
         preferenceStore.setValue(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN, preferences.token());
+        preferenceStore.setValue(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_TOOL_PREFIX, preferences.toolPrefix());
     }
 
     public boolean isEnabled()
@@ -51,6 +53,7 @@ public class HttpMcpServerPreferencesProvider
         preferenceStore.setToDefault(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_PORT);
         preferenceStore.setToDefault(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN);
         preferenceStore.setToDefault(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_ENABLED);
+        preferenceStore.setToDefault(com.github.gradusnikov.eclipse.assistai.preferences.PreferenceConstants.ASSISTAI_MCP_HTTP_TOOL_PREFIX);
     }
 
 }

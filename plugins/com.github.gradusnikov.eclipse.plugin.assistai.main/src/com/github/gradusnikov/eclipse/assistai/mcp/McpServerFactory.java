@@ -171,15 +171,20 @@ public class McpServerFactory
 
     public McpSyncServer createSyncServer( Object serverImplementation, McpServerTransportProvider transportProvider )
     {
-        return createSyncServer( serverImplementation, transportProvider, Collections.emptySet() );
+        return createSyncServer( serverImplementation, transportProvider, Collections.emptySet(), "" );
     }
 
     public McpSyncServer createSyncServer( Object serverImplementation, McpServerTransportProvider transportProvider, Collection<String> excludedTools )
     {
+        return createSyncServer( serverImplementation, transportProvider, excludedTools, "" );
+    }
+
+    public McpSyncServer createSyncServer( Object serverImplementation, McpServerTransportProvider transportProvider, Collection<String> excludedTools, String toolPrefix )
+    {
         requireMcpServerAnnotation( serverImplementation );
 
         var info     = createImplementationInfo( serverImplementation );
-        var toolSpecifications = createToolSpecifications( serverImplementation, excludedTools );
+        var toolSpecifications = createToolSpecifications( serverImplementation, excludedTools, toolPrefix );
         var capabilities = createCapabilities();
         return McpServer.sync( transportProvider )
                         .serverInfo( info )
@@ -192,15 +197,20 @@ public class McpServerFactory
 
     public McpSyncServer createSyncServer( Object serverImplementation, HttpServletStreamableServerTransportProvider transportProvider )
     {
-        return createSyncServer( serverImplementation, transportProvider, Collections.emptySet() );
+        return createSyncServer( serverImplementation, transportProvider, Collections.emptySet(), "" );
     }
 
     public McpSyncServer createSyncServer( Object serverImplementation, HttpServletStreamableServerTransportProvider transportProvider, Collection<String> excludedTools )
     {
+        return createSyncServer( serverImplementation, transportProvider, excludedTools, "" );
+    }
+
+    public McpSyncServer createSyncServer( Object serverImplementation, HttpServletStreamableServerTransportProvider transportProvider, Collection<String> excludedTools, String toolPrefix )
+    {
         requireMcpServerAnnotation( serverImplementation );
 
         var info     = createImplementationInfo( serverImplementation );
-        var toolSpecifications = createToolSpecifications( serverImplementation, excludedTools );
+        var toolSpecifications = createToolSpecifications( serverImplementation, excludedTools, toolPrefix );
         var capabilities = createCapabilities();
         return McpServer.sync( transportProvider )
                 .serverInfo( info )
@@ -211,9 +221,10 @@ public class McpServerFactory
                 .build();
     }
 
-    private List<SyncToolSpecification> createToolSpecifications( Object serverImplementation, Collection<String> excludedTools )
+    private List<SyncToolSpecification> createToolSpecifications( Object serverImplementation, Collection<String> excludedTools, String toolPrefix )
     {
         var excluded = Set.copyOf( excludedTools );
+        var prefix = (toolPrefix != null && !toolPrefix.isBlank()) ? toolPrefix : "";
         var executor = new ToolExecutor( serverImplementation );
         var tools    = extractAnnotatedTools( executor.getFunctions() );
         if ( tools.isEmpty() )
@@ -222,12 +233,14 @@ public class McpServerFactory
         }
         var toolSpecifications = tools.stream()
                 .filter( tool -> !excluded.contains( tool.name() ) )
-                .map( tool -> 
-                    McpServerFeatures.SyncToolSpecification.builder()
-                    .tool( tool )
-                    .callHandler( (exchange, request) ->  executeCallTool( executor, tool, request.arguments() ) )
-                    .build()
-                ).collect( Collectors.toList() );
+                .map( tool -> {
+                    var prefixedTool = prefix.isEmpty() ? tool : new McpSchema.Tool(
+                            prefix + tool.name(), prefix + tool.name(), tool.description(), tool.inputSchema(), tool.outputSchema(), tool.annotations(), tool.meta() );
+                    return McpServerFeatures.SyncToolSpecification.builder()
+                        .tool( prefixedTool )
+                        .callHandler( (exchange, request) ->  executeCallTool( executor, tool, request.arguments() ) )
+                        .build();
+                }).collect( Collectors.toList() );
         
         return toolSpecifications;
     }
