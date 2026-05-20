@@ -17,6 +17,7 @@ public class PreferenceConstants
     public static final String ASSISTAI_MCP_HTTP_PORT = "AssistAIMcpHttpPort";
     public static final String ASSISTAI_MCP_HTTP_AUTH_TOKEN = "AssistAIMcpHttpToken";
     public static final String ASSISTAI_MCP_HTTP_ENABLED = "AssistAIMcpHttpEnabled";
+    public static final String ASSISTAI_MCP_HTTP_TOOL_PREFIX = "AssistAIMcpHttpToolPrefix";
     
     // Code Completion preferences
     public static final String ASSISTAI_COMPLETION_ENABLED = "AssistAICompletionEnabled";
