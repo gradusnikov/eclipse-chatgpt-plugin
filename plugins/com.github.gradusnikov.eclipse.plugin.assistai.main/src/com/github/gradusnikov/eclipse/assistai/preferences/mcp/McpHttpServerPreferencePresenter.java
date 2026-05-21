@@ -48,9 +48,9 @@ public class McpHttpServerPreferencePresenter
      * @param token the authentication token
      * @param enabled whether the server is enabled
      */
-    public void savePreferences(int port, String hostname, String token, boolean enabled)
+    public void savePreferences(int port, String hostname, String token, String toolPrefix, boolean enabled)
     {
-        HttpMcpServerPreferences preferences = new HttpMcpServerPreferences(port, hostname, token);
+        HttpMcpServerPreferences preferences = new HttpMcpServerPreferences(port, hostname, token, toolPrefix);
         preferencesProvider.save(preferences);
         preferencesProvider.setEnabled(enabled);
         
@@ -108,7 +108,7 @@ public class McpHttpServerPreferencePresenter
     public void onGenerateNewToken()
     {
         var old =  preferencesProvider.get();
-        HttpMcpServerPreferences preferences = new HttpMcpServerPreferences(old.port(), old.hostname(), generateToken());
+        HttpMcpServerPreferences preferences = new HttpMcpServerPreferences(old.port(), old.hostname(), generateToken(), old.toolPrefix());
         preferencesProvider.save(preferences);
         
         logger.info( "MCP Http server preferences updated" );
