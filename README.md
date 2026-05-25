@@ -39,7 +39,7 @@ The status panel shows all available endpoints:
 
 #### Claude Code
 
-Add to your Claude Code MCP settings (`.mcp.json` in project root):
+Add to your Claude Code MCP settings (.claude/settings.json or project-level(`.mcp.json` in project root)):
 
 ```json
 {
