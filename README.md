@@ -201,6 +201,8 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 |------|-------------|
 | runJavaApplication | Launch in run mode with optional arguments and timeout |
 | debugJavaApplication | Launch in debug mode, stops at breakpoints |
+| launchConfiguration | Launch an existing saved launch configuration by name (reuses its classpath, VM args, env, working dir, JRebel, etc.) in run or debug mode |
+| listLaunchConfigurations | List saved launch configurations (name, type, project, main class) |
 | stopApplication | Stop a running/debugging application |
 | listActiveLaunches | List all running/debugging applications |
 | toggleBreakpoint | Set or remove a line breakpoint |

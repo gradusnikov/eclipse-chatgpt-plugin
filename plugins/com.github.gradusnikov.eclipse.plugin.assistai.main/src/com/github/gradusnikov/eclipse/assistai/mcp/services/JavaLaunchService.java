@@ -140,120 +140,260 @@ public class JavaLaunchService
                         vmArgs);
             }
 
-            ILaunchConfiguration configuration = workingCopy.doSave();
-
-            // Capture output
-            var outputBuffer = new StringBuilder();
-            var errorBuffer = new StringBuilder();
-            // Launch
-            final ILaunch[] launchHolder = new ILaunch[1];
-            sync.syncExec(() ->
-            {
-                try
-                {
-                    launchHolder[0] = configuration.launch(mode, new NullProgressMonitor());
-                }
-                catch (CoreException e)
-                {
-                    logger.error("Error launching application", e);
-                }
-            });
-
-            ILaunch launch = launchHolder[0];
-            if (launch == null)
-            {
-                return "Error: Failed to launch application.";
-            }
-
-            // Attach stream listeners to capture output
-            for (IProcess process : launch.getProcesses())
-            {
-                IStreamMonitor stdoutMonitor = process.getStreamsProxy().getOutputStreamMonitor();
-                IStreamMonitor stderrMonitor = process.getStreamsProxy().getErrorStreamMonitor();
-
-                // Capture any content already buffered
-                String existingOut = stdoutMonitor.getContents();
-                if (existingOut != null && !existingOut.isEmpty())
-                {
-                    outputBuffer.append(existingOut);
-                }
-                String existingErr = stderrMonitor.getContents();
-                if (existingErr != null && !existingErr.isEmpty())
-                {
-                    errorBuffer.append(existingErr);
-                }
-
-                stdoutMonitor.addListener(new IStreamListener()
-                {
-                    @Override
-                    public void streamAppended(String text, IStreamMonitor monitor)
-                    {
-                        outputBuffer.append(text);
-                    }
-                });
-                stderrMonitor.addListener(new IStreamListener()
-                {
-                    @Override
-                    public void streamAppended(String text, IStreamMonitor monitor)
-                    {
-                        errorBuffer.append(text);
-                    }
-                });
-            }
-
-            String modeLabel = ILaunchManager.DEBUG_MODE.equals(mode) ? "debug" : "run";
-
-            if (timeout > 0)
-            {
-                // Wait for process to finish
-                boolean terminated = waitForTermination(launch, timeout);
-
-                var result = new StringBuilder();
-                result.append("Application '").append(mainClass).append("' launched in ").append(modeLabel).append(" mode.\n");
-
-                if (!terminated)
-                {
-                    result.append("Note: Process still running after ").append(timeout).append("s timeout.\n");
-                }
-                else
-                {
-                    // Get exit code
-                    for (IProcess process : launch.getProcesses())
-                    {
-                        int exitValue = process.getExitValue();
-                        result.append("Exit code: ").append(exitValue).append("\n");
-                    }
-                }
-
-                if (outputBuffer.length() > 0)
-                {
-                    result.append("\n--- stdout ---\n").append(truncateOutput(outputBuffer.toString(), 5000));
-                }
-                if (errorBuffer.length() > 0)
-                {
-                    result.append("\n--- stderr ---\n").append(truncateOutput(errorBuffer.toString(), 2000));
-                }
-
-                // Clean up configuration for short-lived runs
-                if (terminated)
-                {
-                    try { configuration.delete(); } catch (CoreException e) { /* ignore */ }
-                }
-
-                return result.toString();
-            }
-            else
-            {
-                // Don't wait â return immediately
-                return "Application '" + mainClass + "' launched in " + modeLabel + " mode. " +
-                       "Use stopApplication to terminate it, or getConsoleOutput to see its output.";
-            }
+            // Launch the in-memory working copy directly. We deliberately do NOT
+            // doSave() it: saving adds a throwaway "AssistAI-<Class>-<timestamp>"
+            // entry to the user's Run/Debug Configurations list on every launch,
+            // and the previous cleanup only deleted it for terminated timed runs
+            // (never for background launches), so those entries accumulated.
+            return executeLaunch(workingCopy, "Application '" + mainClass + "'", mode, timeout);
         }
         catch (Exception e)
         {
             logger.error("Error launching Java application", e);
             return "Error: " + e.getMessage();
         }
+    }
+
+    /**
+     * Launches an existing, saved launch configuration by name, reusing its full
+     * setup: classpath, program/VM arguments, environment variables, working
+     * directory, and any agent settings (e.g. JRebel). Unlike
+     * {@link #runJavaApplication}/{@link #debugJavaApplication}, this does not
+     * create a new configuration.
+     *
+     * @param configurationName The exact name of the launch configuration (see {@link #listLaunchConfigurations})
+     * @param mode "run" or "debug" (anything else defaults to run)
+     * @param timeout Timeout in seconds to wait for the process to finish (0 = don't wait)
+     * @return A status message with launch info or captured output
+     */
+    public String launchConfiguration(String configurationName, String mode, int timeout)
+    {
+        Objects.requireNonNull(configurationName, "Configuration name cannot be null");
+
+        String launchMode = ILaunchManager.DEBUG_MODE.equalsIgnoreCase(mode)
+                ? ILaunchManager.DEBUG_MODE
+                : ILaunchManager.RUN_MODE;
+
+        try
+        {
+            ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
+            ILaunchConfiguration configuration = findLaunchConfigurationByName(launchManager, configurationName);
+            if (configuration == null)
+            {
+                return "Error: No launch configuration named '" + configurationName
+                        + "' found. Use listLaunchConfigurations to see the available names.";
+            }
+            if (!configuration.supportsMode(launchMode))
+            {
+                return "Error: Launch configuration '" + configuration.getName()
+                        + "' does not support " + launchMode + " mode.";
+            }
+            return executeLaunch(configuration,
+                    "Launch configuration '" + configuration.getName() + "'", launchMode, timeout);
+        }
+        catch (Exception e)
+        {
+            logger.error("Error launching configuration", e);
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Lists all saved launch configurations in the workspace, with their type and
+     * (for Java application configurations) project and main class. Use this to
+     * discover the exact name to pass to {@link #launchConfiguration}.
+     *
+     * @return A formatted list of launch configurations
+     */
+    public String listLaunchConfigurations()
+    {
+        try
+        {
+            ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
+            ILaunchConfiguration[] configurations = launchManager.getLaunchConfigurations();
+
+            if (configurations.length == 0)
+            {
+                return "No launch configurations found.";
+            }
+
+            var result = new StringBuilder();
+            result.append("Launch configurations (").append(configurations.length).append("):\n");
+
+            for (ILaunchConfiguration configuration : configurations)
+            {
+                result.append("- ").append(configuration.getName());
+                try
+                {
+                    result.append(" [").append(configuration.getType().getName()).append("]");
+                }
+                catch (CoreException e) { /* type unavailable - skip */ }
+
+                String projectName = configuration.getAttribute(
+                        IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, "");
+                String mainType = configuration.getAttribute(
+                        IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "");
+                if (!projectName.isEmpty())
+                {
+                    result.append(" project=").append(projectName);
+                }
+                if (!mainType.isEmpty())
+                {
+                    result.append(" main=").append(mainType);
+                }
+                result.append("\n");
+            }
+
+            return result.toString();
+        }
+        catch (Exception e)
+        {
+            logger.error("Error listing launch configurations", e);
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Finds a saved launch configuration by name: exact match first, then a
+     * case-insensitive fallback.
+     */
+    private ILaunchConfiguration findLaunchConfigurationByName(ILaunchManager launchManager, String name)
+            throws CoreException
+    {
+        ILaunchConfiguration[] configurations = launchManager.getLaunchConfigurations();
+        for (ILaunchConfiguration configuration : configurations)
+        {
+            if (configuration.getName().equals(name))
+            {
+                return configuration;
+            }
+        }
+        for (ILaunchConfiguration configuration : configurations)
+        {
+            if (configuration.getName().equalsIgnoreCase(name))
+            {
+                return configuration;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Launches the given configuration (which may be an unsaved working copy or a
+     * persisted configuration), attaches stream listeners, and either waits for
+     * termination returning captured output (timeout &gt; 0) or returns
+     * immediately (timeout == 0).
+     *
+     * @param configuration The configuration (or working copy) to launch
+     * @param subject A human-readable subject for status messages (e.g. "Application 'com.example.Main'")
+     * @param mode {@link ILaunchManager#RUN_MODE} or {@link ILaunchManager#DEBUG_MODE}
+     * @param timeout Timeout in seconds to wait for the process to finish (0 = don't wait)
+     */
+    private String executeLaunch(ILaunchConfiguration configuration, String subject, String mode, int timeout)
+    {
+        var outputBuffer = new StringBuilder();
+        var errorBuffer = new StringBuilder();
+
+        final ILaunch[] launchHolder = new ILaunch[1];
+        sync.syncExec(() ->
+        {
+            try
+            {
+                launchHolder[0] = configuration.launch(mode, new NullProgressMonitor());
+            }
+            catch (CoreException e)
+            {
+                logger.error("Error launching application", e);
+            }
+        });
+
+        ILaunch launch = launchHolder[0];
+        if (launch == null)
+        {
+            return "Error: Failed to launch " + subject + ".";
+        }
+
+        // Attach stream listeners to capture output
+        for (IProcess process : launch.getProcesses())
+        {
+            IStreamMonitor stdoutMonitor = process.getStreamsProxy().getOutputStreamMonitor();
+            IStreamMonitor stderrMonitor = process.getStreamsProxy().getErrorStreamMonitor();
+
+            // Capture any content already buffered
+            String existingOut = stdoutMonitor.getContents();
+            if (existingOut != null && !existingOut.isEmpty())
+            {
+                outputBuffer.append(existingOut);
+            }
+            String existingErr = stderrMonitor.getContents();
+            if (existingErr != null && !existingErr.isEmpty())
+            {
+                errorBuffer.append(existingErr);
+            }
+
+            stdoutMonitor.addListener(new IStreamListener()
+            {
+                @Override
+                public void streamAppended(String text, IStreamMonitor monitor)
+                {
+                    outputBuffer.append(text);
+                }
+            });
+            stderrMonitor.addListener(new IStreamListener()
+            {
+                @Override
+                public void streamAppended(String text, IStreamMonitor monitor)
+                {
+                    errorBuffer.append(text);
+                }
+            });
+        }
+
+        String modeLabel = ILaunchManager.DEBUG_MODE.equals(mode) ? "debug" : "run";
+
+        if (timeout > 0)
+        {
+            // Wait for process to finish
+            boolean terminated = waitForTermination(launch, timeout);
+
+            var result = new StringBuilder();
+            result.append(subject).append(" launched in ").append(modeLabel).append(" mode.\n");
+
+            if (!terminated)
+            {
+                result.append("Note: Process still running after ").append(timeout).append("s timeout.\n");
+            }
+            else
+            {
+                // Get exit code
+                for (IProcess process : launch.getProcesses())
+                {
+                    try
+                    {
+                        result.append("Exit code: ").append(process.getExitValue()).append("\n");
+                    }
+                    catch (DebugException e)
+                    {
+                        result.append("Exit code: (unavailable)\n");
+                    }
+                }
+            }
+
+            if (outputBuffer.length() > 0)
+            {
+                result.append("\n--- stdout ---\n").append(truncateOutput(outputBuffer.toString(), 5000));
+            }
+            if (errorBuffer.length() > 0)
+            {
+                result.append("\n--- stderr ---\n").append(truncateOutput(errorBuffer.toString(), 2000));
+            }
+
+            return result.toString();
+        }
+
+        // Don't wait -- return immediately
+        return subject + " launched in " + modeLabel + " mode. " +
+               "Use stopApplication to terminate it, or getConsoleOutput to see its output.";
     }
 
     /**

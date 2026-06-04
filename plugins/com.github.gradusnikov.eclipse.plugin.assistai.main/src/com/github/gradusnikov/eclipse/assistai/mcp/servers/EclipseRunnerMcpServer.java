@@ -63,6 +63,27 @@ public class EclipseRunnerMcpServer
         return javaLaunchService.listActiveLaunches();
     }
 
+    @Tool(name = "listLaunchConfigurations",
+          description = "Lists all saved launch configurations in the workspace (name, type, and for Java applications the project and main class). Use this to discover the exact name to pass to launchConfiguration.",
+          type = "object")
+    public String listLaunchConfigurations()
+    {
+        return javaLaunchService.listLaunchConfigurations();
+    }
+
+    @Tool(name = "launchConfiguration",
+          description = "Launches an existing saved launch configuration by name, exactly as it would run from Eclipse's Run/Debug Configurations dialog (reusing its classpath, program/VM arguments, environment variables, working directory, and agent settings such as JRebel). Use listLaunchConfigurations to find the name. Unlike runJavaApplication/debugJavaApplication, this does NOT create a throwaway configuration. If timeout > 0, waits for the process to finish and returns stdout/stderr; if timeout = 0, launches in background and returns immediately.",
+          type = "object")
+    public String launchConfiguration(
+            @ToolParam(name = "configurationName", description = "The exact name of the launch configuration to launch (e.g., 'Run Snapshot App No Data Compass Local')") String configurationName,
+            @ToolParam(name = "mode", description = "Launch mode: 'run' or 'debug'. Default: 'run'", required = false) String mode,
+            @ToolParam(name = "timeout", description = "Timeout in seconds to wait for completion. Use '0' to launch in background without waiting. Default: '0'", required = false) String timeout)
+    {
+        int timeoutSeconds = Optional.ofNullable(timeout).map(Integer::parseInt).orElse(0);
+        String launchMode = Optional.ofNullable(mode).filter(m -> !m.isBlank()).orElse("run");
+        return javaLaunchService.launchConfiguration(configurationName, launchMode, timeoutSeconds);
+    }
+
     @Tool(name = "toggleBreakpoint",
           description = "Sets or removes a line breakpoint at the specified location. If a breakpoint already exists at the line, it is removed. Otherwise, a new breakpoint is created.",
           type = "object")

@@ -2,7 +2,7 @@
 name: eclipse-debug
 description: Debug Java applications in Eclipse — set breakpoints, launch in debug mode, step through code, inspect stack traces, evaluate expressions, and hot-swap code changes.
 argument-hint: [project] [main class]
-allowed-tools: mcp__eclipse-runner__debugJavaApplication, mcp__eclipse-runner__stopApplication, mcp__eclipse-runner__listActiveLaunches, mcp__eclipse-runner__toggleBreakpoint, mcp__eclipse-runner__setConditionalBreakpoint, mcp__eclipse-runner__listBreakpoints, mcp__eclipse-runner__removeAllBreakpoints, mcp__eclipse-runner__getStackTrace, mcp__eclipse-runner__evaluateExpression, mcp__eclipse-runner__resumeDebug, mcp__eclipse-runner__stepOver, mcp__eclipse-runner__stepInto, mcp__eclipse-runner__stepReturn, mcp__eclipse-runner__hotCodeReplace, mcp__eclipse-ide__getConsoleOutput
+allowed-tools: mcp__eclipse-runner__debugJavaApplication, mcp__eclipse-runner__launchConfiguration, mcp__eclipse-runner__listLaunchConfigurations, mcp__eclipse-runner__stopApplication, mcp__eclipse-runner__listActiveLaunches, mcp__eclipse-runner__toggleBreakpoint, mcp__eclipse-runner__setConditionalBreakpoint, mcp__eclipse-runner__listBreakpoints, mcp__eclipse-runner__removeAllBreakpoints, mcp__eclipse-runner__getStackTrace, mcp__eclipse-runner__evaluateExpression, mcp__eclipse-runner__resumeDebug, mcp__eclipse-runner__stepOver, mcp__eclipse-runner__stepInto, mcp__eclipse-runner__stepReturn, mcp__eclipse-runner__hotCodeReplace, mcp__eclipse-ide__getConsoleOutput
 ---
 
 # Debug Java Applications in Eclipse
@@ -19,6 +19,7 @@ Full interactive debugging using Eclipse's JDT debugger. Set breakpoints, step t
 ## Launch
 
 - **debugJavaApplication** — Launch in debug mode. Same parameters as `runJavaApplication` but defaults to `timeout=0` (background). The app stops at breakpoints.
+- **launchConfiguration** — Debug an *existing saved* launch configuration by name with `mode="debug"`, preserving its classpath, VM args, environment variables, working directory, and agent settings (e.g. JRebel). Use `listLaunchConfigurations` to find the name. Breakpoints set via `toggleBreakpoint` still apply.
 
 ## Stepping (requires suspended thread)
 
