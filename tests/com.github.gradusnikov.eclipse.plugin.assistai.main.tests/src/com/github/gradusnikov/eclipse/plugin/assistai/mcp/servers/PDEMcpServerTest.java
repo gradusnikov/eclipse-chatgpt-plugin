@@ -110,12 +110,134 @@ public class PDEMcpServerTest
     {
         try
         {
-            // Non-existent project â will get an error string back, not an exception
-            String result = server.runJUnitPluginTests( "NonExistentProject_XYZ", null, null );
+            String result = server.runJUnitPluginTests( "NonExistentProject_XYZ", null, null, null, null );
             assertNotNull( result );
             assertTrue( result.startsWith( "Error" ),
                 "Expected error for non-existent project, got: " + result );
         }
+        catch ( IllegalStateException e )
+        {
+            assumeTrue( false, "Skipping: workspace not available (" + e.getMessage() + ")" );
+        }
+    }
+
+    @Test
+    public void testRunJUnitPluginTests_explicitTimeout_parsed()
+    {
+        try
+        {
+            String result = server.runJUnitPluginTests( "NonExistentProject_XYZ", "30", null, null, null );
+            assertNotNull( result );
+            assertTrue( result.startsWith( "Error" ),
+                "Expected error for non-existent project, got: " + result );
+        }
+        catch ( IllegalStateException e )
+        {
+            assumeTrue( false, "Skipping: workspace not available (" + e.getMessage() + ")" );
+        }
+    }
+
+    @Test
+    public void testRunJUnitPluginTests_includeAllPluginsTrue()
+    {
+        try
+        {
+            String result = server.runJUnitPluginTests( "NonExistentProject_XYZ", "10", null, "true", null );
+            assertNotNull( result );
+            assertTrue( result.startsWith( "Error" ),
+                "Expected error for non-existent project, got: " + result );
+        }
+        catch ( IllegalStateException e )
+        {
+            assumeTrue( false, "Skipping: workspace not available (" + e.getMessage() + ")" );
+        }
+    }
+
+    @Test
+    public void testRunJUnitPluginTests_includeAllPluginsFalse()
+    {
+        try
+        {
+            String result = server.runJUnitPluginTests( "NonExistentProject_XYZ", "10", null, "false", null );
+            assertNotNull( result );
+            assertTrue( result.startsWith( "Error" ),
+                "Expected error for non-existent project, got: " + result );
+        }
+        catch ( IllegalStateException e )
+        {
+            assumeTrue( false, "Skipping: workspace not available (" + e.getMessage() + ")" );
+        }
+    }
+
+    @Test
+    public void testRunJUnitPluginTests_withAdditionalBundles()
+    {
+        try
+        {
+            String result = server.runJUnitPluginTests(
+                "NonExistentProject_XYZ", "10", null, "false", "org.eclipse.core.runtime,org.eclipse.ui" );
+            assertNotNull( result );
+            assertTrue( result.startsWith( "Error" ),
+                "Expected error for non-existent project, got: " + result );
+        }
+        catch ( IllegalStateException e )
+        {
+            assumeTrue( false, "Skipping: workspace not available (" + e.getMessage() + ")" );
+        }
+    }
+
+    @Test
+    public void testRunJUnitPluginTestClass_nullTimeout_usesDefault()
+    {
+        try
+        {
+            String result = server.runJUnitPluginTestClass(
+                "NonExistentProject_XYZ", "com.example.MyTest", null, null, null, null );
+            assertNotNull( result );
+            assertTrue( result.startsWith( "Error" ),
+                "Expected error for non-existent project, got: " + result );
+        }
+        catch ( IllegalStateException e )
+        {
+            assumeTrue( false, "Skipping: workspace not available (" + e.getMessage() + ")" );
+        }
+    }
+
+    @Test
+    public void testRunJUnitPluginTestClass_includeAllPluginsTrue()
+    {
+        try
+        {
+            String result = server.runJUnitPluginTestClass(
+                "NonExistentProject_XYZ", "com.example.MyTest", "10", null, "true", null );
+            assertNotNull( result );
+            assertTrue( result.startsWith( "Error" ),
+                "Expected error for non-existent project, got: " + result );
+        }
+        catch ( IllegalStateException e )
+        {
+            assumeTrue( false, "Skipping: workspace not available (" + e.getMessage() + ")" );
+        }
+    }
+
+    @Test
+    public void testRunJUnitPluginTestClass_withAdditionalBundles()
+    {
+        try
+        {
+            String result = server.runJUnitPluginTestClass(
+                "NonExistentProject_XYZ", "com.example.MyTest", "10", null, "false",
+                "org.eclipse.core.runtime, org.eclipse.ui" );
+            assertNotNull( result );
+            assertTrue( result.startsWith( "Error" ),
+                "Expected error for non-existent project, got: " + result );
+        }
+        catch ( IllegalStateException e )
+        {
+            assumeTrue( false, "Skipping: workspace not available (" + e.getMessage() + ")" );
+        }
+    }
+}
         catch ( IllegalStateException e )
         {
             assumeTrue( false, "Skipping: workspace not available (" + e.getMessage() + ")" );

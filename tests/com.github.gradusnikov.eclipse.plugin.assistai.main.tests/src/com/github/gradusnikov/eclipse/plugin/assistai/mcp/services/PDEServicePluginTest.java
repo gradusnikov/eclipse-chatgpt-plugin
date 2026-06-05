@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
@@ -397,6 +398,113 @@ public class PDEServicePluginTest
             "Skipping: PDE launcher not available or project has errors (" + result + ")" );
         assertTrue( !result.contains( "does not exist" ),
             "Got 'does not exist' error - container format is wrong: " + result );
+        assertTrue( result.contains( "Passed" ) || result.contains( "passed" )
+            || result.contains( "timed out" ),
+            "Expected test results or timeout, got: " + result );
+    }
+
+    // -------------------------------------------------------------------------
+    // includeAllPlugins parameter
+    // -------------------------------------------------------------------------
+
+    @Test
+    @Order( 22 )
+    public void testRunJUnitPluginTests_includeAllPlugins_nonExistentProject()
+    {
+        String result = service.runJUnitPluginTests( "NonExistentProject_PDEPlugin", 10, false, true, List.of() );
+        assertNotNull( result );
+        assertTrue( result.startsWith( "Error" ),
+            "Expected error for non-existent project, got: " + result );
+    }
+
+    @Test
+    @Order( 23 )
+    public void testRunJUnitPluginTests_selectedPlugins_nonExistentProject()
+    {
+        String result = service.runJUnitPluginTests( "NonExistentProject_PDEPlugin", 10, false, false, List.of() );
+        assertNotNull( result );
+        assertTrue( result.startsWith( "Error" ),
+            "Expected error for non-existent project, got: " + result );
+    }
+
+    @Test
+    @Order( 24 )
+    public void testRunJUnitPluginTests_withAdditionalBundles_nonExistentProject()
+    {
+        String result = service.runJUnitPluginTests(
+            "NonExistentProject_PDEPlugin", 10, false, false,
+            List.of( "org.eclipse.core.runtime", "org.eclipse.ui" ) );
+        assertNotNull( result );
+        assertTrue( result.startsWith( "Error" ),
+            "Expected error for non-existent project, got: " + result );
+    }
+
+    @Test
+    @Order( 25 )
+    public void testRunJUnitPluginTestClass_includeAllPlugins_nonExistentProject()
+    {
+        String result = service.runJUnitPluginTestClass(
+            "NonExistentProject_PDEPlugin", "com.example.MyTest", 10, false, true, List.of() );
+        assertNotNull( result );
+        assertTrue( result.startsWith( "Error" ),
+            "Expected error for non-existent project, got: " + result );
+    }
+
+    @Test
+    @Order( 26 )
+    public void testRunJUnitPluginTestClass_withAdditionalBundles_nonExistentProject()
+    {
+        String result = service.runJUnitPluginTestClass(
+            "NonExistentProject_PDEPlugin", "com.example.MyTest", 10, false, false,
+            List.of( "org.eclipse.core.runtime" ) );
+        assertNotNull( result );
+        assertTrue( result.startsWith( "Error" ),
+            "Expected error for non-existent project, got: " + result );
+    }
+
+    // -------------------------------------------------------------------------
+    // Integration: run with selected plugins mode on real project
+    // -------------------------------------------------------------------------
+
+    @Test
+    @Order( 30 )
+    public void testRunJUnitPluginTestClass_selectedPluginsMode_realProject()
+    {
+        String result = service.runJUnitPluginTestClass(
+            TEST_PLUGIN_PROJECT,
+            "com.example.pdetest.SimplePluginTest",
+            120, false, false, List.of() );
+        System.out.println( "runJUnitPluginTestClass (selected) result: " + result );
+        assumeTrue( !result.contains( "Error" ),
+            "Skipping: PDE launcher not available or project has errors (" + result + ")" );
+        assertTrue( result.contains( "Passed" ) || result.contains( "passed" ),
+            "Expected passing tests in result, got: " + result );
+    }
+
+    @Test
+    @Order( 31 )
+    public void testRunJUnitPluginTestClass_allPluginsMode_realProject()
+    {
+        String result = service.runJUnitPluginTestClass(
+            TEST_PLUGIN_PROJECT,
+            "com.example.pdetest.SimplePluginTest",
+            120, false, true, List.of() );
+        System.out.println( "runJUnitPluginTestClass (all) result: " + result );
+        assumeTrue( !result.contains( "Error" ),
+            "Skipping: PDE launcher not available or project has errors (" + result + ")" );
+        assertTrue( result.contains( "Passed" ) || result.contains( "passed" ),
+            "Expected passing tests in result, got: " + result );
+    }
+
+    @Test
+    @Order( 32 )
+    public void testRunJUnitPluginTests_selectedPluginsMode_realProject()
+    {
+        String result = service.runJUnitPluginTests(
+            TEST_PLUGIN_PROJECT, 120, false, false, List.of() );
+        System.out.println( "runJUnitPluginTests (selected) result: " + result );
+        assumeTrue( !result.contains( "Error" ),
+            "Skipping: PDE launcher not available or project has errors (" + result + ")" );
         assertTrue( result.contains( "Passed" ) || result.contains( "passed" )
             || result.contains( "timed out" ),
             "Expected test results or timeout, got: " + result );

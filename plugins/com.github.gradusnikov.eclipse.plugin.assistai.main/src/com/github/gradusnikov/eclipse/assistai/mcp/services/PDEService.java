@@ -1,6 +1,9 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -207,10 +210,16 @@ public class PDEService
      */
     public String runJUnitPluginTests( String projectName, Integer timeout )
     {
-        return runJUnitPluginTests( projectName, timeout, false );
+        return runJUnitPluginTests( projectName, timeout, false, false, List.of() );
     }
 
     public String runJUnitPluginTests( String projectName, Integer timeout, boolean withCoverage )
+    {
+        return runJUnitPluginTests( projectName, timeout, withCoverage, false, List.of() );
+    }
+
+    public String runJUnitPluginTests( String projectName, Integer timeout, boolean withCoverage,
+                                        boolean includeAllPlugins, List<String> additionalBundles )
     {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         if ( projectName.isEmpty() )
@@ -225,7 +234,7 @@ public class PDEService
         try
         {
             IJavaProject javaProject = getJavaProject( projectName );
-            return launchJUnitPluginTests( javaProject, null, null, timeout, withCoverage );
+            return launchJUnitPluginTests( javaProject, null, null, timeout, withCoverage, includeAllPlugins, additionalBundles );
         }
         catch ( IllegalArgumentException | CoreException e )
         {
@@ -238,10 +247,16 @@ public class PDEService
      */
     public String runJUnitPluginTestClass( String projectName, String className, Integer timeout )
     {
-        return runJUnitPluginTestClass( projectName, className, timeout, false );
+        return runJUnitPluginTestClass( projectName, className, timeout, false, false, List.of() );
     }
 
     public String runJUnitPluginTestClass( String projectName, String className, Integer timeout, boolean withCoverage )
+    {
+        return runJUnitPluginTestClass( projectName, className, timeout, withCoverage, false, List.of() );
+    }
+
+    public String runJUnitPluginTestClass( String projectName, String className, Integer timeout, boolean withCoverage,
+                                            boolean includeAllPlugins, List<String> additionalBundles )
     {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         Objects.requireNonNull( className, "Class name cannot be null" );
@@ -258,7 +273,7 @@ public class PDEService
             {
                 return "Error: Class '" + className + "' not found in project '" + projectName + "'.";
             }
-            return launchJUnitPluginTests( javaProject, null, type, timeout, withCoverage );
+            return launchJUnitPluginTests( javaProject, null, type, timeout, withCoverage, includeAllPlugins, additionalBundles );
         }
         catch ( IllegalArgumentException | CoreException e )
         {
@@ -271,7 +286,8 @@ public class PDEService
     // -------------------------------------------------------------------------
 
     private String launchJUnitPluginTests( IJavaProject javaProject, Object packageFragment,
-                                            IType testClass, int timeout, boolean withCoverage )
+                                            IType testClass, int timeout, boolean withCoverage,
+                                            boolean includeAllPlugins, List<String> additionalBundles )
     {
         CountDownLatch latch = new CountDownLatch( 1 );
         UnitTestService.TestRunResult[] testRunResults = new UnitTestService.TestRunResult[1];
@@ -365,6 +381,32 @@ public class PDEService
                 + javaProject.getElementName();
             workingCopy.setAttribute( IPDELauncherConstants.LOCATION, testWorkspace );
             workingCopy.setAttribute( IPDELauncherConstants.DOCLEAR, false );
+
+            if ( includeAllPlugins )
+            {
+                workingCopy.setAttribute( IPDELauncherConstants.USE_DEFAULT, true );
+                workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_ADD, true );
+            }
+            else
+            {
+                workingCopy.setAttribute( IPDELauncherConstants.USE_DEFAULT, false );
+                workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_ADD, false );
+                workingCopy.setAttribute( IPDELauncherConstants.INCLUDE_OPTIONAL, true );
+                workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_INCLUDE_REQUIREMENTS, true );
+                workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_VALIDATE, true );
+
+                Set<String> workspaceBundles = new TreeSet<>();
+                workspaceBundles.add( javaProject.getElementName() + "@default:false" );
+                if ( additionalBundles != null )
+                {
+                    for ( String bundle : additionalBundles )
+                    {
+                        workspaceBundles.add( bundle + "@default:false" );
+                    }
+                }
+                workingCopy.setAttribute( IPDELauncherConstants.SELECTED_WORKSPACE_BUNDLES, workspaceBundles );
+                workingCopy.setAttribute( IPDELauncherConstants.SELECTED_TARGET_BUNDLES, new TreeSet<String>() );
+            }
 
             ILaunchConfiguration configuration = workingCopy.doSave();
 
