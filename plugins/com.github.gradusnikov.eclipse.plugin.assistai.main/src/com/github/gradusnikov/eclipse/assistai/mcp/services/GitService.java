@@ -3,6 +3,8 @@ package com.github.gradusnikov.eclipse.assistai.mcp.services;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ByteArrayInputStream;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
@@ -45,6 +47,8 @@ import jakarta.inject.Inject;
 @SuppressWarnings("restriction")
 public class GitService
 {
+    private static final ConcurrentHashMap<String, ReentrantLock> repoLocks = new ConcurrentHashMap<>();
+
     @Inject
     private ILog logger;
 
@@ -53,6 +57,11 @@ public class GitService
 
     @Inject
     public EditorService editorService;
+
+    private ReentrantLock getRepositoryLock(Repository repository)
+    {
+        return repoLocks.computeIfAbsent(repository.getDirectory().getAbsolutePath(), k -> new ReentrantLock());
+    }
 
     private Repository getRepository(String projectName)
     {
@@ -199,22 +208,33 @@ public class GitService
     public String addFiles(String projectName, String filePattern)
     {
         Repository repository = getRepository(projectName);
-        try (Git git = new Git(repository))
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
+        try
         {
-            git.add().addFilepattern(filePattern).call();
-            git.add().setUpdate(true).addFilepattern(filePattern).call();
-            refreshProject(projectName);
-            return "Added: " + filePattern;
+            try (Git git = new Git(repository))
+            {
+                git.add().addFilepattern(filePattern).call();
+                git.add().setUpdate(true).addFilepattern(filePattern).call();
+            }
         }
         catch (Exception e)
         {
             throw new RuntimeException("Failed to add files: " + e.getMessage(), e);
         }
+        finally
+        {
+            lock.unlock();
+        }
+        refreshProject(projectName);
+        return "Added: " + filePattern;
     }
 
     public String stagePatch(String projectName, String patch)
     {
         Repository repository = getRepository(projectName);
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
         try (Git gitCmd = new Git(repository))
         {
             java.io.File workTree = repository.getWorkTree();
@@ -303,11 +323,17 @@ public class GitService
         {
             throw new RuntimeException("Failed to stage patch: " + e.getMessage(), e);
         }
+        finally
+        {
+            lock.unlock();
+        }
     }
 
     public String commit(String projectName, String message)
     {
         Repository repository = getRepository(projectName);
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
         try (Git git = new Git(repository))
         {
             RevCommit commit = git.commit().setMessage(message).call();
@@ -317,6 +343,10 @@ public class GitService
         catch (Exception e)
         {
             throw new RuntimeException("Failed to commit: " + e.getMessage(), e);
+        }
+        finally
+        {
+            lock.unlock();
         }
     }
 
@@ -421,6 +451,8 @@ public class GitService
     public String checkoutBranch(String projectName, String branchName)
     {
         Repository repository = getRepository(projectName);
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
         try (Git git = new Git(repository))
         {
             git.checkout().setName(branchName).call();
@@ -431,11 +463,17 @@ public class GitService
         {
             throw new RuntimeException("Failed to checkout branch: " + e.getMessage(), e);
         }
+        finally
+        {
+            lock.unlock();
+        }
     }
 
     public String resetFiles(String projectName, String filePattern)
     {
         Repository repository = getRepository(projectName);
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
         try (Git git = new Git(repository))
         {
             git.reset().addPath(filePattern).call();
@@ -446,11 +484,17 @@ public class GitService
         {
             throw new RuntimeException("Failed to reset files: " + e.getMessage(), e);
         }
+        finally
+        {
+            lock.unlock();
+        }
     }
 
     public String stash(String projectName, String message)
     {
         Repository repository = getRepository(projectName);
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
         try (Git git = new Git(repository))
         {
             var cmd = git.stashCreate();
@@ -470,11 +514,17 @@ public class GitService
         {
             throw new RuntimeException("Failed to stash: " + e.getMessage(), e);
         }
+        finally
+        {
+            lock.unlock();
+        }
     }
 
     public String stashPop(String projectName)
     {
         Repository repository = getRepository(projectName);
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
         try (Git git = new Git(repository))
         {
             git.stashApply().call();
@@ -485,6 +535,10 @@ public class GitService
         catch (Exception e)
         {
             throw new RuntimeException("Failed to pop stash: " + e.getMessage(), e);
+        }
+        finally
+        {
+            lock.unlock();
         }
     }
 
