@@ -185,6 +185,14 @@ public class EclipseIntegrationsMcpServer
         return projectService.listProjects();
     }
 
+    @Tool(name = "openProject", description = "Opens/imports a project into the Eclipse workspace from a directory path. If the directory contains a .project file, it imports the project as-is. If not, a basic .project is created and the directory is imported as a generic project.", type = "object")
+    public String openProject(
+            @ToolParam(name = "directoryPath", description = "The absolute filesystem path to the directory to open as a project") String directoryPath)
+    {
+        return projectService.openProject(directoryPath);
+    }
+
+
     @Tool(name = "getCurrentlyOpenedFile", description = "Gets information about the currently active file in the Eclipse editor.", type = "object")
     public String getCurrentlyOpenedFile()
     {
