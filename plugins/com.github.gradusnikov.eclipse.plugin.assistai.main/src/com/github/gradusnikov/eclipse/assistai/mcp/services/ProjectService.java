@@ -3,6 +3,8 @@ package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.File;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -18,6 +20,8 @@ import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.e4.core.di.annotations.Creatable;
@@ -25,6 +29,7 @@ import org.eclipse.jdt.core.IClasspathEntry;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
+import org.eclipse.core.resources.IProjectDescription;
 
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
 import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
@@ -155,6 +160,52 @@ public class ProjectService {
         
         return result.toString();
     }
+
+    public String openProject(String directoryPath) {
+        try {
+            File directory = new File(directoryPath);
+            if (!directory.exists()) {
+                return "Error: Directory does not exist: " + directoryPath;
+            }
+            if (!directory.isDirectory()) {
+                return "Error: Path is not a directory: " + directoryPath;
+            }
+
+            IProgressMonitor monitor = new NullProgressMonitor();
+            File projectFile = new File(directory, ".project");
+
+            IProjectDescription description;
+            if (projectFile.exists()) {
+                org.eclipse.core.runtime.IPath projectFilePath = org.eclipse.core.runtime.Path.fromOSString(projectFile.getAbsolutePath());
+                description = ResourcesPlugin.getWorkspace().loadProjectDescription(projectFilePath);
+            } else {
+                String projectName = directory.getName();
+                description = ResourcesPlugin.getWorkspace().newProjectDescription(projectName);
+                org.eclipse.core.runtime.IPath locationPath = org.eclipse.core.runtime.Path.fromOSString(directory.getAbsolutePath());
+                description.setLocation(locationPath);
+            }
+
+            String projectName = description.getName();
+            IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+
+            if (project.exists()) {
+                if (!project.isOpen()) {
+                    project.open(monitor);
+                    return "Project '" + projectName + "' was already in workspace but closed. Opened successfully.";
+                }
+                return "Project '" + projectName + "' is already open in the workspace.";
+            }
+
+            project.create(description, monitor);
+            project.open(monitor);
+
+            return "Project '" + projectName + "' imported and opened successfully from: " + directoryPath;
+        } catch (CoreException e) {
+            logger.error(e.getMessage(), e);
+            return "Error opening project: " + e.getMessage();
+        }
+    }
+
     
     /**
      * Gets the file and folder structure of a specified project.
