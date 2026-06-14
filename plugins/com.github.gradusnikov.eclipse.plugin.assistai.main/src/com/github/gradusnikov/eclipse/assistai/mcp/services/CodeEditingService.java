@@ -317,7 +317,7 @@ public class CodeEditingService
 	        });
 	        
 	        // Read the file line by line for better range handling
-	        List<String> lines = ResourceUtilities.readFileLines(file);
+	        List<String> lines = ResourceUtilities.readFileLinesWithTerminators(file);
 	        
 	        // Validate line range
 	        int totalLines = lines.size();
@@ -343,10 +343,6 @@ public class CodeEditingService
 	        for (int i = effectiveStartLine; i <= effectiveEndLine; i++) 
 	        {
 	            rangeContent.append(lines.get(i));
-	            if (i < effectiveEndLine) 
-	            {
-	                rangeContent.append("\n");
-	            }
 	        }
 	        
 	        String rangeText = rangeContent.toString();
@@ -371,28 +367,16 @@ public class CodeEditingService
 	        // Add lines before the range
 	        for (int i = 0; i < effectiveStartLine; i++) 
 	        {
-	            modifiedContent.append(lines.get(i)).append("\n");
+	            modifiedContent.append(lines.get(i));
 	        }
 	        
 	        // Add the modified range content
 	        modifiedContent.append(replacedRangeText);
 	        
-	        // Add a newline if we're not at the end of the file
-	        if (effectiveEndLine < totalLines - 1) 
-	        {
-	            modifiedContent.append("\n");
-	        }
-	        
 	        // Add lines after the range
 	        for (int i = effectiveEndLine + 1; i < totalLines; i++) 
 	        {
 	            modifiedContent.append(lines.get(i));
-                modifiedContent.append("\n");
-	        }
-	        // Add new line at the end of the last line
-	        if ( !modifiedContent.toString().endsWith("\n") )
-	        {
-	        	modifiedContent.append("\n");
 	        }
 	        
 	        var modifiedContentString = modifiedContent.toString();
@@ -481,7 +465,7 @@ public class CodeEditingService
 	        	safeOpenEditor(file);
 	        	refreshEditor(file);
 	        });
-	        List<String> lines = ResourceUtilities.readFileLines(file);
+	        List<String> lines = ResourceUtilities.readFileLinesWithTerminators(file);
 	        
 	        // convert to 0-based indexing
 	        var effectiveAtLine = atLine - 1;
@@ -497,7 +481,7 @@ public class CodeEditingService
 	        // Add lines before insertion point
 	        for (int i = 0; i < effectiveAtLine; i++) 
 	        {
-	            modifiedContent.append(lines.get(i)).append("\n");
+	            modifiedContent.append(lines.get(i));
 	        }
 	        
 	        // Add the new content
@@ -511,10 +495,6 @@ public class CodeEditingService
 	        for (int i = effectiveAtLine; i < lines.size(); i++) 
 	        {
 	            modifiedContent.append(lines.get(i) );
-	            if (i < lines.size() - 1) 
-	            {
-	                modifiedContent.append("\n");
-	            }
 	        }
 	        
 	        var modifiedContentString = modifiedContent.toString();
@@ -1052,7 +1032,7 @@ public class CodeEditingService
 	        });
 	        
 	        // Read file content
-	        List<String> lines = ResourceUtilities.readFileLines(file);
+	        List<String> lines = ResourceUtilities.readFileLinesWithTerminators(file);
 	        
 	        // Validate line numbers
 	        int totalLines = lines.size();
@@ -1072,7 +1052,6 @@ public class CodeEditingService
 	        for (int i = 0; i < startLine0; i++) 
 	        {
 	            modifiedContent.append( lines.get(i) );
-                modifiedContent.append("\n");
 	        }
 	        // Add the replacement content
 	        modifiedContent.append(replacementContent);
@@ -1084,7 +1063,6 @@ public class CodeEditingService
 	        for (int i = endLine0 + 1; i < totalLines; i++) 
 	        {
 	            modifiedContent.append(lines.get(i));
-                modifiedContent.append("\n");
 	        }
 	        
 	        var modifiedContentString = modifiedContent.toString();
@@ -2421,7 +2399,7 @@ public class CodeEditingService
             });
 
             // Read the original file content
-            List<String> originalLines = ResourceUtilities.readFileLines(file);
+            List<String> originalLines = ResourceUtilities.readFileLinesWithTerminators(file);
 
             // Parse and apply the unified diff
             List<String> patchedLines = applyUnifiedDiff(originalLines, patch);
