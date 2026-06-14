@@ -40,330 +40,292 @@ import io.modelcontextprotocol.spec.McpSchema.Tool;
 import jakarta.inject.Inject;
 
 /**
- * A Java HTTP client for streaming requests to OpenAI API.
- * This class allows subscribing to responses received from the OpenAI API and processes the chat completions.
+ * A Java HTTP client for streaming requests to OpenAI API. This class allows
+ * subscribing to responses received from the OpenAI API and processes the chat
+ * completions.
  */
 @Creatable
-public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient
-{
-    // Publisher is created fresh for each run() call to avoid issues with closed publishers
-    private SubmissionPublisher<Incoming> publisher;
-    private final List<Flow.Subscriber<Incoming>> subscribers = new ArrayList<>();
-    
-    private Supplier<Boolean> isCancelled = () -> false;
-    
-    @Inject
-    public OpenAIStreamJavaHttpClient( ILog logger, 
-            LanguageModelClientConfiguration configuration, 
-            InMemoryMcpClientRetistry mcpClientRegistry,
-            ResourceCache resourceCache, 
-            PromptRepository promptRepository )
-    {
-        super( logger, configuration, mcpClientRegistry, resourceCache, promptRepository );
-    }
-    
-    @Override
-    public void setCancelProvider( Supplier<Boolean> isCancelled )
-    {
-        this.isCancelled = isCancelled;
-    }
-    
-    /**
-     * Subscribes a given Flow.Subscriber to receive String data from OpenAI API responses.
-     * @param subscriber the Flow.Subscriber to be subscribed to the publisher
-     */
-    @Override
-    public synchronized void subscribe(Flow.Subscriber<Incoming> subscriber)
-    {
-        // Store subscriber to be added when publisher is created in run()
-        subscribers.add(subscriber);
-    }
-    /**
-     * Returns the JSON request body as a String for the given prompt.
-     * @param prompt the user input to be included in the request body
-     * @return the JSON request body as a String
-     */
-    private String getRequestBody(Conversation prompt, ModelApiDescriptor model)
-    {
-        try
-        {
-            
-            var requestBody = new LinkedHashMap<String, Object>();
-            var messages = new ArrayList<Map<String, Object>>();
-    
-            var systemMessage = new LinkedHashMap<String, Object> ();
-            systemMessage.put("role", "developer");
-            
-            String systemPrompt = promptRepository.getPrompt( Prompts.SYSTEM.name() );
-            
-            // Inject cached resources block at the beginning of system prompt
-            String resourcesBlock = resourceCache.toContextBlock();
-            if (!resourcesBlock.isEmpty()) 
-            {
-                systemPrompt = resourcesBlock + "\n\n" + systemPrompt;
-            }
-            
-            systemMessage.put("content", systemPrompt);
-            messages.add(systemMessage);
-            
-            
-            prompt.messages().stream().map( message -> toJsonPayload(message, model) ).forEach( messages::add );
-            
-            requestBody.put("model", model.modelName() );
-            if ( model.functionCalling() )
-            {
-                ArrayNode tools = objectMapper.createArrayNode();
-                for ( var tool : listAvailableTools().entrySet() )
-                {
-                    tools.addAll( toolToJson( tool.getKey(), tool.getValue() ) );
-                }                
-                if ( !tools.isEmpty() )
-                {
-                    requestBody.put("tools", tools );
-                    requestBody.put("tool_choice", "auto");
-                }
-            }
-            requestBody.put("messages", messages);
-            model.scaledTemperature().ifPresent( temp -> requestBody.put("temperature", temp  ) );
-            requestBody.put("stream", true);
-    
-            String jsonString;
-            jsonString = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(requestBody);
-            return jsonString;
-        }
-        catch (JsonProcessingException e)
-        {
-            throw new RuntimeException( e );
-        }
-    }
-    
-    static ArrayNode toolToJson(String toolName, Tool tool)
-    {
-        var functionObj = new LinkedHashMap<String, Object>();
-        functionObj.put( "name", toolName );
-        functionObj.put( "description", Optional.ofNullable( tool.description() ).orElse( "" ) );
-        functionObj.put( "parameters", Map.of(
-                        "type", tool.inputSchema().type(), 
-                        "properties", tool.inputSchema().properties(),
-                        "required", Optional.ofNullable(tool.inputSchema().required()).orElse( List.of() ) ) );
+public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient {
+	// Publisher is created fresh for each run() call to avoid issues with closed
+	// publishers
+	private SubmissionPublisher<Incoming> publisher;
+	private final List<Flow.Subscriber<Incoming>> subscribers = new ArrayList<>();
 
-        var toolObject = new LinkedHashMap<String, Object>();
-        toolObject.put( "type", "function" );
-        toolObject.put( "function", functionObj );
+	private Supplier<Boolean> isCancelled = () -> false;
 
-        var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        var functionsJsonNode = objectMapper.valueToTree( List.of( toolObject ) );
-        return (ArrayNode) functionsJsonNode; 
-    }
-    
-    private LinkedHashMap<String, Object> toJsonPayload( ChatMessage message, ModelApiDescriptor model )
-    {
-        try
-        {
-            var userMessage = new LinkedHashMap<String,Object>();
-            // Supported values are: 'assistant', 'system', 'developer', and 'user'.
-            var role = message.getRole().equals( "function" ) ? "user" : message.getRole();
-            userMessage.put("role", role);
-            
-            if ( model.functionCalling() )
-            {
-                if ( "assistant".equals( message.getRole() ) && Objects.nonNull( message.getFunctionCall() ) )
-                {
-                    var toolCallObj = new LinkedHashMap<String, Object>();
-                    toolCallObj.put( "id", message.getFunctionCall().id() );
-                    toolCallObj.put( "type", "function" );
-                    toolCallObj.put( "function", Map.of(
-                            "name", message.getFunctionCall().name(),
-                            "arguments", objectMapper.writeValueAsString( message.getFunctionCall().arguments() ) ) );
-                    userMessage.put( "tool_calls", List.of( toolCallObj ) );
-                }
-                if ( "function".equals( message.getRole() ) && Objects.nonNull( message.getFunctionCall() ) )
-                {
-                    role = "tool";
-                    userMessage.put( "role", role );
-                    userMessage.put( "tool_call_id", message.getFunctionCall().id() );
-                }
-            }
-            
-            // assemble text content
-            List<String> textParts = message.getAttachments()
-                    .stream()
-                    .map( Attachment::toChatMessageContent )
-                    .filter( Objects::nonNull )
-                    .collect( Collectors.toList() );
-            
-            var attachmentsString = String.join( "\n", textParts );
-            
-            var textContent = attachmentsString.isBlank() 
-            	    ? message.getContent() 
-            	    : attachmentsString + "\n\n" + message.getContent();
-           
-            // add image content
-            if ( model.vision() )
-            {
-                var content = new ArrayList<>();
-                var textObject = new LinkedHashMap<String, String> ();
-                textObject.put( "type", "text" );
-                textObject.put( "text", textContent );
-                content.add( textObject );
-                message.getAttachments()
-                       .stream()
-                       .map( Attachment::getImageData )
-                       .filter( Objects::nonNull )
-                       .map( ImageUtilities::toBase64Jpeg )
-                       .map( this::toImageUrl )
-                       .forEachOrdered( content::add );
-                userMessage.put( "content", content );
-            }
-            else // legacy API - just put content as text
-            {
-                userMessage.put( "content", textContent );
-            }
-            return userMessage;
-        }
-        catch ( Exception e )
-        {
-            throw new RuntimeException( e );
-        }
-    }
+	@Inject
+	public OpenAIStreamJavaHttpClient(ILog logger, LanguageModelClientConfiguration configuration,
+			InMemoryMcpClientRetistry mcpClientRegistry, ResourceCache resourceCache,
+			PromptRepository promptRepository) {
+		super(logger, configuration, mcpClientRegistry, resourceCache, promptRepository);
+	}
 
-    
+	@Override
+	public void setCancelProvider(Supplier<Boolean> isCancelled) {
+		this.isCancelled = isCancelled;
+	}
 
-    /**
-     * Converts a base64-encoded image data string into a structured JSON object suitable for API transmission.
-     * <p>
-     * This method constructs a JSON object that encapsulates the image data in a format expected by the API.
-     * The 'image_url' key is an object containing a 'url' key, which holds the base64-encoded image data prefixed
-     * with the appropriate data URI scheme.
-     *
-     * @param data the base64-encoded string of the image data
-     * @return a LinkedHashMap where the key 'type' is set to 'image_url', and 'image_url' is another LinkedHashMap
-     *         containing the 'url' key with the full data URI of the image.
-     */
-    private LinkedHashMap<String, Object> toImageUrl(String data)
-    {
-        var imageObject = new LinkedHashMap<String, Object>();
-        imageObject.put("type", "image_url");
-        var urlObject = new LinkedHashMap<String, String>();
-        urlObject.put("url", "data:image/jpeg;base64," + data);
-        imageObject.put("image_url", urlObject);
-        return imageObject;
-    }
- 
-    /**
-     * Creates and returns a Runnable that will execute the HTTP request to OpenAI API
-     * with the given conversation prompt and process the responses.
-     * <p>
-     * Note: this method does not block and the returned Runnable should be executed
-     * to perform the actual HTTP request and processing.
-     *
-     * @param prompt the conversation to be sent to the OpenAI API
-     * @return a Runnable that performs the HTTP request and processes the responses
-     */
-    @Override
-    public Runnable run( Conversation prompt ) 
-    {
-    	return () ->  {
-    	    // Create a fresh publisher for this request
-    	    // Use a synchronous executor (Runnable::run) to ensure chunks are delivered 
-    	    // immediately as they arrive, rather than being batched by the ForkJoinPool.
-    	    // This is critical for streaming use cases where the caller expects to receive
-    	    // each chunk as it arrives from the API.
-    	    publisher = new SubmissionPublisher<>(Runnable::run, Flow.defaultBufferSize());
-    	    
-    	    // Add all subscribers that were registered before run() was called
-    	    synchronized (this) {
-    	        for (Flow.Subscriber<Incoming> subscriber : subscribers) {
-    	            publisher.subscribe(subscriber);
-    	        }
-    	    }
-    		
-    	    HttpClient client = HttpClient.newBuilder()
-    		                              .connectTimeout( model.connectionTimeout() )
-    		                              .build();
-    		
-    		String requestBody = getRequestBody(prompt, model);
-            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(model.apiUrl()))
-                    .timeout( model.requestTimeout() )
-                    .version(HttpClient.Version.HTTP_1_1)
-    				.header("Authorization", "Bearer " + model.apiKey())
-    				.header("Accept", "text/event-stream")
-    				.header("Content-Type", "application/json")
-    				.POST(HttpRequest.BodyPublishers.ofString(requestBody))
-    				.build();
-    		
-    		logger.info("Sending request to ChatGPT.");
-    		
-    		try
-    		{
-    			HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
-    			
-    			if (response.statusCode() != 200)
-    			{
-    			    logger.error("Request failed with status code: " + response.statusCode() + " and response body: " + new String(response.body().readAllBytes()));
-    			}
-    			try (var inputStream = response.body();
-    			     var inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
-    			     var reader = new BufferedReader(inputStreamReader)) 
-    			{
-    				String line;
-    				while ((line = reader.readLine()) != null && !isCancelled.get() )
-    				{
-    					if (line.startsWith("data:"))
-    					{
-    					    var data = line.substring(5).trim();
-    						if ("[DONE]".equals(data))
-    						{
-    							break;
-    						} 
-    						else
-    						{
-    						    var choice = objectMapper.readTree(data).get("choices").get(0);
-    						    var node =  choice.get("delta");
-    							if (node.has("content") )
-    							{
-    							    var content = node.get("content").asText();
-    							    if ( !"null".equals( content ) )
-    							    {
-    							        publisher.submit(new Incoming(Incoming.Type.CONTENT, content));
-    							    }
-    							}
-    							if ( node.has( "tool_calls" ) )
-    							{
-    							    var toolCalls = node.get( "tool_calls" );
-    							    for ( var toolCall : toolCalls )
-    							    {
-    							        var functionNode = toolCall.get( "function" );
-    							        if ( functionNode.has( "name" ) )
-    							        {
-    							            var toolId = toolCall.has( "id" ) ? toolCall.get( "id" ).asText() : "";
-    							            publisher.submit( new Incoming(Incoming.Type.FUNCTION_CALL, String.format( "\"function_call\" : { \n \"id\": \"%s\",\n \"name\": \"%s\",\n \"arguments\" :", toolId, functionNode.get("name").asText() ) ) );
-    							        }
-    							        if ( functionNode.has( "arguments" ) )
-    							        {
-    							            publisher.submit( new Incoming(Incoming.Type.FUNCTION_CALL, functionNode.get("arguments").asText()) );
-    							        }
-    							    }
-    							}
-    						}
-    					}
-    				}
-    			}
-    			if ( isCancelled.get() )
-    			{
-    				publisher.closeExceptionally( new CancellationException() );
-    			}
-    		}
-    		catch (Exception e)
-    		{
-    		    logger.error( e.getMessage(), e );
-    			publisher.closeExceptionally(e);
-    		} 
-    		finally
-    		{
-    			publisher.close();
-    		}
-    	};
-    }
+	/**
+	 * Subscribes a given Flow.Subscriber to receive String data from OpenAI API
+	 * responses.
+	 * 
+	 * @param subscriber the Flow.Subscriber to be subscribed to the publisher
+	 */
+	@Override
+	public synchronized void subscribe(Flow.Subscriber<Incoming> subscriber) {
+		// Store subscriber to be added when publisher is created in run()
+		subscribers.add(subscriber);
+	}
+
+	/**
+	 * Returns the JSON request body as a String for the given prompt.
+	 * 
+	 * @param prompt the user input to be included in the request body
+	 * @return the JSON request body as a String
+	 */
+	private String getRequestBody(Conversation prompt, ModelApiDescriptor model) {
+		try {
+
+			var requestBody = new LinkedHashMap<String, Object>();
+			var messages = new ArrayList<Map<String, Object>>();
+
+			var systemMessage = new LinkedHashMap<String, Object>();
+			systemMessage.put("role", "developer");
+
+			String systemPrompt = promptRepository.getPrompt(Prompts.SYSTEM.name());
+
+			// Inject cached resources block at the beginning of system prompt
+			String resourcesBlock = resourceCache.toContextBlock();
+			if (!resourcesBlock.isEmpty()) {
+				systemPrompt = resourcesBlock + "\n\n" + systemPrompt;
+			}
+
+			systemMessage.put("content", systemPrompt);
+			messages.add(systemMessage);
+
+			prompt.messages().stream().map(message -> toJsonPayload(message, model)).forEach(messages::add);
+
+			requestBody.put("model", model.modelName());
+			if (model.functionCalling()) {
+				ArrayNode tools = objectMapper.createArrayNode();
+				for (var tool : listAvailableTools().entrySet()) {
+					tools.addAll(toolToJson(tool.getKey(), tool.getValue()));
+				}
+				if (!tools.isEmpty()) {
+					requestBody.put("tools", tools);
+					requestBody.put("tool_choice", "auto");
+				}
+			}
+			requestBody.put("messages", messages);
+			model.scaledTemperature().ifPresent(temp -> requestBody.put("temperature", temp));
+			requestBody.put("stream", true);
+
+			String jsonString;
+			jsonString = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(requestBody);
+			return jsonString;
+		} catch (JsonProcessingException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	static ArrayNode toolToJson(String toolName, Tool tool) {
+		var functionObj = new LinkedHashMap<String, Object>();
+		functionObj.put("name", toolName);
+		functionObj.put("description", Optional.ofNullable(tool.description()).orElse(""));
+		functionObj.put("parameters",
+				Map.of("type", tool.inputSchema().type(), "properties", tool.inputSchema().properties(), "required",
+						Optional.ofNullable(tool.inputSchema().required()).orElse(List.of())));
+
+		var toolObject = new LinkedHashMap<String, Object>();
+		toolObject.put("type", "function");
+		toolObject.put("function", functionObj);
+
+		var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		var functionsJsonNode = objectMapper.valueToTree(List.of(toolObject));
+		return (ArrayNode) functionsJsonNode;
+	}
+
+	private LinkedHashMap<String, Object> toJsonPayload(ChatMessage message, ModelApiDescriptor model) {
+		try {
+			var userMessage = new LinkedHashMap<String, Object>();
+			// Supported values are: 'assistant', 'system', 'developer', and 'user'.
+			var role = message.getRole().equals("function") ? "user" : message.getRole();
+			userMessage.put("role", role);
+
+			if (model.functionCalling()) {
+				if ("assistant".equals(message.getRole()) && Objects.nonNull(message.getFunctionCall())) {
+					var toolCallObj = new LinkedHashMap<String, Object>();
+					toolCallObj.put("id", message.getFunctionCall().id());
+					toolCallObj.put("type", "function");
+					toolCallObj.put("function", Map.of("name", message.getFunctionCall().name(), "arguments",
+							objectMapper.writeValueAsString(message.getFunctionCall().arguments())));
+					userMessage.put("tool_calls", List.of(toolCallObj));
+				}
+				if ("function".equals(message.getRole()) && Objects.nonNull(message.getFunctionCall())) {
+					role = "tool";
+					userMessage.put("role", role);
+					userMessage.put("tool_call_id", message.getFunctionCall().id());
+				}
+			}
+
+			// assemble text content
+			List<String> textParts = message.getAttachments().stream().map(Attachment::toChatMessageContent)
+					.filter(Objects::nonNull).collect(Collectors.toList());
+
+			var attachmentsString = String.join("\n", textParts);
+
+			var textContent = attachmentsString.isBlank() ? message.getContent()
+					: attachmentsString + "\n\n" + message.getContent();
+
+			// add image content
+			if (model.vision()) {
+				var content = new ArrayList<>();
+				var textObject = new LinkedHashMap<String, String>();
+				textObject.put("type", "text");
+				textObject.put("text", textContent);
+				content.add(textObject);
+				message.getAttachments().stream().map(Attachment::getImageData).filter(Objects::nonNull)
+						.map(ImageUtilities::toBase64Jpeg).map(this::toImageUrl).forEachOrdered(content::add);
+				userMessage.put("content", content);
+			} else // legacy API - just put content as text
+			{
+				userMessage.put("content", textContent);
+			}
+			return userMessage;
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	/**
+	 * Converts a base64-encoded image data string into a structured JSON object
+	 * suitable for API transmission.
+	 * <p>
+	 * This method constructs a JSON object that encapsulates the image data in a
+	 * format expected by the API. The 'image_url' key is an object containing a
+	 * 'url' key, which holds the base64-encoded image data prefixed with the
+	 * appropriate data URI scheme.
+	 *
+	 * @param data the base64-encoded string of the image data
+	 * @return a LinkedHashMap where the key 'type' is set to 'image_url', and
+	 *         'image_url' is another LinkedHashMap containing the 'url' key with
+	 *         the full data URI of the image.
+	 */
+	private LinkedHashMap<String, Object> toImageUrl(String data) {
+		var imageObject = new LinkedHashMap<String, Object>();
+		imageObject.put("type", "image_url");
+		var urlObject = new LinkedHashMap<String, String>();
+		urlObject.put("url", "data:image/jpeg;base64," + data);
+		imageObject.put("image_url", urlObject);
+		return imageObject;
+	}
+
+	/**
+	 * Creates and returns a Runnable that will execute the HTTP request to OpenAI
+	 * API with the given conversation prompt and process the responses.
+	 * <p>
+	 * Note: this method does not block and the returned Runnable should be executed
+	 * to perform the actual HTTP request and processing.
+	 *
+	 * @param prompt the conversation to be sent to the OpenAI API
+	 * @return a Runnable that performs the HTTP request and processes the responses
+	 */
+	@Override
+	public Runnable run(Conversation prompt) {
+		return () -> {
+			// Create a fresh publisher for this request
+			// Use a synchronous executor (Runnable::run) to ensure chunks are delivered
+			// immediately as they arrive, rather than being batched by the ForkJoinPool.
+			// This is critical for streaming use cases where the caller expects to receive
+			// each chunk as it arrives from the API.
+			publisher = new SubmissionPublisher<>(Runnable::run, Flow.defaultBufferSize());
+
+			// Add all subscribers that were registered before run() was called
+			synchronized (this) {
+				for (Flow.Subscriber<Incoming> subscriber : subscribers) {
+					publisher.subscribe(subscriber);
+				}
+			}
+
+			HttpClient client = HttpClient.newBuilder().connectTimeout(model.connectionTimeout()).build();
+
+			String requestBody = getRequestBody(prompt, model);
+			HttpRequest request = HttpRequest.newBuilder().uri(URI.create(model.apiUrl()))
+					.timeout(model.requestTimeout()).version(HttpClient.Version.HTTP_1_1)
+					.header("Authorization", "Bearer " + model.apiKey()).header("Accept", "text/event-stream")
+					.header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(requestBody))
+					.build();
+
+			logger.info("Sending request to ChatGPT.");
+
+			try {
+				HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+
+				if (response.statusCode() != 200) {
+					logger.error("Request failed with status code: " + response.statusCode() + " and response body: "
+							+ new String(response.body().readAllBytes()));
+				}
+				try (var inputStream = response.body();
+						var inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
+						var reader = new BufferedReader(inputStreamReader)) {
+					String line;
+					while ((line = reader.readLine()) != null && !isCancelled.get()) {
+						if (line.startsWith("data:")) {
+							var data = line.substring(5).trim();
+							if ("[DONE]".equals(data)) {
+								break;
+							} else {
+								var choices = objectMapper.readTree(data).get("choices");
+								if (choices == null || choices.isEmpty()) {
+									continue;
+								}
+								var choice = choices.get(0);
+								if (choice == null || choice.isNull()) {
+									continue;
+								}
+								var node = choice.get("delta");
+								if (node == null || node.isNull()) {
+									continue;
+								}
+								if (node.has("content")) {
+									var content = node.get("content").asText();
+									if (!"null".equals(content)) {
+										publisher.submit(new Incoming(Incoming.Type.CONTENT, content));
+									}
+								}
+								if (node.has("tool_calls")) {
+									var toolCalls = node.get("tool_calls");
+									for (var toolCall : toolCalls) {
+										var functionNode = toolCall.get("function");
+										if (functionNode == null || functionNode.isNull()) {
+											continue;
+										}
+										if (functionNode.has("name")) {
+											var toolId = toolCall.has("id") ? toolCall.get("id").asText() : "";
+											publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL, String.format(
+													"\"function_call\" : { \n \"id\": \"%s\",\n \"name\": \"%s\",\n \"arguments\" :",
+													toolId, functionNode.get("name").asText())));
+										}
+										if (functionNode.has("arguments")) {
+											publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL,
+													functionNode.get("arguments").asText()));
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				if (isCancelled.get()) {
+					publisher.closeExceptionally(new CancellationException());
+				}
+			} catch (Exception e) {
+				logger.error(e.getMessage(), e);
+				publisher.closeExceptionally(e);
+			} finally {
+				publisher.close();
+			}
+		};
+	}
 
 }
