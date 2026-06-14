@@ -46,6 +46,37 @@ public class ResourceUtilities
         return lines;
     }
 
+    public static List<String> readFileLinesWithTerminators(IFile file)
+            throws IOException, CoreException
+    {
+        Objects.requireNonNull(file);
+
+        try (InputStream is = file.getContents())
+        {
+            String content = new String(
+                    is.readAllBytes(),
+                    Charset.forName(file.getCharset()));
+
+            List<String> lines = new ArrayList<>();
+
+            Matcher matcher = Pattern.compile(".*?(\\R|$)", Pattern.DOTALL)
+                    .matcher(content);
+
+            while (matcher.find())
+            {
+                String line = matcher.group();
+
+                // avoid the extra empty match at EOF
+                if (!line.isEmpty())
+                {
+                    lines.add(line);
+                }
+            }
+
+            return lines;
+        }
+    }
+    
     /**
      * Recursively creates a folder hierarchy.
      * 
