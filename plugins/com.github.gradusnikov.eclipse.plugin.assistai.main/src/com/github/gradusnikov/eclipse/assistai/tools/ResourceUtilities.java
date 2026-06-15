@@ -59,7 +59,7 @@ public class ResourceUtilities
 
             List<String> lines = new ArrayList<>();
 
-            Matcher matcher = Pattern.compile(".*?(\\R|$)", Pattern.DOTALL)
+            var matcher = Pattern.compile(".*?(\\R|$)", Pattern.DOTALL)
                     .matcher(content);
 
             while (matcher.find())
