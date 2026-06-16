@@ -23,7 +23,10 @@
       "mcp__eclipse-pde__getActiveTarget",
       "mcp__eclipse-ide__fileSearchRegExp",
       "Bash(git checkout *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "mcp__eclipse-coder__replaceFileContent",
+      "mcp__eclipse-coder__organizeImports",
+      "mcp__eclipse-ide__runClassTests"
     ]
   },
   "deny": [

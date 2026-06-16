@@ -13,7 +13,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
-import org.apache.tika.Tika;
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import org.eclipse.core.runtime.Platform;
+import org.eclipse.core.runtime.content.IContentType;
+import org.eclipse.core.runtime.content.IContentTypeManager;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
@@ -315,26 +319,18 @@ public class ResourceUtilities
                     + " KB). Maximum size is " + MAX_FILE_SIZE_KB + " KB.");
         }
 
-        // Use Apache Tika to detect content type
-        Tika tika = new Tika();
         try
         {
-            String mimeType = tika.detect(file.getLocation().toFile());
-
-            // Check if this is a text file
-            if (!isTextMimeType(mimeType))
+            if (isBinaryFile(file))
             {
-
-                throw new IOException(
-                        "Cannot read binary file '" + file.getFullPath().toFile() + "' with MIME type '" + mimeType
-                                + "'. Only text files are supported.");
+                throw new IOException("Cannot read binary file '" + file.getFullPath().toFile()
+                        + "'. Only text files are supported.");
             }
-            String lang = getLanguageForMimeType(mimeType);
-            if (lang.isBlank())
-            {
-                lang = getLanguageForFile(file);
-            }
-            return lang;
+            return getLanguageForFile(file);
+        }
+        catch (IOException e)
+        {
+            throw e;
         }
         catch (Exception e)
         {
@@ -342,10 +338,34 @@ public class ResourceUtilities
         }
     }
 
-    private static boolean isTextMimeType(String mimeType)
+    /**
+     * Decides whether a workspace file is binary using the Eclipse content-type
+     * registry, falling back to a NUL-byte sniff for unknown content types.
+     */
+    private static boolean isBinaryFile(IFile file) throws IOException, CoreException
     {
-        return mimeType.startsWith("text/") || mimeType.equals("application/json") || mimeType.equals("application/xml")
-                || mimeType.equals("application/javascript") || mimeType.contains("+xml") || mimeType.contains("+json");
+        byte[] sample;
+        try (InputStream is = new BufferedInputStream(file.getContents()))
+        {
+            sample = is.readNBytes(8192);
+        }
+
+        IContentTypeManager manager = Platform.getContentTypeManager();
+        IContentType textType = manager.getContentType(IContentTypeManager.CT_TEXT);
+        IContentType detected = manager.findContentTypeFor(new ByteArrayInputStream(sample), file.getName());
+        if (detected != null)
+        {
+            return textType == null || !detected.isKindOf(textType);
+        }
+        // Unknown content type: NUL bytes are a strong signal of binary content.
+        for (byte b : sample)
+        {
+            if (b == 0)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -360,23 +380,6 @@ public class ResourceUtilities
                 .map(IFile::getFileExtension)
                 .map(ResourceUtilities::getLanguageForExtension)
                 .orElse("");
-    }
-
-    public static String getLanguageForMimeType(String mimeType)
-    {
-        return switch (mimeType)
-        {
-            case String s when s.contains("java") -> "java";
-            case String s when s.contains("python") -> "python";
-            case String s when s.contains("javascript") -> "javascript";
-            case String s when s.contains("html") -> "html";
-            case String s when s.contains("xml") -> "xml";
-            case String s when s.contains("json") -> "json";
-            case String s when s.contains("markdown") -> "markdown";
-            case String s when s.contains("x-c") -> "cpp";
-            case String s when s.contains("x-sh") -> "bash";
-            default -> "";
-        };
     }
 
     /**

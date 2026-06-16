@@ -27,14 +27,14 @@ public class AttachmentHelper
     @Inject
     private ChatViewPresenter presenter;
     @Inject
-    private ContentTypeDetector tika;
+    private ContentTypeDetector contentTypeDetector;
     
     
     public void handleText( String fileName, InputStream in ) throws IOException, UnsupportedEncodingException
     {
         // Load file content into string, guessing the file encoding
         byte[] fileContent = IOUtils.toByteArray( in );
-        String charsetName = tika.detectCharset( Arrays.copyOf( fileContent, Math.min( fileContent.length, 4096 ) ) );
+        String charsetName = contentTypeDetector.detectCharset( Arrays.copyOf( fileContent, Math.min( fileContent.length, 4096 ) ) );
         String textContent = new String( fileContent, charsetName );
         Document document = new Document( textContent );
         presenter.onAttachmentAdded( new FileContentAttachment( fileName, 1, document.getNumberOfLines(), textContent ) );

@@ -55,12 +55,14 @@ Test project: `com.github.gradusnikov.eclipse.plugin.assistai.main.tests`
 
 ### Plain JUnit (run with `runClassTests` / `runAllTests`)
 - `com.github.gradusnikov.eclipse.assistai.chat.ConversationContextTest`
+- `com.github.gradusnikov.eclipse.assistai.tools.ContentTypeDetectorTest`
 - `com.github.gradusnikov.eclipse.assistai.prompt.MarkdownParserTest`
 - `com.github.gradusnikov.eclipse.plugin.assistai.main.HtmlToMarkdownConverterTest`
 - `com.github.gradusnikov.eclipse.plugin.assistai.mcp.servers.TimeMcpServerTest`
 
 ### Plugin Tests (run with `runJUnitPluginTestClass` / `runJUnitPluginTests`)
 - `com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactoryTest`
+- `com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilitiesPluginTest`
 - `com.github.gradusnikov.eclipse.plugin.assistai.mcp.servers.PDEMcpServerTest`
 - `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.CodeEditingServiceTest`
 - `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.MavenServiceTest`
