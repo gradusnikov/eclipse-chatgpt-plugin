@@ -62,10 +62,7 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
         store.setDefault(PreferenceConstants.ASSISTAI_MCP_HTTP_ENABLED, false);
         // Generate auth token once and persist it — using setDefault(randomUUID) would
         // produce a new token on every Eclipse restart since defaults are not persisted.
-        if ( store.getString(PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN).isBlank() )
-        {
-            store.setValue(PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN, UUID.randomUUID().toString());
-        }
+        initializeAuthToken( store );
 
         // Initialize Code Completion defaults
         store.setDefault(PreferenceConstants.ASSISTAI_COMPLETION_ENABLED, true);
@@ -83,6 +80,27 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
             store.setDefault( prompt.preferenceName(), promptLoader.getDefaultPrompt( prompt.getFileName() ) );
         }
     }
-    
+
+    /**
+     * Generates the HTTP MCP server authentication token exactly once and persists it.
+     * <p>
+     * Generation is guarded by a one-time marker rather than a "token is blank" check.
+     * This lets a user intentionally clear the token (to run the server without bearer
+     * authentication) without it being regenerated on the next startup. A token that was
+     * already stored by a version predating the marker is preserved, so upgrading does
+     * not silently change an existing user's token.
+     */
+    static void initializeAuthToken( IPreferenceStore store )
+    {
+        if ( store.getBoolean( PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN_INITIALIZED ) )
+        {
+            return;
+        }
+        if ( store.getString( PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN ).isBlank() )
+        {
+            store.setValue( PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN, UUID.randomUUID().toString() );
+        }
+        store.setValue( PreferenceConstants.ASSISTAI_MCP_HTTP_AUTH_TOKEN_INITIALIZED, true );
+    }
 
 }

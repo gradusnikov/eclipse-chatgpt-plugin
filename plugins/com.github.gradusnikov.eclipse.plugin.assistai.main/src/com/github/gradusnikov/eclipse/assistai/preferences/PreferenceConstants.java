@@ -16,6 +16,9 @@ public class PreferenceConstants
     public static final String ASSISTAI_MCP_HTTP_HOSTNAME = "AssistAIMcpHttpHostname";
     public static final String ASSISTAI_MCP_HTTP_PORT = "AssistAIMcpHttpPort";
     public static final String ASSISTAI_MCP_HTTP_AUTH_TOKEN = "AssistAIMcpHttpToken";
+    // Marks that the auth token has been auto-generated once. Without this, an
+    // intentionally cleared (empty) token would be regenerated on every startup.
+    public static final String ASSISTAI_MCP_HTTP_AUTH_TOKEN_INITIALIZED = "AssistAIMcpHttpTokenInitialized";
     public static final String ASSISTAI_MCP_HTTP_ENABLED = "AssistAIMcpHttpEnabled";
     public static final String ASSISTAI_MCP_HTTP_TOOL_PREFIX = "AssistAIMcpHttpToolPrefix";
     
