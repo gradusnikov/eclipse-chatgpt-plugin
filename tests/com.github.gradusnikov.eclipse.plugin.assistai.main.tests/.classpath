@@ -6,8 +6,6 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
-	<classpathentry kind="lib" path="../../plugins/com.github.gradusnikov.eclipse.plugin.assistai.main/lib/tomcat-embed-core-11.0.21.jar"/>
-	<classpathentry kind="lib" path="../../plugins/com.github.gradusnikov.eclipse.plugin.assistai.main/lib/mcp-json-jackson2-1.1.2.jar"/>
 	<classpathentry kind="src" path="src">
 		<attributes>
 			<attribute name="test" value="true"/>
