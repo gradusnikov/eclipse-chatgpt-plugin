@@ -2,6 +2,7 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.ILog;
@@ -18,6 +19,7 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
+import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceFormatter;
 import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 
@@ -38,12 +40,16 @@ public class EditorService
     @Inject
     UISynchronizeCallable uiSync;
     
+    @Inject
+    AiIgnoreService aiIgnoreService;
+    
     public Optional<IFile> getCurrentlyOpenedFile()
     {
         return getActiveEditor().map( IEditorPart::getEditorInput )
                          .filter( editorInput -> editorInput instanceof IFileEditorInput )
                          .map( IFileEditorInput.class::cast )
-                         .map( IFileEditorInput::getFile );
+                         .map( IFileEditorInput::getFile )
+                         .filter( Predicate.not( aiIgnoreService::isExcluded ) );
     }
     
     
