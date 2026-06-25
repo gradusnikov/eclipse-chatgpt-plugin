@@ -215,6 +215,8 @@ public class HttpMcpServerRegistry
             var stored = mcpServerRepository.listStoredServers();
             initializeBuiltInServers( context, stored, builtin );
 
+            context.getPipeline().addValve( new JsonUtf8EncodingValve() );
+
             String token = httpServerPreferncesProvider.get().token();
             if ( token != null && !token.isBlank() )
             {
