@@ -300,13 +300,13 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient {
 										if (functionNode == null || functionNode.isNull()) {
 											continue;
 										}
-										if (functionNode.has("name")) {
+										if (functionNode.has("name") && !functionNode.get("name").asText().isEmpty()) {
 											var toolId = toolCall.has("id") ? toolCall.get("id").asText() : "";
 											publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL, String.format(
 													"\"function_call\" : { \n \"id\": \"%s\",\n \"name\": \"%s\",\n \"arguments\" :",
 													toolId, functionNode.get("name").asText())));
 										}
-										if (functionNode.has("arguments")) {
+										if (functionNode.has("arguments") && !functionNode.get("arguments").asText().isEmpty()) {
 											publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL,
 													functionNode.get("arguments").asText()));
 										}
