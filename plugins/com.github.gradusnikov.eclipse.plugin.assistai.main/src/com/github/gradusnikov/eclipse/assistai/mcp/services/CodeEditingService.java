@@ -2209,9 +2209,7 @@ public class CodeEditingService
             backupFile(file);
             
             // Replace the file content
-            byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
-            file.setContents(inputStream, IResource.FORCE, null);
+            file.setContents(ResourceUtilities.toFileContent(file, content), IResource.FORCE, null);
             
             // Refresh the file
             file.refreshLocal(IResource.DEPTH_ZERO, null);
@@ -2282,38 +2280,31 @@ public class CodeEditingService
             backupFile(file);
             
             // Read the file content
-            String fileContent = new String(file.getContents().readAllBytes(), StandardCharsets.UTF_8);
-            String[] lines = fileContent.split("\r?\n", -1);
+            var lines = ResourceUtilities.readFileLinesWithTerminators(file);
             
             // Validate line numbers
-            if (startLine > lines.length) 
+            if (startLine > lines.size()) 
             {
-                throw new IllegalArgumentException("Error: Start line " + startLine + " is beyond the file length (" + lines.length + " lines).");
+                throw new IllegalArgumentException("Error: Start line " + startLine + " is beyond the file length (" + lines.size() + " lines).");
             }
-            if (endLine > lines.length) 
+            if (endLine > lines.size()) 
             {
-                throw new IllegalArgumentException("Error: End line " + endLine + " is beyond the file length (" + lines.length + " lines).");
+                throw new IllegalArgumentException("Error: End line " + endLine + " is beyond the file length (" + lines.size() + " lines).");
             }
             
             // Build new content without the deleted lines
             StringBuilder newContent = new StringBuilder();
-            for (int i = 0; i < lines.length; i++) 
+            for (int i = 0; i < lines.size(); i++) 
             {
                 int lineNum = i + 1; // Convert to 1-based
                 if (lineNum < startLine || lineNum > endLine) 
                 {
-                    newContent.append(lines[i]);
-                    if (i < lines.length - 1) 
-                    {
-                        newContent.append("\n");
-                    }
+                    newContent.append(lines.get(i));
                 }
             }
             
             // Write the new content back to the file
-            byte[] bytes = newContent.toString().getBytes(StandardCharsets.UTF_8);
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
-            file.setContents(inputStream, IResource.FORCE, null);
+            file.setContents(ResourceUtilities.toFileContent(file, newContent.toString()), IResource.FORCE, null);
             
             // Refresh the file
             file.refreshLocal(IResource.DEPTH_ZERO, null);
