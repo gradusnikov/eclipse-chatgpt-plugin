@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -16,6 +17,7 @@ import java.util.regex.Pattern;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import org.eclipse.core.runtime.Platform;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.content.IContentType;
 import org.eclipse.core.runtime.content.IContentTypeManager;
 import org.eclipse.core.resources.IContainer;
@@ -128,6 +130,17 @@ public class ResourceUtilities
             }
             return content.toString(file.getCharset());
         }
+    }
+
+    public static InputStream toFileContent(IFile file, String text) throws CoreException
+    {
+        Objects.requireNonNull(file);
+        
+        try {
+			return new ByteArrayInputStream(text == null ? new byte[0]: text.getBytes(file.getCharset()));
+		} catch (UnsupportedEncodingException e) {
+			throw new CoreException(Status.error("Unknown charset", e));
+		}
     }
 
     public static String getSuggestedFileName(String lang, String codeBlock)

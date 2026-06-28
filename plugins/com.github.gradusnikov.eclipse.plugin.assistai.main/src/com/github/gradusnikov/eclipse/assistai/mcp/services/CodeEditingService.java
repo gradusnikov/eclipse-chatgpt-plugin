@@ -2209,9 +2209,7 @@ public class CodeEditingService
             backupFile(file);
             
             // Replace the file content
-            byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
-            file.setContents(inputStream, IResource.FORCE, null);
+            file.setContents(ResourceUtilities.toFileContent(file, content), IResource.FORCE, null);
             
             // Refresh the file
             file.refreshLocal(IResource.DEPTH_ZERO, null);
