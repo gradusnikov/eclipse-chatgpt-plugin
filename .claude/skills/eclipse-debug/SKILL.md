@@ -1,7 +1,7 @@
 ---
 name: eclipse-debug
 description: Debug Java applications in Eclipse — set breakpoints, launch in debug mode, step through code, inspect stack traces, evaluate expressions, and hot-swap code changes.
-argument-hint: [project] [main class]
+argument-hint: "[project] [main class]"
 allowed-tools: mcp__eclipse-runner__debugJavaApplication, mcp__eclipse-runner__launchConfiguration, mcp__eclipse-runner__listLaunchConfigurations, mcp__eclipse-runner__stopApplication, mcp__eclipse-runner__listActiveLaunches, mcp__eclipse-runner__toggleBreakpoint, mcp__eclipse-runner__setConditionalBreakpoint, mcp__eclipse-runner__listBreakpoints, mcp__eclipse-runner__removeAllBreakpoints, mcp__eclipse-runner__getStackTrace, mcp__eclipse-runner__evaluateExpression, mcp__eclipse-runner__resumeDebug, mcp__eclipse-runner__stepOver, mcp__eclipse-runner__stepInto, mcp__eclipse-runner__stepReturn, mcp__eclipse-runner__hotCodeReplace, mcp__eclipse-ide__getConsoleOutput
 ---
 

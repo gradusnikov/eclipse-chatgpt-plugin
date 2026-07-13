@@ -1,7 +1,7 @@
 ---
 name: eclipse-test
 description: Run JUnit tests in Eclipse projects — all tests, by package, by class, or individual test methods. Also build Maven projects.
-argument-hint: [project] [class or package]
+argument-hint: "[project] [class or package]"
 allowed-tools: mcp__eclipse-ide__runAllTests, mcp__eclipse-ide__runPackageTests, mcp__eclipse-ide__runClassTests, mcp__eclipse-ide__runTestMethod, mcp__eclipse-ide__findTestClasses, mcp__eclipse-ide__runMavenBuild, mcp__eclipse-ide__getConsoleOutput, mcp__eclipse-ide__getEffectivePom, mcp__eclipse-ide__listMavenProjects, mcp__eclipse-ide__getProjectDependencies, mcp__eclipse-ide__getCompilationErrors
 ---
 

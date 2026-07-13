@@ -1,7 +1,7 @@
 ---
 name: eclipse-run
 description: Launch and stop Java applications in Eclipse. Run with program/VM arguments, capture stdout/stderr, or launch in background.
-argument-hint: [project] [main class]
+argument-hint: "[project] [main class]"
 allowed-tools: mcp__eclipse-runner__runJavaApplication, mcp__eclipse-runner__launchConfiguration, mcp__eclipse-runner__listLaunchConfigurations, mcp__eclipse-runner__stopApplication, mcp__eclipse-runner__listActiveLaunches, mcp__eclipse-ide__getConsoleOutput
 ---
 
