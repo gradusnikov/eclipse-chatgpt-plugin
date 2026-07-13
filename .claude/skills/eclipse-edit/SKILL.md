@@ -1,7 +1,7 @@
 ---
 name: eclipse-edit
 description: Edit files in Eclipse projects using MCP tools. Use this when modifying code in Eclipse workspace projects — it keeps Eclipse editors in sync, triggers incremental compilation, and provides undo via local history.
-argument-hint: [description of changes]
+argument-hint: "[description of changes]"
 allowed-tools: mcp__eclipse-coder__applyPatch, mcp__eclipse-coder__replaceString, mcp__eclipse-coder__insertIntoFile, mcp__eclipse-coder__createFile, mcp__eclipse-coder__deleteFile, mcp__eclipse-coder__deleteLinesInFile, mcp__eclipse-coder__replaceFileContent, mcp__eclipse-coder__formatFile, mcp__eclipse-coder__organizeImports, mcp__eclipse-coder__organizeImportsInPackage, mcp__eclipse-coder__undoEdit, mcp__eclipse-coder__renameFile, mcp__eclipse-coder__createDirectories, mcp__eclipse-coder__moveResource, mcp__eclipse-coder__refactorRenameJavaType, mcp__eclipse-coder__refactorMoveJavaType, mcp__eclipse-coder__refactorRenamePackage, mcp__eclipse-ide__getCompilationErrors, mcp__eclipse-ide__getProjectLayout, mcp__eclipse-ide__readProjectResource, mcp__eclipse-ide__getClassOutline, mcp__eclipse-ide__getMethodSource, mcp__eclipse-ide__getFilteredSource, mcp__eclipse-ide__getSource
 ---
 

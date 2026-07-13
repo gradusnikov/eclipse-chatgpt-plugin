@@ -1,7 +1,7 @@
 ---
 name: eclipse-analyze
 description: Analyze Java code using Eclipse JDT tools — type hierarchy, find references, call hierarchy, compilation errors, quick fixes, and import suggestions. Use this to understand code structure before making changes.
-argument-hint: [class or element to analyze]
+argument-hint: "[class or element to analyze]"
 allowed-tools: mcp__eclipse-ide__getClassOutline, mcp__eclipse-ide__getMethodSource, mcp__eclipse-ide__getFilteredSource, mcp__eclipse-ide__getTypeHierarchy, mcp__eclipse-ide__findReferences, mcp__eclipse-ide__getMethodCallHierarchy, mcp__eclipse-ide__getCompilationErrors, mcp__eclipse-ide__getQuickFixes, mcp__eclipse-ide__getImportSuggestions, mcp__eclipse-ide__getJavaDoc, mcp__eclipse-ide__getSource, mcp__eclipse-ide__getProjectLayout, mcp__eclipse-ide__getProjectProperties, mcp__eclipse-ide__readProjectResource, mcp__eclipse-ide__listProjects, mcp__eclipse-ide__getCurrentlyOpenedFile, mcp__eclipse-ide__getEditorSelection, mcp__eclipse-ide__fileSearch, mcp__eclipse-ide__fileSearchRegExp, mcp__eclipse-ide__findFiles, mcp__eclipse-ide__getProjectDependencies
 ---
 
