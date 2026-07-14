@@ -222,7 +222,31 @@ public record ResourceDescriptor(
     // --- Helper methods ---
     
     private static URI createWorkspaceUri(IPath path) {
-        return URI.create("workspace://" + path.toString());
+        // The path is percent-encoded like every other URI this class builds. Passing it
+        // raw meant a resource whose name contains a space - or a '#' or '?' - blew up in
+        // URI.create with "Illegal character in path", so it could not be read at all.
+        // The path itself is kept separately in workspacePath, so nothing decodes this
+        // back: the URI is only an identity.
+        return URI.create("workspace://" + encodePath(path.toString()));
+    }
+    
+    /**
+     * Percent-encodes a path, leaving the '/' separators intact.
+     */
+    public static String encodePath(String path) {
+        return encode(path);
+    }
+    
+    /**
+     * Parses a resource URI supplied by a caller, tolerating an unencoded one.
+     * A caller that echoes back a path it saw elsewhere may well hand us a raw space.
+     */
+    public static URI parseUri(String uri) {
+        try {
+            return URI.create(uri);
+        } catch (IllegalArgumentException e) {
+            return URI.create(encode(uri));
+        }
     }
     
     private static String encode(String value) {

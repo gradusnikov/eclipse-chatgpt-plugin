@@ -13,6 +13,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.LocalHistoryService;
 import com.github.gradusnikov.eclipse.assistai.resources.CachedResource;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor;
 
 import jakarta.inject.Inject;
 
@@ -78,7 +79,9 @@ public class EclipseContextMcpServer
     {
         try
         {
-            URI uri = URI.create( resourceUri );
+            // Tolerates a raw space in the URI: a caller echoing back a path it saw
+            // elsewhere would otherwise just get "Invalid URI".
+            URI uri = ResourceDescriptor.parseUri( resourceUri );
             return resourceCache.get( uri )
                     .map( r -> {
                         StringBuilder sb = new StringBuilder();
