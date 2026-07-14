@@ -9,6 +9,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
+
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.Operation;
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationContext;
 import java.util.function.Predicate;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
@@ -16,6 +24,17 @@ import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
 
 public class ToolExecutor
 {
+    /**
+     * Tool bodies run here rather than on {@link java.util.concurrent.ForkJoinPool}'s
+     * common pool, which they used to occupy: a long execution tool parks its worker
+     * for as long as the underlying build, search or test run takes, and the common
+     * pool is shared with the rest of the JVM.
+     * <p>
+     * The pool grows on demand on purpose. A bounded one would let a handful of slow
+     * tools fill every slot and queue up the very calls needed to poll or cancel them.
+     */
+    private static final ExecutorService TOOL_EXECUTOR = Executors.newCachedThreadPool( new ToolThreadFactory() );
+
     Object functions;
     
     public ToolExecutor( Object functions )
@@ -40,10 +59,38 @@ public class ToolExecutor
 
     public CompletableFuture<Object> call( String name, Map<String, Object> args )
     {
+        return call( name, args, null );
+    }
+
+    /**
+     * Invokes a tool, optionally as an {@link Operation}.
+     * <p>
+     * When an operation is given it is bound to the worker thread for the duration of
+     * the call, so the tool - or any service beneath it - can reach it through
+     * {@link OperationContext} to publish progress, attach output or register a cancel
+     * hook, without any of them having to take it as a parameter.
+     */
+    public CompletableFuture<Object> call( String name, Map<String, Object> args, Operation operation )
+    {
         Method method = getFunctionCallbackByName( name ).orElseThrow( () -> new RuntimeException("Tool " + name + " not found!" ) ); 
         method.getAnnotationsByType( com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam.class );
         Object[] argValues = mapArguments( method, args );
-        CompletableFuture<Object> future = CompletableFuture.supplyAsync( () -> invokeMethod( method, argValues ) );
+        Supplier<Object> body = () -> invokeMethod( method, argValues );
+        Supplier<Object> task = operation == null ? body : () -> {
+            // The worker has to be reachable for cancellation to interrupt it.
+            operation.attachWorkerThread( Thread.currentThread() );
+            try
+            {
+                return OperationContext.callWith( operation, body );
+            }
+            finally
+            {
+                operation.attachWorkerThread( null );
+                // Do not leave a pending interrupt on a pooled thread.
+                Thread.interrupted();
+            }
+        };
+        CompletableFuture<Object> future = CompletableFuture.supplyAsync( task, TOOL_EXECUTOR );
         return future;
     }
     private Object invokeMethod( Method method, Object[] args )
@@ -126,6 +173,30 @@ public class ToolExecutor
                     .filter( Predicate.not( String::isBlank ) )
                     .orElse( parameter.getName() );
     }
+    /**
+     * The {@link Tool} annotation of a tool, which carries whether it may run long and
+     * how long to wait for it inline before handing the caller an operation id.
+     */
+    public Optional<Tool> getToolAnnotation( String name )
+    {
+        return getFunctionCallbackByName( name )
+                .map( method -> method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool.class ) );
+    }
+
+    /** Names the tool threads, so a stuck tool is identifiable in a thread dump. */
+    private static final class ToolThreadFactory implements ThreadFactory
+    {
+        private final AtomicLong counter = new AtomicLong();
+
+        @Override
+        public Thread newThread( Runnable runnable )
+        {
+            Thread thread = new Thread( runnable, "assistai-mcp-tool-" + counter.incrementAndGet() );
+            thread.setDaemon( true );
+            return thread;
+        }
+    }
+
     /**
      * Retrieves the name of the function based on the provided Method object.
      *

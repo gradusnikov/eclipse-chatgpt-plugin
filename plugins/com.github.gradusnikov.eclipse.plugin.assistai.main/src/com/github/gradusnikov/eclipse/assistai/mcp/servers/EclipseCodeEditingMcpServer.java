@@ -130,7 +130,7 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.renameFile(projectName, filePath, newFileName);
     }
 
-    @Tool(name="refactorRenameJavaType", description="Renames a Java class/interface/enum using Eclipse's refactoring mechanism. This updates the type name, file name, and ALL references throughout the workspace. Use this instead of renameFile for Java files to ensure all references are updated correctly.", type="object")
+    @Tool(name="refactorRenameJavaType", longExecution=true, description="Renames a Java class/interface/enum using Eclipse's refactoring mechanism. This updates the type name, file name, and ALL references throughout the workspace. Use this instead of renameFile for Java files to ensure all references are updated correctly.", type="object")
     public String refactorRenameJavaType(
         @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java')", required=true) String filePath,
@@ -139,7 +139,7 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.refactorRenameJavaType(projectName, filePath, newTypeName);
     }
 
-    @Tool(name="refactorMoveJavaType", description="Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism. This updates the package declaration and ALL references throughout the workspace. The target package will be created if it doesn't exist.", type="object")
+    @Tool(name="refactorMoveJavaType", longExecution=true, description="Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism. This updates the package declaration and ALL references throughout the workspace. The target package will be created if it doesn't exist.", type="object")
     public String refactorMoveJavaType(
         @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java')", required=true) String filePath,
@@ -148,7 +148,7 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.refactorMoveJavaType(projectName, filePath, targetPackage);
     }
 
-    @Tool(name="refactorRenamePackage", description="Renames a Java package using Eclipse's refactoring mechanism. This renames the package directory, updates all package declarations in contained files, and updates ALL references throughout the workspace.", type="object")
+    @Tool(name="refactorRenamePackage", longExecution=true, description="Renames a Java package using Eclipse's refactoring mechanism. This renames the package directory, updates all package declarations in contained files, and updates ALL references throughout the workspace.", type="object")
     public String refactorRenamePackage(
         @ToolParam(name="projectName", description="The name of the project containing the package", required=true) String projectName,
         @ToolParam(name="packageName", description="The current fully qualified package name (e.g., 'com.example.oldpackage')", required=true) String packageName,
@@ -174,7 +174,7 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.organizeImports(projectName, filePath);
     }
 
-    @Tool(name="organizeImportsInPackage", description="Organizes imports in all Java files within a package. This is useful for cleaning up imports across multiple files at once.", type="object")
+    @Tool(name="organizeImportsInPackage", longExecution=true, description="Organizes imports in all Java files within a package. This is useful for cleaning up imports across multiple files at once.", type="object")
     public String organizeImportsInPackage(
         @ToolParam(name="projectName", description="The name of the project containing the package", required=true) String projectName,
         @ToolParam(name="packageName", description="The fully qualified package name (e.g., 'com.example.mypackage')", required=true) String packageName) 

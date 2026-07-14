@@ -5,6 +5,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Optional;
+
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.Operation;
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationContext;
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.ProcessOutputSource;
 import java.util.concurrent.TimeUnit;
 
 import org.eclipse.core.resources.IFile;
@@ -285,12 +291,21 @@ public class PDEService
     // Private helpers
     // -------------------------------------------------------------------------
 
+    /**
+     * Backstop so a test instance that never reports and never dies cannot park a
+     * thread forever. It is not the caller's timeout - the caller is handed an
+     * operationId long before this - just an upper bound on how long we keep listening.
+     */
+    private static final int MAX_TEST_RUN_MINUTES = 120;
+
     private String launchJUnitPluginTests( IJavaProject javaProject, Object packageFragment,
                                             IType testClass, int timeout, boolean withCoverage,
                                             boolean includeAllPlugins, List<String> additionalBundles )
     {
         CountDownLatch latch = new CountDownLatch( 1 );
         UnitTestService.TestRunResult[] testRunResults = new UnitTestService.TestRunResult[1];
+        Optional<Operation> operation = OperationContext.current();
+        AtomicInteger finishedTests = new AtomicInteger();
 
         TestRunListener listener = new TestRunListener()
         {
@@ -300,6 +315,7 @@ public class PDEService
             public void sessionStarted( ITestRunSession session )
             {
                 currentRun = new UnitTestService.TestRunResult( session.getTestRunName() );
+                operation.ifPresent( op -> op.setProgress( "test session started" ) );
             }
 
             @Override
@@ -321,6 +337,8 @@ public class PDEService
                         ? testCaseElement.getFailureTrace().getTrace() : "";
                     double time = testCaseElement.getElapsedTimeInSeconds();
                     currentRun.addTestResult( new UnitTestService.TestResult( clazz, testName, status, message, time ) );
+                    operation.ifPresent( op -> op.setProgress(
+                            finishedTests.incrementAndGet() + " tests finished; last: " + clazz + "#" + testName ) );
                 }
             }
         };
@@ -429,9 +447,20 @@ public class PDEService
                 }
             } );
 
-            long deadline = System.currentTimeMillis() + timeout * 1000L;
+            // How long the CALLER is prepared to wait is the framework's business: once its
+            // inline wait elapses it hands the caller an operationId and this thread keeps
+            // going. The bound here is only a backstop against a JVM that never reports and
+            // never dies.
+            // Run as an MCP operation, the caller has already been handed an operationId and
+            // the only bound left is a backstop. Called directly - from a test, an agent -
+            // there is no framework waiting for us, so the caller's timeout is still the bound.
+            long waitBoundMillis = operation.isPresent()
+                    ? TimeUnit.MINUTES.toMillis( MAX_TEST_RUN_MINUTES )
+                    : TimeUnit.SECONDS.toMillis( timeout );
+            long deadline = System.currentTimeMillis() + waitBoundMillis;
             Display display = Display.getCurrent();
             boolean completed = false;
+            boolean attached = false;
             while ( !completed && System.currentTimeMillis() < deadline )
             {
                 if ( display != null && !display.isDisposed() )
@@ -439,6 +468,15 @@ public class PDEService
                     while ( display.readAndDispatch() )
                     {
                     }
+                }
+                if ( !attached && launchRef[0] != null )
+                {
+                    // The launch is asynchronous, so it only exists once the UI thread has run
+                    // it. Streams the test instance's output into the operation and makes
+                    // cancelling it terminate the JVM.
+                    attached = true;
+                    org.eclipse.debug.core.ILaunch launched = launchRef[0];
+                    operation.ifPresent( op -> ProcessOutputSource.attach( op, launched ) );
                 }
                 completed = latch.await( 100, TimeUnit.MILLISECONDS );
                 if ( !completed && launchRef[0] != null && launchRef[0].isTerminated() )
@@ -453,7 +491,7 @@ public class PDEService
             }
             if ( !completed )
             {
-                return "Error: Test execution timed out after " + timeout + " seconds.";
+                return "Error: the test run did not report results in time.";
             }
             if ( testRunResults[0] == null )
             {
@@ -469,6 +507,13 @@ public class PDEService
             }
 
             return results;
+        }
+        catch ( InterruptedException e )
+        {
+            // cancelOperation interrupts this thread; the test instance itself is
+            // terminated by the operation's cancel hook.
+            Thread.currentThread().interrupt();
+            return "Test run cancelled.";
         }
         catch ( Exception e )
         {

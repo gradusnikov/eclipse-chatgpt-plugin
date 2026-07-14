@@ -18,7 +18,7 @@ public class EclipseRunnerMcpServer
     @Inject
     private JavaLaunchService javaLaunchService;
 
-    @Tool(name = "runJavaApplication",
+    @Tool(name = "runJavaApplication", longExecution = true,
           description = "Launches a Java application in run mode. Specify the project and fully qualified main class. If timeout > 0, waits for the process to finish and returns stdout/stderr. If timeout = 0, launches in background and returns immediately.",
           type = "object")
     public String runJavaApplication(
@@ -181,7 +181,7 @@ public class EclipseRunnerMcpServer
                 Integer.parseInt(lineNumber), condition, hitCountInt);
     }
 
-    @Tool(name = "hotCodeReplace",
+    @Tool(name = "hotCodeReplace", longExecution = true,
           description = "Triggers hot code replace (HCR) in an active debug session. Compiles the latest code changes and pushes them into the running JVM without restarting the application. The JVM must support HCR (most standard JVMs do).",
           type = "object")
     public String hotCodeReplace(

@@ -141,7 +141,7 @@ public class EclipseIntegrationsMcpServer
         return ResourceResultSerializer.serialize(result);
     }
 
-    @Tool(name = "getMethodCallHierarchy", description = "Retrieves the call hierarchy (callers) for a specified method to understand how it's used in the codebase.", type = "object")
+    @Tool(name = "getMethodCallHierarchy", longExecution = true, description = "Retrieves the call hierarchy (callers) for a specified method to understand how it's used in the codebase.", type = "object")
     public String getMethodCallHierarchy(
             @ToolParam(name = "fullyQualifiedClassName", description = "The fully qualified name of the class containing the method", required = true) String fullyQualifiedClassName,
             @ToolParam(name = "methodName", description = "The name of the method to analyze", required = true) String methodName,
@@ -221,7 +221,7 @@ public class EclipseIntegrationsMcpServer
 
     // Unit Test Service Tools
 
-    @Tool(name = "runAllTests", description = "Runs all JUnit tests in a specified project and returns the results. Use findTestClasses first if unsure which project contains tests. The projectName must be the test project (e.g. 'my.app.tests'), not the main source project.", type = "object")
+    @Tool(name = "runAllTests", description = "Runs all JUnit tests in a specified project and returns the results. Use findTestClasses first if unsure which project contains tests. The projectName must be the test project (e.g. 'my.app.tests'), not the main source project.", type = "object", longExecution = true)
     public String runAllTests(
             @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test classes (use listProjects to find it)", required = true) String projectName,
             @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout,
@@ -231,7 +231,7 @@ public class EclipseIntegrationsMcpServer
         return unitTestService.runAllTests(projectName, Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60), coverage);
     }
 
-    @Tool(name = "runPackageTests", description = "Runs all JUnit tests in a specific package and returns the results.", type = "object")
+    @Tool(name = "runPackageTests", description = "Runs all JUnit tests in a specific package and returns the results.", type = "object", longExecution = true)
     public String runPackageTests(
             @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test classes (use listProjects to find it)", required = true) String projectName,
             @ToolParam(name = "packageName", description = "The fully qualified package name (e.g. 'com.example.service')", required = true) String packageName,
@@ -243,7 +243,7 @@ public class EclipseIntegrationsMcpServer
                 Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60), coverage);
     }
 
-    @Tool(name = "runClassTests", description = "Runs all JUnit tests in a specific test class and returns the results.", type = "object")
+    @Tool(name = "runClassTests", description = "Runs all JUnit tests in a specific test class and returns the results.", type = "object", longExecution = true)
     public String runClassTests(
             @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test class (use listProjects to find it)", required = true) String projectName,
             @ToolParam(name = "className", description = "The fully qualified class name including package (e.g. 'com.example.MyServiceTest')", required = true) String className,
@@ -255,7 +255,7 @@ public class EclipseIntegrationsMcpServer
                 Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60), coverage);
     }
 
-    @Tool(name = "runTestMethod", description = "Runs a single JUnit test method and returns the results.", type = "object")
+    @Tool(name = "runTestMethod", description = "Runs a single JUnit test method and returns the results.", type = "object", longExecution = true)
     public String runTestMethod(
             @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test class (use listProjects to find it)", required = true) String projectName,
             @ToolParam(name = "className", description = "The fully qualified class name including package (e.g. 'com.example.MyServiceTest')", required = true) String className,
@@ -277,7 +277,9 @@ public class EclipseIntegrationsMcpServer
 
     // Maven Service Tools
 
-    @Tool(name = "runMavenBuild", description = "Runs a Maven build with the specified goals on a project.", type = "object")
+    // inlineWaitParam is cleared because this tool's own 'timeout' counts MINUTES, and
+    // reading it as an inline wait in seconds would silently shorten it by 60x.
+    @Tool(name = "runMavenBuild", description = "Runs a Maven build with the specified goals on a project.", type = "object", longExecution = true, inlineWaitParam = "")
     public String runMavenBuild(
             @ToolParam(name = "projectName", description = "The name of the project to build", required = true) String projectName,
             @ToolParam(name = "goals", description = "The Maven goals to execute (e.g., \"clean install\")", required = true) String goals,
@@ -288,7 +290,7 @@ public class EclipseIntegrationsMcpServer
                 Optional.ofNullable(timeout).map(Integer::parseInt).orElse(0));
     }
 
-    @Tool(name = "getEffectivePom", description = "Gets the effective POM for a Maven project.", type = "object")
+    @Tool(name = "getEffectivePom", longExecution = true, description = "Gets the effective POM for a Maven project.", type = "object")
     public String getEffectivePom(
             @ToolParam(name = "projectName", description = "The name of the Maven project", required = true) String projectName)
     {
@@ -301,7 +303,7 @@ public class EclipseIntegrationsMcpServer
         return mavenService.listMavenProjects();
     }
 
-    @Tool(name = "getProjectDependencies", description = "Gets Maven project dependencies.", type = "object")
+    @Tool(name = "getProjectDependencies", longExecution = true, description = "Gets Maven project dependencies.", type = "object")
     public String getProjectDependencies(
             @ToolParam(name = "projectName", description = "The name of the Maven project", required = true) String projectName)
     {
@@ -310,14 +312,14 @@ public class EclipseIntegrationsMcpServer
 
     // Code Analysis Tools
 
-    @Tool(name = "getTypeHierarchy", description = "Retrieves the type hierarchy (supertypes, implemented interfaces, and subtypes) for a given Java class or interface.", type = "object")
+    @Tool(name = "getTypeHierarchy", longExecution = true, description = "Retrieves the type hierarchy (supertypes, implemented interfaces, and subtypes) for a given Java class or interface.", type = "object")
     public String getTypeHierarchy(
             @ToolParam(name = "fullyQualifiedClassName", description = "The fully qualified name of the class (e.g., 'com.example.MyClass')", required = true) String fullyQualifiedClassName)
     {
         return codeAnalysisService.getTypeHierarchy(fullyQualifiedClassName);
     }
 
-    @Tool(name = "findReferences", description = "Finds all references/usages of a Java type, method, or field across the entire workspace. Essential before renaming or deleting code elements.", type = "object")
+    @Tool(name = "findReferences", longExecution = true, description = "Finds all references/usages of a Java type, method, or field across the entire workspace. Essential before renaming or deleting code elements.", type = "object")
     public String findReferences(
             @ToolParam(name = "fullyQualifiedClassName", description = "The fully qualified name of the class containing the element", required = true) String fullyQualifiedClassName,
             @ToolParam(name = "elementName", description = "Optional method or field name to search for. If omitted, searches for references to the class itself.", required = false) String elementName)
@@ -325,7 +327,7 @@ public class EclipseIntegrationsMcpServer
         return codeAnalysisService.findReferences(fullyQualifiedClassName, elementName);
     }
 
-    @Tool(name = "executeQuickFix", description = "Applies a specific quick fix proposal to a compilation problem. Use getCompilationErrors first to obtain the Marker ID and proposal index.", type = "object")
+    @Tool(name = "executeQuickFix", longExecution = true, description = "Applies a specific quick fix proposal to a compilation problem. Use getCompilationErrors first to obtain the Marker ID and proposal index.", type = "object")
     public String executeQuickFix(
             @ToolParam(name = "markerId", description = "The Marker ID of the problem (from getCompilationErrors or getQuickFixes)", required = true) String markerId,
             @ToolParam(name = "proposalIndex", description = "The 0-based index of the quick fix proposal to apply (from the quick fixes list)", required = true) String proposalIndex)
@@ -333,7 +335,7 @@ public class EclipseIntegrationsMcpServer
         return codeAnalysisService.executeQuickFix(Long.parseLong(markerId), Integer.parseInt(proposalIndex));
     }
 
-    @Tool(name = "getImportSuggestions", description = "Finds import candidates for unresolved types in a Java file. Shows matching fully qualified names from the workspace for each unresolved type error.", type = "object")
+    @Tool(name = "getImportSuggestions", longExecution = true, description = "Finds import candidates for unresolved types in a Java file. Shows matching fully qualified names from the workspace for each unresolved type error.", type = "object")
     public String getImportSuggestions(
             @ToolParam(name = "projectName", description = "The name of the project containing the file", required = true) String projectName,
             @ToolParam(name = "filePath", description = "The path to the Java file relative to the project root", required = true) String filePath)
@@ -343,7 +345,7 @@ public class EclipseIntegrationsMcpServer
 
     // Search Service Tools
 
-    @Tool(name = "fileSearch", description = "Searches for a plain substring in workspace files using Eclipse's text search engine.", type = "object")
+    @Tool(name = "fileSearch", longExecution = true, description = "Searches for a plain substring in workspace files using Eclipse's text search engine.", type = "object")
     public String fileSearch(
             @ToolParam(name = "containingText", description = "Text that must be contained in a line (plain substring, not regex)", required = true) String containingText,
             @ToolParam(name = "fileNamePatterns", description = "Optional file name patterns. Accepts either an array (e.g. [\"*.java\", \"*.xml\"]) or a string (e.g. \"*.java,*.xml\"). If omitted, all files are searched.", required = false) Object fileNamePatterns)
@@ -352,7 +354,7 @@ public class EclipseIntegrationsMcpServer
         return searchService.fileSearch(containingText, patterns).toString();
     }
 
-    @Tool(name = "fileSearchRegExp", description = "Searches workspace files using a Java regular expression via Eclipse's text search engine.", type = "object")
+    @Tool(name = "fileSearchRegExp", longExecution = true, description = "Searches workspace files using a Java regular expression via Eclipse's text search engine.", type = "object")
     public String fileSearchRegExp(
             @ToolParam(name = "pattern", description = "Java regular expression", required = true) String pattern,
             @ToolParam(name = "fileNamePatterns", description = "Optional file name patterns. Accepts either an array (e.g. [\"*.java\", \"*.xml\"]) or a string (e.g. \"*.java,*.xml\"). If omitted, all files are searched.", required = false) Object fileNamePatterns)
@@ -371,7 +373,7 @@ public class EclipseIntegrationsMcpServer
         return resourceService.findFiles(patterns, limit).toString();
     }
 
-    @Tool(name = "searchAndReplace", description = "Search and replace across multiple files in the workspace using Eclipse's text search engine.", type = "object")
+    @Tool(name = "searchAndReplace", longExecution = true, description = "Search and replace across multiple files in the workspace using Eclipse's text search engine.", type = "object")
     public String searchAndReplace(
             @ToolParam(name = "containingText", description = "Plain text to find (not regex)", required = true) String containingText,
             @ToolParam(name = "replacementText", description = "Replacement text (can be empty)", required = true) String replacementText,

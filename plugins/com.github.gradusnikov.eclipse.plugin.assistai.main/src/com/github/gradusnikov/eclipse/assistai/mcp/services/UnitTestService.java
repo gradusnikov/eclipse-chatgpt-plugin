@@ -3,7 +3,15 @@ package com.github.gradusnikov.eclipse.assistai.mcp.services;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.eclipse.debug.core.ILaunch;
+
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.Operation;
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationContext;
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.ProcessOutputSource;
 import java.util.concurrent.TimeUnit;
 
 import org.eclipse.core.resources.IProject;
@@ -103,7 +111,9 @@ public class UnitTestService {
                 case String s when s.equals(Result.ERROR.toString()) -> errorCount++;
                 case String s when s.equals(Result.IGNORED.toString()) -> skippedCount++;
                 case String s when s.equals(Result.UNDEFINED.toString()) -> skippedCount++;
-                default -> throw new IllegalArgumentException( "Unexpected value: " + result.status );
+                // Runs inside JDT's test run notifier: throwing here would break the
+                // listener for the whole run over nothing more than an unknown status.
+                default -> skippedCount++;
             }
             
             totalTime += result.executionTime;
@@ -123,7 +133,9 @@ public class UnitTestService {
             if (failedCount > 0 || errorCount > 0) {
                 sb.append("Failed Tests:\n");
                 testResults.stream()
-                    .filter(r -> "FAILED".equals(r.status) || "ERROR".equals(r.status))
+                    // JDT reports a failure as Result.FAILURE ("FAILURE"), never "FAILED":
+                    // filtering on the latter left this block empty for every failing run.
+                    .filter(r -> Result.FAILURE.toString().equals(r.status) || Result.ERROR.toString().equals(r.status))
                     .forEach(r -> sb.append("  ").append(r.toString()).append("\n"));
                 sb.append("\n");
             }
@@ -408,12 +420,48 @@ public class UnitTestService {
     }
     
     /**
+     * Backstop so a test JVM that never reports and never dies cannot park a thread
+     * forever. It is not the caller's timeout - the caller is handed an operationId
+     * long before this - just an upper bound on how long we keep listening.
+     */
+    private static final int MAX_TEST_RUN_MINUTES = 120;
+
+    /**
+     * Waits for the run to finish, treating the death of the test JVM as an ending too:
+     * a crashed JVM never sends sessionFinished, and waiting for one that will never
+     * arrive is what used to hang these tools.
+     */
+    private boolean awaitTestRun( CountDownLatch latch, ILaunch launch, long boundMillis ) throws InterruptedException
+    {
+        long deadline = System.currentTimeMillis() + boundMillis;
+        while ( System.currentTimeMillis() < deadline )
+        {
+            if ( latch.await( 200, TimeUnit.MILLISECONDS ) )
+            {
+                return true;
+            }
+            if ( launch != null && launch.isTerminated() )
+            {
+                // The JVM is gone; give the JUnit listener a moment to deliver the last events.
+                return latch.await( 5, TimeUnit.SECONDS );
+            }
+        }
+        return false;
+    }
+
+    /**
      * Launches JUnit tests using Eclipse's JUnit infrastructure with optional method filtering and coverage.
+     * <p>
+     * The {@code timeout} argument no longer bounds this method: a long execution tool
+     * is waited on by the framework, which hands the caller an operationId when its
+     * inline wait elapses while the run carries on here.
      */
     private String launchJUnitTests(IJavaProject javaProject, IPackageFragment packageFragment, 
                                    IType testClass, int timeout, String methodName, boolean withCoverage) {
         final CountDownLatch latch = new CountDownLatch(1);
         final TestRunResult[] testRunResults = new TestRunResult[1];
+        final Optional<Operation> operation = OperationContext.current();
+        final AtomicInteger finishedTests = new AtomicInteger();
         
         try {
             // Register a test run listener to collect results
@@ -423,6 +471,7 @@ public class UnitTestService {
                 @Override
                 public void sessionStarted(ITestRunSession session) {
                     currentRun = new TestRunResult(session.getTestRunName());
+                    operation.ifPresent( op -> op.setProgress( "test session started" ) );
                 }
                 
                 @Override
@@ -442,6 +491,8 @@ public class UnitTestService {
                         double time = testCaseElement.getElapsedTimeInSeconds();
                         
                         currentRun.addTestResult(new TestResult(className, testName, status, message, time));
+                        operation.ifPresent( op -> op.setProgress(
+                                finishedTests.incrementAndGet() + " tests finished; last: " + className + "#" + testName ) );
                     }
                 }
             };
@@ -505,20 +556,34 @@ public class UnitTestService {
                 String launchMode = useCoverage ? coverageService.getCoverageLaunchMode() : ILaunchManager.RUN_MODE;
                 
                 long launchStartTime = System.currentTimeMillis();
+                final ILaunch[] launchRef = new ILaunch[1];
                 // Launch the tests
                 sync.syncExec(() -> {
                     try {
-                        configuration.launch(launchMode, new NullProgressMonitor());
+                        launchRef[0] = configuration.launch(launchMode, new NullProgressMonitor());
                     } catch (CoreException e) {
                         logger.error("Error launching tests", e);
                     }
                 });
                 
-                // Wait for completion
-                boolean completed = latch.await(timeout, TimeUnit.SECONDS);
+                // Streams the test JVM's output into the operation and makes cancelling it
+                // terminate the JVM: interrupting this thread alone would leave it running.
+                operation.ifPresent( op -> ProcessOutputSource.attach( op, launchRef[0] ) );
+
+                // How long the CALLER is prepared to wait is the framework's business: once
+                // its inline wait elapses it hands the caller an operationId and this thread
+                // keeps going. So wait for the run to actually end, not for the caller.
+                // Run as an MCP operation, the caller has already been handed an operationId
+                // and the only bound left is a backstop. Called directly - from a test, an
+                // agent - there is no framework waiting for us, so the caller's timeout is
+                // still the bound.
+                long waitBoundMillis = operation.isPresent()
+                        ? TimeUnit.MINUTES.toMillis( MAX_TEST_RUN_MINUTES )
+                        : TimeUnit.SECONDS.toMillis( timeout );
+                boolean completed = awaitTestRun( latch, launchRef[0], waitBoundMillis );
                 
                 if (!completed) {
-                    return "Error: Test execution timed out after " + timeout + " seconds.";
+                    return "Error: the test run did not report results in time.";
                 }
                 
                 if (testRunResults[0] == null) {
@@ -538,6 +603,11 @@ public class UnitTestService {
                 JUnitCore.removeTestRunListener(listener);
             }
             
+        } catch (InterruptedException e) {
+            // cancelOperation interrupts this thread; the launch itself is terminated by
+            // the operation's cancel hook.
+            Thread.currentThread().interrupt();
+            return "Test run cancelled.";
         } catch (Exception e) {
             logger.error("Error running tests", e);
             return "Error running tests: " + e.getMessage();

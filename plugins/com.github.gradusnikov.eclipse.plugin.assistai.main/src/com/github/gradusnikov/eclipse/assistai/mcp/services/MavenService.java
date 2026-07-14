@@ -13,7 +13,13 @@ import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
+import java.util.Optional;
+
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
+
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.Operation;
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationContext;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
@@ -120,7 +126,7 @@ public class MavenService
             sync.syncExec( () -> {
                 consoleService.clear( consoleOutput );
             } );
-            Job job = new Job( "Maven Build: " + goals + " on " + projectName )
+            final Job job = new Job( "Maven Build: " + goals + " on " + projectName )
             {
                 @Override
                 protected org.eclipse.core.runtime.IStatus run( IProgressMonitor monitor )
@@ -138,16 +144,40 @@ public class MavenService
                 }
             };
 
+            Optional<Operation> operation = OperationContext.current();
+            operation.ifPresent( op -> {
+                op.setConsoleHint( consoleOutput );
+                op.addCancelHook( job::cancel );
+            } );
+
             job.schedule();
-            job.join( TimeUnit.MINUTES.toMillis( timeout ), new NullProgressMonitor() );
 
-            // If timeout is specified, wait for completion
-            String timeoutMessage = "";
+            // Joining with the operation's monitor rather than a NullProgressMonitor is what
+            // makes a runaway build cancellable: a NullProgressMonitor can never be cancelled.
+            IProgressMonitor joinMonitor = operation.map( Operation::monitor )
+                                                    .map( IProgressMonitor.class::cast )
+                                                    .orElseGet( NullProgressMonitor::new );
+            job.join( TimeUnit.MINUTES.toMillis( timeout ), joinMonitor );
 
-            // Return a message with instructions on how to get the console
-            // output
-            return "Maven build started for project '" + projectName + "' with goals: " + goals
-                    + ( profiles != null && !profiles.isEmpty() ? " and profiles: " + profiles : "" ) + timeoutMessage
+            // The build's outcome used to be discarded: this always claimed the build had
+            // "started" and left success and failure indistinguishable.
+            IStatus result = job.getResult();
+            String outcome;
+            if ( result == null )
+            {
+                outcome = "is still running";
+            }
+            else if ( result.isOK() )
+            {
+                outcome = "succeeded";
+            }
+            else
+            {
+                outcome = "FAILED: " + result.getMessage();
+            }
+
+            return "Maven build " + outcome + " for project '" + projectName + "' with goals: " + goals
+                    + ( profiles != null && !profiles.isEmpty() ? " and profiles: " + profiles : "" )
                     + "\n\nTo view build output, use the getConsoleOutput tool with consoleName=\"Maven Console\""
                     + "\nExample: getConsoleOutput(consoleName=\"Maven Console\", maxLines=200)";
 

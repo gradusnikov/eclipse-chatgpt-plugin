@@ -31,6 +31,7 @@ public class PDEMcpServer
 
     @Tool(name = "setActiveTarget",
           description = "Sets the active Eclipse target platform from a .target file. Loads and activates the target definition.",
+          longExecution = true,
           type = "object")
     public String setActiveTarget(
             @ToolParam(name = "targetFilePath", description = "The workspace-relative or absolute path to the .target file (e.g., '/MyProject/myplatform.target')") String targetFilePath)
@@ -40,6 +41,7 @@ public class PDEMcpServer
 
     @Tool(name = "reloadTarget",
           description = "Reloads the currently active Eclipse target platform. Useful after target contents change on disk.",
+          longExecution = true,
           type = "object")
     public String reloadTarget()
     {
@@ -48,6 +50,7 @@ public class PDEMcpServer
 
     @Tool(name = "runJUnitPluginTests",
           description = "Runs all JUnit Plug-in Tests in the specified project using the PDE launcher. Returns test results including pass/fail counts.",
+          longExecution = true,
           type = "object")
     public String runJUnitPluginTests(
             @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the plug-in test classes") String projectName,
@@ -65,6 +68,7 @@ public class PDEMcpServer
 
     @Tool(name = "runJUnitPluginTestClass",
           description = "Runs all JUnit Plug-in Tests in a specific class using the PDE launcher. Returns test results.",
+          longExecution = true,
           type = "object")
     public String runJUnitPluginTestClass(
             @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test class") String projectName,

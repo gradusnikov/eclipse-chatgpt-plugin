@@ -399,7 +399,7 @@ public class PDEServicePluginTest
         assertTrue( !result.contains( "does not exist" ),
             "Got 'does not exist' error - container format is wrong: " + result );
         assertTrue( result.contains( "Passed" ) || result.contains( "passed" )
-            || result.contains( "timed out" ),
+            || result.contains( "did not report results" ),
             "Expected test results or timeout, got: " + result );
     }
 
@@ -506,7 +506,7 @@ public class PDEServicePluginTest
         assumeTrue( !result.contains( "Error" ),
             "Skipping: PDE launcher not available or project has errors (" + result + ")" );
         assertTrue( result.contains( "Passed" ) || result.contains( "passed" )
-            || result.contains( "timed out" ),
+            || result.contains( "did not report results" ),
             "Expected test results or timeout, got: " + result );
     }
 }
