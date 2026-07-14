@@ -168,6 +168,33 @@ public class MavenServiceTest {
     }
     
     @Test
+    public void testUpdateMavenProject_ValidProject() {
+        try {
+            // Offline, so the test does not depend on the network.
+            String result = service.updateMavenProject(TEST_PROJECT_NAME, false, true);
+
+            assertTrue(result.contains("Updated Maven project"), result);
+            assertTrue(result.contains(TEST_PROJECT_NAME), result);
+        } catch (RuntimeException e) {
+            String message = String.valueOf(e.getMessage());
+            if (message.contains("is not a Maven project") || message.contains("Could not find Maven configuration")) {
+                // m2e configuration is not always available in the test environment.
+                assumeTrue(false, "Skipping: Maven configuration not available (" + message + ")");
+            }
+            throw e;
+        }
+    }
+
+    @Test
+    public void testUpdateMavenProject_InvalidProject() {
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            service.updateMavenProject("NonExistentProject", false, false);
+        });
+
+        assertTrue(exception.getMessage().contains("does not exist"), exception.getMessage());
+    }
+
+    @Test
     public void testRunMavenBuild_InvalidProject() {
         // Test with non-existent project
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {

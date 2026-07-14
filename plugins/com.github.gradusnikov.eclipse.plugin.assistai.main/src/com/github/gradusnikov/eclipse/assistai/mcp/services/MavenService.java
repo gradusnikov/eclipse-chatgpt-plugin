@@ -18,6 +18,8 @@ import java.util.Optional;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 
+import org.eclipse.m2e.core.project.MavenUpdateRequest;
+
 import com.github.gradusnikov.eclipse.assistai.mcp.operations.Operation;
 import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationContext;
 import org.eclipse.core.runtime.NullProgressMonitor;
@@ -38,6 +40,12 @@ import jakarta.inject.Inject;
 @Creatable
 public class MavenService
 {
+    /**
+     * m2e's Maven nature. Hardcoded rather than taken from IMavenConstants, which lives in
+     * an internal package.
+     */
+    private static final String MAVEN_NATURE_ID = "org.eclipse.m2e.core.maven2Nature";
+
 
     @Inject
     ILog           logger;
@@ -227,6 +235,76 @@ public class MavenService
         
         // Update Maven project configuration if needed
         MavenPlugin.getProjectConfigurationManager().updateProjectConfiguration( facade.getProject(), monitor );
+    }
+
+    /**
+     * The headless equivalent of the IDE's "Maven > Update Project" action: re-reads the
+     * pom, re-resolves dependencies and reconfigures the project's classpath and facets.
+     * <p>
+     * This is what a pom edit needs before the workspace reflects it - without it, a newly
+     * added dependency is simply not on the classpath and everything that uses it still
+     * fails to compile.
+     *
+     * @param projectName            the Maven project to update
+     * @param forceDependencyUpdate  re-resolve SNAPSHOT and release dependencies even when
+     *                               they are already cached (the "Force Update of
+     *                               Snapshots/Releases" checkbox)
+     * @param offline                work offline, resolving only from the local repository
+     */
+    public String updateMavenProject( String projectName, boolean forceDependencyUpdate, boolean offline )
+    {
+        Objects.requireNonNull( projectName, "Project name cannot be null" );
+
+        if ( projectName.isEmpty() )
+        {
+            throw new RuntimeException( "Error: Project name cannot be empty." );
+        }
+
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( projectName );
+        if ( !project.exists() )
+        {
+            throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
+        }
+        if ( !project.isOpen() )
+        {
+            throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
+        }
+
+        try
+        {
+            if ( !project.hasNature( MAVEN_NATURE_ID ) )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is not a Maven project." );
+            }
+
+            // Cancellable, unlike a NullProgressMonitor: resolving dependencies can reach
+            // the network and take a while, so the caller must be able to abort it.
+            IProgressMonitor monitor = OperationContext.current()
+                                                       .map( Operation::monitor )
+                                                       .map( IProgressMonitor.class::cast )
+                                                       .orElseGet( NullProgressMonitor::new );
+
+            MavenUpdateRequest request = new MavenUpdateRequest( project, offline, forceDependencyUpdate );
+            MavenPlugin.getProjectConfigurationManager().updateProjectConfiguration( request, monitor );
+
+            StringBuilder sb = new StringBuilder();
+            sb.append( "Updated Maven project '" ).append( projectName ).append( "'." );
+            if ( forceDependencyUpdate )
+            {
+                sb.append( " Dependencies were re-resolved." );
+            }
+            if ( offline )
+            {
+                sb.append( " Resolved offline, from the local repository only." );
+            }
+            sb.append( "\n\nUse getCompilationErrors to check the project after the update." );
+            return sb.toString();
+        }
+        catch ( CoreException e )
+        {
+            logger.error( "Error updating Maven project " + projectName, e );
+            throw new RuntimeException( "Error updating Maven project '" + projectName + "': " + e.getMessage(), e );
+        }
     }
 
     /**
