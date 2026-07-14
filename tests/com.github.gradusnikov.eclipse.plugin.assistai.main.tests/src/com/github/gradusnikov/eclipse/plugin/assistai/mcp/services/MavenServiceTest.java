@@ -184,9 +184,13 @@ public class MavenServiceTest {
             String result = service.runMavenBuild(TEST_PROJECT_NAME, "clean install", "", 0);
             
             // Verify result contains expected information
-            assertTrue(result.contains("Maven build started for project"));
-            assertTrue(result.contains("with goals: clean install"));
-            assertTrue(result.contains("To view build output"));
+            // The build's outcome is now reported ("succeeded" / "FAILED" / "is still
+            // running") rather than a bare "started", which said nothing about whether it
+            // worked.
+            assertTrue(result.contains("Maven build"), result);
+            assertTrue(result.contains("for project"), result);
+            assertTrue(result.contains("with goals: clean install"), result);
+            assertTrue(result.contains("To view build output"), result);
         } catch (RuntimeException e) {
             if (e.getMessage().contains("Could not find Maven configuration")) {
                 // This is expected in test environment - M2E integration is difficult to test
