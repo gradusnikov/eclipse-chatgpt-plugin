@@ -328,14 +328,198 @@ public class UnitTestService {
     }
     
     /**
-     * Detects the appropriate JUnit test kind loader based on the project's
-     * classpath. Checks resolved classpath entries to distinguish JUnit 5 from 6.
+     * Detects the appropriate JUnit test kind loader. When a specific test class
+     * is provided, inspects its annotations and superclass to determine the exact
+     * JUnit version used — this avoids misdetection in PDE/mixed-classpath projects
+     * where multiple JUnit versions are resolvable. Falls back to project-level
+     * classpath analysis when no test class is given.
      */
-    private String detectJUnitTestKind(IJavaProject javaProject) throws JavaModelException {
-        // JUnit 5 / 6 (Jupiter) - both share org.junit.jupiter.api.Test
+    private String detectJUnitTestKind(IJavaProject javaProject, IType testClass, IPackageFragment packageFragment) throws JavaModelException {
+        if (testClass != null) {
+            String detected = detectJUnitTestKindFromClass(testClass);
+            if (detected != null) {
+                if (detected.equals("org.eclipse.jdt.junit.loader.junit5")) {
+                    String refined = detectJupiterVersion(javaProject);
+                    return refined != null ? refined : detected;
+                }
+                return detected;
+            }
+        }
+        if (packageFragment != null) {
+            String detected = detectJUnitTestKindFromPackage(packageFragment);
+            if (detected != null) {
+                if (detected.equals("org.eclipse.jdt.junit.loader.junit5")) {
+                    String refined = detectJupiterVersion(javaProject);
+                    return refined != null ? refined : detected;
+                }
+                return detected;
+            }
+        }
+        return detectJUnitTestKindFromProject(javaProject);
+    }
+
+    private String detectJUnitTestKindFromPackage(IPackageFragment packageFragment) throws JavaModelException {
+        int junit4Count = 0;
+        int junit5Count = 0;
+        int junit3Count = 0;
+
+        for (ICompilationUnit cu : packageFragment.getCompilationUnits()) {
+            for (IType type : cu.getTypes()) {
+                String kind = detectJUnitTestKindFromClass(type);
+                if (kind != null) {
+                    switch (kind) {
+                        case "org.eclipse.jdt.junit.loader.junit3":
+                            junit3Count++;
+                            break;
+                        case "org.eclipse.jdt.junit.loader.junit4":
+                            junit4Count++;
+                            break;
+                        case "org.eclipse.jdt.junit.loader.junit5":
+                            junit5Count++;
+                            break;
+                    }
+                }
+            }
+        }
+
+        if (junit5Count > 0 && junit4Count == 0 && junit3Count == 0) {
+            return "org.eclipse.jdt.junit.loader.junit5";
+        }
+        if (junit4Count > 0 && junit5Count == 0 && junit3Count == 0) {
+            return "org.eclipse.jdt.junit.loader.junit4";
+        }
+        if (junit3Count > 0 && junit4Count == 0 && junit5Count == 0) {
+            return "org.eclipse.jdt.junit.loader.junit3";
+        }
+        if (junit4Count > 0 || junit3Count > 0) {
+            return "org.eclipse.jdt.junit.loader.junit4";
+        }
+        return null;
+    }
+
+    private String detectJupiterVersion(IJavaProject javaProject) throws JavaModelException {
+        for (var entry : javaProject.getResolvedClasspath(true)) {
+            String entryPath = entry.getPath().toString();
+            if (entryPath.contains("junit-jupiter-api")) {
+                if (entryPath.matches(".*junit-jupiter-api[_-]6\\..*")) {
+                    return "org.eclipse.jdt.junit.loader.junit6";
+                }
+                return "org.eclipse.jdt.junit.loader.junit5";
+            }
+        }
         IType jupiterTest = javaProject.findType("org.junit.jupiter.api.Test");
         if (jupiterTest != null) {
-            // Check the resolved classpath for jupiter version to distinguish 5.x from 6.x
+            String typePath = jupiterTest.getPath().toString();
+            if (typePath.matches(".*junit-jupiter-api[_-]6\\..*")) {
+                return "org.eclipse.jdt.junit.loader.junit6";
+            }
+        }
+        return null;
+    }
+
+    private String detectJUnitTestKindFromClass(IType testClass) throws JavaModelException {
+        String[] imports = getImportsFromCompilationUnit(testClass);
+        boolean importsJUnit5 = false;
+        boolean importsJUnit4 = false;
+        for (String imp : imports) {
+            if (imp.startsWith("org.junit.jupiter.")) {
+                importsJUnit5 = true;
+            } else if (imp.equals("org.junit.Test") || imp.equals("org.junit.runner.RunWith")
+                    || (imp.startsWith("org.junit.") && !imp.startsWith("org.junit.jupiter."))) {
+                importsJUnit4 = true;
+            }
+        }
+
+        boolean hasJUnit4Indicator = false;
+        boolean hasJUnit5Indicator = false;
+
+        for (IMethod method : testClass.getMethods()) {
+            for (IAnnotation annotation : method.getAnnotations()) {
+                String name = annotation.getElementName();
+                if (name.equals("org.junit.Test")) {
+                    hasJUnit4Indicator = true;
+                } else if (name.equals("org.junit.jupiter.api.Test")
+                        || name.equals("org.junit.jupiter.params.ParameterizedTest")) {
+                    hasJUnit5Indicator = true;
+                } else if (name.equals("Test")) {
+                    if (importsJUnit5) {
+                        hasJUnit5Indicator = true;
+                    } else if (importsJUnit4) {
+                        hasJUnit4Indicator = true;
+                    }
+                } else if (name.equals("ParameterizedTest")) {
+                    if (importsJUnit5) {
+                        hasJUnit5Indicator = true;
+                    }
+                }
+            }
+        }
+
+        for (IAnnotation annotation : testClass.getAnnotations()) {
+            String name = annotation.getElementName();
+            if (name.equals("RunWith") || name.equals("org.junit.runner.RunWith")) {
+                hasJUnit4Indicator = true;
+            }
+            if (name.equals("ExtendWith") || name.equals("org.junit.jupiter.api.extension.ExtendWith")) {
+                hasJUnit5Indicator = true;
+            }
+        }
+
+        if (hasJUnit5Indicator) {
+            return "org.eclipse.jdt.junit.loader.junit5";
+        }
+        if (hasJUnit4Indicator) {
+            return "org.eclipse.jdt.junit.loader.junit4";
+        }
+
+        IType superType = findSuperType(testClass);
+        if (superType != null && "junit.framework.TestCase".equals(superType.getFullyQualifiedName())) {
+            return "org.eclipse.jdt.junit.loader.junit3";
+        }
+
+        if (importsJUnit5) {
+            return "org.eclipse.jdt.junit.loader.junit5";
+        }
+        if (importsJUnit4) {
+            return "org.eclipse.jdt.junit.loader.junit4";
+        }
+
+        return null;
+    }
+
+    private IType findSuperType(IType type) throws JavaModelException {
+        String superName = type.getSuperclassName();
+        if (superName == null) {
+            return null;
+        }
+        String[][] resolved = type.resolveType(superName);
+        if (resolved != null && resolved.length > 0) {
+            String fqn = resolved[0][0].isEmpty() ? resolved[0][1] : resolved[0][0] + "." + resolved[0][1];
+            return type.getJavaProject().findType(fqn);
+        }
+        return null;
+    }
+
+    private String[] getImportsFromCompilationUnit(IType type) {
+        ICompilationUnit cu = type.getCompilationUnit();
+        if (cu == null) {
+            return new String[0];
+        }
+        try {
+            var imports = cu.getImports();
+            String[] result = new String[imports.length];
+            for (int i = 0; i < imports.length; i++) {
+                result[i] = imports[i].getElementName();
+            }
+            return result;
+        } catch (JavaModelException e) {
+            return new String[0];
+        }
+    }
+
+    private String detectJUnitTestKindFromProject(IJavaProject javaProject) throws JavaModelException {
+        IType jupiterTest = javaProject.findType("org.junit.jupiter.api.Test");
+        if (jupiterTest != null) {
             for (var entry : javaProject.getResolvedClasspath(true)) {
                 String entryPath = entry.getPath().toString();
                 if (entryPath.contains("junit-jupiter-api")) {
@@ -345,22 +529,18 @@ public class UnitTestService {
                     break;
                 }
             }
-            // Also check the type's own path (covers non-OSGi setups)
             String typePath = jupiterTest.getPath().toString();
             if (typePath.matches(".*junit-jupiter-api[_-]6\\..*")) {
                 return "org.eclipse.jdt.junit.loader.junit6";
             }
             return "org.eclipse.jdt.junit.loader.junit5";
         }
-        // JUnit 4
         if (javaProject.findType("org.junit.Test") != null) {
             return "org.eclipse.jdt.junit.loader.junit4";
         }
-        // JUnit 3
         if (javaProject.findType("junit.framework.TestCase") != null) {
             return "org.eclipse.jdt.junit.loader.junit3";
         }
-        // Default fallback
         return "org.eclipse.jdt.junit.loader.junit5";
     }
     
@@ -544,8 +724,8 @@ public class UnitTestService {
                             javaProject.getHandleIdentifier());
                 }
                 
-                // Detect the appropriate JUnit version from the project's classpath
-                String testKind = detectJUnitTestKind(javaProject);
+                // Detect the appropriate JUnit version — prefer class-level detection when available
+                String testKind = detectJUnitTestKind(javaProject, testClass, packageFragment);
                 workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND", testKind);
                 
                 // Create the actual configuration
