@@ -56,7 +56,9 @@ public class McpServerFactoryPDETest
     {
         McpServerFactory factory = new McpServerFactory( null, new OperationRegistry() );
 
-        assertTrue( factory.listToolNames( new EclipseIntegrationsMcpServer() ).contains( "readImageResource" ) );
+        List<String> toolNames = factory.listToolNames( new EclipseIntegrationsMcpServer() );
+        assertTrue( toolNames.contains( "readImageResource" ) );
+        assertTrue( toolNames.contains( "explainTypeResolution" ) );
     }
 
     @Test

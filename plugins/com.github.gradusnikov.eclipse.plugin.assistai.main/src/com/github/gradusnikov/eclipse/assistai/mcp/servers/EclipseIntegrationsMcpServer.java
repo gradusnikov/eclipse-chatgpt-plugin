@@ -92,6 +92,14 @@ public class EclipseIntegrationsMcpServer
         return ResourceResultSerializer.serialize( result );
     }
 
+    @Tool( name = "explainTypeResolution", description = "Explains exactly how a Java type resolves on one Eclipse project's classpath, including its source/binary origin, classpath root and entry, source attachment, class file, and getSource strategy.", type = "object" )
+    public String explainTypeResolution(
+            @ToolParam( name = "projectName", description = "The exact open Eclipse Java project name", required = true ) String projectName,
+            @ToolParam( name = "fullyQualifiedClassName", description = "The fully qualified Java type name", required = true ) String fullyQualifiedClassName )
+    {
+        return javaDocService.explainTypeResolution( projectName, fullyQualifiedClassName );
+    }
+
     @Tool( name = "getClassOutline", description = "Returns a compact outline of a Java class: class declaration, field declarations, method signatures (no bodies), and inner types â all with line numbers. Much more token-efficient than getSource for understanding class structure. Use this first, then getMethodSource for specific methods.", type = "object" )
     public String getClassOutline(
             @ToolParam( name = "fullyQualifiedClassName", description = "A fully qualified class name (e.g. 'com.example.MyClass')", required = true )

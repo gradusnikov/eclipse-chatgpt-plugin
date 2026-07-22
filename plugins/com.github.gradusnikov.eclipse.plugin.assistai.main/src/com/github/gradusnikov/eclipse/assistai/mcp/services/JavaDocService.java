@@ -13,6 +13,8 @@ import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.jdt.core.IClasspathEntry;
+import org.eclipse.jdt.core.IPackageFragmentRoot;
 import org.eclipse.jdt.core.IBuffer;
 import org.eclipse.jdt.core.IClassFile;
 import org.eclipse.jdt.core.ICompilationUnit;
@@ -197,6 +199,121 @@ public class JavaDocService
         }
         javaDoc += member.toString() + "\n";
         return javaDoc;
+    }
+
+    public String explainTypeResolution( String projectName, String fullyQualifiedClassName )
+    {
+        if ( projectName == null || projectName.isBlank() )
+        {
+            throw new IllegalArgumentException( "Project name cannot be empty." );
+        }
+        if ( fullyQualifiedClassName == null || fullyQualifiedClassName.isBlank() )
+        {
+            throw new IllegalArgumentException( "Fully qualified class name cannot be empty." );
+        }
+
+        IJavaProject javaProject = getAvailableJavaProjects().stream()
+                .filter( project -> projectName.equals( project.getElementName() ) )
+                .findFirst()
+                .orElseThrow( () -> new IllegalArgumentException( "Open Java project not found: " + projectName ) );
+
+        try
+        {
+            IType type = javaProject.findType( fullyQualifiedClassName );
+            if ( type == null )
+            {
+                return "Type '" + fullyQualifiedClassName + "' is not resolved on the classpath of project '" + projectName + "'.";
+            }
+
+            IPackageFragmentRoot root = (IPackageFragmentRoot) type.getAncestor( IJavaElement.PACKAGE_FRAGMENT_ROOT );
+            IClasspathEntry entry = root == null ? null : root.getResolvedClasspathEntry();
+            ICompilationUnit compilationUnit = type.getCompilationUnit();
+            IClassFile classFile = type.getClassFile();
+            IResource resource = getTypeResource( type );
+            String attachedSource = classFile == null ? null : classFile.getSource();
+
+            StringBuilder result = new StringBuilder();
+            result.append( "Type resolution for " ).append( fullyQualifiedClassName ).append( "\n" );
+            result.append( "Project: " ).append( projectName ).append( "\n" );
+            result.append( "Resolved name: " ).append( type.getFullyQualifiedName( '.' ) ).append( "\n" );
+            result.append( "Kind: " ).append( compilationUnit != null ? "workspace source" : "binary class" ).append( "\n" );
+            result.append( "Java element path: " ).append( type.getPath() ).append( "\n" );
+
+            if ( resource != null )
+            {
+                result.append( "Workspace resource: " ).append( resource.getFullPath() ).append( "\n" );
+            }
+            else
+            {
+                result.append( "Workspace resource: none (external or archive-backed type)\n" );
+            }
+
+            if ( root != null )
+            {
+                result.append( "Package fragment root: " ).append( root.getPath() ).append( "\n" );
+                result.append( "Root form: " );
+                if ( root.isArchive() )
+                {
+                    result.append( root.isExternal() ? "external archive" : "workspace archive" );
+                }
+                else
+                {
+                    result.append( root.isExternal() ? "external folder" : "workspace folder" );
+                }
+                result.append( "\n" );
+
+                if ( root.getSourceAttachmentPath() != null )
+                {
+                    result.append( "Source attachment: " ).append( root.getSourceAttachmentPath() ).append( "\n" );
+                }
+                else
+                {
+                    result.append( "Source attachment: none\n" );
+                }
+            }
+
+            if ( entry != null )
+            {
+                result.append( "Classpath entry: " ).append( classpathEntryKind( entry.getEntryKind() ) )
+                        .append( " -> " ).append( entry.getPath() ).append( "\n" );
+            }
+
+            if ( classFile != null )
+            {
+                result.append( "Class file: " ).append( classFile.getPath() ).append( "\n" );
+            }
+
+            if ( compilationUnit != null )
+            {
+                result.append( "Source strategy: workspace compilation unit" );
+            }
+            else if ( attachedSource != null && !attachedSource.isBlank() )
+            {
+                result.append( "Source strategy: attached library source" );
+            }
+            else
+            {
+                result.append( "Source strategy: no attached source; getSource will attempt decompilation" );
+            }
+            return result.toString();
+        }
+        catch ( JavaModelException e )
+        {
+            throw new RuntimeException( "Could not explain type resolution for " + fullyQualifiedClassName, e );
+        }
+    }
+
+    private String classpathEntryKind( int kind )
+    {
+        return switch ( kind )
+        {
+            case IClasspathEntry.CPE_SOURCE -> "source";
+            case IClasspathEntry.CPE_PROJECT -> "project";
+            case IClasspathEntry.CPE_LIBRARY -> "library";
+            case IClasspathEntry.CPE_VARIABLE -> "variable";
+            case IClasspathEntry.CPE_CONTAINER -> "container";
+            default -> "unknown (" + kind + ")";
+        };
     }
 
     /**
