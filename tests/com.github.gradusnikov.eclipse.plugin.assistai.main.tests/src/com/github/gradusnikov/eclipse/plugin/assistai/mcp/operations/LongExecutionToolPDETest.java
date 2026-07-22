@@ -25,7 +25,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationState;
  * caller's inline wait runs out it gets a handle instead of an error, the work keeps
  * going, and the result is still there when it comes back. These tests pin that down.
  */
-public class LongExecutionToolTest
+public class LongExecutionToolPDETest
 {
     private final OperationRegistry registry = new OperationRegistry();
 

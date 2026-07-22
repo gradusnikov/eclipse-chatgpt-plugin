@@ -91,6 +91,7 @@ public class McpServerFactory
     {
         try
         {
+            executor.validateArguments( tool.name(), args );
             var annotation = executor.getToolAnnotation( tool.name() );
             boolean longExecution = annotation
                     .map( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool::longExecution )

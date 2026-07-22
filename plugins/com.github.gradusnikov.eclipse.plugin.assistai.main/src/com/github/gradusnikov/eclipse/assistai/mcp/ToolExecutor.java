@@ -4,8 +4,12 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -72,9 +76,10 @@ public class ToolExecutor
      */
     public CompletableFuture<Object> call( String name, Map<String, Object> args, Operation operation )
     {
-        Method method = getFunctionCallbackByName( name ).orElseThrow( () -> new RuntimeException("Tool " + name + " not found!" ) ); 
-        method.getAnnotationsByType( com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam.class );
-        Object[] argValues = mapArguments( method, args );
+        Method method = getFunctionCallbackByName( name ).orElseThrow( () -> new RuntimeException("Tool " + name + " not found!" ) );
+        Map<String, Object> safeArgs = Optional.ofNullable( args ).orElseGet( Map::of );
+        validateArguments( name, method, safeArgs );
+        Object[] argValues = mapArguments( method, safeArgs );
         Supplier<Object> body = () -> invokeMethod( method, argValues );
         Supplier<Object> task = operation == null ? body : () -> {
             // The worker has to be reachable for cancellation to interrupt it.
@@ -93,6 +98,59 @@ public class ToolExecutor
         CompletableFuture<Object> future = CompletableFuture.supplyAsync( task, TOOL_EXECUTOR );
         return future;
     }
+    /**
+     * Validates a tool call against its annotated Java method before any tool code
+     * is scheduled. An empty string is a supplied value; a missing key or null value
+     * is not.
+     */
+    public void validateArguments( String name, Map<String, Object> args )
+    {
+        Method method = getFunctionCallbackByName( name )
+                .orElseThrow( () -> new RuntimeException( "Tool " + name + " not found!" ) );
+        validateArguments( name, method, Optional.ofNullable( args ).orElseGet( Map::of ) );
+    }
+
+    private void validateArguments( String name, Method method, Map<String, Object> args )
+    {
+        Set<String> expected = new LinkedHashSet<>();
+        Set<String> missing = new LinkedHashSet<>();
+
+        for ( Parameter parameter : method.getParameters() )
+        {
+            String parameterName = toParamName( parameter );
+            expected.add( parameterName );
+
+            ToolParam annotation = parameter.getAnnotation( ToolParam.class );
+            boolean required = annotation == null || annotation.required();
+            if ( required && (!args.containsKey( parameterName ) || args.get( parameterName ) == null) )
+            {
+                missing.add( parameterName );
+            }
+        }
+
+        Set<String> unexpected = new LinkedHashSet<>( args.keySet() );
+        unexpected.removeAll( expected );
+
+        if ( missing.isEmpty() && unexpected.isEmpty() )
+        {
+            return;
+        }
+
+        List<String> problems = new ArrayList<>();
+        if ( !missing.isEmpty() )
+        {
+            problems.add( "missing required parameters " + missing );
+        }
+        if ( !unexpected.isEmpty() )
+        {
+            problems.add( "unknown parameters " + unexpected );
+        }
+
+        throw new IllegalArgumentException(
+                "Invalid arguments for tool '" + name + "': " + String.join( "; ", problems )
+                        + ". Expected parameters: " + expected );
+    }
+
     private Object invokeMethod( Method method, Object[] args )
     {
         try
