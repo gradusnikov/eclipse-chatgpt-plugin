@@ -266,6 +266,7 @@ Direct file-editing tools complete a workspace synchronization barrier before re
 | reloadTarget | Reload the active target after its contents change |
 | runJUnitPluginTests | Run a plug-in project's tests in the PDE harness |
 | runJUnitPluginTestClass | Run one `*PDETest` class in the PDE harness |
+| runJUnitPluginTestClasses | Run selected `*PDETest` classes in one PDE launch, avoiding repeated workbench startup |
 | restartMcpServers | Rebuild HTTP MCP servers after a safe delay so the current response can finish |
 | reloadWorkspaceBundle | Update an OSGi bundle only when backed by an open workspace project; system, fragment, and installed-only bundles are rejected |
 

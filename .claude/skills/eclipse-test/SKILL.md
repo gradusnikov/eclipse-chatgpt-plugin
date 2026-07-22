@@ -2,7 +2,7 @@
 name: eclipse-test
 description: Run JUnit tests in Eclipse projects — all tests, by package, by class, or individual test methods. Also build Maven projects.
 argument-hint: "[project] [class or package]"
-allowed-tools: mcp__eclipse-ide__runAllTests, mcp__eclipse-ide__runPackageTests, mcp__eclipse-ide__runClassTests, mcp__eclipse-ide__runTestMethod, mcp__eclipse-ide__findTestClasses, mcp__eclipse-ide__runMavenBuild, mcp__eclipse-ide__getConsoleOutput, mcp__eclipse-ide__getEffectivePom, mcp__eclipse-ide__listMavenProjects, mcp__eclipse-ide__getProjectDependencies, mcp__eclipse-ide__getCompilationErrors, mcp__eclipse-pde__runJUnitPluginTests, mcp__eclipse-pde__runJUnitPluginTestClass, mcp__eclipse-pde__getActiveTarget, mcp__eclipse-pde__reloadTarget
+allowed-tools: mcp__eclipse-ide__runAllTests, mcp__eclipse-ide__runPackageTests, mcp__eclipse-ide__runClassTests, mcp__eclipse-ide__runTestMethod, mcp__eclipse-ide__findTestClasses, mcp__eclipse-ide__runMavenBuild, mcp__eclipse-ide__getConsoleOutput, mcp__eclipse-ide__getEffectivePom, mcp__eclipse-ide__listMavenProjects, mcp__eclipse-ide__getProjectDependencies, mcp__eclipse-ide__getCompilationErrors, mcp__eclipse-pde__runJUnitPluginTests, mcp__eclipse-pde__runJUnitPluginTestClass, mcp__eclipse-pde__runJUnitPluginTestClasses, mcp__eclipse-pde__getActiveTarget, mcp__eclipse-pde__reloadTarget
 ---
 
 # Run Tests & Build in Eclipse
@@ -21,6 +21,7 @@ Execute JUnit tests and Maven builds using Eclipse's built-in infrastructure.
 
 - **runJUnitPluginTests** — Run all plug-in tests in the PDE harness. Use for the classes listed under `PDE harness tests (*PDETest)`.
 - **runJUnitPluginTestClass** — Run one fully qualified `*PDETest` class.
+- **runJUnitPluginTestClasses** — Run a comma-separated set of fully qualified `*PDETest` classes in one PDE launch. Prefer it after a change touches several harness tests because Eclipse workbench startup is paid only once. The initial batch tool does not provide coverage; use the single-class or whole-project tools when coverage is required.
 - **getActiveTarget** / **reloadTarget** — Inspect or refresh the target platform when plug-in dependencies cannot resolve.
 - Keep ordinary unit tests named `*Test.java`; any test using Eclipse workspace, JDT, UI, platform, or OSGi runtime services must be named `*PDETest.java` so discovery routes it to the PDE harness.
 

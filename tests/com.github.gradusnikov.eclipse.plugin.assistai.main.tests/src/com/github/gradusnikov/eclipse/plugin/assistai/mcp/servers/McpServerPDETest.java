@@ -1,6 +1,7 @@
 package com.github.gradusnikov.eclipse.plugin.assistai.mcp.servers;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -237,4 +238,23 @@ public class McpServerPDETest
             assumeTrue( false, "Skipping: workspace not available (" + e.getMessage() + ")" );
         }
     }
+    @Test
+    public void testRunJUnitPluginTestClasses_emptySelection_isRejected()
+    {
+        assertThrows( IllegalArgumentException.class,
+            () -> server.runJUnitPluginTestClasses(
+                "SomeProject", " , ", null, null, null ) );
+    }
+
+    @Test
+    public void testRunJUnitPluginTestClasses_multipleNames_areAccepted()
+    {
+        String result = server.runJUnitPluginTestClasses(
+            "NonExistentProject_XYZ",
+            " com.example.FirstPDETest, com.example.SecondPDETest ",
+            "10", "false", "org.eclipse.ui, org.eclipse.core.runtime" );
+
+        assertTrue( result.startsWith( "Error" ), result );
+    }
+
 }

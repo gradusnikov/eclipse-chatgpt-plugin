@@ -87,7 +87,7 @@ public class PDEMcpServer
         int timeoutSeconds = Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60);
         boolean coverage = Optional.ofNullable(withCoverage).map(Boolean::parseBoolean).orElse(false);
         boolean allPlugins = Optional.ofNullable(includeAllPlugins).map(Boolean::parseBoolean).orElse(false);
-        List<String> extras = parseAdditionalBundles(additionalBundles);
+        List<String> extras = parseCommaSeparated(additionalBundles);
         return pdeService.runJUnitPluginTests(projectName, timeoutSeconds, coverage, allPlugins, extras);
     }
 
@@ -106,17 +106,36 @@ public class PDEMcpServer
         int timeoutSeconds = Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60);
         boolean coverage = Optional.ofNullable(withCoverage).map(Boolean::parseBoolean).orElse(false);
         boolean allPlugins = Optional.ofNullable(includeAllPlugins).map(Boolean::parseBoolean).orElse(false);
-        List<String> extras = parseAdditionalBundles(additionalBundles);
+        List<String> extras = parseCommaSeparated(additionalBundles);
         return pdeService.runJUnitPluginTestClass(projectName, className, timeoutSeconds, coverage, allPlugins, extras);
     }
 
-    private List<String> parseAdditionalBundles(String additionalBundles)
+    @Tool(name = "runJUnitPluginTestClasses",
+          description = "Runs selected JUnit Plug-in Test classes in one PDE launch. Use this to avoid repeated workbench startup when testing several changed classes.",
+          longExecution = true,
+          type = "object")
+    public String runJUnitPluginTestClasses(
+            @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test classes") String projectName,
+            @ToolParam(name = "classNames", description = "Comma-separated fully qualified test class names") String classNames,
+            @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout,
+            @ToolParam(name = "includeAllPlugins", description = "If 'true', launches with all workspace and target platform plug-ins. If 'false' (default), only includes the test plug-in and auto-resolved dependencies.", required = false) String includeAllPlugins,
+            @ToolParam(name = "additionalBundles", description = "Comma-separated additional bundle symbolic names for selected plug-in mode.", required = false) String additionalBundles)
     {
-        if (additionalBundles == null || additionalBundles.isBlank())
+        int timeoutSeconds = Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60);
+        boolean allPlugins = Optional.ofNullable(includeAllPlugins).map(Boolean::parseBoolean).orElse(false);
+        List<String> selectedClasses = parseCommaSeparated(classNames);
+        List<String> extras = parseCommaSeparated(additionalBundles);
+        return pdeService.runJUnitPluginTestClasses(
+            projectName, selectedClasses, timeoutSeconds, allPlugins, extras);
+    }
+
+    private List<String> parseCommaSeparated(String value)
+    {
+        if (value == null || value.isBlank())
         {
             return Collections.emptyList();
         }
-        return Arrays.stream(additionalBundles.split(","))
+        return Arrays.stream(value.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();

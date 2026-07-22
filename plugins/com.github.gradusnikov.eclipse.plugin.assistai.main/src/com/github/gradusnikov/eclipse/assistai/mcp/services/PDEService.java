@@ -1,5 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -240,7 +241,7 @@ public class PDEService
         try
         {
             IJavaProject javaProject = getJavaProject( projectName );
-            return launchJUnitPluginTests( javaProject, null, null, timeout, withCoverage, includeAllPlugins, additionalBundles );
+            return launchJUnitPluginTests( javaProject, null, List.of(), timeout, withCoverage, includeAllPlugins, additionalBundles );
         }
         catch ( IllegalArgumentException | CoreException e )
         {
@@ -279,7 +280,80 @@ public class PDEService
             {
                 return "Error: Class '" + className + "' not found in project '" + projectName + "'.";
             }
-            return launchJUnitPluginTests( javaProject, null, type, timeout, withCoverage, includeAllPlugins, additionalBundles );
+            return launchJUnitPluginTests( javaProject, null, List.of( type ), timeout, withCoverage, includeAllPlugins, additionalBundles );
+        }
+        catch ( IllegalArgumentException | CoreException e )
+        {
+            return "Error running plug-in tests: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Runs selected JUnit Plug-in Test classes in a single PDE launch.
+     */
+    public String runJUnitPluginTestClasses( String projectName, List<String> classNames, Integer timeout )
+    {
+        return runJUnitPluginTestClasses( projectName, classNames, timeout, false, List.of() );
+    }
+
+    public String runJUnitPluginTestClasses( String projectName, List<String> classNames, Integer timeout,
+                                             boolean includeAllPlugins, List<String> additionalBundles )
+    {
+        Objects.requireNonNull( projectName, "Project name cannot be null" );
+        Objects.requireNonNull( classNames, "Class names cannot be null" );
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Project name cannot be empty" );
+        }
+        if ( classNames.isEmpty() )
+        {
+            throw new IllegalArgumentException( "At least one class name is required" );
+        }
+        if ( timeout == null || timeout <= 0 )
+        {
+            timeout = 300;
+        }
+
+        List<String> normalizedClassNames = new ArrayList<>();
+        for ( String className : classNames )
+        {
+            Objects.requireNonNull( className, "Class names cannot contain null" );
+            String normalized = className.trim();
+            if ( normalized.isEmpty() )
+            {
+                throw new IllegalArgumentException( "Class names cannot be blank" );
+            }
+            if ( !normalizedClassNames.contains( normalized ) )
+            {
+                normalizedClassNames.add( normalized );
+            }
+        }
+
+        try
+        {
+            IJavaProject javaProject = getJavaProject( projectName );
+            List<IType> testClasses = new ArrayList<>( normalizedClassNames.size() );
+            List<String> missingClassNames = new ArrayList<>();
+            for ( String className : normalizedClassNames )
+            {
+                IType type = javaProject.findType( className );
+                if ( type == null )
+                {
+                    missingClassNames.add( className );
+                }
+                else
+                {
+                    testClasses.add( type );
+                }
+            }
+            if ( !missingClassNames.isEmpty() )
+            {
+                return "Error: Test classes not found in project '" + projectName + "': "
+                    + String.join( ", ", missingClassNames );
+            }
+
+            return launchJUnitPluginTests( javaProject, null, testClasses, timeout, false,
+                includeAllPlugins, additionalBundles );
         }
         catch ( IllegalArgumentException | CoreException e )
         {
@@ -299,7 +373,7 @@ public class PDEService
     private static final int MAX_TEST_RUN_MINUTES = 120;
 
     private String launchJUnitPluginTests( IJavaProject javaProject, Object packageFragment,
-                                            IType testClass, int timeout, boolean withCoverage,
+                                            List<IType> testClasses, int timeout, boolean withCoverage,
                                             boolean includeAllPlugins, List<String> additionalBundles )
     {
         CountDownLatch latch = new CountDownLatch( 1 );
@@ -348,17 +422,19 @@ public class PDEService
         try
         {
             ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
-            // PDE JUnit Plug-in Test launch config type
-            ILaunchConfigurationType type = launchManager.getLaunchConfigurationType(
-                "org.eclipse.pde.ui.JunitLaunchConfig" );
+            boolean selectedClassLaunch = testClasses.size() > 1;
+            String launchTypeId = selectedClassLaunch
+                ? SelectedJUnitPluginLaunchDelegate.LAUNCH_CONFIGURATION_TYPE
+                : "org.eclipse.pde.ui.JunitLaunchConfig";
+            ILaunchConfigurationType type = launchManager.getLaunchConfigurationType( launchTypeId );
 
             if ( type == null )
             {
-                return "Error: PDE JUnit Plug-in Test launch configuration type not found. "
-                    + "Ensure org.eclipse.pde.ui is available in the running Eclipse instance.";
+                return "Error: PDE JUnit Plug-in Test launch configuration type '" + launchTypeId
+                    + "' not found. Ensure the required PDE launcher is available.";
             }
 
-            String launchName = buildLaunchName( javaProject, testClass );
+            String launchName = buildLaunchName( javaProject, testClasses );
             ILaunchConfiguration existing = findExistingLaunchConfig( launchManager, launchName );
             ILaunchConfigurationWorkingCopy workingCopy;
             if ( existing != null )
@@ -373,14 +449,27 @@ public class PDEService
             workingCopy.setAttribute( IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME,
                 javaProject.getElementName() );
 
-            if ( testClass != null )
+            if ( selectedClassLaunch )
             {
+                List<String> classNames = testClasses.stream()
+                    .map( IType::getFullyQualifiedName )
+                    .toList();
+                workingCopy.setAttribute( SelectedJUnitPluginLaunchDelegate.ATTR_TEST_CLASSES, classNames );
+                workingCopy.setAttribute( IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "" );
+                workingCopy.setAttribute( "org.eclipse.jdt.junit.CONTAINER", "" );
+            }
+            else if ( !testClasses.isEmpty() )
+            {
+                workingCopy.setAttribute( SelectedJUnitPluginLaunchDelegate.ATTR_TEST_CLASSES,
+                    List.<String>of() );
                 workingCopy.setAttribute( IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME,
-                    testClass.getFullyQualifiedName() );
+                    testClasses.get( 0 ).getFullyQualifiedName() );
                 workingCopy.setAttribute( "org.eclipse.jdt.junit.CONTAINER", "" );
             }
             else
             {
+                workingCopy.setAttribute( SelectedJUnitPluginLaunchDelegate.ATTR_TEST_CLASSES,
+                    List.<String>of() );
                 workingCopy.setAttribute( IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "" );
                 // CONTAINER must be the Java element handle identifier for the project:
                 // "=<projectName>" is the format JDT JUnit launcher expects
@@ -396,7 +485,8 @@ public class PDEService
             // the "Select a workspace" dialog interactively
             String testWorkspace = System.getProperty( "java.io.tmpdir" )
                 + java.io.File.separator + "pde-test-workspace-"
-                + javaProject.getElementName();
+                + javaProject.getElementName() + "-"
+                + Integer.toHexString( launchName.hashCode() );
             workingCopy.setAttribute( IPDELauncherConstants.LOCATION, testWorkspace );
             workingCopy.setAttribute( IPDELauncherConstants.DOCLEAR, false );
 
@@ -498,6 +588,11 @@ public class PDEService
                 return "Error: No test results collected. The test run may have failed to start.";
             }
 
+            // The test session can finish just before the workbench process releases
+            // its workspace lock. Wait briefly so an immediate rerun of the same
+            // selection can safely reuse its workspace.
+            waitForLaunchTermination( launchRef[0] );
+
             String results = testRunResults[0].toString();
 
             if ( useCoverage )
@@ -526,12 +621,42 @@ public class PDEService
         }
     }
 
-    private String buildLaunchName( IJavaProject project, IType testClass )
+    private void waitForLaunchTermination( org.eclipse.debug.core.ILaunch launch )
+        throws InterruptedException
+    {
+        if ( launch == null || launch.isTerminated() )
+        {
+            return;
+        }
+
+        long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis( 10 );
+        Display display = Display.getCurrent();
+        while ( !launch.isTerminated() && System.currentTimeMillis() < deadline )
+        {
+            if ( display != null && !display.isDisposed() )
+            {
+                while ( display.readAndDispatch() )
+                {
+                }
+            }
+            Thread.sleep( 100 );
+        }
+    }
+
+    private String buildLaunchName( IJavaProject project, List<IType> testClasses )
     {
         String base = "AssistAI-PDE-" + project.getElementName();
-        if ( testClass != null )
+        if ( testClasses.size() == 1 )
         {
-            base += "-" + testClass.getElementName();
+            return base + "-" + testClasses.get( 0 ).getElementName();
+        }
+        if ( testClasses.size() > 1 )
+        {
+            List<String> classNames = testClasses.stream()
+                .map( IType::getFullyQualifiedName )
+                .toList();
+            return base + "-Selected-" + testClasses.size() + "-"
+                + Integer.toHexString( classNames.hashCode() );
         }
         return base;
     }

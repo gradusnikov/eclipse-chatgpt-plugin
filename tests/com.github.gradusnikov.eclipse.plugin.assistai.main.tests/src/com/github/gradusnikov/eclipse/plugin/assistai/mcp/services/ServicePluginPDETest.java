@@ -187,6 +187,18 @@ public class ServicePluginPDETest
             "}\n";
         pkg.createCompilationUnit( "SimplePluginTest.java", testSource, true, monitor );
 
+        String secondTestSource =
+            "package com.example.pdetest;\n" +
+            "import org.junit.Test;\n" +
+            "import static org.junit.Assert.assertEquals;\n" +
+            "public class SecondPluginTest {\n" +
+            "    @Test\n" +
+            "    public void testSecond() {\n" +
+            "        assertEquals(4, 2 + 2);\n" +
+            "    }\n" +
+            "}\n";
+        pkg.createCompilationUnit( "SecondPluginTest.java", secondTestSource, true, monitor );
+
         project.build( org.eclipse.core.resources.IncrementalProjectBuilder.FULL_BUILD, monitor );
     }
 
@@ -333,6 +345,29 @@ public class ServicePluginPDETest
     }
 
     // -------------------------------------------------------------------------
+    // runJUnitPluginTestClasses - input validation
+    // -------------------------------------------------------------------------
+
+    @Test
+    @Order( 12 )
+    public void testRunJUnitPluginTestClasses_emptyClassNames_throwsIllegalArgument()
+    {
+        assertThrows( IllegalArgumentException.class,
+            () -> service.runJUnitPluginTestClasses( "SomeProject", List.of(), 60 ) );
+    }
+
+    @Test
+    @Order( 12 )
+    public void testRunJUnitPluginTestClasses_missingClasses_reportsAllNames()
+    {
+        String result = service.runJUnitPluginTestClasses(
+            TEST_PLUGIN_PROJECT, List.of( "missing.FirstPDETest", "missing.SecondPDETest" ), 60 );
+
+        assertTrue( result.contains( "missing.FirstPDETest" ), result );
+        assertTrue( result.contains( "missing.SecondPDETest" ), result );
+    }
+
+    // -------------------------------------------------------------------------
     // ITargetPlatformService availability
     // -------------------------------------------------------------------------
 
@@ -401,6 +436,23 @@ public class ServicePluginPDETest
         assertTrue( result.contains( "Passed" ) || result.contains( "passed" )
             || result.contains( "did not report results" ),
             "Expected test results or timeout, got: " + result );
+    }
+
+    @Test
+    @Order( 22 )
+    public void testRunJUnitPluginTestClasses_realProject_runsSelectedClassesOnce()
+    {
+        String result = service.runJUnitPluginTestClasses(
+            TEST_PLUGIN_PROJECT,
+            List.of( "com.example.pdetest.SimplePluginTest",
+                     "com.example.pdetest.SecondPluginTest",
+                     "com.example.pdetest.SimplePluginTest" ),
+            120 );
+        System.out.println( "runJUnitPluginTestClasses result: " + result );
+        assumeTrue( !result.contains( "Error" ),
+            "Skipping: PDE launcher not available or project has errors (" + result + ")" );
+        assertTrue( result.contains( "Total: 2" ), result );
+        assertTrue( result.contains( "Passed: 2" ), result );
     }
 
     // -------------------------------------------------------------------------
