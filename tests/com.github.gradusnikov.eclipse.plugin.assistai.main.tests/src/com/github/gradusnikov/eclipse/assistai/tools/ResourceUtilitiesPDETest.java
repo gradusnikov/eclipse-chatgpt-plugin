@@ -34,7 +34,7 @@ import org.osgi.util.tracker.ServiceTracker;
  * (LaTeX) files, because Tika reported their MIME type as {@code application/x-tex}
  * which was absent from a hard-coded text-MIME whitelist.
  */
-public class ResourceUtilitiesPluginTest
+public class ResourceUtilitiesPDETest
 {
     private static final String TEST_PROJECT_NAME = "ResourceUtilitiesTestProject";
     private final NullProgressMonitor monitor = new NullProgressMonitor();
@@ -43,7 +43,7 @@ public class ResourceUtilitiesPluginTest
     @BeforeEach
     public void beforeEach() throws CoreException
     {
-        BundleContext bundleContext = FrameworkUtil.getBundle( ResourceUtilitiesPluginTest.class ).getBundleContext();
+        BundleContext bundleContext = FrameworkUtil.getBundle( ResourceUtilitiesPDETest.class ).getBundleContext();
         ServiceTracker<IWorkspace, IWorkspace> workspaceTracker = new ServiceTracker<>( bundleContext, IWorkspace.class, null );
         workspaceTracker.open();
         IWorkspace workspace = workspaceTracker.getService();

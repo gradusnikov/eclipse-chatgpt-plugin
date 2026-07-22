@@ -22,7 +22,7 @@ Execute JUnit tests and Maven builds using Eclipse's built-in infrastructure.
 - **runJUnitPluginTests** — Run all plug-in tests in the PDE harness. Use for the classes listed under `PDE harness tests (*PDETest)`.
 - **runJUnitPluginTestClass** — Run one fully qualified `*PDETest` class.
 - **getActiveTarget** / **reloadTarget** — Inspect or refresh the target platform when plug-in dependencies cannot resolve.
-- Keep ordinary unit tests named `*Test.java`; any test requiring Eclipse/OSGi/PDE runtime services must be named `*PDETest.java`.
+- Keep ordinary unit tests named `*Test.java`; any test using Eclipse workspace, JDT, UI, platform, or OSGi runtime services must be named `*PDETest.java` so discovery routes it to the PDE harness.
 
 ## Build Tools
 

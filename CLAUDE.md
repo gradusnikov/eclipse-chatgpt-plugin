@@ -54,23 +54,23 @@ This project exposes Eclipse IDE capabilities as MCP tools. When working on code
 Test project: `com.github.gradusnikov.eclipse.plugin.assistai.main.tests`
 
 ### Plain JUnit (run with `runClassTests` / `runAllTests`)
-- `com.github.gradusnikov.eclipse.assistai.chat.ConversationContextTest`
-- `com.github.gradusnikov.eclipse.assistai.tools.ContentTypeDetectorTest`
-- `com.github.gradusnikov.eclipse.assistai.prompt.MarkdownParserTest`
-- `com.github.gradusnikov.eclipse.plugin.assistai.main.HtmlToMarkdownConverterTest`
-- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.servers.TimeMcpServerTest`
 
-### Plugin Tests (run with `runJUnitPluginTestClass` / `runJUnitPluginTests`)
-- `com.github.gradusnikov.eclipse.assistai.prompt.ChatMessageFactoryTest`
-- `com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilitiesPluginTest`
-- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.servers.PDEMcpServerTest`
-- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.CodeEditingServiceTest`
-- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.MavenServiceTest`
-- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.CodeAnalysisServiceTest`
-- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.CoverageServiceTest`
-- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.PDEServicePluginTest`
-- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.services.GitServiceTest`
+- `com.github.gradusnikov.eclipse.assistai.chat.ConversationContextTest`
+- `com.github.gradusnikov.eclipse.assistai.preferences.PreferenceInitializerAuthTokenTest`
+- `com.github.gradusnikov.eclipse.assistai.tools.ContentTypeDetectorTest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.main.HtmlToMarkdownConverterTest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.operations.OperationOutputBufferTest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.mcp.servers.TimeMcpServerTest`
 - `com.github.gradusnikov.eclipse.plugin.assistai.mcp.transport.SdkHttpStreamingTest`
+
+### PDE harness tests (run with `runJUnitPluginTestClass` / `runJUnitPluginTests`)
+
+Any test that uses Eclipse workspace, JDT, UI, platform, or OSGi runtime services must be named `*PDETest.java`. This lets test discovery route it to the PDE harness. Current examples include:
+
+- `com.github.gradusnikov.eclipse.assistai.mcp.services.CodeAnalysisServicePDETest`
+- `com.github.gradusnikov.eclipse.assistai.mcp.services.MavenServicePDETest`
+- `com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilitiesPDETest`
+- `com.github.gradusnikov.eclipse.plugin.assistai.resources.ResourceUriSpacesPDETest`
 
 ## Build
 Eclipse PDE project — for a full build, run `mvn clean verify` from the repo root via the shell (do not use Eclipse MCP tools for full builds).

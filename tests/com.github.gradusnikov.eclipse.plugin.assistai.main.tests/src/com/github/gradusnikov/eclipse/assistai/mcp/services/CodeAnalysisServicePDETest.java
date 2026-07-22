@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
+import org.eclipse.core.resources.ICommand;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IMarker;
@@ -38,7 +39,7 @@ import org.osgi.util.tracker.ServiceTracker;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeAnalysisService;
 
-public class CodeAnalysisServiceTest {
+public class CodeAnalysisServicePDETest {
 
     private static final String TEST_PROJECT_NAME = "CodeAnalysisTestProject";
     private IProject project;
@@ -49,7 +50,7 @@ public class CodeAnalysisServiceTest {
     @BeforeEach
     public void beforeEach() throws CoreException, IOException, InterruptedException {
         // Get workspace through OSGi service tracker
-        BundleContext bundleContext = FrameworkUtil.getBundle(CodeAnalysisServiceTest.class).getBundleContext();
+        BundleContext bundleContext = FrameworkUtil.getBundle(CodeAnalysisServicePDETest.class).getBundleContext();
         ServiceTracker<IWorkspace, IWorkspace> workspaceTracker = new ServiceTracker<>(bundleContext, IWorkspace.class, null);
         
         workspaceTracker.open();
@@ -68,6 +69,14 @@ public class CodeAnalysisServiceTest {
         desc.setNatureIds(new String[] {JavaCore.NATURE_ID}); // set Java nature
         project.create(desc, monitor);
         project.open(monitor);
+        // Projects created programmatically do not reliably receive the Java builder
+        // from the nature in every PDE test workspace, so configure it explicitly.
+        IProjectDescription configuredDescription = project.getDescription();
+        ICommand javaBuilder = configuredDescription.newCommand();
+        javaBuilder.setBuilderName(JavaCore.BUILDER_ID);
+        configuredDescription.setBuildSpec(new ICommand[] { javaBuilder });
+        project.setDescription(configuredDescription, monitor);
+
         
         // Set up Java project
         javaProject = JavaCore.create(project);

@@ -33,7 +33,7 @@ import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor;
  * built from the raw path, so URI.create threw "Illegal character in path"
  * before the content was ever returned.
  */
-public class ResourceUriSpacesTest
+public class ResourceUriSpacesPDETest
 {
     private static final String PROJECT_NAME      = "UriSpacesTestProject";
 
@@ -55,7 +55,7 @@ public class ResourceUriSpacesTest
     @BeforeEach
     public void setUp() throws Exception
     {
-        var bundleContext = FrameworkUtil.getBundle( ResourceUriSpacesTest.class ).getBundleContext();
+        var bundleContext = FrameworkUtil.getBundle( ResourceUriSpacesPDETest.class ).getBundleContext();
         IEclipseContext context = EclipseContextFactory.getServiceContext( bundleContext );
         context.set( ILog.class, Platform.getLog( FrameworkUtil.getBundle( ResourceService.class ) ) );
         service = ContextInjectionFactory.make( ResourceService.class, context );

@@ -36,9 +36,9 @@ import org.osgi.framework.Bundle;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.MavenService;
 
 @SuppressWarnings("restriction")
-public class MavenServiceTest {
+public class MavenServicePDETest {
 
-    private static final String TEST_PROJECT_NAME = "MavenServiceTestProject";
+    private static final String TEST_PROJECT_NAME = "MavenServicePDETestProject";
     private IProject project;
     private MavenService service;
     private NullProgressMonitor monitor = new NullProgressMonitor();
@@ -184,7 +184,8 @@ public class MavenServiceTest {
             String result = service.runMavenBuild(TEST_PROJECT_NAME, "clean install", "", 0);
             
             // Verify result contains expected information
-            assertTrue(result.contains("Maven build started for project"));
+            assertTrue(result.contains("Maven build "));
+            assertTrue(result.contains("for project '" + TEST_PROJECT_NAME + "'"));
             assertTrue(result.contains("with goals: clean install"));
             assertTrue(result.contains("To view build output"));
         } catch (RuntimeException e) {

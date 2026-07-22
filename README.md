@@ -269,6 +269,8 @@ Editing tools synchronize Eclipse editors and reveal the changed line; multi-fil
 | restartMcpServers | Rebuild HTTP MCP servers after a safe delay so the current response can finish |
 | reloadWorkspaceBundle | Update an OSGi bundle only when backed by an open workspace project; system, fragment, and installed-only bundles are rejected |
 
+Tests that use Eclipse workspace, JDT, UI, platform, or OSGi runtime services must follow the `*PDETest.java` naming convention so test discovery runs them in the PDE harness.
+
 ### Utility Servers
 
 | Server | Tool | Description |
