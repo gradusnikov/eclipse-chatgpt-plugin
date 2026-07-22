@@ -19,6 +19,7 @@ import org.eclipse.e4.core.di.annotations.Creatable;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
 
+import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
 import com.github.gradusnikov.eclipse.assistai.mcp.operations.Operation;
 import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationRegistry;
@@ -33,7 +34,6 @@ import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
-import io.modelcontextprotocol.spec.McpSchema.Tool;
 import io.modelcontextprotocol.spec.McpServerTransportProvider;
 import jakarta.inject.Inject;
 
@@ -87,7 +87,7 @@ public class McpServerFactory
      * @param args The arguments for the tool call
      * @return The result of the tool call
      */
-    private CallToolResult executeCallTool( ToolExecutor executor, Tool tool, Map<String, Object> args )
+    private CallToolResult executeCallTool( ToolExecutor executor, McpSchema.Tool tool, Map<String, Object> args )
     {
         try
         {
@@ -118,7 +118,7 @@ public class McpServerFactory
      * whole difference from the old behaviour, where a slow tool was abandoned by the
      * client while still running invisibly, and its result was thrown away.
      */
-    private CallToolResult executeLongTool( ToolExecutor executor, Tool tool, Map<String, Object> args,
+    private CallToolResult executeLongTool( ToolExecutor executor, McpSchema.Tool tool, Map<String, Object> args,
             com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool annotation )
     {
         Operation operation = operationRegistry.register( tool.name(), describeArguments( args ) );
@@ -266,83 +266,60 @@ public class McpServerFactory
     }
 
     /**
-     * Adds the operation tools to any server that declares a long execution tool, so a
-     * caller always has a way back to work it started. They are synthesized rather than
-     * declared on each server class because {@code ToolExecutor} only discovers methods
-     * declared directly on the server, so a shared base class would go unseen.
+     * Adds the shared operation tools to any server that declares a long execution
+     * tool. The handler uses the same annotation-driven discovery and schema
+     * generation as regular MCP server tools.
      */
     private List<SyncToolSpecification> createOperationToolSpecifications( String prefix )
     {
-        Map<String, Object> statusSchema = Map.of(
-                "type", "object",
-                "properties", new LinkedHashMap<>( Map.of(
-                        "operationId", Map.of( "type", "string",
-                                "description", "The operationId handed back by the tool that started the work (e.g. 'op-3'). Use listOperations if you lost it." ),
-                        "outputLimit", Map.of( "type", "string",
-                                "description", "Number of output lines to return (default: 0, meaning none). The reply reports the total and the next offset." ),
-                        "outputOffset", Map.of( "type", "string",
-                                "description", "0-based index of the first output line to return. Negative counts back from the end, so '-100' is the last 100 lines. Default: 0." ),
-                        "waitSeconds", Map.of( "type", "string",
-                                "description", "Block up to this many seconds for the operation to finish before replying (default: 0, reply immediately)." ) ) ),
-                "required", List.of( "operationId" ),
-                "additionalProperties", false );
-        var status = McpSchema.Tool.builder( prefix + "getOperationStatus", statusSchema )
-                .title( prefix + "getOperationStatus" )
-                .description( "Reports on a long running operation started by another tool: its state, how long it has been running,"
-                        + " progress, the result once it finishes, and optionally a page of its output." )
-                .build();
-
-        Map<String, Object> listSchema = Map.of(
-                "type", "object",
-                "properties", new LinkedHashMap<>(),
-                "required", List.of(),
-                "additionalProperties", false );
-        var list = McpSchema.Tool.builder( prefix + "listOperations", listSchema )
-                .title( prefix + "listOperations" )
-                .description( "Lists long running operations - those still running and the last few that finished - with their"
-                        + " operationId, state and elapsed time." )
-                .build();
-
-        Map<String, Object> cancelSchema = Map.of(
-                "type", "object",
-                "properties", new LinkedHashMap<>( Map.of(
-                        "operationId", Map.of( "type", "string",
-                                "description", "The operationId to stop (e.g. 'op-3')." ) ) ),
-                "required", List.of( "operationId" ),
-                "additionalProperties", false );
-        var cancel = McpSchema.Tool.builder( prefix + "cancelOperation", cancelSchema )
-                .title( prefix + "cancelOperation" )
-                .description( "Stops a running operation - terminating the test JVM, build or search behind it. Use when an"
-                        + " operation is stuck or no longer needed." )
-                .build();
-
-        return List.of(
-                SyncToolSpecification.builder().tool( status )
-                        .callHandler( ( exchange, request ) -> createTextCallToolResult(
-                                operationRegistry.getOperationStatus(
-                                        stringArg( request.arguments(), "operationId", null ),
-                                        intArg( request.arguments(), "outputOffset", 0 ),
-                                        intArg( request.arguments(), "outputLimit", 0 ),
-                                        intArg( request.arguments(), "waitSeconds", 0 ) ) ) )
-                        .build(),
-                SyncToolSpecification.builder().tool( list )
-                        .callHandler( ( exchange, request ) -> createTextCallToolResult( operationRegistry.listOperations() ) )
-                        .build(),
-                SyncToolSpecification.builder().tool( cancel )
-                        .callHandler( ( exchange, request ) -> createTextCallToolResult(
-                                operationRegistry.cancelOperation(
-                                        stringArg( request.arguments(), "operationId", null ) ) ) )
-                        .build() );
+        return createToolSpecifications( new OperationTools( operationRegistry ), Collections.emptySet(), prefix );
     }
 
-    private static String stringArg( Map<String, Object> args, String name, String fallback )
+    static final class OperationTools
     {
-        return Optional.ofNullable( args ).map( map -> map.get( name ) ).map( String::valueOf ).orElse( fallback );
+        private final OperationRegistry operationRegistry;
+
+        OperationTools( OperationRegistry operationRegistry )
+        {
+            this.operationRegistry = operationRegistry;
+        }
+
+        @Tool(name = "getOperationStatus",
+              description = "Reports on a long running operation started by another tool: its state, how long it has been running, progress, the result once it finishes, and optionally a page of its output.",
+              type = "object")
+        public String getOperationStatus(
+                @ToolParam(name = "operationId", description = "The operationId handed back by the tool that started the work (e.g. 'op-3'). Use listOperations if you lost it.") String operationId,
+                @ToolParam(name = "outputOffset", description = "0-based index of the first output line to return. Negative counts back from the end, so '-100' is the last 100 lines. Default: 0.", required = false) String outputOffset,
+                @ToolParam(name = "outputLimit", description = "Number of output lines to return (default: 0, meaning none). The reply reports the total and the next offset.", required = false) String outputLimit,
+                @ToolParam(name = "waitSeconds", description = "Block up to this many seconds for the operation to finish before replying (default: 0, reply immediately).", required = false) String waitSeconds)
+        {
+            return operationRegistry.getOperationStatus(
+                    operationId,
+                    intArg( outputOffset, 0 ),
+                    intArg( outputLimit, 0 ),
+                    intArg( waitSeconds, 0 ) );
+        }
+
+        @Tool(name = "listOperations",
+              description = "Lists long running operations - those still running and the last few that finished - with their operationId, state and elapsed time.",
+              type = "object")
+        public String listOperations()
+        {
+            return operationRegistry.listOperations();
+        }
+
+        @Tool(name = "cancelOperation",
+              description = "Stops a running operation - terminating the test JVM, build or search behind it. Use when an operation is stuck or no longer needed.",
+              type = "object")
+        public String cancelOperation(
+                @ToolParam(name = "operationId", description = "The operationId to stop (e.g. 'op-3').") String operationId)
+        {
+            return operationRegistry.cancelOperation( operationId );
+        }
     }
 
-    private static int intArg( Map<String, Object> args, String name, int fallback )
+    private static int intArg( String value, int fallback )
     {
-        String value = stringArg( args, name, null );
         if ( value == null || value.isBlank() )
         {
             return fallback;
