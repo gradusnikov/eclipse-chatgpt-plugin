@@ -2,7 +2,7 @@
 name: eclipse-analyze
 description: Analyze Java code using Eclipse JDT tools — type hierarchy, find references, call hierarchy, compilation errors, quick fixes, and import suggestions. Use this to understand code structure before making changes.
 argument-hint: "[class or element to analyze]"
-allowed-tools: mcp__eclipse-ide__getClassOutline, mcp__eclipse-ide__getMethodSource, mcp__eclipse-ide__getFilteredSource, mcp__eclipse-ide__getTypeHierarchy, mcp__eclipse-ide__findReferences, mcp__eclipse-ide__getMethodCallHierarchy, mcp__eclipse-ide__getCompilationErrors, mcp__eclipse-ide__getQuickFixes, mcp__eclipse-ide__getImportSuggestions, mcp__eclipse-ide__getJavaDoc, mcp__eclipse-ide__getSource, mcp__eclipse-ide__getProjectLayout, mcp__eclipse-ide__getProjectProperties, mcp__eclipse-ide__readProjectResource, mcp__eclipse-ide__listProjects, mcp__eclipse-ide__getCurrentlyOpenedFile, mcp__eclipse-ide__getEditorSelection, mcp__eclipse-ide__fileSearch, mcp__eclipse-ide__fileSearchRegExp, mcp__eclipse-ide__findFiles, mcp__eclipse-ide__getProjectDependencies
+allowed-tools: mcp__eclipse-ide__getClassOutline, mcp__eclipse-ide__getMethodSource, mcp__eclipse-ide__getFilteredSource, mcp__eclipse-ide__getTypeHierarchy, mcp__eclipse-ide__findReferences, mcp__eclipse-ide__getMethodCallHierarchy, mcp__eclipse-ide__getCompilationErrors, mcp__eclipse-ide__getQuickFixes, mcp__eclipse-ide__getImportSuggestions, mcp__eclipse-ide__getJavaDoc, mcp__eclipse-ide__getSource, mcp__eclipse-ide__getProjectLayout, mcp__eclipse-ide__getProjectProperties, mcp__eclipse-ide__readProjectResource, mcp__eclipse-ide__listProjects, mcp__eclipse-ide__getCurrentlyOpenedFile, mcp__eclipse-ide__getEditorSelection, mcp__eclipse-ide__fileSearch, mcp__eclipse-ide__fileSearchRegExp, mcp__eclipse-ide__findFiles, mcp__eclipse-ide__getProjectDependencies, mcp__eclipse-ide__explainTypeResolution, mcp__eclipse-git__gitReadFile, mcp__eclipse-git__gitDiff
 ---
 
 # Eclipse Code Analysis
@@ -31,6 +31,9 @@ These tools are designed to minimize context window usage. Follow the **outline-
 | Read 1-3 specific methods | `getMethodSource` | Surgical reads with line numbers |
 | Read class but focus on 2 methods | `getFilteredSource` | Full context, collapsed noise |
 | Small class (<100 lines) | `getSource` | Overhead not worth optimizing |
+| Referenced-library class | `getSource` | Uses attached source or decompiles the class |
+| Diagnose which JAR/root won | `explainTypeResolution` | Shows the project-specific JDT classpath decision |
+| Compare a historical file | `gitReadFile` | Reads a revision or staged index without checkout |
 | Non-Java file or specific line range | `readProjectResource` | Works with any file type |
 
 ## Navigation & Understanding
@@ -39,6 +42,9 @@ These tools are designed to minimize context window usage. Follow the **outline-
 - **findReferences** — Find all usages of a type, method, or field across the workspace. Essential before renaming or deleting.
 - **getMethodCallHierarchy** — Show callers and callees of a method. Use `methodSignature` for overloaded methods.
 - **getJavaDoc** — Get JavaDoc for a compilation unit by fully qualified name.
+- **explainTypeResolution** — Explain source-vs-binary resolution in one project, including classpath root/entry, source attachment, class file, and whether `getSource` will decompile.
+- **gitReadFile** — Read a project-relative text file at a Git revision or from `INDEX` without modifying the working tree.
+- **gitDiff** — Limit diffs with project-relative `pathFilter` values and optionally set `ignoreWhitespace=true`.
 
 ## Error Analysis
 

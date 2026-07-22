@@ -11,7 +11,7 @@ Edit files in Eclipse workspace projects using the eclipse-coder MCP tools. Thes
 
 ## Available Editing Tools
 
-- **applyPatch** — Apply a unified diff patch. Supports multiple hunks with fuzzy context matching. Best for multi-location edits. Set `showDialog=true` to let the user review via Eclipse's Apply Patch wizard.
+- **applyPatch** — Atomically apply a unified diff after validating every hunk. It supports multiple hunks and fuzzy context matching, preserves the file's line delimiter, creates an `undoEdit` backup, and can show Eclipse's Apply Patch wizard with `showDialog=true`.
 - **replaceString** — Find and replace exact string. Good for single targeted changes. Optionally scoped to a line range.
 - **insertIntoFile** — Insert content before a specific line (1-based).
 - **createFile** — Create a new file and open it in the editor.
@@ -48,5 +48,6 @@ For Java files, prefer refactoring tools over manual rename/move — they update
 - For multi-hunk changes, prefer `applyPatch` over multiple `replaceString` calls
 - `replaceString` requires exact whitespace matching — if it fails, try `applyPatch` instead
 - All tools require `projectName` (Eclipse project name) and `filePath` (relative to project root, without project name)
+- Editing tools open/refresh the affected file and reveal the edited line; multi-file refactorings reveal the primary or first changed file
 - Use `getProjectLayout` with `scopePath` and `maxDepth` to navigate large projects
 - Line numbers from `getClassOutline`, `getMethodSource`, and `getFilteredSource` are always accurate for `replaceString` line ranges and `applyPatch` hunks

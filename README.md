@@ -144,7 +144,7 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | createFile | Creates a new file, adds it to the project, and opens it in the editor |
 | insertIntoFile | Inserts content at a specific position in an existing file |
 | replaceString | Replaces a specific string in a file, optionally within a line range |
-| applyPatch | Applies a unified diff patch with fuzzy context matching -- preferred for multi-hunk edits |
+| applyPatch | Atomically applies a validated unified diff, preserves line endings, supports multi-hunk edits, creates an undo backup, and reveals the first changed line |
 | formatFile | Formats a Java file using Eclipse's code formatter |
 | undoEdit | Restores a file from its backup (undo last edit) |
 | createDirectories | Creates a directory structure recursively |
@@ -160,11 +160,14 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | organizeImports | Removes unused imports and sorts existing imports; does not add missing imports |
 | organizeImportsInPackage | Removes unused imports and sorts existing imports across a package |
 
+Editing tools synchronize Eclipse editors and reveal the changed line; multi-file operations reveal the primary or first changed file.
+
 ### eclipse-ide -- Code Analysis, Navigation & Build
 
 | Tool | Description |
 |------|-------------|
 | getSource | Source of a workspace or referenced-library class; prefers attached source JARs and decompiles binaries when source is unavailable |
+| explainTypeResolution | Explain how a type resolves in a specific project's JDT classpath: source/binary origin, root, entry, attachment, class file, and source/decompilation strategy |
 | getClassOutline | Compact class outline -- declarations and method signatures (no bodies) with line numbers |
 | getMethodSource | Source of specific methods by name, with overload disambiguation |
 | getFilteredSource | Full source with non-selected methods collapsed to signatures |
@@ -193,7 +196,7 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | runPackageTests | Run tests in a specific package |
 | runClassTests | Run tests for a specific class |
 | runTestMethod | Run a specific test method |
-| findTestClasses | Find all test classes in a project |
+| findTestClasses | Classify plain JUnit and `*PDETest` harness tests; warns about likely PDE-dependent tests that violate the naming convention |
 | runMavenBuild | Run a Maven build with specified goals |
 | getEffectivePom | Effective POM for a Maven project |
 | getProjectDependencies | Maven project dependencies |
@@ -240,8 +243,10 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 |------|-------------|
 | gitStatus | Working tree status -- staged, unstaged, untracked files, branch tracking info |
 | gitLog | Commit history with author, date, and message |
-| gitDiff | Unified diff of working tree or staged changes |
+| gitReadFile | Read a UTF-8 text file from `HEAD`, a branch/tag/commit, or the staged `INDEX` without changing the working tree |
+| gitDiff | Unified diff of working tree or staged changes, with optional comma-separated project-relative path filters and whitespace-insensitive comparison |
 | gitAdd | Stage files for commit (supports patterns, '.' for all) |
+| gitStagePatch | Stage selected unified-diff hunks directly into the index without changing the working tree |
 | gitCommit | Commit staged changes with a message |
 | gitReset | Unstage files from the index |
 | gitBranch | List branches (local or including remote) |
@@ -251,6 +256,18 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | gitStash | Stash working directory changes |
 | gitStashPop | Apply and drop the most recent stash |
 | gitStashList | List all stash entries |
+
+### eclipse-pde -- Plug-in Development
+
+| Tool | Description |
+|------|-------------|
+| getActiveTarget | Show the active PDE target platform |
+| setActiveTarget | Load and activate a target definition |
+| reloadTarget | Reload the active target after its contents change |
+| runJUnitPluginTests | Run a plug-in project's tests in the PDE harness |
+| runJUnitPluginTestClass | Run one `*PDETest` class in the PDE harness |
+| restartMcpServers | Rebuild HTTP MCP servers after a safe delay so the current response can finish |
+| reloadWorkspaceBundle | Update an OSGi bundle only when backed by an open workspace project; system, fragment, and installed-only bundles are rejected |
 
 ### Utility Servers
 

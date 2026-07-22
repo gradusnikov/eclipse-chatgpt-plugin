@@ -2,7 +2,7 @@
 name: eclipse-debug
 description: Debug Java applications in Eclipse — set breakpoints, launch in debug mode, step through code, inspect stack traces, evaluate expressions, and hot-swap code changes.
 argument-hint: "[project] [main class]"
-allowed-tools: mcp__eclipse-runner__debugJavaApplication, mcp__eclipse-runner__launchConfiguration, mcp__eclipse-runner__listLaunchConfigurations, mcp__eclipse-runner__stopApplication, mcp__eclipse-runner__listActiveLaunches, mcp__eclipse-runner__toggleBreakpoint, mcp__eclipse-runner__setConditionalBreakpoint, mcp__eclipse-runner__listBreakpoints, mcp__eclipse-runner__removeAllBreakpoints, mcp__eclipse-runner__getStackTrace, mcp__eclipse-runner__evaluateExpression, mcp__eclipse-runner__resumeDebug, mcp__eclipse-runner__stepOver, mcp__eclipse-runner__stepInto, mcp__eclipse-runner__stepReturn, mcp__eclipse-runner__hotCodeReplace, mcp__eclipse-ide__getConsoleOutput
+allowed-tools: mcp__eclipse-runner__debugJavaApplication, mcp__eclipse-runner__launchConfiguration, mcp__eclipse-runner__listLaunchConfigurations, mcp__eclipse-runner__stopApplication, mcp__eclipse-runner__listActiveLaunches, mcp__eclipse-runner__toggleBreakpoint, mcp__eclipse-runner__setConditionalBreakpoint, mcp__eclipse-runner__listBreakpoints, mcp__eclipse-runner__removeAllBreakpoints, mcp__eclipse-runner__getStackTrace, mcp__eclipse-runner__evaluateExpression, mcp__eclipse-runner__resumeDebug, mcp__eclipse-runner__stepOver, mcp__eclipse-runner__stepInto, mcp__eclipse-runner__stepReturn, mcp__eclipse-runner__hotCodeReplace, mcp__eclipse-ide__getConsoleOutput, mcp__eclipse-pde__restartMcpServers, mcp__eclipse-pde__reloadWorkspaceBundle
 ---
 
 # Debug Java Applications in Eclipse
@@ -36,6 +36,12 @@ Full interactive debugging using Eclipse's JDT debugger. Set breakpoints, step t
 ## Hot Code Replace
 
 - **hotCodeReplace** — Push code changes into the running debug session without restarting. Triggers an incremental build and the JVM reloads changed classes.
+
+## Structural Reloads
+
+- **restartMcpServers** — Rebuild the HTTP MCP server registry after a 500–30,000 ms delay. The delay lets the invoking response complete; clients may need to reconnect.
+- **reloadWorkspaceBundle** — Schedule an OSGi update for a bundle whose symbolic name maps to an open workspace project. System bundles, fragments, and installed-only bundles are rejected.
+- Use `hotCodeReplace` for supported method-body changes. Use `reloadWorkspaceBundle` when structural changes (new methods, fields, or MCP tools) cannot be hot-swapped, then `restartMcpServers` if the HTTP registry still needs rebuilding.
 
 ## Typical Debug Workflow
 
@@ -84,3 +90,4 @@ Full interactive debugging using Eclipse's JDT debugger. Set breakpoints, step t
 - `getStackTrace` shows local variables only for the top frame to keep output manageable
 - `evaluateExpression` has a 10-second timeout
 - Hot code replace works on most JVMs but has limitations (can't change method signatures or add/remove fields in some cases)
+- Reload tools are deliberately deferred and may disconnect MCP clients; do not use them while another critical MCP operation is in flight

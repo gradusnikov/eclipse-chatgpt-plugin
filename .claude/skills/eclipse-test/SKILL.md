@@ -2,7 +2,7 @@
 name: eclipse-test
 description: Run JUnit tests in Eclipse projects — all tests, by package, by class, or individual test methods. Also build Maven projects.
 argument-hint: "[project] [class or package]"
-allowed-tools: mcp__eclipse-ide__runAllTests, mcp__eclipse-ide__runPackageTests, mcp__eclipse-ide__runClassTests, mcp__eclipse-ide__runTestMethod, mcp__eclipse-ide__findTestClasses, mcp__eclipse-ide__runMavenBuild, mcp__eclipse-ide__getConsoleOutput, mcp__eclipse-ide__getEffectivePom, mcp__eclipse-ide__listMavenProjects, mcp__eclipse-ide__getProjectDependencies, mcp__eclipse-ide__getCompilationErrors
+allowed-tools: mcp__eclipse-ide__runAllTests, mcp__eclipse-ide__runPackageTests, mcp__eclipse-ide__runClassTests, mcp__eclipse-ide__runTestMethod, mcp__eclipse-ide__findTestClasses, mcp__eclipse-ide__runMavenBuild, mcp__eclipse-ide__getConsoleOutput, mcp__eclipse-ide__getEffectivePom, mcp__eclipse-ide__listMavenProjects, mcp__eclipse-ide__getProjectDependencies, mcp__eclipse-ide__getCompilationErrors, mcp__eclipse-pde__runJUnitPluginTests, mcp__eclipse-pde__runJUnitPluginTestClass, mcp__eclipse-pde__getActiveTarget, mcp__eclipse-pde__reloadTarget
 ---
 
 # Run Tests & Build in Eclipse
@@ -15,7 +15,14 @@ Execute JUnit tests and Maven builds using Eclipse's built-in infrastructure.
 - **runPackageTests** — Run tests in a specific package. Provide `projectName` and `packageName`.
 - **runClassTests** — Run all tests in a specific test class. Provide `projectName` and `className` (fully qualified).
 - **runTestMethod** — Run a single test method. Provide `projectName`, `className`, and `methodName`.
-- **findTestClasses** — Find all test classes in a project.
+- **findTestClasses** — Find and classify tests as plain JUnit or PDE harness tests. PDE tests must use the `*PDETest.java` naming convention; likely harness-dependent misnamed tests are reported as warnings.
+
+## PDE Harness Tests
+
+- **runJUnitPluginTests** — Run all plug-in tests in the PDE harness. Use for the classes listed under `PDE harness tests (*PDETest)`.
+- **runJUnitPluginTestClass** — Run one fully qualified `*PDETest` class.
+- **getActiveTarget** / **reloadTarget** — Inspect or refresh the target platform when plug-in dependencies cannot resolve.
+- Keep ordinary unit tests named `*Test.java`; any test requiring Eclipse/OSGi/PDE runtime services must be named `*PDETest.java`.
 
 ## Build Tools
 
@@ -54,6 +61,7 @@ Execute JUnit tests and Maven builds using Eclipse's built-in infrastructure.
 ## Notes
 
 - Tests run using JUnit 5 by default
+- Run plain tests with `runClassTests`/`runAllTests`; run `*PDETest` classes with the `eclipse-pde` harness tools
 - Test results include pass/fail status, execution time, and failure traces
 - Use `getCompilationErrors` first to ensure code compiles before running tests
 - Maven build output goes to the Eclipse console — use `getConsoleOutput` to retrieve it
