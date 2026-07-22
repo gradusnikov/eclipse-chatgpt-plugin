@@ -84,14 +84,6 @@
     <category name="assistai-deps"/>
   </bundle>
 
-  <!-- Apache Tika -->
-  <bundle id="org.apache.tika.core" version="0.0.0">
-    <category name="assistai-deps"/>
-  </bundle>
-  <bundle id="org.apache.tika.parser-text-module" version="0.0.0">
-    <category name="assistai-deps"/>
-  </bundle>
-
   <!-- Apache PDFBox FontBox -->
   <bundle id="org.apache.pdfbox.fontbox" version="0.0.0">
     <category name="assistai-deps"/>
