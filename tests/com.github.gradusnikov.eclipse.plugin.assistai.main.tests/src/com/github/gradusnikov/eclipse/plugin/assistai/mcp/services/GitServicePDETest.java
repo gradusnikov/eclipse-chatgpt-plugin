@@ -38,7 +38,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.GitService;
 import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 
-public class GitServiceTest
+public class GitServicePDETest
 {
     private static final String TEST_PROJECT_NAME = "GitServiceTestProject";
     private static final NullProgressMonitor monitor = new NullProgressMonitor();
@@ -51,7 +51,7 @@ public class GitServiceTest
     @BeforeEach
     public void beforeEach() throws Exception
     {
-        BundleContext bundleContext = FrameworkUtil.getBundle(GitServiceTest.class).getBundleContext();
+        BundleContext bundleContext = FrameworkUtil.getBundle(GitServicePDETest.class).getBundleContext();
         ServiceTracker<IWorkspace, IWorkspace> workspaceTracker = new ServiceTracker<>(bundleContext, IWorkspace.class, null);
         workspaceTracker.open();
         IWorkspace workspace = workspaceTracker.getService();

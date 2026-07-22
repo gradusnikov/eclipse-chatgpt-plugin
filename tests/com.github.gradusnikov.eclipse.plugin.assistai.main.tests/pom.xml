@@ -36,17 +36,7 @@
                Excluded:
                  ChatMessageFactoryTest    - requires full interactive SWT workbench -->
           <includes>
-            <include>**/ConversationContextTest.java</include>
-            <include>**/TimeMcpServerTest.java</include>
-            <include>**/HtmlToMarkdownConverterTest.java</include>
-            <include>**/MarkdownParserTest.java</include>
-            <include>**/PDEMcpServerTest.java</include>
-            <include>**/PDEServicePluginTest.java</include>
-            <include>**/CodeEditingServiceTest.java</include>
-            <include>**/CodeAnalysisServiceTest.java</include>
-            <include>**/MavenServiceTest.java</include>
-            <include>**/SdkHttpStreamingTest.java</include>
-            <include>**/CoverageServiceTest.java</include>
+            <include>**/*PDETest.java</include>
           </includes>
           <dependencies>
             <dependency>

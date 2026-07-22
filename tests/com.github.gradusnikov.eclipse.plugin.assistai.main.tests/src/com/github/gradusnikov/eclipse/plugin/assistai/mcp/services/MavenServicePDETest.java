@@ -36,7 +36,7 @@ import org.osgi.framework.Bundle;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.MavenService;
 
 @SuppressWarnings("restriction")
-public class MavenServiceTest {
+public class MavenServicePDETest {
 
     private static final String TEST_PROJECT_NAME = "MavenServiceTestProject";
     private IProject project;

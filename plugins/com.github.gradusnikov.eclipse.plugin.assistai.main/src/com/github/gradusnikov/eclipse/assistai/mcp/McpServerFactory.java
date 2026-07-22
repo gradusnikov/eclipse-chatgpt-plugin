@@ -24,6 +24,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.operations.Operation;
 import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationRegistry;
 
 import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapperSupplier;
+import io.modelcontextprotocol.json.schema.JsonSchemaValidator;
 import io.modelcontextprotocol.json.schema.jackson2.JacksonJsonSchemaValidatorSupplier;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures;
@@ -378,7 +379,7 @@ public class McpServerFactory
                         .capabilities( capabilities )
                         .tools( toolSpecifications )
                         .jsonMapper( new JacksonMcpJsonMapperSupplier().get() )
-                        .jsonSchemaValidator( new JacksonJsonSchemaValidatorSupplier().get() )
+                        .jsonSchemaValidator( createJsonSchemaValidator() )
                         .build();
     }
 
@@ -404,8 +405,23 @@ public class McpServerFactory
                 .capabilities( capabilities )
                 .tools( toolSpecifications )
                 .jsonMapper( new JacksonMcpJsonMapperSupplier().get() )
-                .jsonSchemaValidator( new JacksonJsonSchemaValidatorSupplier().get() )
+                .jsonSchemaValidator( createJsonSchemaValidator() )
                 .build();
+    }
+
+    private JsonSchemaValidator createJsonSchemaValidator()
+    {
+        var thread = Thread.currentThread();
+        var originalClassLoader = thread.getContextClassLoader();
+        thread.setContextClassLoader( com.networknt.schema.SchemaRegistry.class.getClassLoader() );
+        try
+        {
+            return new JacksonJsonSchemaValidatorSupplier().get();
+        }
+        finally
+        {
+            thread.setContextClassLoader( originalClassLoader );
+        }
     }
 
     private List<SyncToolSpecification> createToolSpecifications( Object serverImplementation, Collection<String> excludedTools, String toolPrefix )

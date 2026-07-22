@@ -46,7 +46,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.PDEService;
 
 @TestInstance( TestInstance.Lifecycle.PER_CLASS )
 @TestMethodOrder( MethodOrderer.OrderAnnotation.class )
-public class PDEServicePluginTest
+public class ServicePluginPDETest
 {
     private static final String TEST_PLUGIN_PROJECT = "PDEServiceTest_PluginProject";
 
@@ -56,7 +56,7 @@ public class PDEServicePluginTest
     @BeforeAll
     public void setUp() throws Exception
     {
-        bundleContext = FrameworkUtil.getBundle( PDEServicePluginTest.class ).getBundleContext();
+        bundleContext = FrameworkUtil.getBundle( ServicePluginPDETest.class ).getBundleContext();
 
         ServiceTracker<ILog, ILog> logTracker = new ServiceTracker<>( bundleContext, ILog.class, null );
         logTracker.open();

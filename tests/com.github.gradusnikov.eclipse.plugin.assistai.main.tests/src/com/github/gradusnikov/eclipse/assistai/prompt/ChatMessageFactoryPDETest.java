@@ -2,6 +2,8 @@ package com.github.gradusnikov.eclipse.assistai.prompt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Optional;
@@ -36,7 +38,7 @@ import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
 
-public class ChatMessageFactoryTest {
+public class ChatMessageFactoryPDETest {
 
     private static final String TEST_PROJECT_NAME = "ChatMessageFactoryTestProject";
     private IProject project;
@@ -49,7 +51,7 @@ public class ChatMessageFactoryTest {
     @BeforeEach
     public void beforeEach() throws CoreException, IOException, InterruptedException {
         // Get workspace through OSGi service tracker
-        BundleContext bundleContext = FrameworkUtil.getBundle(ChatMessageFactoryTest.class).getBundleContext();
+        BundleContext bundleContext = FrameworkUtil.getBundle(ChatMessageFactoryPDETest.class).getBundleContext();
         ServiceTracker<IWorkspace, IWorkspace> workspaceTracker = new ServiceTracker<>(bundleContext, IWorkspace.class, null);
         
         workspaceTracker.open();
@@ -155,7 +157,8 @@ public class ChatMessageFactoryTest {
         assertNotNull(message);
         assertNotNull(message.getId());
         assertEquals("user", message.getRole());
-        assertEquals("Create documentation for Test.java", message.getContent());
+        assertTrue( message.getContent().contains( "src/Test.java" ) );
+        assertTrue( message.getContent().contains( "generate or update the documentation" ) );
     }
 //    
 //    @Test

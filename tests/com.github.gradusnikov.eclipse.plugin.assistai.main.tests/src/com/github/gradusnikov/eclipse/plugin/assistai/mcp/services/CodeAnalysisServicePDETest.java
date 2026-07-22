@@ -38,7 +38,7 @@ import org.osgi.util.tracker.ServiceTracker;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeAnalysisService;
 
-public class CodeAnalysisServiceTest {
+public class CodeAnalysisServicePDETest {
 
     private static final String TEST_PROJECT_NAME = "CodeAnalysisTestProject";
     private IProject project;
@@ -49,7 +49,7 @@ public class CodeAnalysisServiceTest {
     @BeforeEach
     public void beforeEach() throws CoreException, IOException, InterruptedException {
         // Get workspace through OSGi service tracker
-        BundleContext bundleContext = FrameworkUtil.getBundle(CodeAnalysisServiceTest.class).getBundleContext();
+        BundleContext bundleContext = FrameworkUtil.getBundle(CodeAnalysisServicePDETest.class).getBundleContext();
         ServiceTracker<IWorkspace, IWorkspace> workspaceTracker = new ServiceTracker<>(bundleContext, IWorkspace.class, null);
         
         workspaceTracker.open();

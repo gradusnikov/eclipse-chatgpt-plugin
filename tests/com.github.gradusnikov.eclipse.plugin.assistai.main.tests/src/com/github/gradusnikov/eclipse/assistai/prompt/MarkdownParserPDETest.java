@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Test cases for the PromptParser class, focusing on LaTeX rendering functionality.
  */
-public class MarkdownParserTest {
+public class MarkdownParserPDETest {
 
     @Test
     public void testInlineLatexRendering() {

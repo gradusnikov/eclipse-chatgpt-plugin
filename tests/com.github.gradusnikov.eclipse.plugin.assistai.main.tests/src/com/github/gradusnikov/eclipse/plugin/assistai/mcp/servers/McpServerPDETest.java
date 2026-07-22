@@ -21,7 +21,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.servers.PDEMcpServer;
  * Tests for PDEMcpServer â focuses on parameter handling and delegation.
  * Methods that require a live PDE runtime are skipped via {@code assumeTrue}.
  */
-public class PDEMcpServerTest
+public class McpServerPDETest
 {
     private PDEMcpServer server;
 

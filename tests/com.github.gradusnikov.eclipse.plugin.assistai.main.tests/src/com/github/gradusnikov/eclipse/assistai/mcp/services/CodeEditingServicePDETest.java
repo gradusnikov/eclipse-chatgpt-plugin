@@ -1,4 +1,4 @@
-package com.github.gradusnikov.eclipse.plugin.assistai.mcp.services;
+package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -33,7 +33,7 @@ import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
-public class CodeEditingServiceTest {
+public class CodeEditingServicePDETest {
 
     
     private static final String TEST_PROJECT_NAME = "CodeEditingTestProject";
@@ -44,7 +44,7 @@ public class CodeEditingServiceTest {
     @BeforeEach
     public void beforeEach() throws CoreException, IOException, InterruptedException {
         // Get workspace through OSGi service tracker
-        BundleContext bundleContext = FrameworkUtil.getBundle(CodeEditingServiceTest.class).getBundleContext();
+        BundleContext bundleContext = FrameworkUtil.getBundle(CodeEditingServicePDETest.class).getBundleContext();
         ServiceTracker<IWorkspace, IWorkspace> workspaceTracker = new ServiceTracker<>(bundleContext, IWorkspace.class, null);
         
         workspaceTracker.open();

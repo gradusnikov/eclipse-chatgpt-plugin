@@ -48,7 +48,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.UnitTestService;
 
 @TestInstance( TestInstance.Lifecycle.PER_CLASS )
 @TestMethodOrder( MethodOrderer.OrderAnnotation.class )
-public class CoverageServiceTest
+public class CoverageServicePDETest
 {
     private static final String TEST_PROJECT_NAME = "CoverageTestProject_Temp";
 
@@ -58,7 +58,7 @@ public class CoverageServiceTest
     @BeforeAll
     public void setUp() throws Exception
     {
-        BundleContext bundleContext = FrameworkUtil.getBundle( CoverageServiceTest.class ).getBundleContext();
+        BundleContext bundleContext = FrameworkUtil.getBundle( CoverageServicePDETest.class ).getBundleContext();
 
         ServiceTracker<ILog, ILog> logTracker = new ServiceTracker<>( bundleContext, ILog.class, null );
         logTracker.open();
