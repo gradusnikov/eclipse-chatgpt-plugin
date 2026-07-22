@@ -163,7 +163,9 @@ public class ChatMessageFactoryPDETest {
     @Test
     public void testCreateUserChatMessage_Document() throws CoreException {
         // Setup test data - use ${currentFileName} which resolves deterministically from the opened file
-        promptRepository.setPrompt(Prompts.DOCUMENT.name(), "Create documentation for ${currentFileName}");
+        promptRepository.setPrompt( Prompts.DOCUMENT.preferenceName(),
+                "<context>\n${currentFileContent}\n${selectedContent}\n</context>\n"
+                        + "In the context of the provided file, generate or update the documentation." );
         
         IFile testFile = createFile( "/src/Test.java", """
                 publi static void main(String[] args) {
