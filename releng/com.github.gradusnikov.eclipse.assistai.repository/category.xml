@@ -102,9 +102,6 @@
   <bundle id="wrapped.org.jetbrains.annotations" version="0.0.0">
     <category name="assistai-deps"/>
   </bundle>
-  <bundle id="wrapped.com.github.albfernandez.juniversalchardet" version="0.0.0">
-    <category name="assistai-deps"/>
-  </bundle>
   <bundle id="org.apache.tomcat-annotations-api" version="0.0.0">
     <category name="assistai-deps"/>
   </bundle>
