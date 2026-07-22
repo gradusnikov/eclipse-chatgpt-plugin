@@ -50,6 +50,16 @@ public class EclipseGitMcpServer
         return gitService.commit(projectName, message);
     }
 
+    @Tool(name = "gitReadFile", description = "Reads a UTF-8 text file from a Git revision without changing the working tree. The path is relative to the Eclipse project. Use revision 'INDEX' to read the staged version; otherwise revision defaults to HEAD and may be a branch, tag, or commit.", type = "object")
+    public String gitReadFile(
+            @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
+            @ToolParam(name = "filePath", description = "File path relative to the Eclipse project", required = true) String filePath,
+            @ToolParam(name = "revision", description = "Git branch, tag, commit, or 'INDEX'. Default: HEAD", required = false) String revision)
+    {
+        String effectiveRevision = Optional.ofNullable(revision).filter(value -> !value.isBlank()).orElse("HEAD");
+        return gitService.readFileAtRevision(projectName, filePath, effectiveRevision);
+    }
+
     @Tool(name = "gitDiff", description = "Shows the diff of changes in unified diff format. By default shows unstaged (working tree) changes; set staged to 'true' to see staged changes.", type = "object")
     public String gitDiff(
             @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,

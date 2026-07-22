@@ -12,6 +12,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import java.nio.file.Path;
+
+import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.treewalk.TreeWalk;
+
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
@@ -347,6 +352,87 @@ public class GitService
         finally
         {
             lock.unlock();
+        }
+    }
+
+    public String readFileAtRevision(String projectName, String filePath, String revision)
+    {
+        Objects.requireNonNull(projectName, "projectName");
+        Objects.requireNonNull(filePath, "filePath");
+        Objects.requireNonNull(revision, "revision");
+
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+        if (!project.exists())
+        {
+            throw new RuntimeException("Project not found: " + projectName);
+        }
+
+        RepositoryMapping mapping = RepositoryMapping.getMapping(project);
+        if (mapping == null)
+        {
+            throw new RuntimeException("Project is not mapped to a Git repository: " + projectName);
+        }
+
+        String inputPath = filePath.replace('\\', '/');
+        Path normalizedPath = Path.of(inputPath).normalize();
+        String normalized = normalizedPath.toString().replace('\\', '/');
+        if (inputPath.isBlank() || normalizedPath.isAbsolute() || normalized.equals("..") || normalized.startsWith("../")
+                || inputPath.matches("^[A-Za-z]:.*"))
+        {
+            throw new IllegalArgumentException("File path must be relative to the Eclipse project: " + filePath);
+        }
+
+        String projectPrefix = mapping.getRepoRelativePath(project);
+        String repositoryPath = projectPrefix == null || projectPrefix.isBlank() ? normalized : projectPrefix + "/" + normalized;
+        Repository repository = mapping.getRepository();
+
+        try
+        {
+            ObjectLoader loader;
+            if ("INDEX".equalsIgnoreCase(revision))
+            {
+                DirCacheEntry entry = repository.readDirCache().getEntry(repositoryPath);
+                if (entry == null)
+                {
+                    throw new IllegalArgumentException("File '" + filePath + "' was not found in the Git index.");
+                }
+                loader = repository.open(entry.getObjectId());
+            }
+            else
+            {
+                ObjectId treeId = repository.resolve(revision + "^{tree}");
+                if (treeId == null)
+                {
+                    throw new IllegalArgumentException("Git revision could not be resolved: " + revision);
+                }
+                try (TreeWalk treeWalk = TreeWalk.forPath(repository, repositoryPath, treeId))
+                {
+                    if (treeWalk == null)
+                    {
+                        throw new IllegalArgumentException("File '" + filePath + "' was not found at revision '" + revision + "'.");
+                    }
+                    loader = repository.open(treeWalk.getObjectId(0));
+                }
+            }
+
+            if (loader.getSize() > 5 * 1024 * 1024)
+            {
+                throw new IllegalArgumentException("Git file is larger than the 5 MiB read limit: " + filePath);
+            }
+
+            byte[] content = loader.getBytes();
+            for (byte value : content)
+            {
+                if (value == 0)
+                {
+                    throw new IllegalArgumentException("Git file appears to be binary: " + filePath);
+                }
+            }
+            return new String(content, StandardCharsets.UTF_8);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Failed to read Git file: " + e.getMessage(), e);
         }
     }
 

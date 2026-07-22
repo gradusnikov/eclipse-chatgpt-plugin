@@ -372,6 +372,31 @@ public class GitServicePDETest
     }
 
     @Test
+    public void testReadFileAtRevision_readsHeadInsteadOfWorkingTree() throws Exception
+    {
+        Files.writeString(new File(repoDir, "README.md").toPath(), "# Working tree\n", StandardCharsets.UTF_8);
+
+        assertEquals("# Test Project\n", service.readFileAtRevision(TEST_PROJECT_NAME, "README.md", "HEAD"));
+    }
+
+    @Test
+    public void testReadFileAtRevision_readsIndex() throws Exception
+    {
+        Files.writeString(new File(repoDir, "README.md").toPath(), "# Staged version\n", StandardCharsets.UTF_8);
+        git.add().addFilepattern("README.md").call();
+        Files.writeString(new File(repoDir, "README.md").toPath(), "# Working tree version\n", StandardCharsets.UTF_8);
+
+        assertEquals("# Staged version\n", service.readFileAtRevision(TEST_PROJECT_NAME, "README.md", "INDEX"));
+    }
+
+    @Test
+    public void testReadFileAtRevision_rejectsPathTraversal()
+    {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.readFileAtRevision(TEST_PROJECT_NAME, "../outside.txt", "HEAD"));
+    }
+
+    @Test
     public void testGetRepository_nonExistentProject()
     {
         assertThrows(RuntimeException.class, () -> {
