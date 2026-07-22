@@ -505,6 +505,71 @@ public class ApplicationNew {
         assertTrue(ResourceUtilities.readFileContent(project.getFile("src/Inner.java")).contains("class Inner"));
     }
 
+    @Test
+    public void testApplyPatchAppliesMultipleHunksAndSupportsUndo() throws Exception
+    {
+        String original = "alpha\nbeta\ngamma\ndelta\nepsilon\nzeta\n";
+        IFile file = createFile( "src/patch.txt", original );
+        String patch = """
+                --- a/src/patch.txt
+                +++ b/src/patch.txt
+                @@ -1,3 +1,3 @@
+                 alpha
+                -beta
+                +BETA
+                 gamma
+                @@ -5,2 +5,2 @@
+                 epsilon
+                -zeta
+                +ZETA
+                """;
+
+        String result = service.applyPatch( TEST_PROJECT_NAME, "src/patch.txt", patch, false );
+
+        assertTrue( result.contains( "Success: Patch applied" ) );
+        assertEquals( "alpha\nBETA\ngamma\ndelta\nepsilon\nZETA\n", ResourceUtilities.readFileContent( file ) );
+
+        service.undoEdit( TEST_PROJECT_NAME, "src/patch.txt" );
+        assertEquals( original, ResourceUtilities.readFileContent( file ) );
+    }
+
+    @Test
+    public void testApplyPatchPreservesCrLfLineDelimiter() throws Exception
+    {
+        IFile file = createFile( "src/crlf.txt", "one\r\ntwo\r\nthree\r\n" );
+        String patch = """
+                @@ -1,3 +1,3 @@
+                 one
+                -two
+                +TWO
+                 three
+                """;
+
+        service.applyPatch( TEST_PROJECT_NAME, "src/crlf.txt", patch, false );
+
+        assertEquals( "one\r\nTWO\r\nthree\r\n", ResourceUtilities.readFileContent( file ) );
+    }
+
+    @Test
+    public void testApplyPatchDoesNotWriteWhenAnyHunkFails() throws Exception
+    {
+        String original = "one\ntwo\nthree\n";
+        IFile file = createFile( "src/atomic.txt", original );
+        String patch = """
+                @@ -1,1 +1,1 @@
+                -one
+                +ONE
+                @@ -3,1 +3,1 @@
+                -missing
+                +THREE
+                """;
+
+        assertThrows( RuntimeException.class,
+                () -> service.applyPatch( TEST_PROJECT_NAME, "src/atomic.txt", patch, false ) );
+
+        assertEquals( original, ResourceUtilities.readFileContent( file ) );
+    }
+
 	
     private IFile createFile(String path, String content) throws CoreException {
         IFile file = project.getFile(new Path(path));

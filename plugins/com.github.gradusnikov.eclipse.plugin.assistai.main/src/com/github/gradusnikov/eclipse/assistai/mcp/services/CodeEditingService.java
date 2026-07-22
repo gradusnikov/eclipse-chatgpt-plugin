@@ -9,8 +9,11 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Deque;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -95,6 +98,10 @@ public class CodeEditingService
 
     @Inject
     AiIgnoreService     aiIgnoreService;
+
+    private static final int MAX_EDIT_BACKUPS = 20;
+
+    private final Map<IPath, Deque<byte[]>> editBackups = new ConcurrentHashMap<>();
 
     /**
      * Creates a directory structure (recursively) in the specified project.
@@ -220,20 +227,18 @@ public class CodeEditingService
                 refreshEditor( file );
             } );
 
-            // Use Eclipse's built-in local history to undo changes
-            IFileState[] history = file.getHistory( null );
-            if ( history == null || history.length == 0 )
+            byte[] previousContent = takeEditBackup( file );
+            if ( previousContent == null )
             {
-                throw new RuntimeException( "Error: No edit history found for file '" + filePath + "'." );
+                IFileState[] history = file.getHistory( null );
+                if ( history == null || history.length == 0 )
+                {
+                    throw new RuntimeException( "Error: No edit history found for file '" + filePath + "'." );
+                }
+                previousContent = ResourceUtilities.readInputStream( history[0].getContents() );
             }
 
-            // Get the most recent history state
-            IFileState previousState = history[0];
-
-            var previousContentString = new String( ResourceUtilities.readInputStream( previousState.getContents() ), Charset.forName( file.getCharset() ) );
-
-            // Restore the file from the previous state
-            try (ByteArrayInputStream source = new ByteArrayInputStream( previousContentString.getBytes( Charset.forName( file.getCharset() ) ) ))
+            try (ByteArrayInputStream source = new ByteArrayInputStream( previousContent ))
             {
                 file.setContents( source, IResource.FORCE, null );
             }
@@ -244,6 +249,7 @@ public class CodeEditingService
             // Try to refresh the editor if the file is open
             sync.asyncExec( () -> {
                 refreshEditor( file );
+                revealLineInEditor( file, 1 );
             } );
 
             return "Success: Undid last edit in file '" + filePath + "' in project '" + projectName + "'." + "Updated file content:\n```"
@@ -1095,6 +1101,7 @@ public class CodeEditingService
             // Try to open the file in the editor and refresh it
             sync.syncExec( () -> {
                 refreshEditor( file );
+                revealLineInEditor( file, startLine );
             } );
 
             return "Success: file '" + filePath + "' in project '" + projectName + "' was updated.\n" + "Changes:\n```diff\n" + diff + "\n```";
@@ -1173,6 +1180,7 @@ public class CodeEditingService
             // Try to open the renamed file in the editor
             sync.asyncExec( () -> {
                 safeOpenEditor( newFile );
+                revealLineInEditor( newFile, 1 );
             } );
 
             return "Success: File '" + filePath + "' renamed to '" + newFileName + "' in project '" + projectName + "'.";
@@ -1285,6 +1293,7 @@ public class CodeEditingService
                 if ( extractedFile.exists() )
                 {
                     safeOpenEditor( extractedFile );
+                    revealLineInEditor( extractedFile, 1 );
                 }
             } );
 
@@ -1496,6 +1505,7 @@ public class CodeEditingService
                 if ( newFile.exists() )
                 {
                     safeOpenEditor( newFile );
+                    revealLineInEditor( newFile, 1 );
                 }
             } );
 
@@ -1662,6 +1672,7 @@ public class CodeEditingService
                 if ( newFile.exists() )
                 {
                     safeOpenEditor( newFile );
+                    revealLineInEditor( newFile, 1 );
                 }
             } );
 
@@ -1806,6 +1817,16 @@ public class CodeEditingService
             // Refresh the project
             project.refreshLocal( IResource.DEPTH_INFINITE, monitor );
 
+            IPackageFragment renamedPackage = findPackage( javaProject, newPackageName );
+            if ( renamedPackage != null && renamedPackage.getCompilationUnits().length > 0
+                    && renamedPackage.getCompilationUnits()[0].getResource() instanceof IFile renamedFile )
+            {
+                sync.asyncExec( () -> {
+                    safeOpenEditor( renamedFile );
+                    revealLineInEditor( renamedFile, 1 );
+                } );
+            }
+
             StringBuilder result = new StringBuilder();
             result.append( "Success: Package '" ).append( packageName ).append( "' renamed to '" ).append( newPackageName ).append( "'.\n" );
             result.append( "All package declarations and references have been updated." );
@@ -1946,6 +1967,7 @@ public class CodeEditingService
             // Refresh the editor
             sync.asyncExec( () -> {
                 refreshEditor( file );
+                revealLineInEditor( file, 1 );
             } );
 
             // Build the result message
@@ -2033,6 +2055,7 @@ public class CodeEditingService
             IProgressMonitor monitor = new NullProgressMonitor();
             int processedCount = 0;
             int changedCount = 0;
+            IFile firstChangedFile = null;
 
             // Create a choose import query
             IChooseImportQuery chooseImportQuery = new IChooseImportQuery()
@@ -2067,6 +2090,10 @@ public class CodeEditingService
                     if ( !originalSource.equals( newSource ) )
                     {
                         changedCount++;
+                        if ( firstChangedFile == null && cu.getResource() instanceof IFile changedFile )
+                        {
+                            firstChangedFile = changedFile;
+                        }
                     }
                     processedCount++;
                 }
@@ -2074,6 +2101,15 @@ public class CodeEditingService
                 {
                     logger.warn( "Failed to organize imports in " + cu.getElementName() + ": " + e.getMessage() );
                 }
+            }
+
+            IFile fileToReveal = firstChangedFile;
+            if ( fileToReveal != null )
+            {
+                sync.asyncExec( () -> {
+                    safeOpenEditor( fileToReveal );
+                    revealLineInEditor( fileToReveal, 1 );
+                } );
             }
 
             StringBuilder result = new StringBuilder();
@@ -2239,6 +2275,7 @@ public class CodeEditingService
                     if ( newFile.exists() )
                     {
                         safeOpenEditor( newFile );
+                        revealLineInEditor( newFile, 1 );
                     }
                 } );
             }
@@ -2418,7 +2455,7 @@ public class CodeEditingService
 
             return "Success: Content of file '" + filePath + "' replaced in project '" + projectName + "'.";
         }
-        catch ( CoreException e )
+        catch ( CoreException | IOException e )
         {
             throw new RuntimeException( e );
         }
@@ -2586,29 +2623,19 @@ public class CodeEditingService
                 refreshEditor( file );
             } );
 
-            // Read the original file content
-            List<String> originalLines = ResourceUtilities.readFileLinesWithTerminators( file );
+            String originalContent = ResourceUtilities.readFileContent( file );
+            String lineDelimiter = detectLineDelimiter( originalContent );
+            boolean hasTrailingDelimiter = endsWithLineDelimiter( originalContent );
+            List<String> originalLines = splitLines( originalContent );
 
-            // Parse and apply the unified diff
+            // All hunks are validated and applied in memory before the file is touched.
             List<String> patchedLines = applyUnifiedDiff( originalLines, patch );
-
-            // Build the patched content
-            StringBuilder patchedContent = new StringBuilder();
-            for ( int i = 0; i < patchedLines.size(); i++ )
+            String patchedContentString = String.join( lineDelimiter, patchedLines );
+            if ( hasTrailingDelimiter && !patchedLines.isEmpty() )
             {
-                patchedContent.append( patchedLines.get( i ) );
-                if ( i < patchedLines.size() - 1 )
-                {
-                    patchedContent.append( "\n" );
-                }
-            }
-            // Ensure trailing newline
-            if ( !patchedContent.toString().endsWith( "\n" ) )
-            {
-                patchedContent.append( "\n" );
+                patchedContentString += lineDelimiter;
             }
 
-            var patchedContentString = patchedContent.toString();
 
             if ( showDialog )
             {
@@ -2628,6 +2655,7 @@ public class CodeEditingService
             // Generate a diff for the response (comparing original to patched)
             String diff = generateCodeDiff( projectName, filePath, patchedContentString, 3 );
 
+            backupFile( file );
             // Write back to the file
             try (ByteArrayInputStream source = new ByteArrayInputStream( patchedContentString.getBytes( Charset.forName( file.getCharset() ) ) ))
             {
@@ -2653,6 +2681,35 @@ public class CodeEditingService
         {
             throw new RuntimeException( e );
         }
+    }
+
+    private List<String> splitLines( String content )
+    {
+        if ( content.isEmpty() )
+        {
+            return new java.util.ArrayList<>();
+        }
+        List<String> lines = new java.util.ArrayList<>( java.util.Arrays.asList( content.split( "\\R", -1 ) ) );
+        if ( endsWithLineDelimiter( content ) )
+        {
+            lines.remove( lines.size() - 1 );
+        }
+        return lines;
+    }
+
+    private String detectLineDelimiter( String content )
+    {
+        int newline = content.indexOf( '\n' );
+        if ( newline >= 0 )
+        {
+            return newline > 0 && content.charAt( newline - 1 ) == '\r' ? "\r\n" : "\n";
+        }
+        return content.indexOf( '\r' ) >= 0 ? "\r" : System.lineSeparator();
+    }
+
+    private boolean endsWithLineDelimiter( String content )
+    {
+        return content.endsWith( "\n" ) || content.endsWith( "\r" );
     }
 
     /**
@@ -2737,7 +2794,7 @@ public class CodeEditingService
     private List<DiffHunk> parseHunks( String patch )
     {
         var hunks = new java.util.ArrayList<DiffHunk>();
-        var lines = patch.split( "\n" );
+        var lines = patch.split( "\\R" );
         DiffHunk currentHunk = null;
 
         for ( String line : lines )
@@ -2757,11 +2814,12 @@ public class CodeEditingService
                 // Parse the original file range: @@ -start,count +start,count
                 // @@
                 var matcher = java.util.regex.Pattern.compile( "@@ -(\\d+)(?:,(\\d+))? \\+(\\d+)(?:,(\\d+))? @@.*" ).matcher( line );
-                if ( matcher.matches() )
+                if ( !matcher.matches() )
                 {
-                    currentHunk.originalStart = Integer.parseInt( matcher.group( 1 ) );
-                    currentHunk.originalCount = matcher.group( 2 ) != null ? Integer.parseInt( matcher.group( 2 ) ) : 1;
+                    throw new IllegalArgumentException( "Error: Invalid unified diff hunk header: " + line );
                 }
+                currentHunk.originalStart = Integer.parseInt( matcher.group( 1 ) );
+                currentHunk.originalCount = matcher.group( 2 ) != null ? Integer.parseInt( matcher.group( 2 ) ) : 1;
                 continue;
             }
 
@@ -2778,6 +2836,11 @@ public class CodeEditingService
                     currentHunk.hunkLines.add( " " );
                 }
             }
+        }
+
+        if ( hunks.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Patch contains no unified diff hunks." );
         }
 
         return hunks;
@@ -2798,6 +2861,12 @@ public class CodeEditingService
                 expectedLines.add( hunkLine.substring( 1 ) );
             }
         }
+        if ( expectedLines.size() != hunk.originalCount )
+        {
+            throw new IllegalArgumentException( "Error: Hunk at line " + hunk.originalStart + " declares " + hunk.originalCount
+                    + " original line(s), but contains " + expectedLines.size() + "." );
+        }
+
 
         // Try to find the matching position
         int matchPos = findMatchPosition( lines, expectedLines, hunk.originalStart - 1 );
@@ -2860,7 +2929,7 @@ public class CodeEditingService
         if ( expectedLines.isEmpty() )
         {
             // Pure insertion hunk â use the hint position directly
-            return Math.min( hintPosition, lines.size() );
+            return Math.max( 0, Math.min( hintPosition, lines.size() ) );
         }
 
         // Try exact position first
@@ -3072,22 +3141,44 @@ public class CodeEditingService
         return indent;
     }
 
-    /**
-     * Creates a backup of the file by triggering Eclipse's local history
-     * mechanism. Eclipse automatically maintains file history when content
-     * changes occur.
-     * 
-     * @param file
-     *            The file to backup
-     * @throws CoreException
-     *             if backup operation fails
-     */
-    private void backupFile( IFile file ) throws CoreException
+    private void backupFile( IFile file ) throws CoreException, IOException
     {
-        // Eclipse automatically maintains local history when file.setContents()
-        // is called
-        // We just need to ensure the file is synchronized
         file.refreshLocal( IResource.DEPTH_ZERO, null );
+        byte[] content;
+        try ( var input = file.getContents() )
+        {
+            content = input.readAllBytes();
+        }
+
+        Deque<byte[]> backups = editBackups.computeIfAbsent( file.getFullPath(), ignored -> new ArrayDeque<>() );
+        synchronized ( backups )
+        {
+            backups.addFirst( content );
+            while ( backups.size() > MAX_EDIT_BACKUPS )
+            {
+                backups.removeLast();
+            }
+        }
     }
+
+    private byte[] takeEditBackup( IFile file )
+    {
+        Deque<byte[]> backups = editBackups.get( file.getFullPath() );
+        if ( backups == null )
+        {
+            return null;
+        }
+
+        synchronized ( backups )
+        {
+            byte[] content = backups.pollFirst();
+            if ( backups.isEmpty() )
+            {
+                editBackups.remove( file.getFullPath(), backups );
+            }
+            return content;
+        }
+    }
+
 
 }

@@ -220,6 +220,7 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.deleteLinesInFile(projectName, filePath, startLineNum, endLineNum);
     }
 
+    @Tool(name="applyPatch", description="Atomically applies a unified diff with one or more hunks to a workspace file. Validates all hunk context before writing, preserves the file's line delimiter, and creates an undo backup. File headers are optional.", type="object")
     public String applyPatch(
         @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
