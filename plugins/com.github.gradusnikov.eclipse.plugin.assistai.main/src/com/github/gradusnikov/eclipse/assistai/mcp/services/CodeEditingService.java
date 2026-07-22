@@ -79,6 +79,7 @@ import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import com.github.gradusnikov.eclipse.assistai.completion.CompletionContext;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
@@ -98,6 +99,9 @@ public class CodeEditingService
 
     @Inject
     AiIgnoreService     aiIgnoreService;
+
+    @Inject
+    ResourceCache       resourceCache;
 
     private static final int MAX_EDIT_BACKUPS = 20;
 
@@ -243,17 +247,10 @@ public class CodeEditingService
                 file.setContents( source, IResource.FORCE, null );
             }
 
-            // Add this line to refresh the parent container (or project)
-            file.getParent().refreshLocal( IResource.DEPTH_ONE, null );
-
-            // Try to refresh the editor if the file is open
-            sync.asyncExec( () -> {
-                refreshEditor( file );
-                revealLineInEditor( file, 1 );
-            } );
+            String workspaceState = synchronizeAfterEdit( file, 1 );
 
             return "Success: Undid last edit in file '" + filePath + "' in project '" + projectName + "'." + "Updated file content:\n```"
-                    + ResourceUtilities.readFileContent( file ) + "\n```";
+                    + ResourceUtilities.readFileContent( file ) + "\n```" + workspaceState;
         }
         catch ( CoreException | IOException e )
         {
@@ -406,15 +403,11 @@ public class CodeEditingService
                 file.setContents( source, IResource.FORCE, null );
             }
 
-            // Refresh and reveal the changed location in the editor
-            final int revealLine = effectiveStartLine + 1; // convert back to
-                                                           // 1-based
-            sync.asyncExec( () -> {
-                refreshEditor( file );
-                revealLineInEditor( file, revealLine );
-            } );
+            final int revealLine = effectiveStartLine + 1;
+            String workspaceState = synchronizeAfterEdit( file, revealLine );
 
-            return "Success: String replaced in file '" + filePath + "' in project '" + projectName + "'. " + "'.\n" + "Changes:\n```diff\n" + diff + "\n```";
+            return "Success: String replaced in file '" + filePath + "' in project '" + projectName + "'.\n" + "Changes:\n```diff\n" + diff + "\n```"
+                    + workspaceState;
 
         }
         catch ( CoreException | IOException e )
@@ -525,16 +518,10 @@ public class CodeEditingService
                 file.setContents( source, IResource.FORCE, null );
             }
 
-            // Add this line to refresh the parent container (or project)
-            file.getParent().refreshLocal( IResource.DEPTH_ONE, null );
+            String workspaceState = synchronizeAfterEdit( file, atLine );
 
-            // Refresh and reveal the insertion point in the editor
-            sync.syncExec( () -> {
-                refreshEditor( file );
-                revealLineInEditor( file, atLine );
-            } );
-
-            return "Success: file '" + filePath + "' in project '" + projectName + "' was updated.\n" + "Changes:\n```diff\n" + diff + "\n```";
+            return "Success: file '" + filePath + "' in project '" + projectName + "' was updated.\n" + "Changes:\n```diff\n" + diff + "\n```"
+                    + workspaceState;
 
         }
         catch ( CoreException | IOException e )
@@ -579,6 +566,39 @@ public class CodeEditingService
         {
             logger.error( "Error refreshing editor: " + e.getMessage() );
         }
+    }
+
+    /**
+     * Completes an edit before its MCP call returns. The file is persisted by
+     * the IFile mutation itself; this barrier then aligns the filesystem,
+     * workspace notifications, JDT model, resource cache, and editor view.
+     */
+    private String synchronizeAfterEdit( IFile file, int revealLine ) throws CoreException
+    {
+        file.refreshLocal( IResource.DEPTH_ZERO, null );
+        ResourcesPlugin.getWorkspace().checkpoint( false );
+
+        String jdtState = "not-applicable";
+        IJavaElement javaElement = JavaCore.create( file );
+        if ( javaElement instanceof ICompilationUnit compilationUnit )
+        {
+            compilationUnit.makeConsistent( new NullProgressMonitor() );
+            jdtState = Boolean.toString( compilationUnit.isConsistent() );
+        }
+
+        boolean cached = resourceCache.get( file ).isPresent();
+        resourceCache.resourceChanged( file.getFullPath() );
+
+        sync.syncExec( () -> {
+            safeOpenEditor( file );
+            refreshEditor( file );
+            revealLineInEditor( file, revealLine );
+        } );
+
+        return "\nWorkspace state: saved=" + file.isSynchronized( IResource.DEPTH_ZERO )
+                + ", refreshed=true, cache=" + ( cached ? "updated" : "not-cached" )
+                + ", jdtConsistent=" + jdtState
+                + ", modificationStamp=" + file.getModificationStamp();
     }
 
     /**
@@ -824,13 +844,10 @@ public class CodeEditingService
                 file.setContents( source, IResource.FORCE, null );
             }
 
-            sync.asyncExec( () -> {
-                refreshEditor( file );
-                revealLineInEditor( file, 1 );
-            } );
+            String workspaceState = synchronizeAfterEdit( file, 1 );
 
             String diff = generateCodeDiff( projectName, filePath, formattedContent, 3 );
-            return "Success: File '" + filePath + "' formatted.\nChanges:\n```diff\n" + diff + "\n```";
+            return "Success: File '" + filePath + "' formatted.\nChanges:\n```diff\n" + diff + "\n```" + workspaceState;
         }
         catch ( Exception e )
         {
@@ -902,16 +919,9 @@ public class CodeEditingService
             // Create the file with content
             ByteArrayInputStream source = new ByteArrayInputStream( content.getBytes( Charset.forName( project.getDefaultCharset() ) ) );
             file.create( source, true, null );
-            // Add this line to refresh the parent container (or project)
-            file.getParent().refreshLocal( IResource.DEPTH_ONE, null );
+            String workspaceState = synchronizeAfterEdit( file, 1 );
 
-            // Try to open the file in the editor, but don't fail if we can't
-            sync.syncExec( () -> {
-                safeOpenEditor( file );
-                revealLineInEditor( file, 1 );
-            } );
-
-            return "Success: File '" + normalizedPath + "' created in project '" + projectName + "'.";
+            return "Success: File '" + normalizedPath + "' created in project '" + projectName + "'." + workspaceState;
         }
         catch ( CoreException e )
         {
@@ -1095,16 +1105,10 @@ public class CodeEditingService
                 file.setContents( source, IResource.FORCE, null );
             }
 
-            // Add this line to refresh the parent container (or project)
-            file.getParent().refreshLocal( IResource.DEPTH_ONE, null );
+            String workspaceState = synchronizeAfterEdit( file, startLine );
 
-            // Try to open the file in the editor and refresh it
-            sync.syncExec( () -> {
-                refreshEditor( file );
-                revealLineInEditor( file, startLine );
-            } );
-
-            return "Success: file '" + filePath + "' in project '" + projectName + "' was updated.\n" + "Changes:\n```diff\n" + diff + "\n```";
+            return "Success: file '" + filePath + "' in project '" + projectName + "' was updated.\n" + "Changes:\n```diff\n" + diff + "\n```"
+                    + workspaceState;
         }
         catch ( CoreException | IOException e )
         {
@@ -1964,11 +1968,7 @@ public class CodeEditingService
             String newSource = compilationUnit.getSource();
             String newImports = extractImportSection( newSource );
 
-            // Refresh the editor
-            sync.asyncExec( () -> {
-                refreshEditor( file );
-                revealLineInEditor( file, 1 );
-            } );
+            String workspaceState = synchronizeAfterEdit( file, 1 );
 
             // Build the result message
             StringBuilder result = new StringBuilder();
@@ -1984,7 +1984,7 @@ public class CodeEditingService
                 result.append( "\nUpdated imports:\n```java\n" ).append( newImports ).append( "\n```" );
             }
 
-            return result.toString();
+            return result.append( workspaceState ).toString();
         }
         catch ( CoreException e )
         {
@@ -2444,16 +2444,9 @@ public class CodeEditingService
             // Replace the file content
             file.setContents( ResourceUtilities.toFileContent( file, content ), IResource.FORCE, null );
 
-            // Refresh the file
-            file.refreshLocal( IResource.DEPTH_ZERO, null );
+            String workspaceState = synchronizeAfterEdit( file, 1 );
 
-            // Refresh the editor if the file is open
-            sync.asyncExec( () -> {
-                safeOpenEditor( file );
-                revealLineInEditor( file, 1 );
-            } );
-
-            return "Success: Content of file '" + filePath + "' replaced in project '" + projectName + "'.";
+            return "Success: Content of file '" + filePath + "' replaced in project '" + projectName + "'." + workspaceState;
         }
         catch ( CoreException | IOException e )
         {
@@ -2538,19 +2531,11 @@ public class CodeEditingService
             // Write the new content back to the file
             file.setContents( ResourceUtilities.toFileContent( file, newContent.toString() ), IResource.FORCE, null );
 
-            // Refresh the file
-            file.refreshLocal( IResource.DEPTH_ZERO, null );
-
-            // Refresh the editor if the file is open
-            sync.asyncExec( () -> {
-                safeOpenEditor( file );
-                refreshEditor( file );
-                revealLineInEditor( file, startLine );
-            } );
+            String workspaceState = synchronizeAfterEdit( file, startLine );
 
             int deletedCount = endLine - startLine + 1;
             return "Success: Deleted " + deletedCount + " line(s) (lines " + startLine + " to " + endLine + ") from file '" + filePath + "' in project '"
-                    + projectName + "'.";
+                    + projectName + "'." + workspaceState;
         }
         catch ( CoreException | IOException e )
         {
@@ -2662,20 +2647,16 @@ public class CodeEditingService
                 file.setContents( source, IResource.FORCE, null );
             }
 
-            // Refresh the editor
             var hunks = parseHunks( patch );
             final int firstHunkLine = hunks.isEmpty() ? 1 : hunks.get( 0 ).originalStart;
-            sync.asyncExec( () -> {
-                refreshEditor( file );
-                revealLineInEditor( file, firstHunkLine );
-            } );
+            String workspaceState = synchronizeAfterEdit( file, firstHunkLine );
 
             // Compute affected line range from hunks for the response
             int firstLine = hunks.stream().mapToInt( h -> h.originalStart ).min().orElse( 1 );
             int lastLine = hunks.stream().mapToInt( h -> h.originalStart + h.originalCount ).max().orElse( firstLine );
 
             return "Success: Patch applied to file '" + filePath + "' in project '" + projectName + "'.\n" + "Affected lines: " + firstLine + "-" + lastLine
-                    + "\n" + "Changes:\n```diff\n" + diff + "\n```";
+                    + "\n" + "Changes:\n```diff\n" + diff + "\n```" + workspaceState;
         }
         catch ( CoreException | IOException e )
         {

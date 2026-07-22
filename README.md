@@ -160,7 +160,7 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | organizeImports | Removes unused imports and sorts existing imports; does not add missing imports |
 | organizeImportsInPackage | Removes unused imports and sorts existing imports across a package |
 
-Editing tools synchronize Eclipse editors and reveal the changed line; multi-file operations reveal the primary or first changed file.
+Direct file-editing tools complete a workspace synchronization barrier before returning: the content is saved, the resource is refreshed, pending workspace notifications are checkpointed, cached content is updated, Java compilation units are made consistent, and the editor reveals the changed line. Their response includes the synchronization state and resulting modification stamp. Multi-file operations reveal the primary or first changed file.
 
 ### eclipse-ide -- Code Analysis, Navigation & Build
 

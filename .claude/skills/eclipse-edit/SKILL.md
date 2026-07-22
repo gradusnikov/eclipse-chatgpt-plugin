@@ -23,6 +23,8 @@ Edit files in Eclipse workspace projects using the eclipse-coder MCP tools. Thes
 - **organizeImportsInPackage** — Organize imports across all files in a package.
 - **undoEdit** — Restore a file from Eclipse's local history.
 
+Direct file edits return only after Eclipse has synchronized the saved resource, workspace notifications, cached content, JDT compilation unit (for Java files), and editor selection. Check the `Workspace state` line in the result for `saved`, cache/JDT state, and the final modification stamp.
+
 ## Refactoring Tools
 
 For Java files, prefer refactoring tools over manual rename/move — they update all references:

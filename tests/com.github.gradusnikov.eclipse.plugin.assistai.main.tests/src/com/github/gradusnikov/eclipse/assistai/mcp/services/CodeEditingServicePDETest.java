@@ -35,6 +35,8 @@ import org.osgi.util.tracker.ServiceTracker;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
 public class CodeEditingServicePDETest {
@@ -43,6 +45,7 @@ public class CodeEditingServicePDETest {
     private static final String TEST_PROJECT_NAME = "CodeEditingTestProject";
     private IProject project;
     private CodeEditingService service;
+    private ResourceCache resourceCache;
     private NullProgressMonitor monitor = new NullProgressMonitor();
     
     @BeforeEach
@@ -113,11 +116,16 @@ public class CodeEditingServicePDETest {
 			}
         });
         
+        resourceCache = ContextInjectionFactory.make(ResourceCache.class, context);
+        context.set(ResourceCache.class, resourceCache);
         service = ContextInjectionFactory.make(CodeEditingService.class, context);
     }
     
     @AfterEach
     public void afterEach() throws CoreException {
+        if (resourceCache != null) {
+            resourceCache.dispose();
+        }
         // Clean up the test project
         if (project != null && project.exists()) {
             project.delete(true, true, monitor);
@@ -302,6 +310,7 @@ public class CodeEditingServicePDETest {
 	            "This line should remain unchanged.\n";
 	    
 	    IFile testFile = createFile("src/testFile.txt", initialContent);
+	    resourceCache.put(ResourceDescriptor.fromWorkspaceFile(testFile, "text"), "stale content");
 	    
 	    // Replace a specific string
 	    String oldString = "some text to be replaced";
@@ -310,6 +319,8 @@ public class CodeEditingServicePDETest {
 	    
 	    // Verify the operation was successful
 	    assertTrue(result.contains("Success: String replaced in file"));
+	    assertTrue(result.contains("Workspace state: saved=true"));
+	    assertTrue(result.contains("cache=updated"));
 	    
 	    // Read the updated file content
 	    String updatedContent = ResourceUtilities.readFileContent(testFile);
@@ -322,6 +333,7 @@ public class CodeEditingServicePDETest {
 	    
 	    // Verify the content was correctly updated
 	    assertEquals(expectedContent, updatedContent);
+	    assertEquals(expectedContent, resourceCache.get(testFile).orElseThrow().content());
 	}
 	
 	@Test
@@ -568,6 +580,23 @@ public class ApplicationNew {
                 () -> service.applyPatch( TEST_PROJECT_NAME, "src/atomic.txt", patch, false ) );
 
         assertEquals( original, ResourceUtilities.readFileContent( file ) );
+    }
+
+    @Test
+    public void testReplaceFileContentSynchronizesJdtModel() throws Exception
+    {
+        IFile file = createFile( "src/SynchronizedType.java",
+                "public class SynchronizedType { int value = 1; }\n" );
+
+        String result = service.replaceFileContent( TEST_PROJECT_NAME, "src/SynchronizedType.java",
+                "public class SynchronizedType { int value = 2; }\n" );
+
+        assertTrue( result.contains( "Workspace state: saved=true" ) );
+        assertTrue( result.contains( "jdtConsistent=true" ) );
+
+        var compilationUnit = JavaCore.createCompilationUnitFrom( file );
+        assertTrue( compilationUnit.isConsistent() );
+        assertTrue( compilationUnit.getSource().contains( "value = 2" ) );
     }
 
 	
