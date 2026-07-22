@@ -68,7 +68,7 @@ public class GitServicePDETest
         project.open(monitor);
 
         repoDir = project.getLocation().toFile();
-        git = Git.init().setDirectory(repoDir).call();
+        git = Git.init().setDirectory(repoDir).setInitialBranch("master").call();
 
         File srcFile = new File(repoDir, "src/Hello.java");
         srcFile.getParentFile().mkdirs();
@@ -80,7 +80,11 @@ public class GitServicePDETest
         Files.writeString(readmeFile.toPath(), "# Test Project\n", StandardCharsets.UTF_8);
 
         git.add().addFilepattern(".").call();
-        git.commit().setMessage("Initial commit").call();
+        git.commit()
+                .setMessage("Initial commit")
+                .setAuthor("AssistAI Tests", "assistai-tests@example.invalid")
+                .setCommitter("AssistAI Tests", "assistai-tests@example.invalid")
+                .call();
 
         ConnectProviderOperation connectOp = new ConnectProviderOperation(project, git.getRepository().getDirectory());
         connectOp.execute(monitor);

@@ -22,11 +22,6 @@ import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.EclipseContextFactory;
 import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.e4.ui.di.UISynchronize;
-import org.eclipse.ui.IWorkbench;
-import org.eclipse.ui.IWorkbenchWindow;
-import org.eclipse.ui.PartInitException;
-import org.eclipse.ui.PlatformUI;
-import org.eclipse.ui.ide.IDE;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +32,7 @@ import org.osgi.util.tracker.ServiceTracker;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
 
 public class ChatMessageFactoryPDETest {
 
@@ -47,6 +43,7 @@ public class ChatMessageFactoryPDETest {
     private PromptRepository promptRepository;
     private NullProgressMonitor monitor = new NullProgressMonitor();
     private UISynchronize uiSync;
+    private IFile activeFile;
     
     @BeforeEach
     public void beforeEach() throws CoreException, IOException, InterruptedException {
@@ -108,7 +105,30 @@ public class ChatMessageFactoryPDETest {
                 return false;
             }
         });
-        editorService = ContextInjectionFactory.make(EditorService.class, context);
+        editorService = new EditorService()
+        {
+            @Override
+            public Optional<IFile> getCurrentlyOpenedFile()
+            {
+                return Optional.ofNullable( activeFile );
+            }
+
+            @Override
+            public ResourceToolResult getCurrentlyOpenedFileContentWithResource()
+            {
+                return Optional.ofNullable( activeFile )
+                        .map( file -> ResourceToolResult.transientResult(
+                                "# Currently Opened File:\n\n" + file.getProjectRelativePath() + "\n",
+                                "getCurrentlyOpenedFile" ) )
+                        .orElseGet( () -> ResourceToolResult.transientResult( "Error: No active file", "getCurrentlyOpenedFile" ) );
+            }
+
+            @Override
+            public String getEditorSelection()
+            {
+                return "No text is currently selected in the editor.";
+            }
+        };
         context.set( EditorService.class, editorService );
         promptRepository = ContextInjectionFactory.make(PromptRepository.class, context);
         context.set( PromptRepository.class, promptRepository );
@@ -277,24 +297,7 @@ public class ChatMessageFactoryPDETest {
     }
     private void openFileInEditor(IFile file) 
     {
-        var page = Optional.ofNullable( PlatformUI.getWorkbench() )
-                                 .map( IWorkbench::getActiveWorkbenchWindow )
-                                 .map(IWorkbenchWindow::getActivePage).orElseThrow( () -> new RuntimeException("No active page") );
-        
-        try 
-        {
-            // Open the editor and get the editor reference
-            var editor = IDE.openEditor(page, file);
-            // Set focus to the editor
-            if (editor != null) 
-            {
-                editor.setFocus();
-            }
-        } 
-        catch (PartInitException e) 
-        {
-            throw new RuntimeException( e );
-        }
+        activeFile = file;
     }
 
 }
