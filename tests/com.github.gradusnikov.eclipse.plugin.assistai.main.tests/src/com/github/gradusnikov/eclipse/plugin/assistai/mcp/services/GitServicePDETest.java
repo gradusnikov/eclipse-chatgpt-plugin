@@ -22,6 +22,7 @@ import org.eclipse.egit.core.op.ConnectProviderOperation;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheEntry;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.Repository;
 import org.junit.jupiter.api.AfterEach;
@@ -69,6 +70,7 @@ public class GitServicePDETest
 
         repoDir = project.getLocation().toFile();
         git = Git.init().setDirectory(repoDir).setInitialBranch("master").call();
+        git.getRepository().updateRef(Constants.HEAD).link(Constants.R_HEADS + "master");
 
         File srcFile = new File(repoDir, "src/Hello.java");
         srcFile.getParentFile().mkdirs();
