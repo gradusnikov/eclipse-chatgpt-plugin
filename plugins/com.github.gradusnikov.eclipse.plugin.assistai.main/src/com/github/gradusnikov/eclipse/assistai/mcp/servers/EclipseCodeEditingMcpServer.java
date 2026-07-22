@@ -175,7 +175,7 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.moveResource(projectName, sourcePath, targetPath);
     }
 
-    @Tool(name="organizeImports", description="Organizes imports in a Java file using Eclipse's organize imports mechanism. This removes unused imports, adds missing imports, and sorts them according to project settings. Equivalent to pressing Ctrl+Shift+O in Eclipse.", type="object")
+    @Tool(name="organizeImports", description="Cleans up existing imports in a Java file using Eclipse's organize imports mechanism: removes unused imports and sorts the remaining imports according to project settings. This tool does NOT add imports for unresolved types. To add a missing import, use eclipse-ide getImportSuggestions and then edit the file explicitly.", type="object")
     public String organizeImports(
         @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java')", required=true) String filePath) 
@@ -183,7 +183,7 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.organizeImports(projectName, filePath);
     }
 
-    @Tool(name="organizeImportsInPackage", longExecution=true, description="Organizes imports in all Java files within a package. This is useful for cleaning up imports across multiple files at once.", type="object")
+    @Tool(name="organizeImportsInPackage", longExecution=true, description="Cleans up existing imports in all Java files within a package by removing unused imports and sorting the remaining imports. This tool does NOT add imports for unresolved types.", type="object")
     public String organizeImportsInPackage(
         @ToolParam(name="projectName", description="The name of the project containing the package", required=true) String projectName,
         @ToolParam(name="packageName", description="The fully qualified package name (e.g., 'com.example.mypackage')", required=true) String packageName) 

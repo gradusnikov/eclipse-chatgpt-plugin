@@ -1820,8 +1820,8 @@ public class CodeEditingService
 
     /**
      * Organizes imports in a Java file using Eclipse's organize imports
-     * mechanism. This removes unused imports, adds missing imports, and sorts
-     * them according to project settings.
+     * mechanism. This removes unused imports and sorts existing imports
+     * according to project settings. It does not add missing imports.
      * 
      * @param projectName
      *            The name of the project containing the Java file
@@ -1950,11 +1950,12 @@ public class CodeEditingService
 
             // Build the result message
             StringBuilder result = new StringBuilder();
-            result.append( "Success: Imports organized in file '" ).append( filePath ).append( "'.\n" );
+            result.append( "Success: Existing imports cleaned up in file '" ).append( filePath ).append( "'.\n" );
+            result.append( "This operation does not add missing imports.\n" );
 
             if ( originalImports.equals( newImports ) )
             {
-                result.append( "No changes were necessary - imports were already organized." );
+                result.append( "No existing import changes were necessary." );
             }
             else
             {
@@ -2076,7 +2077,8 @@ public class CodeEditingService
             }
 
             StringBuilder result = new StringBuilder();
-            result.append( "Success: Organized imports in package '" ).append( packageName ).append( "'.\n" );
+            result.append( "Success: Cleaned up existing imports in package '" ).append( packageName ).append( "'.\n" );
+            result.append( "This operation does not add missing imports.\n" );
             result.append( "Processed " ).append( processedCount ).append( " file(s), " );
             result.append( changedCount ).append( " file(s) were modified." );
 

@@ -154,8 +154,8 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | refactorMoveJavaType | Moves a Java type to a different package, updating all references |
 | refactorRenamePackage | Renames a package, updating all declarations and references |
 | moveResource | Moves a file or folder to a different location |
-| organizeImports | Organizes imports in a Java file (Ctrl+Shift+O equivalent) |
-| organizeImportsInPackage | Organizes imports in all Java files within a package |
+| organizeImports | Removes unused imports and sorts existing imports; does not add missing imports |
+| organizeImportsInPackage | Removes unused imports and sorts existing imports across a package |
 
 ### eclipse-ide -- Code Analysis, Navigation & Build
 
