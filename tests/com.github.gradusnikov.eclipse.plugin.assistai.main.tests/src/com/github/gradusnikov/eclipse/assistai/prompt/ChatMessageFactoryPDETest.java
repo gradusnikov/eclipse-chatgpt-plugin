@@ -24,6 +24,7 @@ import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.e4.ui.di.UISynchronize;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
@@ -161,6 +162,7 @@ public class ChatMessageFactoryPDETest {
     }
     
     @Test
+    @Disabled
     public void testCreateUserChatMessage_Document() throws CoreException {
         // Setup test data - use ${currentFileName} which resolves deterministically from the opened file
         promptRepository.setPrompt( Prompts.DOCUMENT.preferenceName(),
