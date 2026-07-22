@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationRegistry;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseIntegrationsMcpServer;
+import com.github.gradusnikov.eclipse.assistai.mcp.servers.PDEMcpServer;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
@@ -56,6 +57,16 @@ public class McpServerFactoryPDETest
         McpServerFactory factory = new McpServerFactory( null, new OperationRegistry() );
 
         assertTrue( factory.listToolNames( new EclipseIntegrationsMcpServer() ).contains( "readImageResource" ) );
+    }
+
+    @Test
+    public void exposesDeferredRuntimeReloadTools()
+    {
+        McpServerFactory factory = new McpServerFactory( null, new OperationRegistry() );
+        List<String> toolNames = factory.listToolNames( new PDEMcpServer() );
+
+        assertTrue( toolNames.contains( "restartMcpServers" ) );
+        assertTrue( toolNames.contains( "reloadWorkspaceBundle" ) );
     }
 
     @Test

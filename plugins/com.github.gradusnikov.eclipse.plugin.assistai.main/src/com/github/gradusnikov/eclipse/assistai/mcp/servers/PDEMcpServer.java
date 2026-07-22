@@ -11,6 +11,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.PDEService;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.RuntimeReloadService;
 
 import jakarta.inject.Inject;
 
@@ -20,6 +21,9 @@ public class PDEMcpServer
 {
     @Inject
     private PDEService pdeService;
+
+    @Inject
+    private RuntimeReloadService runtimeReloadService;
 
     @Tool(name = "getActiveTarget",
           description = "Gets information about the currently active Eclipse target platform.",
@@ -46,6 +50,27 @@ public class PDEMcpServer
     public String reloadTarget()
     {
         return pdeService.reloadTarget();
+    }
+
+    @Tool(name = "restartMcpServers",
+          description = "Safely rebuilds the AssistAI HTTP MCP servers after the current response completes. Existing MCP connections are interrupted and may need to reconnect.",
+          type = "object")
+    public String restartMcpServers(
+            @ToolParam(name = "delayMillis", description = "Delay before restart, from 500 to 30000 ms. Default: 1500", required = false) String delayMillis)
+    {
+        Integer delay = Optional.ofNullable(delayMillis).filter(value -> !value.isBlank()).map(Integer::valueOf).orElse(null);
+        return runtimeReloadService.restartMcpServers(delay);
+    }
+
+    @Tool(name = "reloadWorkspaceBundle",
+          description = "Schedules an OSGi update of a bundle backed by an open Eclipse workspace project. The reload starts after the current response completes; MCP clients may need to reconnect when reloading AssistAI itself.",
+          type = "object")
+    public String reloadWorkspaceBundle(
+            @ToolParam(name = "symbolicName", description = "Bundle symbolic name; it must also name an open workspace project") String symbolicName,
+            @ToolParam(name = "delayMillis", description = "Delay before reload, from 500 to 30000 ms. Default: 1500", required = false) String delayMillis)
+    {
+        Integer delay = Optional.ofNullable(delayMillis).filter(value -> !value.isBlank()).map(Integer::valueOf).orElse(null);
+        return runtimeReloadService.reloadWorkspaceBundle(symbolicName, delay);
     }
 
     @Tool(name = "runJUnitPluginTests",
