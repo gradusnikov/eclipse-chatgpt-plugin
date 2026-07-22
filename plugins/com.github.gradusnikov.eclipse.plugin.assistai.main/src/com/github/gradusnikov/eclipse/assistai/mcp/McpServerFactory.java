@@ -40,51 +40,48 @@ import jakarta.inject.Inject;
 @Creatable
 public class McpServerFactory
 {
-    private final ILog logger;
+    private final ILog              logger;
 
     private final OperationRegistry operationRegistry;
-    
+
     @Inject
-    public McpServerFactory(ILog logger, OperationRegistry operationRegistry)
+    public McpServerFactory( ILog logger, OperationRegistry operationRegistry )
     {
         this.logger = logger;
         this.operationRegistry = operationRegistry;
     }
-    
+
     private McpSchema.Implementation createImplementationInfo( Object serverImplementation )
     {
         var mcpServerAnnotation = serverImplementation.getClass().getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer.class );
-        
+
         var serverName = mcpServerAnnotation.name();
         var version = getVersionNumber();
-        McpSchema.Implementation info = McpSchema.Implementation.builder( serverName, version ).build(); 
+        McpSchema.Implementation info = McpSchema.Implementation.builder( serverName, version ).build();
         return info;
     }
-    
+
     public String getVersionNumber()
     {
-        return Optional.ofNullable( FrameworkUtil.getBundle(McpServerFactory.class) )
-                        .map( Bundle::getVersion ).map( Object::toString )
-                        .orElse( "1.0.0" );
+        return Optional.ofNullable( FrameworkUtil.getBundle( McpServerFactory.class ) ).map( Bundle::getVersion ).map( Object::toString ).orElse( "1.0.0" );
     }
-    
-    
+
     private McpSchema.ServerCapabilities createCapabilities()
     {
-        McpSchema.ServerCapabilities capabilities = McpSchema.ServerCapabilities.builder()
-                .logging()
-                .prompts( false )
-                .resources( false, false )
-                .tools( true )
+        McpSchema.ServerCapabilities capabilities = McpSchema.ServerCapabilities.builder().logging().prompts( false ).resources( false, false ).tools( true )
                 .build();
         return capabilities;
     }
+
     /**
      * Executes a tool call with the provided arguments.
      * 
-     * @param executor The tool executor
-     * @param tool The tool definition
-     * @param args The arguments for the tool call
+     * @param executor
+     *            The tool executor
+     * @param tool
+     *            The tool definition
+     * @param args
+     *            The arguments for the tool call
      * @return The result of the tool call
      */
     private CallToolResult executeCallTool( ToolExecutor executor, McpSchema.Tool tool, Map<String, Object> args )
@@ -93,15 +90,13 @@ public class McpServerFactory
         {
             executor.validateArguments( tool.name(), args );
             var annotation = executor.getToolAnnotation( tool.name() );
-            boolean longExecution = annotation
-                    .map( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool::longExecution )
-                    .orElse( Boolean.FALSE );
+            boolean longExecution = annotation.map( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool::longExecution ).orElse( Boolean.FALSE );
             if ( longExecution )
             {
                 return executeLongTool( executor, tool, args, annotation.get() );
             }
             var result = executor.call( tool.name(), args ).get();
-            return createTextCallToolResult( result );
+            return createCallToolResult( result );
         }
         catch ( Exception e )
         {
@@ -113,11 +108,12 @@ public class McpServerFactory
     /**
      * Runs a tool that may outlive the client's tool call timeout.
      * <p>
-     * The work is registered as an {@link Operation} before it starts, so that when
-     * the inline wait runs out the caller can be handed its id rather than an error.
-     * The tool keeps running and its result is kept for collection - which is the
-     * whole difference from the old behaviour, where a slow tool was abandoned by the
-     * client while still running invisibly, and its result was thrown away.
+     * The work is registered as an {@link Operation} before it starts, so that
+     * when the inline wait runs out the caller can be handed its id rather than
+     * an error. The tool keeps running and its result is kept for collection -
+     * which is the whole difference from the old behaviour, where a slow tool
+     * was abandoned by the client while still running invisibly, and its result
+     * was thrown away.
      */
     private CallToolResult executeLongTool( ToolExecutor executor, McpSchema.Tool tool, Map<String, Object> args,
             com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool annotation )
@@ -127,16 +123,15 @@ public class McpServerFactory
         operationRegistry.attachFuture( operation, future );
 
         int inlineWait = resolveInlineWait( args, annotation );
-        return createTextCallToolResult( operationRegistry.awaitOrHandOff( operation, inlineWait ) );
+        return createCallToolResult( operationRegistry.awaitOrHandOff( operation, inlineWait ) );
     }
 
     /**
-     * How long to wait inline before handing back an operation id. A tool may let the
-     * caller override the annotation's default through one of its own arguments,
-     * unless that argument means something other than seconds.
+     * How long to wait inline before handing back an operation id. A tool may
+     * let the caller override the annotation's default through one of its own
+     * arguments, unless that argument means something other than seconds.
      */
-    private int resolveInlineWait( Map<String, Object> args,
-            com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool annotation )
+    private int resolveInlineWait( Map<String, Object> args, com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool annotation )
     {
         String param = annotation.inlineWaitParam();
         if ( param == null || param.isBlank() || args == null )
@@ -158,43 +153,67 @@ public class McpServerFactory
         }
     }
 
-    /** A short "what is this operation working on" line, built from the call's arguments. */
+    /**
+     * A short "what is this operation working on" line, built from the call's
+     * arguments.
+     */
     private String describeArguments( Map<String, Object> args )
     {
         if ( args == null || args.isEmpty() )
         {
             return "";
         }
-        String description = args.entrySet().stream()
-                .filter( entry -> entry.getValue() != null && !String.valueOf( entry.getValue() ).isBlank() )
-                .map( entry -> entry.getKey() + "=" + String.valueOf( entry.getValue() ) )
-                .collect( Collectors.joining( ", " ) );
+        String description = args.entrySet().stream().filter( entry -> entry.getValue() != null && !String.valueOf( entry.getValue() ).isBlank() )
+                .map( entry -> entry.getKey() + "=" + String.valueOf( entry.getValue() ) ).collect( Collectors.joining( ", " ) );
         return description.length() > 120 ? description.substring( 0, 117 ) + "..." : description;
     }
-    
-    
+
     /**
-     * Creates a text-based tool call result from the provided object.
-     * 
-     * @param result The result object from tool execution
-     * @return A CallToolResult containing the text representation of the result
+     * Adapts a tool's Java return value to an MCP tool result. MCP results and
+     * content objects are preserved; ordinary values retain the historical text
+     * conversion. Collections allow a tool to return mixed text, image and
+     * resource content in a stable order.
+     *
+     * @param result
+     *            The result object from tool execution
+     * @return A content-aware MCP tool result
      */
-    private CallToolResult createTextCallToolResult( Object result )
+    CallToolResult createCallToolResult( Object result )
     {
-        // TODO: support other content types
-        var content = McpSchema.TextContent.builder(Optional.ofNullable( result ).map( Object::toString ).orElse( "" ) )
-                .annotations( McpSchema.Annotations.builder().audience( List.of( McpSchema.Role.ASSISTANT ) ).build() )
-                .build();
-        return McpSchema.CallToolResult.builder().addContent( content ).isError( false ).build();
+        if ( result instanceof CallToolResult callToolResult )
+        {
+            return callToolResult;
+        }
+
+        var builder = McpSchema.CallToolResult.builder().isError( false );
+        addResultContent( builder, result );
+        return builder.build();
     }
-    
+
+    private void addResultContent( McpSchema.CallToolResult.Builder builder, Object result )
+    {
+        switch ( result )
+        {
+            case null -> builder.addContent( createTextContent( "" ) );
+            case McpSchema.Content content -> builder.addContent( content );
+            case Collection<?> items -> items.forEach( item -> addResultContent( builder, item ) );
+            default -> builder.addContent( createTextContent( result.toString() ) );
+        }
+    }
+
+    private McpSchema.TextContent createTextContent( String text )
+    {
+        return McpSchema.TextContent.builder( text ).annotations( McpSchema.Annotations.builder().audience( List.of( McpSchema.Role.ASSISTANT ) ).build() )
+                .build();
+    }
+
     public CallToolResult createErrorResult( Exception e )
     {
         var cause = ExceptionUtils.getRootCauseMessage( e );
         var content = McpSchema.TextContent.builder( "Error: " + cause ).build();
         return McpSchema.CallToolResult.builder().addContent( content ).isError( true ).build();
     }
-    
+
     /**
      * Extracts tool definitions from methods annotated with
      * {@link com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool}.
@@ -202,31 +221,29 @@ public class McpServerFactory
      * This method processes the annotations on methods and their parameters to
      * create MCP tool definitions that can be registered with an MCP server.
      * 
-     * @param methods The methods to extract tool definitions from
+     * @param methods
+     *            The methods to extract tool definitions from
      * @return List of tool definitions
      */
-    private List<McpSchema.Tool> extractAnnotatedTools( Method ... methods )
+    private List<McpSchema.Tool> extractAnnotatedTools( Method... methods )
     {
         var tools = new ArrayList<McpSchema.Tool>();
-        
+
         for ( Method method : methods )
         {
             var toolAnnotation = method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool.class );
             if ( toolAnnotation != null )
             {
                 var properties = new LinkedHashMap<String, Object>();
-                var required   = new ArrayList<String>();
-                
+                var required = new ArrayList<String>();
+
                 for ( var param : method.getParameters() )
                 {
                     ToolParam toolParamAnnotation = param.getAnnotation( ToolParam.class );
                     if ( toolParamAnnotation != null )
                     {
-                        String name = ToolExecutor.toParamName( param ); 
-                        properties.put( name, 
-                                        Map.of("type",        toolParamAnnotation.type(),
-                                               "description", toolParamAnnotation.description() ) 
-                                        );
+                        String name = ToolExecutor.toParamName( param );
+                        properties.put( name, Map.of( "type", toolParamAnnotation.type(), "description", toolParamAnnotation.description() ) );
                         if ( toolParamAnnotation.required() )
                         {
                             required.add( name );
@@ -238,10 +255,8 @@ public class McpServerFactory
                 schema.put( "properties", properties );
                 schema.put( "required", required );
                 schema.put( "additionalProperties", false );
-                McpSchema.Tool tool = McpSchema.Tool.builder( toolAnnotation.name(), schema )
-                        .title( toolAnnotation.name() )
-                        .description( describeTool( toolAnnotation ) )
-                        .build();
+                McpSchema.Tool tool = McpSchema.Tool.builder( toolAnnotation.name(), schema ).title( toolAnnotation.name() )
+                        .description( describeTool( toolAnnotation ) ).build();
                 tools.add( tool );
             }
         }
@@ -249,9 +264,9 @@ public class McpServerFactory
     }
 
     /**
-     * The description a client sees. A long execution tool advertises its own protocol,
-     * so the model learns from the schema that a slow call hands back an operation id
-     * instead of failing.
+     * The description a client sees. A long execution tool advertises its own
+     * protocol, so the model learns from the schema that a slow call hands back
+     * an operation id instead of failing.
      */
     private String describeTool( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool toolAnnotation )
     {
@@ -259,17 +274,15 @@ public class McpServerFactory
         {
             return toolAnnotation.description();
         }
-        return toolAnnotation.description()
-                + " This tool can run longer than a tool call is allowed to take. If it has not finished after "
-                + toolAnnotation.inlineWait()
-                + "s you get an operationId instead of the result and the work carries on: poll it with"
+        return toolAnnotation.description() + " This tool can run longer than a tool call is allowed to take. If it has not finished after "
+                + toolAnnotation.inlineWait() + "s you get an operationId instead of the result and the work carries on: poll it with"
                 + " getOperationStatus (which can also page the output), or stop it with cancelOperation.";
     }
 
     /**
-     * Adds the shared operation tools to any server that declares a long execution
-     * tool. The handler uses the same annotation-driven discovery and schema
-     * generation as regular MCP server tools.
+     * Adds the shared operation tools to any server that declares a long
+     * execution tool. The handler uses the same annotation-driven discovery and
+     * schema generation as regular MCP server tools.
      */
     private List<SyncToolSpecification> createOperationToolSpecifications( String prefix )
     {
@@ -285,35 +298,29 @@ public class McpServerFactory
             this.operationRegistry = operationRegistry;
         }
 
-        @Tool(name = "getOperationStatus",
-              description = "Reports on a long running operation started by another tool: its state, how long it has been running, progress, the result once it finishes, and optionally a page of its output.",
-              type = "object")
+        @Tool( name = "getOperationStatus", description = "Reports on a long running operation started by another tool: its state, how long it has been running, progress, the result once it finishes, and optionally a page of its output.", type = "object" )
         public String getOperationStatus(
-                @ToolParam(name = "operationId", description = "The operationId handed back by the tool that started the work (e.g. 'op-3'). Use listOperations if you lost it.") String operationId,
-                @ToolParam(name = "outputOffset", description = "0-based index of the first output line to return. Negative counts back from the end, so '-100' is the last 100 lines. Default: 0.", required = false) String outputOffset,
-                @ToolParam(name = "outputLimit", description = "Number of output lines to return (default: 0, meaning none). The reply reports the total and the next offset.", required = false) String outputLimit,
-                @ToolParam(name = "waitSeconds", description = "Block up to this many seconds for the operation to finish before replying (default: 0, reply immediately).", required = false) String waitSeconds)
+                @ToolParam( name = "operationId", description = "The operationId handed back by the tool that started the work (e.g. 'op-3'). Use listOperations if you lost it." )
+                String operationId,
+                @ToolParam( name = "outputOffset", description = "0-based index of the first output line to return. Negative counts back from the end, so '-100' is the last 100 lines. Default: 0.", required = false )
+                String outputOffset,
+                @ToolParam( name = "outputLimit", description = "Number of output lines to return (default: 0, meaning none). The reply reports the total and the next offset.", required = false )
+                String outputLimit,
+                @ToolParam( name = "waitSeconds", description = "Block up to this many seconds for the operation to finish before replying (default: 0, reply immediately).", required = false )
+                String waitSeconds )
         {
-            return operationRegistry.getOperationStatus(
-                    operationId,
-                    intArg( outputOffset, 0 ),
-                    intArg( outputLimit, 0 ),
-                    intArg( waitSeconds, 0 ) );
+            return operationRegistry.getOperationStatus( operationId, intArg( outputOffset, 0 ), intArg( outputLimit, 0 ), intArg( waitSeconds, 0 ) );
         }
 
-        @Tool(name = "listOperations",
-              description = "Lists long running operations - those still running and the last few that finished - with their operationId, state and elapsed time.",
-              type = "object")
+        @Tool( name = "listOperations", description = "Lists long running operations - those still running and the last few that finished - with their operationId, state and elapsed time.", type = "object" )
         public String listOperations()
         {
             return operationRegistry.listOperations();
         }
 
-        @Tool(name = "cancelOperation",
-              description = "Stops a running operation - terminating the test JVM, build or search behind it. Use when an operation is stuck or no longer needed.",
-              type = "object")
-        public String cancelOperation(
-                @ToolParam(name = "operationId", description = "The operationId to stop (e.g. 'op-3').") String operationId)
+        @Tool( name = "cancelOperation", description = "Stops a running operation - terminating the test JVM, build or search behind it. Use when an operation is stuck or no longer needed.", type = "object" )
+        public String cancelOperation( @ToolParam( name = "operationId", description = "The operationId to stop (e.g. 'op-3')." )
+        String operationId )
         {
             return operationRegistry.cancelOperation( operationId );
         }
@@ -345,20 +352,16 @@ public class McpServerFactory
         return createSyncServer( serverImplementation, transportProvider, excludedTools, "" );
     }
 
-    public McpSyncServer createSyncServer( Object serverImplementation, McpServerTransportProvider transportProvider, Collection<String> excludedTools, String toolPrefix )
+    public McpSyncServer createSyncServer( Object serverImplementation, McpServerTransportProvider transportProvider, Collection<String> excludedTools,
+            String toolPrefix )
     {
         requireMcpServerAnnotation( serverImplementation );
 
-        var info     = createImplementationInfo( serverImplementation );
+        var info = createImplementationInfo( serverImplementation );
         var toolSpecifications = createToolSpecifications( serverImplementation, excludedTools, toolPrefix );
         var capabilities = createCapabilities();
-        return McpServer.sync( transportProvider )
-                        .serverInfo( info )
-                        .capabilities( capabilities )
-                        .tools( toolSpecifications )
-                        .jsonMapper( new JacksonMcpJsonMapperSupplier().get() )
-                        .jsonSchemaValidator( createJsonSchemaValidator() )
-                        .build();
+        return McpServer.sync( transportProvider ).serverInfo( info ).capabilities( capabilities ).tools( toolSpecifications )
+                .jsonMapper( new JacksonMcpJsonMapperSupplier().get() ).jsonSchemaValidator( createJsonSchemaValidator() ).build();
     }
 
     public McpSyncServer createSyncServer( Object serverImplementation, HttpServletStreamableServerTransportProvider transportProvider )
@@ -366,25 +369,22 @@ public class McpServerFactory
         return createSyncServer( serverImplementation, transportProvider, Collections.emptySet(), "" );
     }
 
-    public McpSyncServer createSyncServer( Object serverImplementation, HttpServletStreamableServerTransportProvider transportProvider, Collection<String> excludedTools )
+    public McpSyncServer createSyncServer( Object serverImplementation, HttpServletStreamableServerTransportProvider transportProvider,
+            Collection<String> excludedTools )
     {
         return createSyncServer( serverImplementation, transportProvider, excludedTools, "" );
     }
 
-    public McpSyncServer createSyncServer( Object serverImplementation, HttpServletStreamableServerTransportProvider transportProvider, Collection<String> excludedTools, String toolPrefix )
+    public McpSyncServer createSyncServer( Object serverImplementation, HttpServletStreamableServerTransportProvider transportProvider,
+            Collection<String> excludedTools, String toolPrefix )
     {
         requireMcpServerAnnotation( serverImplementation );
 
-        var info     = createImplementationInfo( serverImplementation );
+        var info = createImplementationInfo( serverImplementation );
         var toolSpecifications = createToolSpecifications( serverImplementation, excludedTools, toolPrefix );
         var capabilities = createCapabilities();
-        return McpServer.sync( transportProvider )
-                .serverInfo( info )
-                .capabilities( capabilities )
-                .tools( toolSpecifications )
-                .jsonMapper( new JacksonMcpJsonMapperSupplier().get() )
-                .jsonSchemaValidator( createJsonSchemaValidator() )
-                .build();
+        return McpServer.sync( transportProvider ).serverInfo( info ).capabilities( capabilities ).tools( toolSpecifications )
+                .jsonMapper( new JacksonMcpJsonMapperSupplier().get() ).jsonSchemaValidator( createJsonSchemaValidator() ).build();
     }
 
     private JsonSchemaValidator createJsonSchemaValidator()
@@ -405,50 +405,37 @@ public class McpServerFactory
     private List<SyncToolSpecification> createToolSpecifications( Object serverImplementation, Collection<String> excludedTools, String toolPrefix )
     {
         var excluded = Set.copyOf( excludedTools );
-        var prefix = (toolPrefix != null && !toolPrefix.isBlank()) ? toolPrefix : "";
+        var prefix = ( toolPrefix != null && !toolPrefix.isBlank() ) ? toolPrefix : "";
         var executor = new ToolExecutor( serverImplementation );
-        var tools    = extractAnnotatedTools( executor.getFunctions() );
+        var tools = extractAnnotatedTools( executor.getFunctions() );
         if ( tools.isEmpty() )
         {
             logger.warn( "No tools found in " + serverImplementation.getClass() );
         }
-        var toolSpecifications = tools.stream()
-                .filter( tool -> !excluded.contains( tool.name() ) )
-                .map( tool -> {
-                    var prefixedTool = prefix.isEmpty() ? tool : McpSchema.Tool.builder( prefix + tool.name(), tool.inputSchema() )
-                            .title( prefix + tool.name() )
-                            .description( tool.description() )
-                            .outputSchema( tool.outputSchema() )
-                            .annotations( tool.annotations() )
-                            .meta( tool.meta() )
-                            .build();
-                    return McpServerFeatures.SyncToolSpecification.builder()
-                        .tool( prefixedTool )
-                        .callHandler( (exchange, request) ->  executeCallTool( executor, tool, request.arguments() ) )
-                        .build();
-                }).collect( Collectors.toList() );
-        
+        var toolSpecifications = tools.stream().filter( tool -> !excluded.contains( tool.name() ) ).map( tool -> {
+            var prefixedTool = prefix.isEmpty() ? tool
+                    : McpSchema.Tool.builder( prefix + tool.name(), tool.inputSchema() ).title( prefix + tool.name() ).description( tool.description() )
+                            .outputSchema( tool.outputSchema() ).annotations( tool.annotations() ).meta( tool.meta() ).build();
+            return McpServerFeatures.SyncToolSpecification.builder().tool( prefixedTool )
+                    .callHandler( ( exchange, request ) -> executeCallTool( executor, tool, request.arguments() ) ).build();
+        } ).collect( Collectors.toList() );
+
         boolean hasLongExecutionTool = Arrays.stream( executor.getFunctions() )
-                .map( method -> method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool.class ) )
-                .filter( Objects::nonNull )
+                .map( method -> method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool.class ) ).filter( Objects::nonNull )
                 .anyMatch( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool::longExecution );
         if ( hasLongExecutionTool )
         {
             var withOperationTools = new ArrayList<>( toolSpecifications );
-            createOperationToolSpecifications( prefix ).stream()
-                    .filter( spec -> !excluded.contains( spec.tool().name() ) )
-                    .forEach( withOperationTools::add );
+            createOperationToolSpecifications( prefix ).stream().filter( spec -> !excluded.contains( spec.tool().name() ) ).forEach( withOperationTools::add );
             return withOperationTools;
         }
         return toolSpecifications;
     }
-    
+
     public List<String> listToolNames( Object serverImplementation )
     {
         var executor = new ToolExecutor( serverImplementation );
-        return extractAnnotatedTools( executor.getFunctions() ).stream()
-                .map( McpSchema.Tool::name )
-                .collect( Collectors.toList() );
+        return extractAnnotatedTools( executor.getFunctions() ).stream().map( McpSchema.Tool::name ).collect( Collectors.toList() );
     }
 
     private void requireMcpServerAnnotation( Object serverImplementation )
@@ -456,5 +443,5 @@ public class McpServerFactory
         Optional.ofNullable( serverImplementation.getClass().getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.McpServer.class ) )
                 .orElseThrow( () -> new IllegalArgumentException( "Not an MCP server" ) );
     }
-    
+
 }

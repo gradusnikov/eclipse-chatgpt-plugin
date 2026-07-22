@@ -106,6 +106,7 @@ With the MCP tools, an external agent can:
 - **Search** -- text search, regex search, file glob search, search-and-replace across the workspace
 - **Run and debug** -- launch Java applications, set breakpoints (including conditional), step through code, inspect stack traces, evaluate expressions, hot-swap code
 - **Access context** -- read JavaDoc, console output, editor selection, effective POM, project dependencies
+- **Inspect workspace images** -- return raster resources as native MCP image content for vision-capable agents
 - **Browse and restore file history** -- list Local History versions, view old content, restore to any previous version, diff current vs. historical
 - **Inspect the resource cache** -- see what files/classes are loaded in the conversation context, read cached content without I/O
 - **Manage Git repositories** -- status, log, diff, stage, commit, branch, checkout, stash -- all through EGit, keeping Eclipse workspace in sync
@@ -126,6 +127,8 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 **Workflow tip:** When asking an agent to fix something, open the relevant file in Eclipse first, select the problem area, and tell the agent to check your selection. This gives the agent precise context without you having to describe file paths or paste code.
 
 **Token-efficient navigation:** Instead of reading entire files, agents can use `getClassOutline` to see the structure (~30 lines for a 500-line class), then `getMethodSource` to read only the methods they need, or `getFilteredSource` to see the full file with irrelevant methods collapsed to one-line signatures. The `readProjectResource` tool supports `excludeImports` to further reduce token usage.
+
+**Workspace images:** Vision-capable agents can call `readImageResource(projectName, resourcePath)` to receive an image as native MCP `ImageContent` instead of base64 text. The tool supports PNG, JPEG, GIF, BMP, TIFF, and ICO resources up to 20 MiB, and enforces the same `.aiignore`/`.noai` access rules as text reads. For example: `readImageResource(projectName="my-project", resourcePath="docs/architecture.png")`.
 
 **Resource cache:** Files and classes read through Eclipse MCP tools are automatically cached with version tracking and file modification timestamps (tied to Eclipse's Local History). Agents can call `listCachedResources` to see what's already loaded, or `getCachedResource` to re-read cached content instantly -- no disk I/O, no re-parsing.
 
@@ -166,6 +169,7 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | getMethodSource | Source of specific methods by name, with overload disambiguation |
 | getFilteredSource | Full source with non-selected methods collapsed to signatures |
 | readProjectResource | Read a text resource, with optional import block collapsing |
+| readImageResource | Return a workspace image as native MCP `ImageContent` (PNG, JPEG, GIF, BMP, TIFF, or ICO; maximum 20 MiB) |
 | getJavaDoc | JavaDoc for a compilation unit |
 | formatCode | Format code using Eclipse formatter settings |
 | getProjectProperties | Project properties and configuration |
@@ -365,6 +369,7 @@ Features:
 - Discuss code with full file context
 - Generate git commit messages from staged changes
 - Drag-and-drop images for vision model discussions
+- Display images returned by MCP tools as chat attachments
 - LaTeX and table rendering in responses
 - In-text code completion with Alt+/
 - Smart resource caching -- LLM always sees the latest version of attached files

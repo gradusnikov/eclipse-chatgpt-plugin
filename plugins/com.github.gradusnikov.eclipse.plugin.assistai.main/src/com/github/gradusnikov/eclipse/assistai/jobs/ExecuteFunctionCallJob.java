@@ -1,7 +1,9 @@
 
 package com.github.gradusnikov.eclipse.assistai.jobs;
 
+import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -14,6 +16,8 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.Creatable;
+import org.eclipse.swt.graphics.ImageData;
+import org.eclipse.swt.graphics.ImageLoader;
 
 import com.github.gradusnikov.eclipse.assistai.chat.Attachment;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
@@ -24,6 +28,7 @@ import com.github.gradusnikov.eclipse.assistai.resources.CachedResource;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceResultSerializer;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
+import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
@@ -33,34 +38,39 @@ import jakarta.inject.Inject;
 @Creatable
 public class ExecuteFunctionCallJob extends Job
 {
-    private static final String           JOB_NAME              = AssistAIJobConstants.JOB_PREFIX + " execute function call";
+    private static final String       JOB_NAME                      = AssistAIJobConstants.JOB_PREFIX + " execute function call";
 
-    private static final String           CLIENT_TOOL_SEPARATOR = "__";
+    private static final String       CLIENT_TOOL_SEPARATOR         = "__";
 
-    @Inject
-    private ILog                          logger;
+    private static final int          MAX_IMAGE_RESULT_BYTES        = 20 * 1024 * 1024;
 
-    @Inject
-    private InMemoryMcpClientRetistry     mcpClientRetistry;
+    private static final int          MAX_IMAGE_RESULT_BASE64_CHARS = ( ( MAX_IMAGE_RESULT_BYTES + 2 ) / 3 ) * 4;
 
     @Inject
-    private ResourceCache                 resourceCache;
+    private ILog                      logger;
 
-    private FunctionCall                  functionCall;
-    
-    private ConversationContext           conversationContext;
-    
-    private Runnable                      onContinue;
+    @Inject
+    private InMemoryMcpClientRetistry mcpClientRetistry;
 
+    @Inject
+    private ResourceCache             resourceCache;
 
-	// In ExecuteFunctionCallJob.java, add a job rule in the constructor
-	public ExecuteFunctionCallJob() {
-	    super(JOB_NAME);
-	    // Add a mutual exclusion rule for both SendConversationJob and ExecuteFunctionCallJob
-	    super.setRule(new AssistAIJobRule());
-	}
-	
-	@Override
+    private FunctionCall              functionCall;
+
+    private ConversationContext       conversationContext;
+
+    private Runnable                  onContinue;
+
+    // In ExecuteFunctionCallJob.java, add a job rule in the constructor
+    public ExecuteFunctionCallJob()
+    {
+        super( JOB_NAME );
+        // Add a mutual exclusion rule for both SendConversationJob and
+        // ExecuteFunctionCallJob
+        super.setRule( new AssistAIJobRule() );
+    }
+
+    @Override
     protected IStatus run( IProgressMonitor monitor )
     {
         Objects.requireNonNull( functionCall, "Function call cannot be null" );
@@ -81,12 +91,12 @@ public class ExecuteFunctionCallJob extends Job
     {
         this.functionCall = functionCall;
     }
-    
+
     public void setConversationContext( ConversationContext context )
     {
         this.conversationContext = context;
     }
-    
+
     public void setOnContinue( Runnable onContinue )
     {
         this.onContinue = onContinue;
@@ -120,12 +130,12 @@ public class ExecuteFunctionCallJob extends Job
 
         // Find and execute the tool
         var clientOpt = mcpClientRetistry.findClient( clientName );
-        
+
         if ( clientOpt.isEmpty() )
         {
             return Status.error( "Tool not found: " + clientName + ":" + toolName );
         }
-        
+
         try
         {
             CallToolResult result = clientOpt.get().callTool( request );
@@ -146,8 +156,7 @@ public class ExecuteFunctionCallJob extends Job
 
     private IStatus handleFunctionResult( CallToolResult result )
     {
-        logger.info( "Finished function call " + functionCall.name() 
-                    + "\n\nResult:\n" + Optional.ofNullable( result ).map( Object::toString ).orElse( "" ) );
+        logger.info( "Finished function call " + functionCall.name() + "\n\nResult:\n" + Optional.ofNullable( result ).map( Object::toString ).orElse( "" ) );
         try
         {
             // 1. Create assistant message with function call
@@ -184,7 +193,7 @@ public class ExecuteFunctionCallJob extends Job
     private ChatMessage createFunctionResultMessage( CallToolResult result ) throws Exception
     {
         ChatMessage resultMessage = new ChatMessage( UUID.randomUUID().toString(), functionCall.name(), "function" );
-        
+
         StringBuilder textContent = new StringBuilder();
         List<Attachment> attachments = new ArrayList<Attachment>();
         if ( result.isError() )
@@ -197,12 +206,13 @@ public class ExecuteFunctionCallJob extends Job
             switch ( content.type() )
             {
                 case "text" -> {
-                    String text = ((McpSchema.TextContent) content).text();
+                    String text = ( (McpSchema.TextContent) content ).text();
                     // Check if this is a cacheable resource result
                     textContent.append( processPossibleResourceResult( text ) ).append( "\n" );
                 }
+                case "image" -> attachments.add( createImageAttachment( (McpSchema.ImageContent) content ) );
                 default -> logger.error( "Unsupported result content type: " + content.type() );
-                    
+
             }
         }
         resultMessage.setAttachments( attachments );
@@ -211,11 +221,41 @@ public class ExecuteFunctionCallJob extends Job
 
         return resultMessage;
     }
-    
+
+    private Attachment.ImageAttachment createImageAttachment( McpSchema.ImageContent content )
+    {
+        String mimeType = content.mimeType();
+        if ( mimeType == null || !mimeType.toLowerCase().startsWith( "image/" ) )
+        {
+            throw new IllegalArgumentException( "Unsupported image result MIME type: " + mimeType );
+        }
+
+        String encoded = content.data();
+        if ( encoded.length() > MAX_IMAGE_RESULT_BASE64_CHARS )
+        {
+            throw new IllegalArgumentException( "Image result exceeds the 20 MiB limit" );
+        }
+
+        byte[] bytes = Base64.getDecoder().decode( encoded );
+        if ( bytes.length > MAX_IMAGE_RESULT_BYTES )
+        {
+            throw new IllegalArgumentException( "Image result exceeds the 20 MiB limit" );
+        }
+
+        ImageData[] images = new ImageLoader().load( new ByteArrayInputStream( bytes ) );
+        if ( images.length == 0 )
+        {
+            throw new IllegalArgumentException( "Image result contains no decodable image" );
+        }
+
+        ImageData image = images[0];
+        return new Attachment.ImageAttachment( image, ImageUtilities.createPreview( image ) );
+    }
+
     /**
-     * Processes text that might be a serialized ResourceToolResult.
-     * If it is, caches the resource and returns a reference.
-     * Otherwise, returns the text unchanged.
+     * Processes text that might be a serialized ResourceToolResult. If it is,
+     * caches the resource and returns a reference. Otherwise, returns the text
+     * unchanged.
      */
     private String processPossibleResourceResult( String text )
     {
@@ -224,28 +264,23 @@ public class ExecuteFunctionCallJob extends Job
         {
             return text;
         }
-        
+
         ResourceToolResult resourceResult = ResourceResultSerializer.deserialize( text );
         if ( resourceResult == null || !resourceResult.isCacheable() )
         {
             // Deserialization failed or not cacheable, return original content
             return resourceResult != null ? resourceResult.content() : text;
         }
-        
+
         // Cache the resource
         CachedResource cached = resourceCache.put( resourceResult );
-        
+
         if ( cached != null )
         {
             // Return a reference instead of full content
             logger.info( "Cached resource: " + cached.descriptor().uri() + " (v" + cached.version() + ")" );
-            return String.format( 
-                "[Resource cached: %s (version %d, ~%d tokens)]\n" +
-                "Content available in <resources> block at top of context.",
-                cached.descriptor().uri(),
-                cached.version(),
-                cached.estimateTokens()
-            );
+            return String.format( "[Resource cached: %s (version %d, ~%d tokens)]\n" + "Content available in <resources> block at top of context.",
+                    cached.descriptor().uri(), cached.version(), cached.estimateTokens() );
         }
         else
         {

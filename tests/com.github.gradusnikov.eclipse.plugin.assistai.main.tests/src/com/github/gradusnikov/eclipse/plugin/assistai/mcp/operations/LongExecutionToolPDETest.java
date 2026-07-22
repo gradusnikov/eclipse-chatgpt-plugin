@@ -88,7 +88,7 @@ public class LongExecutionToolPDETest
         SlowServer server = new SlowServer();
         Operation operation = start( server, "slowTool" );
 
-        String handOff = registry.awaitOrHandOff( operation, 1 );
+        String handOff = (String) registry.awaitOrHandOff( operation, 1 );
 
         // The old behaviour was an error and a lost run. Now the caller gets a handle.
         assertTrue( handOff.contains( "operationId: " + operation.getId() ), handOff );
@@ -124,7 +124,7 @@ public class LongExecutionToolPDETest
         SlowServer server = new SlowServer();
         Operation operation = start( server, "slowTool" );
 
-        String handOff = registry.awaitOrHandOff( operation, 0 );
+        String handOff = (String) registry.awaitOrHandOff( operation, 0 );
         assertTrue( handOff.contains( "operationId: " + operation.getId() ), handOff );
 
         server.release.countDown();
@@ -196,7 +196,7 @@ public class LongExecutionToolPDETest
         Operation operation = registry.register( "boom", "label" );
         registry.attachFuture( operation, executor.call( "boom", Map.of(), operation ) );
 
-        String result = registry.awaitOrHandOff( operation, 10 );
+        String result = (String) registry.awaitOrHandOff( operation, 10 );
         assertTrue( result.contains( "kaboom" ), result );
         waitFor( () -> operation.getState() == OperationState.FAILED );
     }
