@@ -116,7 +116,7 @@ public class ExecuteFunctionCallJob extends Job
         }
 
         // Create tool request
-        CallToolRequest request = new CallToolRequest( toolName, functionCall.arguments() );
+        CallToolRequest request = CallToolRequest.builder( toolName ).arguments( functionCall.arguments() ).build();
 
         // Find and execute the tool
         var clientOpt = mcpClientRetistry.findClient( clientName );

@@ -37,6 +37,7 @@ import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 import com.github.gradusnikov.eclipse.assistai.tools.JsonUtils;
 
 import io.modelcontextprotocol.spec.McpSchema.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpToolSchemas;
 import jakarta.inject.Inject;
 
 /**
@@ -308,9 +309,9 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
                 "name", toolName,
                 "description", Optional.ofNullable(tool.description()).orElse(""),
                 "parameters", Map.of(
-                        "type", tool.inputSchema().type(),
-                        "properties", tool.inputSchema().properties(),
-                        "required", Optional.ofNullable(tool.inputSchema().required()).orElse(List.of()))
+                        "type", McpToolSchemas.type(tool),
+                        "properties", McpToolSchemas.properties(tool),
+                        "required", McpToolSchemas.required(tool))
         );
     }
     

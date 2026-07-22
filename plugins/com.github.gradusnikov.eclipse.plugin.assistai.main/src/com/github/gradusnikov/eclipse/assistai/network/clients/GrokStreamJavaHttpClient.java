@@ -41,6 +41,7 @@ import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
 import io.modelcontextprotocol.spec.McpSchema.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpToolSchemas;
 import jakarta.inject.Inject;
 
 @Creatable
@@ -82,9 +83,9 @@ public class GrokStreamJavaHttpClient extends AbstractLanguageModelClient
         functionObj.put("name", toolName);
         functionObj.put("description", tool.description() != null ? tool.description() : "");
         functionObj.put("parameters", Map.of(
-            "type", tool.inputSchema().type(),
-            "properties", tool.inputSchema().properties().isEmpty() ? new LinkedHashMap<>() : tool.inputSchema().properties(),
-            "required", tool.inputSchema().required() != null ? tool.inputSchema().required() : new ArrayList<>()
+            "type", McpToolSchemas.type(tool),
+            "properties", McpToolSchemas.properties(tool),
+            "required", McpToolSchemas.required(tool)
         ));
 
         toolObj.put("type", "function");

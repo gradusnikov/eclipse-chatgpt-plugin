@@ -39,6 +39,7 @@ import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
 import io.modelcontextprotocol.spec.McpSchema.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpToolSchemas;
 import jakarta.inject.Inject;
 
 /**
@@ -90,16 +91,16 @@ public class DeepSeekStreamJavaHttpClient extends AbstractLanguageModelClient
         
         // Create parameters object in the format DeepSeek expects
         var parametersObj = new LinkedHashMap<String, Object>();
-        parametersObj.put("type", tool.inputSchema().type());
+        parametersObj.put("type", McpToolSchemas.type(tool));
         
         // Add properties
-        if (!tool.inputSchema().properties().isEmpty()) {
-            parametersObj.put("properties", tool.inputSchema().properties());
+        if (!McpToolSchemas.properties(tool).isEmpty()) {
+            parametersObj.put("properties", McpToolSchemas.properties(tool));
         }
         
         // Add required fields if present
-        if (tool.inputSchema().required() != null && !tool.inputSchema().required().isEmpty()) {
-            parametersObj.put("required", tool.inputSchema().required());
+        if (!McpToolSchemas.required(tool).isEmpty()) {
+            parametersObj.put("required", McpToolSchemas.required(tool));
         }
         
         functionObj.put("parameters", parametersObj);

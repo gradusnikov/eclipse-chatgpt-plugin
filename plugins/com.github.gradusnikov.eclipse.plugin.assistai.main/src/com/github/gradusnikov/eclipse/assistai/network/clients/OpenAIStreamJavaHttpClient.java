@@ -37,6 +37,7 @@ import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
 import io.modelcontextprotocol.spec.McpSchema.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpToolSchemas;
 import jakarta.inject.Inject;
 
 /**
@@ -133,8 +134,8 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient {
 		functionObj.put("name", toolName);
 		functionObj.put("description", Optional.ofNullable(tool.description()).orElse(""));
 		functionObj.put("parameters",
-				Map.of("type", tool.inputSchema().type(), "properties", tool.inputSchema().properties(), "required",
-						Optional.ofNullable(tool.inputSchema().required()).orElse(List.of())));
+				Map.of("type", McpToolSchemas.type(tool), "properties", McpToolSchemas.properties(tool), "required",
+						McpToolSchemas.required(tool)));
 
 		var toolObject = new LinkedHashMap<String, Object>();
 		toolObject.put("type", "function");

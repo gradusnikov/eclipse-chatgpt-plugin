@@ -102,10 +102,8 @@ public class SdkHttpStreamingTest
                     """;
         
         var jsonMapperSupplier = new JacksonMcpJsonMapperSupplier();
-        var tool = McpSchema.Tool.builder()
-                .name("calculator")
+        var tool = McpSchema.Tool.builder("calculator", jsonMapperSupplier.get(), schema)
                 .description("Basic calculator")
-                .inputSchema(jsonMapperSupplier.get(), schema)
                 .build();
         
         var syncToolSpecification = McpServerFeatures.SyncToolSpecification.builder()
@@ -225,8 +223,7 @@ public class SdkHttpStreamingTest
         assertEquals("calculator", toolsList.tools().get(0).name());
         
         // Call the calculator tool
-        var toolCallRequest = McpSchema.CallToolRequest.builder()
-                .name("calculator")
+        var toolCallRequest = McpSchema.CallToolRequest.builder("calculator")
                 .arguments(Map.of(
                     "operation", "add",
                     "a", 10,

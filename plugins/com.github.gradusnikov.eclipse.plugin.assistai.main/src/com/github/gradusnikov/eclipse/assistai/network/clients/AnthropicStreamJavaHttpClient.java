@@ -41,6 +41,7 @@ import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
 import io.modelcontextprotocol.spec.McpSchema.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpToolSchemas;
 import jakarta.inject.Inject;
 
 /**
@@ -97,17 +98,17 @@ public class AnthropicStreamJavaHttpClient extends AbstractLanguageModelClient
         
         // Create parameters object in the format Anthropic expects
         var inputSchema = new LinkedHashMap<String, Object>();
-        inputSchema.put("type", tool.inputSchema().type() );
+        inputSchema.put("type", McpToolSchemas.type( tool ) );
         
         // Add properties
-        if ( !tool.inputSchema().properties().isEmpty() )
+        if ( !McpToolSchemas.properties( tool ).isEmpty() )
         {
-            inputSchema.put("properties", tool.inputSchema().properties());
+            inputSchema.put("properties", McpToolSchemas.properties( tool ));
         }
         
         // Add required fields if present
-        if (tool.inputSchema().required() != null && !tool.inputSchema().required().isEmpty()) {
-            inputSchema.put("required", tool.inputSchema().required());
+        if ( !McpToolSchemas.required( tool ).isEmpty() ) {
+            inputSchema.put("required", McpToolSchemas.required( tool ));
         }
         
         toolObj.put("input_schema", inputSchema);

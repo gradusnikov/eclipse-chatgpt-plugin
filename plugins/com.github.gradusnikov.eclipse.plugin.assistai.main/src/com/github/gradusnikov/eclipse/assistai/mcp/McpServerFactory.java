@@ -56,7 +56,7 @@ public class McpServerFactory
         
         var serverName = mcpServerAnnotation.name();
         var version = getVersionNumber();
-        McpSchema.Implementation info = new McpSchema.Implementation( serverName, version ); 
+        McpSchema.Implementation info = McpSchema.Implementation.builder( serverName, version ).build(); 
         return info;
     }
     
@@ -180,16 +180,16 @@ public class McpServerFactory
     private CallToolResult createTextCallToolResult( Object result )
     {
         // TODO: support other content types
-        var content = new McpSchema.TextContent( 
-                new McpSchema.Annotations( List.of( McpSchema.Role.ASSISTANT ), 0.0 ),
-                Optional.ofNullable( result ).map( Object::toString ).orElse( "" ) );
+        var content = McpSchema.TextContent.builder(Optional.ofNullable( result ).map( Object::toString ).orElse( "" ) )
+                .annotations( McpSchema.Annotations.builder().audience( List.of( McpSchema.Role.ASSISTANT ) ).build() )
+                .build();
         return McpSchema.CallToolResult.builder().addContent( content ).isError( false ).build();
     }
     
     public CallToolResult createErrorResult( Exception e )
     {
         var cause = ExceptionUtils.getRootCauseMessage( e );
-        var content = new McpSchema.TextContent( "Error: " + cause );
+        var content = McpSchema.TextContent.builder( "Error: " + cause ).build();
         return McpSchema.CallToolResult.builder().addContent( content ).isError( true ).build();
     }
     
@@ -231,15 +231,15 @@ public class McpServerFactory
                         }
                     }
                 }
-                McpSchema.JsonSchema schema = new McpSchema.JsonSchema( toolAnnotation.type(), properties, required, false, null, null );
-                McpSchema.Tool tool = new McpSchema.Tool( toolAnnotation.name(), 
-                                                          toolAnnotation.name(), // title
-                                                          describeTool( toolAnnotation ), 
-                                                          schema, 
-                                                          null, //outputSchema
-                                                          null, //tool annotations
-                                                          null // tool meta 
-                                                          );
+                Map<String, Object> schema = new LinkedHashMap<>();
+                schema.put( "type", toolAnnotation.type() );
+                schema.put( "properties", properties );
+                schema.put( "required", required );
+                schema.put( "additionalProperties", false );
+                McpSchema.Tool tool = McpSchema.Tool.builder( toolAnnotation.name(), schema )
+                        .title( toolAnnotation.name() )
+                        .description( describeTool( toolAnnotation ) )
+                        .build();
                 tools.add( tool );
             }
         }
@@ -272,43 +272,48 @@ public class McpServerFactory
      */
     private List<SyncToolSpecification> createOperationToolSpecifications( String prefix )
     {
-        var status = new McpSchema.Tool(
-                prefix + "getOperationStatus",
-                prefix + "getOperationStatus",
-                "Reports on a long running operation started by another tool: its state, how long it has been running,"
-                        + " progress, the result once it finishes, and optionally a page of its output.",
-                new McpSchema.JsonSchema( "object",
-                        new LinkedHashMap<>( Map.of(
-                                "operationId", Map.of( "type", "string",
-                                        "description", "The operationId handed back by the tool that started the work (e.g. 'op-3'). Use listOperations if you lost it." ),
-                                "outputLimit", Map.of( "type", "string",
-                                        "description", "Number of output lines to return (default: 0, meaning none). The reply reports the total and the next offset." ),
-                                "outputOffset", Map.of( "type", "string",
-                                        "description", "0-based index of the first output line to return. Negative counts back from the end, so '-100' is the last 100 lines. Default: 0." ),
-                                "waitSeconds", Map.of( "type", "string",
-                                        "description", "Block up to this many seconds for the operation to finish before replying (default: 0, reply immediately)." ) ) ),
-                        List.of( "operationId" ), false, null, null ),
-                null, null, null );
+        Map<String, Object> statusSchema = Map.of(
+                "type", "object",
+                "properties", new LinkedHashMap<>( Map.of(
+                        "operationId", Map.of( "type", "string",
+                                "description", "The operationId handed back by the tool that started the work (e.g. 'op-3'). Use listOperations if you lost it." ),
+                        "outputLimit", Map.of( "type", "string",
+                                "description", "Number of output lines to return (default: 0, meaning none). The reply reports the total and the next offset." ),
+                        "outputOffset", Map.of( "type", "string",
+                                "description", "0-based index of the first output line to return. Negative counts back from the end, so '-100' is the last 100 lines. Default: 0." ),
+                        "waitSeconds", Map.of( "type", "string",
+                                "description", "Block up to this many seconds for the operation to finish before replying (default: 0, reply immediately)." ) ) ),
+                "required", List.of( "operationId" ),
+                "additionalProperties", false );
+        var status = McpSchema.Tool.builder( prefix + "getOperationStatus", statusSchema )
+                .title( prefix + "getOperationStatus" )
+                .description( "Reports on a long running operation started by another tool: its state, how long it has been running,"
+                        + " progress, the result once it finishes, and optionally a page of its output." )
+                .build();
 
-        var list = new McpSchema.Tool(
-                prefix + "listOperations",
-                prefix + "listOperations",
-                "Lists long running operations - those still running and the last few that finished - with their"
-                        + " operationId, state and elapsed time.",
-                new McpSchema.JsonSchema( "object", new LinkedHashMap<>(), List.of(), false, null, null ),
-                null, null, null );
+        Map<String, Object> listSchema = Map.of(
+                "type", "object",
+                "properties", new LinkedHashMap<>(),
+                "required", List.of(),
+                "additionalProperties", false );
+        var list = McpSchema.Tool.builder( prefix + "listOperations", listSchema )
+                .title( prefix + "listOperations" )
+                .description( "Lists long running operations - those still running and the last few that finished - with their"
+                        + " operationId, state and elapsed time." )
+                .build();
 
-        var cancel = new McpSchema.Tool(
-                prefix + "cancelOperation",
-                prefix + "cancelOperation",
-                "Stops a running operation - terminating the test JVM, build or search behind it. Use when an"
-                        + " operation is stuck or no longer needed.",
-                new McpSchema.JsonSchema( "object",
-                        new LinkedHashMap<>( Map.of(
-                                "operationId", Map.of( "type", "string",
-                                        "description", "The operationId to stop (e.g. 'op-3')." ) ) ),
-                        List.of( "operationId" ), false, null, null ),
-                null, null, null );
+        Map<String, Object> cancelSchema = Map.of(
+                "type", "object",
+                "properties", new LinkedHashMap<>( Map.of(
+                        "operationId", Map.of( "type", "string",
+                                "description", "The operationId to stop (e.g. 'op-3')." ) ) ),
+                "required", List.of( "operationId" ),
+                "additionalProperties", false );
+        var cancel = McpSchema.Tool.builder( prefix + "cancelOperation", cancelSchema )
+                .title( prefix + "cancelOperation" )
+                .description( "Stops a running operation - terminating the test JVM, build or search behind it. Use when an"
+                        + " operation is stuck or no longer needed." )
+                .build();
 
         return List.of(
                 SyncToolSpecification.builder().tool( status )
@@ -416,8 +421,13 @@ public class McpServerFactory
         var toolSpecifications = tools.stream()
                 .filter( tool -> !excluded.contains( tool.name() ) )
                 .map( tool -> {
-                    var prefixedTool = prefix.isEmpty() ? tool : new McpSchema.Tool(
-                            prefix + tool.name(), prefix + tool.name(), tool.description(), tool.inputSchema(), tool.outputSchema(), tool.annotations(), tool.meta() );
+                    var prefixedTool = prefix.isEmpty() ? tool : McpSchema.Tool.builder( prefix + tool.name(), tool.inputSchema() )
+                            .title( prefix + tool.name() )
+                            .description( tool.description() )
+                            .outputSchema( tool.outputSchema() )
+                            .annotations( tool.annotations() )
+                            .meta( tool.meta() )
+                            .build();
                     return McpServerFeatures.SyncToolSpecification.builder()
                         .tool( prefixedTool )
                         .callHandler( (exchange, request) ->  executeCallTool( executor, tool, request.arguments() ) )
