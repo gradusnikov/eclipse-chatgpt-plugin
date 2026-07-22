@@ -274,6 +274,40 @@ public class GitServicePDETest
     }
 
     @Test
+    public void testGetDiff_filtersProjectRelativePaths() throws Exception
+    {
+        Files.writeString(new File(repoDir, "README.md").toPath(), "# Changed readme\n", StandardCharsets.UTF_8);
+        Files.writeString(new File(repoDir, "src/Hello.java").toPath(),
+                "package src;\npublic class Hello { String value = \"changed source\"; }\n", StandardCharsets.UTF_8);
+        project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
+
+        String diff = service.getDiff(TEST_PROJECT_NAME, false, "README.md", false);
+
+        assertTrue(diff.contains("Changed readme"));
+        assertFalse(diff.contains("changed source"));
+        assertFalse(diff.contains("src/Hello.java"));
+    }
+
+    @Test
+    public void testGetDiff_rejectsPathTraversal()
+    {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.getDiff(TEST_PROJECT_NAME, false, "../outside.txt", false));
+    }
+
+    @Test
+    public void testGetDiff_canIgnoreWhitespace() throws Exception
+    {
+        Files.writeString(new File(repoDir, "README.md").toPath(), "#   Test   Project\n", StandardCharsets.UTF_8);
+        project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
+
+        String diff = service.getDiff(TEST_PROJECT_NAME, false, "README.md", true);
+
+        assertFalse(diff.contains("-# Test Project"));
+        assertFalse(diff.contains("+#   Test   Project"));
+    }
+
+    @Test
     public void testListBranches() throws Exception
     {
         String branches = service.listBranches(TEST_PROJECT_NAME, false);
