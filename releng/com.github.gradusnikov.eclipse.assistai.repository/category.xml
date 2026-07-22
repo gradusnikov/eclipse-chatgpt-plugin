@@ -89,8 +89,14 @@
     <category name="assistai-deps"/>
   </bundle>
 
-  <!-- Miscellaneous transitive dependencies -->
+  <!-- JSON Schema Validator and its mandatory dependencies -->
   <bundle id="com.networknt.json-schema-validator" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="com.ethlo.time.itu" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="com.fasterxml.jackson.dataformat.jackson-dataformat-yaml" version="0.0.0">
     <category name="assistai-deps"/>
   </bundle>
   <bundle id="org.yaml.snakeyaml" version="0.0.0">
