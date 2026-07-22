@@ -322,7 +322,7 @@ public class EclipseIntegrationsMcpServer
                 coverage );
     }
 
-    @Tool( name = "findTestClasses", description = "Finds all test classes in a project. Use this before runAllTests or runClassTests to discover the correct project name and fully qualified class names.", type = "object" )
+    @Tool( name = "findTestClasses", description = "Finds test classes and separates plain JUnit tests from PDE harness tests, which must follow the *PDETest naming convention. Flags likely PDE runtime usage in incorrectly named tests.", type = "object" )
     public String findTestClasses(
             @ToolParam( name = "projectName", description = "The exact Eclipse project name to search (use listProjects to find it)", required = true )
             String projectName )

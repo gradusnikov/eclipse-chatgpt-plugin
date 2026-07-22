@@ -802,26 +802,33 @@ public class UnitTestService {
      */
     public String findTestClasses(String projectName) {
         Objects.requireNonNull(projectName, "Project name cannot be null");
-        
+
         if (projectName.isEmpty()) {
             throw new IllegalArgumentException("Error: Project name cannot be empty.");
         }
-        
+
         try {
             IJavaProject javaProject = getJavaProject( projectName );
-            
-            // Find test classes
-            List<String> testClasses = new ArrayList<>();
-            
+            List<String> plainTests = new ArrayList<>();
+            List<String> pdeTests = new ArrayList<>();
+            List<String> namingWarnings = new ArrayList<>();
+
             for (IPackageFragmentRoot root : javaProject.getPackageFragmentRoots()) {
                 if (root.getKind() == IPackageFragmentRoot.K_SOURCE) {
                     for (IJavaElement child : root.getChildren()) {
-                        if (child instanceof IPackageFragment) {
-                            IPackageFragment pkg = (IPackageFragment) child;
+                        if (child instanceof IPackageFragment pkg) {
                             for (ICompilationUnit unit : pkg.getCompilationUnits()) {
                                 for (IType type : unit.getAllTypes()) {
                                     if (isTestClass(type)) {
-                                        testClasses.add(type.getFullyQualifiedName());
+                                        String className = type.getFullyQualifiedName();
+                                        if (type.getElementName().endsWith("PDETest")) {
+                                            pdeTests.add(className);
+                                        } else {
+                                            plainTests.add(className);
+                                            if (likelyRequiresPdeHarness(type)) {
+                                                namingWarnings.add(className);
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -829,24 +836,64 @@ public class UnitTestService {
                     }
                 }
             }
-            
-            if (testClasses.isEmpty()) {
+
+            int total = plainTests.size() + pdeTests.size();
+            if (total == 0) {
                 return "No test classes found in project '" + projectName + "'.";
             }
-            
+
+            plainTests.sort(String::compareTo);
+            pdeTests.sort(String::compareTo);
+            namingWarnings.sort(String::compareTo);
+
             StringBuilder result = new StringBuilder();
-            result.append("Found ").append(testClasses.size()).append(" test classes in project '")
+            result.append("Found ").append(total).append(" test classes in project '")
                   .append(projectName).append("':\n\n");
-            
-            for (String className : testClasses) {
-                result.append("- ").append(className).append("\n");
+            appendTestSection(result, "Plain JUnit tests", plainTests);
+            appendTestSection(result, "PDE harness tests (*PDETest)", pdeTests);
+
+            if (!namingWarnings.isEmpty()) {
+                result.append("\nNaming warnings (likely PDE runtime usage without *PDETest):\n");
+                for (String className : namingWarnings) {
+                    result.append("- ").append(className).append("\n");
+                }
             }
-            
             return result.toString();
-            
+
         } catch (CoreException e) {
             throw new RuntimeException("Error finding test classes: " + e.getMessage(), e);
         }
+    }
+
+    private void appendTestSection(StringBuilder result, String title, List<String> classes)
+    {
+        result.append(title).append(" (").append(classes.size()).append("):\n");
+        if (classes.isEmpty())
+        {
+            result.append("- none\n");
+            return;
+        }
+        for (String className : classes)
+        {
+            result.append("- ").append(className).append("\n");
+        }
+    }
+
+    private boolean likelyRequiresPdeHarness(IType type) throws JavaModelException
+    {
+        ICompilationUnit unit = type.getCompilationUnit();
+        if (unit == null)
+        {
+            return false;
+        }
+
+        String source = unit.getSource();
+        return source.contains("ResourcesPlugin")
+                || source.contains("PlatformUI")
+                || source.contains("FrameworkUtil")
+                || source.contains("BundleContext")
+                || source.contains("ServiceTracker")
+                || source.contains("Platform.getBundle(");
     }
 
     private IJavaProject getJavaProject( String projectName ) throws CoreException
@@ -894,7 +941,7 @@ public class UnitTestService {
             }
             
             // Check for test naming convention (testXXX)
-            if (methodName.startsWith("test") && Character.isUpperCase(methodName.charAt(4))) {
+            if (methodName.length() > 4 && methodName.startsWith("test") && Character.isUpperCase(methodName.charAt(4))) {
                 return true;
             }
         }
