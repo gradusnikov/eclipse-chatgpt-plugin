@@ -35,10 +35,12 @@ jobs:
           echo "DISPLAY=:99" >> $GITHUB_ENV
 
       - name: Build with Tycho
+        id: build
+        continue-on-error: true
         run: mvn --batch-mode --no-transfer-progress clean verify
 
       - name: Upload test logs on failure
-        if: failure()
+        if: steps.build.outcome == 'failure'
         uses: actions/upload-artifact@v7
         with:
           name: test-logs
@@ -51,18 +53,27 @@ jobs:
       - name: Prepare Eclipse Update Site
         run: |
           mkdir -p deploy
-          cp -r releng/com.github.gradusnikov.eclipse.assistai.repository/target/repository/. deploy/
+          cp -r releng/com.github.gradusnikov.eclipse.assistai.repository/target/
+          repository/. deploy/
           cp site/index.html deploy/
           cp site/site.xml deploy/
           cp -r site/web deploy/ || true
           # Replace version qualifier placeholder with the actual resolved version
-          FEATURE_VERSION=$(basename deploy/features/com.github.gradusnikov.eclipse.assistai_*.jar .jar | sed 's/com.github.gradusnikov.eclipse.assistai_//')
-          sed -i -E "s/[0-9]+\.[0-9]+\.[0-9]+\.qualifier/$FEATURE_VERSION/g" deploy/site.xml
+          FEATURE_VERSION=$(basename deploy/features/
+          com.github.gradusnikov.eclipse.assistai_*.jar .jar | sed 's/
+          com.github.gradusnikov.eclipse.assistai_//')
+          sed -i -E "s/[0-9]+\.[0-9]+\.[0-9]+\.qualifier/$FEATURE_VERSION/g" deploy/
+          site.xml
 
       - name: Upload artifact
+        if: always()
         uses: actions/upload-pages-artifact@v5
         with:
           path: 'deploy'
+		  
+      - name: Fail build if tests failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
 
   deploy:
     environment:
