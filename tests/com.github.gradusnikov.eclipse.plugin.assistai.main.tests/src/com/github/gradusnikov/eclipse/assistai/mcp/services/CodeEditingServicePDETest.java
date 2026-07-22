@@ -18,6 +18,10 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.jdt.core.IClasspathEntry;
+import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.JavaCore;
+import org.eclipse.jdt.launching.JavaRuntime;
 import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.EclipseContextFactory;
 import org.eclipse.e4.core.contexts.IEclipseContext;
@@ -60,6 +64,7 @@ public class CodeEditingServicePDETest {
         // Create a test project
         project = root.getProject(TEST_PROJECT_NAME);
         IProjectDescription desc = project.getWorkspace().newProjectDescription(project.getName());
+        desc.setNatureIds(new String[] { JavaCore.NATURE_ID });
         project.create(desc, monitor);
         project.open(monitor);
         
@@ -68,6 +73,13 @@ public class CodeEditingServicePDETest {
         if (!srcFolder.exists()) {
             srcFolder.create(IResource.NONE, true, monitor);
         }
+
+        IJavaProject javaProject = JavaCore.create(project);
+        IClasspathEntry[] classpath = {
+            JavaCore.newSourceEntry(srcFolder.getFullPath()),
+            JavaCore.newContainerEntry(new Path(JavaRuntime.JRE_CONTAINER))
+        };
+        javaProject.setRawClasspath(classpath, project.getFullPath().append("bin"), monitor);
         
         // Initialize service with DI context
         IEclipseContext context = EclipseContextFactory.create();
@@ -458,6 +470,7 @@ public class ApplicationNew {
     }
 }			
 				""";
+
 		 int startLine=5;
 		 int endLine=8;
 		 
@@ -469,6 +482,29 @@ public class ApplicationNew {
 		 System.out.println("------------");
 		 System.out.println(updatedContent);
 	}
+    @Test
+    public void testRefactorExtractTypeToNewFile() throws Exception
+    {
+        IFile outerFile = createFile("src/Outer.java", """
+                public class Outer {
+                    static class Inner {
+                        String value() {
+                            return "value";
+                        }
+                    }
+
+                    Inner inner = new Inner();
+                }
+                """);
+
+        String result = service.refactorExtractTypeToNewFile(TEST_PROJECT_NAME, "src/Outer.java", "Outer.Inner");
+
+        assertTrue(result.contains("Success: Nested Java type 'Outer.Inner' was extracted"));
+        assertTrue(project.getFile("src/Inner.java").exists());
+        assertTrue(ResourceUtilities.readFileContent(outerFile).contains("Inner inner = new Inner();"));
+        assertTrue(ResourceUtilities.readFileContent(project.getFile("src/Inner.java")).contains("class Inner"));
+    }
+
 	
     private IFile createFile(String path, String content) throws CoreException {
         IFile file = project.getFile(new Path(path));

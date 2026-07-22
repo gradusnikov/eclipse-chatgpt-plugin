@@ -150,6 +150,7 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | replaceFileContent | Replaces the entire content of a file |
 | deleteLinesInFile | Deletes a range of lines (1-based indexing) |
 | refactorRenameJavaType | Renames a Java type using Eclipse's refactoring, updating all references |
+| refactorExtractTypeToNewFile | Extracts a nested Java type to a new top-level Java file using Eclipse's refactoring |
 | refactorMoveJavaType | Moves a Java type to a different package, updating all references |
 | refactorRenamePackage | Renames a package, updating all declarations and references |
 | moveResource | Moves a file or folder to a different location |

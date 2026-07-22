@@ -139,6 +139,15 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.refactorRenameJavaType(projectName, filePath, newTypeName);
     }
 
+    @Tool(name="refactorExtractTypeToNewFile", longExecution=true, description="Extracts a nested Java class, interface, enum, or record into a new top-level Java file using Eclipse's Move Type to New File refactoring. The type name must be relative to the source compilation unit, for example 'Outer.Inner'. Eclipse validates the change and updates all required references.", type="object")
+    public String refactorExtractTypeToNewFile(
+        @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
+        @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/Outer.java')", required=true) String filePath,
+        @ToolParam(name="nestedTypeName", description="The nested type to extract, relative to the compilation unit (e.g., 'Outer.Inner')", required=true) String nestedTypeName)
+    {
+        return codeEditingService.refactorExtractTypeToNewFile(projectName, filePath, nestedTypeName);
+    }
+
     @Tool(name="refactorMoveJavaType", longExecution=true, description="Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism. This updates the package declaration and ALL references throughout the workspace. The target package will be created if it doesn't exist.", type="object")
     public String refactorMoveJavaType(
         @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
