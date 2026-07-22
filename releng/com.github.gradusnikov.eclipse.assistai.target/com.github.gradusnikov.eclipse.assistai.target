@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <?pde version="3.8"?>
-<target name="AssistAI Target Platform" sequenceNumber="11">
+<target name="AssistAI Target Platform" sequenceNumber="12">
 	<locations>
 
 		<!-- Eclipse 2026-03 (4.39) release train — single planner location.
@@ -135,6 +135,12 @@
 					<groupId>org.apache.tomcat</groupId>
 					<artifactId>tomcat-annotations-api</artifactId>
 					<version>11.0.21</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>org.vineflower</groupId>
+					<artifactId>vineflower</artifactId>
+					<version>1.12.0</version>
 					<type>jar</type>
 				</dependency>
 			</dependencies>

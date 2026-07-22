@@ -164,7 +164,7 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 
 | Tool | Description |
 |------|-------------|
-| getSource | Full source of a class |
+| getSource | Source of a workspace or referenced-library class; prefers attached source JARs and decompiles binaries when source is unavailable |
 | getClassOutline | Compact class outline -- declarations and method signatures (no bodies) with line numbers |
 | getMethodSource | Source of specific methods by name, with overload disambiguation |
 | getFilteredSource | Full source with non-selected methods collapsed to signatures |

@@ -83,7 +83,7 @@ public class EclipseIntegrationsMcpServer
         return javaDocService.getJavaDoc( fullyQualifiedClassName );
     }
 
-    @Tool( name = "getSource", description = "Get the source for the given class.", type = "object" )
+    @Tool( name = "getSource", description = "Get source for a workspace or referenced-library class. Prefers original/attached source and decompiles binary classes when source is unavailable.", type = "object" )
     public String getSource( @ToolParam( name = "fullyQualifiedClassName", description = "A fully qualified class name of the Java class", required = true )
     String fullyQualifiedClassName )
     {
