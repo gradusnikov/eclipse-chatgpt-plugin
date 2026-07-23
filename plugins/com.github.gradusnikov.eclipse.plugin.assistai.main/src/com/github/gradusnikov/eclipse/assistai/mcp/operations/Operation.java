@@ -1,9 +1,13 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.operations;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
@@ -45,6 +49,28 @@ public class Operation
     private volatile String progress;
 
     private volatile String consoleHint;
+
+    /**
+     * Typed incremental results produced while the operation is running.
+     * <p>
+     * A {@code LinkedHashMap} from a caller-defined type key (e.g. {@code "summary"},
+     * {@code "results"}) to a human-readable snapshot of that result type. Tools
+     * update individual keys as work progresses; callers may request specific keys
+     * or all keys via {@code getOperationStatus(includeResults=...)}. {@code null}
+     * means no domain results have been published yet.
+     * <p>
+     * Access is guarded by the map's own monitor.
+     */
+    private final Map<String, String> intermediateResults = new LinkedHashMap<>();
+
+    /**
+     * Auto-backoff poll sequence index used when the caller omits {@code waitSeconds}.
+     * Increments on each poll; capped at the end of the backoff table.
+     */
+    private final AtomicInteger pollCount = new AtomicInteger( 0 );
+
+    /** Backoff wait seconds: 2, 3, 5, 10, 15, 15, 15, … */
+    private static final int[] POLL_BACKOFF_SECONDS = { 2, 3, 5, 10, 15 };
 
     private volatile Object result;
 
@@ -125,6 +151,69 @@ public class Operation
     public void setConsoleHint( String consoleHint )
     {
         this.consoleHint = consoleHint;
+    }
+
+    /**
+     * Returns an unmodifiable snapshot of all typed intermediate results published
+     * so far, keyed by result type (e.g. {@code "summary"}, {@code "results"}).
+     * Returns an empty map when no results have been published yet.
+     */
+    public Map<String, String> getIntermediateResults()
+    {
+        synchronized ( intermediateResults )
+        {
+            return Collections.unmodifiableMap( new LinkedHashMap<>( intermediateResults ) );
+        }
+    }
+
+    /**
+     * Returns the intermediate result for a specific type key, or {@code null} if
+     * that key has not been published yet.
+     */
+    public String getIntermediateResult( String type )
+    {
+        synchronized ( intermediateResults )
+        {
+            return intermediateResults.get( type );
+        }
+    }
+
+    /**
+     * Publishes or updates a typed intermediate result snapshot.
+     * <p>
+     * Tools call this after each logical unit of work to surface structured
+     * feedback while the operation is still running. Each call overwrites the
+     * previous value for the given {@code type}.
+     *
+     * @param type  short label for the result type (e.g. {@code "summary"},
+     *              {@code "results"})
+     * @param value human-readable snapshot, or {@code null} to remove the key
+     */
+    public void setIntermediateResult( String type, String value )
+    {
+        synchronized ( intermediateResults )
+        {
+            if ( value == null )
+            {
+                intermediateResults.remove( type );
+            }
+            else
+            {
+                intermediateResults.put( type, value );
+            }
+        }
+    }
+
+    /**
+     * Returns the wait time in seconds recommended for the next poll, based on an
+     * auto-increasing backoff sequence (2 → 3 → 5 → 10 → 15, then capped at 15).
+     * Each call advances the internal counter regardless of whether the operation
+     * is still running, so callers should only invoke this once per poll cycle.
+     */
+    public int nextAutoPollWaitSeconds()
+    {
+        int idx = Math.min( pollCount.getAndIncrement(), POLL_BACKOFF_SECONDS.length - 1 );
+        return POLL_BACKOFF_SECONDS[idx];
     }
 
     /**

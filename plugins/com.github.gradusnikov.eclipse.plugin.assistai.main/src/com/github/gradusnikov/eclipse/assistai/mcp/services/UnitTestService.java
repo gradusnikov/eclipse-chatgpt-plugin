@@ -121,28 +121,32 @@ public class UnitTestService {
         
         @Override
         public String toString() {
+            return toSummary() + "\n" + toResults();
+        }
+
+        /** Short pass/fail/error/skip counts — suitable for 'summary' intermediate result. */
+        public synchronized String toSummary() {
+            return "Test Run: " + testRunName + "\n"
+                + "Summary: Total: " + totalCount
+                + ", Passed: " + passedCount
+                + ", Failed: " + failedCount
+                + ", Errors: " + errorCount
+                + ", Skipped: " + skippedCount
+                + ", Time: " + String.format("%.2f", totalTime) + "s";
+        }
+
+        /** Full test listing — suitable for 'results' intermediate result. */
+        public synchronized String toResults() {
             StringBuilder sb = new StringBuilder();
-            sb.append("Test Run: ").append(testRunName).append("\n");
-            sb.append("Summary: Total: ").append(totalCount)
-              .append(", Passed: ").append(passedCount)
-              .append(", Failed: ").append(failedCount)
-              .append(", Errors: ").append(errorCount)
-              .append(", Skipped: ").append(skippedCount)
-              .append(", Time: ").append(String.format("%.2f", totalTime)).append("s\n\n");
-            
             if (failedCount > 0 || errorCount > 0) {
                 sb.append("Failed Tests:\n");
                 testResults.stream()
-                    // JDT reports a failure as Result.FAILURE ("FAILURE"), never "FAILED":
-                    // filtering on the latter left this block empty for every failing run.
                     .filter(r -> Result.FAILURE.toString().equals(r.status) || Result.ERROR.toString().equals(r.status))
                     .forEach(r -> sb.append("  ").append(r.toString()).append("\n"));
                 sb.append("\n");
             }
-            
             sb.append("All Tests:\n");
             testResults.forEach(r -> sb.append("  ").append(r.toString()).append("\n"));
-            
             return sb.toString();
         }
     }
@@ -159,6 +163,15 @@ public class UnitTestService {
     }
 
     public String runAllTests(String projectName, Integer timeout, boolean withCoverage) {
+        return runAllTests(projectName, timeout, withCoverage, null);
+    }
+
+    /**
+     * Runs all tests in a project, optionally using a saved launch configuration as a base.
+     *
+     * @param launcherName optional saved launch config name to reuse (VM args, classpath, env vars, etc.)
+     */
+    public String runAllTests(String projectName, Integer timeout, boolean withCoverage, String launcherName) {
         Objects.requireNonNull(projectName, "Project name cannot be null");
         
         if (projectName.isEmpty()) {
@@ -171,10 +184,7 @@ public class UnitTestService {
         
         try {
             IJavaProject javaProject = getJavaProject( projectName );
-            
-            // Run the tests
-            return launchJUnitTests(javaProject, null, null, timeout, null, withCoverage);
-            
+            return launchJUnitTests(javaProject, null, null, timeout, null, withCoverage, launcherName);
         } catch (CoreException e) {
             throw new RuntimeException("Error running tests: " + e.getMessage(), e);
         }
@@ -193,6 +203,15 @@ public class UnitTestService {
     }
 
     public String runPackageTests(String projectName, String packageName, Integer timeout, boolean withCoverage) {
+        return runPackageTests(projectName, packageName, timeout, withCoverage, null);
+    }
+
+    /**
+     * Runs tests in a package, optionally using a saved launch configuration as a base.
+     *
+     * @param launcherName optional saved launch config name to reuse
+     */
+    public String runPackageTests(String projectName, String packageName, Integer timeout, boolean withCoverage, String launcherName) {
         Objects.requireNonNull(projectName, "Project name cannot be null");
         Objects.requireNonNull(packageName, "Package name cannot be null");
         
@@ -210,16 +229,11 @@ public class UnitTestService {
         
         try {
             IJavaProject javaProject = getJavaProject( projectName );
-            
-            // Find the package
             IPackageFragment pkg = findPackage(javaProject, packageName);
             if (pkg == null) {
                 throw new RuntimeException("Error: Package '" + packageName + "' not found in project '" + projectName + "'.");
             }
-            
-            // Run the tests
-            return launchJUnitTests(javaProject, pkg, null, timeout, null, withCoverage);
-            
+            return launchJUnitTests(javaProject, pkg, null, timeout, null, withCoverage, launcherName);
         } catch (CoreException e) {
             throw new RuntimeException("Error running tests: " + e.getMessage(), e);
         }
@@ -238,6 +252,15 @@ public class UnitTestService {
     }
 
     public String runClassTests(String projectName, String className, Integer timeout, boolean withCoverage) {
+        return runClassTests(projectName, className, timeout, withCoverage, null);
+    }
+
+    /**
+     * Runs tests for a class, optionally using a saved launch configuration as a base.
+     *
+     * @param launcherName optional saved launch config name to reuse
+     */
+    public String runClassTests(String projectName, String className, Integer timeout, boolean withCoverage, String launcherName) {
         Objects.requireNonNull(projectName, "Project name cannot be null");
         Objects.requireNonNull(className, "Class name cannot be null");
         
@@ -255,16 +278,11 @@ public class UnitTestService {
         
         try {
             IJavaProject javaProject = getJavaProject( projectName );
-            
-            // Find the class
             IType type = javaProject.findType(className);
             if (type == null) {
                 throw new RuntimeException("Error: Class '" + className + "' not found in project '" + projectName + "'.");
             }
-            
-            // Run the tests
-            return launchJUnitTests(javaProject, null, type, timeout, null, withCoverage);
-            
+            return launchJUnitTests(javaProject, null, type, timeout, null, withCoverage, launcherName);
         } catch (CoreException e) {
             throw new RuntimeException("Error running tests: " + e.getMessage(), e);
         }
@@ -284,6 +302,15 @@ public class UnitTestService {
     }
 
     public String runTestMethod(String projectName, String className, String methodName, Integer timeout, boolean withCoverage) {
+        return runTestMethod(projectName, className, methodName, timeout, withCoverage, null);
+    }
+
+    /**
+     * Runs a specific test method, optionally using a saved launch configuration as a base.
+     *
+     * @param launcherName optional saved launch config name to reuse
+     */
+    public String runTestMethod(String projectName, String className, String methodName, Integer timeout, boolean withCoverage, String launcherName) {
         Objects.requireNonNull(projectName, "Project name cannot be null");
         Objects.requireNonNull(className, "Class name cannot be null");
         Objects.requireNonNull(methodName, "Method name cannot be null");
@@ -306,22 +333,15 @@ public class UnitTestService {
         
         try {
             IJavaProject javaProject = getJavaProject( projectName );
-            
-            // Find the class
             IType type = javaProject.findType(className);
             if (type == null) {
                 throw new RuntimeException("Error: Class '" + className + "' not found in project '" + projectName + "'.");
             }
-            
-            // Find the method
             IMethod method = findMethod(type, methodName);
             if (method == null) {
                 throw new RuntimeException("Error: Method '" + methodName + "' not found in class '" + className + "'.");
             }
-            
-            // Run the tests
-            return launchJUnitTests(javaProject, null, type, timeout, methodName, withCoverage);
-            
+            return launchJUnitTests(javaProject, null, type, timeout, methodName, withCoverage, launcherName);
         } catch (CoreException e) {
             throw new RuntimeException("Error running tests: " + e.getMessage(), e);
         }
@@ -635,9 +655,14 @@ public class UnitTestService {
      * The {@code timeout} argument no longer bounds this method: a long execution tool
      * is waited on by the framework, which hands the caller an operationId when its
      * inline wait elapses while the run carries on here.
+     * <p>
+     * When {@code launcherName} is non-null, the named saved launch configuration is used
+     * as a base (reusing its VM args, classpath, env vars, etc.) and only the test
+     * targeting attributes are overridden.
      */
-    private String launchJUnitTests(IJavaProject javaProject, IPackageFragment packageFragment, 
-                                   IType testClass, int timeout, String methodName, boolean withCoverage) {
+    private String launchJUnitTests(IJavaProject javaProject, IPackageFragment packageFragment,
+                                    IType testClass, int timeout, String methodName,
+                                    boolean withCoverage, String launcherName) {
         final CountDownLatch latch = new CountDownLatch(1);
         final TestRunResult[] testRunResults = new TestRunResult[1];
         final Optional<Operation> operation = OperationContext.current();
@@ -671,8 +696,15 @@ public class UnitTestService {
                         double time = testCaseElement.getElapsedTimeInSeconds();
                         
                         currentRun.addTestResult(new TestResult(className, testName, status, message, time));
-                        operation.ifPresent( op -> op.setProgress(
-                                finishedTests.incrementAndGet() + " tests finished; last: " + className + "#" + testName ) );
+                        int count = finishedTests.incrementAndGet();
+                        operation.ifPresent( op -> {
+                            op.setProgress( count + " tests finished; last: " + className + "#" + testName );
+                            // Publish typed intermediate results so getOperationStatus
+                            // can surface pass/fail counts and detailed test listing
+                            // while the run is still going.
+                            op.setIntermediateResult( "summary", currentRun.toSummary() );
+                            op.setIntermediateResult( "results", currentRun.toResults() );
+                        } );
                     }
                 }
             };
@@ -680,54 +712,59 @@ public class UnitTestService {
             JUnitCore.addTestRunListener(listener);
             
             try {
-                // Create and configure the launch
                 ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
-                ILaunchConfigurationType type = launchManager.getLaunchConfigurationType(
-                        "org.eclipse.jdt.junit.launchconfig");
-                
-                // Build a deterministic launch name based on the test target
-                String launchName = buildLaunchName(javaProject, packageFragment, testClass, methodName);
-                
-                // Reuse existing launch configuration or create a new one
                 ILaunchConfigurationWorkingCopy workingCopy;
-                ILaunchConfiguration existing = findExistingLaunchConfig(launchManager, launchName);
-                if (existing != null) {
-                    workingCopy = existing.getWorkingCopy();
+
+                if (launcherName != null && !launcherName.isBlank()) {
+                    // Use the named saved config as a base — only override targeting attributes
+                    ILaunchConfiguration base = findExistingLaunchConfig(launchManager, launcherName);
+                    if (base == null) {
+                        throw new RuntimeException("Launch configuration not found: " + launcherName);
+                    }
+                    workingCopy = base.getWorkingCopy();
                 } else {
-                    workingCopy = type.newInstance(null, launchName);
+                    // Build a deterministic launch name based on the test target
+                    ILaunchConfigurationType type = launchManager.getLaunchConfigurationType(
+                            "org.eclipse.jdt.junit.launchconfig");
+                    String launchName = buildLaunchName(javaProject, packageFragment, testClass, methodName);
+                    ILaunchConfiguration existing = findExistingLaunchConfig(launchManager, launchName);
+                    if (existing != null) {
+                        workingCopy = existing.getWorkingCopy();
+                    } else {
+                        workingCopy = type.newInstance(null, launchName);
+                    }
                 }
-                
-                // Set the project name
-                workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, 
+
+                // Always override targeting attributes — everything else from the base config is kept
+                workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME,
                         javaProject.getElementName());
-                
-                // Set the test target
+
                 // CONTAINER must use the Java element handle identifier (e.g. "=ProjectName"),
-                // NOT the IResource path (e.g. "/ProjectName") â the JUnit launcher resolves
+                // NOT the IResource path (e.g. "/ProjectName") — the JUnit launcher resolves
                 // the input element via JavaCore.create(handleId), and a resource path causes
                 // "The input element of the launch configuration does not exist".
                 if (testClass != null) {
-                    workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, 
+                    workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME,
                             testClass.getFullyQualifiedName());
                     workingCopy.setAttribute("org.eclipse.jdt.junit.CONTAINER", "");
-                    
                     if (methodName != null && !methodName.isEmpty()) {
                         workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_METHOD", methodName);
                     }
                 } else if (packageFragment != null) {
                     workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "");
-                    workingCopy.setAttribute("org.eclipse.jdt.junit.CONTAINER", 
+                    workingCopy.setAttribute("org.eclipse.jdt.junit.CONTAINER",
                             packageFragment.getHandleIdentifier());
                 } else {
                     workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "");
-                    workingCopy.setAttribute("org.eclipse.jdt.junit.CONTAINER", 
+                    workingCopy.setAttribute("org.eclipse.jdt.junit.CONTAINER",
                             javaProject.getHandleIdentifier());
                 }
-                
-                // Detect the appropriate JUnit version — prefer class-level detection when available
-                String testKind = detectJUnitTestKind(javaProject, testClass, packageFragment);
-                workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND", testKind);
-                
+
+                // Only set TEST_KIND when not using a named launcher (the base config already has it)
+                if (launcherName == null || launcherName.isBlank()) {
+                    String testKind = detectJUnitTestKind(javaProject, testClass, packageFragment);
+                    workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND", testKind);
+                }
                 // Create the actual configuration
                 ILaunchConfiguration configuration = workingCopy.doSave();
                 

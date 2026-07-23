@@ -260,66 +260,73 @@ public class EclipseIntegrationsMcpServer
         return ResourceResultSerializer.serialize( result );
     }
 
+
     // Unit Test Service Tools
 
-    @Tool( name = "runAllTests", description = "Runs all JUnit tests in a specified project and returns the results. Use findTestClasses first if unsure which project contains tests. The projectName must be the test project (e.g. 'my.app.tests'), not the main source project.", type = "object", longExecution = true )
-    public String runAllTests(
-            @ToolParam( name = "projectName", description = "The exact Eclipse project name containing the test classes (use listProjects to find it)", required = true )
+    @Tool( name = "runJUnitTests",
+           description = "Starts a JUnit test run asynchronously and returns an operationId for polling. "
+               + "Scope is inferred from parameters: className+methodName=single method, "
+               + "className=single class, packageName=package, none=all tests in project. "
+               + "Use getOperationStatus to poll progress and results. "
+               + "For PDE plug-in tests, use runJUnitPluginTests in the eclipse-pde server instead. "
+               + "Publishes typed intermediate results while running: "
+               + "'summary' (pass/fail counts) and 'results' (per-test details). "
+               + "getOperationStatus will show these automatically while the run is in progress.",
+           type = "object",
+           longExecution = true )
+    public String runJUnitTests(
+            @ToolParam( name = "projectName",
+                        description = "The exact Eclipse project name containing the test classes (use listProjects to find it)",
+                        required = true )
             String projectName,
-            @ToolParam( name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false )
-            String timeout,
-            @ToolParam( name = "withCoverage", description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Coverage data file path is included in results. Default: false", required = false )
-            String withCoverage )
-    {
-        boolean coverage = Optional.ofNullable( withCoverage ).map( Boolean::parseBoolean ).orElse( false );
-        return unitTestService.runAllTests( projectName, Optional.ofNullable( timeout ).map( Integer::parseInt ).orElse( 60 ), coverage );
-    }
-
-    @Tool( name = "runPackageTests", description = "Runs all JUnit tests in a specific package and returns the results.", type = "object", longExecution = true )
-    public String runPackageTests(
-            @ToolParam( name = "projectName", description = "The exact Eclipse project name containing the test classes (use listProjects to find it)", required = true )
-            String projectName,
-            @ToolParam( name = "packageName", description = "The fully qualified package name (e.g. 'com.example.service')", required = true )
-            String packageName,
-            @ToolParam( name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false )
-            String timeout,
-            @ToolParam( name = "withCoverage", description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false", required = false )
-            String withCoverage )
-    {
-        boolean coverage = Optional.ofNullable( withCoverage ).map( Boolean::parseBoolean ).orElse( false );
-        return unitTestService.runPackageTests( projectName, packageName, Optional.ofNullable( timeout ).map( Integer::parseInt ).orElse( 60 ), coverage );
-    }
-
-    @Tool( name = "runClassTests", description = "Runs all JUnit tests in a specific test class and returns the results.", type = "object", longExecution = true )
-    public String runClassTests(
-            @ToolParam( name = "projectName", description = "The exact Eclipse project name containing the test class (use listProjects to find it)", required = true )
-            String projectName,
-            @ToolParam( name = "className", description = "The fully qualified class name including package (e.g. 'com.example.MyServiceTest')", required = true )
+            @ToolParam( name = "className",
+                        description = "The fully qualified class name (e.g. 'com.example.MyServiceTest'). "
+                            + "If omitted, runs all tests or package tests.",
+                        required = false )
             String className,
-            @ToolParam( name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false )
-            String timeout,
-            @ToolParam( name = "withCoverage", description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false", required = false )
-            String withCoverage )
-    {
-        boolean coverage = Optional.ofNullable( withCoverage ).map( Boolean::parseBoolean ).orElse( false );
-        return unitTestService.runClassTests( projectName, className, Optional.ofNullable( timeout ).map( Integer::parseInt ).orElse( 60 ), coverage );
-    }
-
-    @Tool( name = "runTestMethod", description = "Runs a single JUnit test method and returns the results.", type = "object", longExecution = true )
-    public String runTestMethod(
-            @ToolParam( name = "projectName", description = "The exact Eclipse project name containing the test class (use listProjects to find it)", required = true )
-            String projectName,
-            @ToolParam( name = "className", description = "The fully qualified class name including package (e.g. 'com.example.MyServiceTest')", required = true )
-            String className, @ToolParam( name = "methodName", description = "The test method name without parentheses (e.g. 'testCreate')", required = true )
+            @ToolParam( name = "methodName",
+                        description = "The test method name (e.g. 'testCreate'). Requires className.",
+                        required = false )
             String methodName,
-            @ToolParam( name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false )
+            @ToolParam( name = "packageName",
+                        description = "The fully qualified package name (e.g. 'com.example.service'). Ignored if className is set.",
+                        required = false )
+            String packageName,
+            @ToolParam( name = "timeout",
+                        description = "Maximum time in seconds to wait for test completion (default: 60)",
+                        required = false )
             String timeout,
-            @ToolParam( name = "withCoverage", description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false", required = false )
-            String withCoverage )
+            @ToolParam( name = "withCoverage",
+                        description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false",
+                        required = false )
+            String withCoverage,
+            @ToolParam( name = "launcherName",
+                        description = "Optional name of a saved launch configuration to use as the base "
+                            + "(use (eclipse-runner MCP server).listLaunchConfigurations with typeFilter='junit' to find it). "
+                            + "When set, all settings from that config are reused (VM args, classpath, env vars, etc.) "
+                            + "and only the test target is overridden.",
+                        required = false )
+            String launcherName )
     {
         boolean coverage = Optional.ofNullable( withCoverage ).map( Boolean::parseBoolean ).orElse( false );
-        return unitTestService.runTestMethod( projectName, className, methodName, Optional.ofNullable( timeout ).map( Integer::parseInt ).orElse( 60 ),
-                coverage );
+        int timeoutSeconds = Optional.ofNullable( timeout ).map( Integer::parseInt ).orElse( 60 );
+
+        if ( className != null && !className.isBlank() && methodName != null && !methodName.isBlank() )
+        {
+            return unitTestService.runTestMethod( projectName, className, methodName, timeoutSeconds, coverage, launcherName );
+        }
+        else if ( className != null && !className.isBlank() )
+        {
+            return unitTestService.runClassTests( projectName, className, timeoutSeconds, coverage, launcherName );
+        }
+        else if ( packageName != null && !packageName.isBlank() )
+        {
+            return unitTestService.runPackageTests( projectName, packageName, timeoutSeconds, coverage, launcherName );
+        }
+        else
+        {
+            return unitTestService.runAllTests( projectName, timeoutSeconds, coverage, launcherName );
+        }
     }
 
     @Tool( name = "findTestClasses", description = "Finds test classes and separates plain JUnit tests from PDE harness tests, which must follow the *PDETest naming convention. Flags likely PDE runtime usage in incorrectly named tests.", type = "object" )

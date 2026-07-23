@@ -31,6 +31,8 @@ import org.eclipse.debug.core.ILaunchManager;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.IPackageFragment;
+import org.eclipse.jdt.core.IPackageFragmentRoot;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
@@ -228,6 +230,21 @@ public class PDEService
     public String runJUnitPluginTests( String projectName, Integer timeout, boolean withCoverage,
                                         boolean includeAllPlugins, List<String> additionalBundles )
     {
+        return runJUnitPluginTests( projectName, timeout, withCoverage, includeAllPlugins, additionalBundles, null );
+    }
+
+    /**
+     * Runs all JUnit Plug-in Tests in the given project, optionally using a saved launch
+     * configuration as a base.
+     *
+     * @param launcherName optional saved launch config name; when set all its settings are
+     *                     reused (VM args, bundle selection, etc.) and only the project/
+     *                     container targeting attributes are overridden
+     */
+    public String runJUnitPluginTests( String projectName, Integer timeout, boolean withCoverage,
+                                        boolean includeAllPlugins, List<String> additionalBundles,
+                                        String launcherName )
+    {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         if ( projectName.isEmpty() )
         {
@@ -241,7 +258,8 @@ public class PDEService
         try
         {
             IJavaProject javaProject = getJavaProject( projectName );
-            return launchJUnitPluginTests( javaProject, null, List.of(), timeout, withCoverage, includeAllPlugins, additionalBundles );
+            return launchJUnitPluginTests( javaProject, null, List.of(), timeout, withCoverage,
+                includeAllPlugins, additionalBundles, launcherName );
         }
         catch ( IllegalArgumentException | CoreException e )
         {
@@ -257,13 +275,30 @@ public class PDEService
         return runJUnitPluginTestClass( projectName, className, timeout, false, false, List.of() );
     }
 
-    public String runJUnitPluginTestClass( String projectName, String className, Integer timeout, boolean withCoverage )
+    public String runJUnitPluginTestClass( String projectName, String className, Integer timeout,
+                                            boolean withCoverage )
     {
         return runJUnitPluginTestClass( projectName, className, timeout, withCoverage, false, List.of() );
     }
 
-    public String runJUnitPluginTestClass( String projectName, String className, Integer timeout, boolean withCoverage,
-                                            boolean includeAllPlugins, List<String> additionalBundles )
+    public String runJUnitPluginTestClass( String projectName, String className, Integer timeout,
+                                            boolean withCoverage, boolean includeAllPlugins,
+                                            List<String> additionalBundles )
+    {
+        return runJUnitPluginTestClass( projectName, className, timeout, withCoverage,
+            includeAllPlugins, additionalBundles, null );
+    }
+
+    /**
+     * Runs JUnit Plug-in Tests for a specific class, optionally using a saved launch
+     * configuration as a base.
+     *
+     * @param launcherName optional saved launch config name; when set all its settings are
+     *                     reused and only the project/class targeting attributes are overridden
+     */
+    public String runJUnitPluginTestClass( String projectName, String className, Integer timeout,
+                                            boolean withCoverage, boolean includeAllPlugins,
+                                            List<String> additionalBundles, String launcherName )
     {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         Objects.requireNonNull( className, "Class name cannot be null" );
@@ -280,7 +315,8 @@ public class PDEService
             {
                 return "Error: Class '" + className + "' not found in project '" + projectName + "'.";
             }
-            return launchJUnitPluginTests( javaProject, null, List.of( type ), timeout, withCoverage, includeAllPlugins, additionalBundles );
+            return launchJUnitPluginTests( javaProject, null, List.of( type ), timeout, withCoverage,
+                includeAllPlugins, additionalBundles, launcherName );
         }
         catch ( IllegalArgumentException | CoreException e )
         {
@@ -291,13 +327,29 @@ public class PDEService
     /**
      * Runs selected JUnit Plug-in Test classes in a single PDE launch.
      */
-    public String runJUnitPluginTestClasses( String projectName, List<String> classNames, Integer timeout )
+    public String runJUnitPluginTestClasses( String projectName, List<String> classNames,
+                                             Integer timeout )
     {
         return runJUnitPluginTestClasses( projectName, classNames, timeout, false, List.of() );
     }
 
-    public String runJUnitPluginTestClasses( String projectName, List<String> classNames, Integer timeout,
-                                             boolean includeAllPlugins, List<String> additionalBundles )
+    public String runJUnitPluginTestClasses( String projectName, List<String> classNames,
+                                             Integer timeout, boolean includeAllPlugins,
+                                             List<String> additionalBundles )
+    {
+        return runJUnitPluginTestClasses( projectName, classNames, timeout, includeAllPlugins,
+            additionalBundles, null );
+    }
+
+    /**
+     * Runs selected JUnit Plug-in Test classes in a single PDE launch, optionally using a saved
+     * launch configuration as a base.
+     *
+     * @param launcherName optional saved launch config name
+     */
+    public String runJUnitPluginTestClasses( String projectName, List<String> classNames,
+                                             Integer timeout, boolean includeAllPlugins,
+                                             List<String> additionalBundles, String launcherName )
     {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         Objects.requireNonNull( classNames, "Class names cannot be null" );
@@ -353,7 +405,75 @@ public class PDEService
             }
 
             return launchJUnitPluginTests( javaProject, null, testClasses, timeout, false,
-                includeAllPlugins, additionalBundles );
+                includeAllPlugins, additionalBundles, launcherName );
+        }
+        catch ( IllegalArgumentException | CoreException e )
+        {
+            return "Error running plug-in tests: " + e.getMessage();
+        }
+    }
+
+
+    /**
+     * Runs JUnit Plug-in Tests for all test classes in a specific package.
+     */
+    public String runJUnitPluginTestPackage( String projectName, String packageName,
+                                              Integer timeout )
+    {
+        return runJUnitPluginTestPackage( projectName, packageName, timeout, false, false, List.of() );
+    }
+
+    public String runJUnitPluginTestPackage( String projectName, String packageName,
+                                              Integer timeout, boolean withCoverage )
+    {
+        return runJUnitPluginTestPackage( projectName, packageName, timeout, withCoverage, false, List.of() );
+    }
+
+    public String runJUnitPluginTestPackage( String projectName, String packageName,
+                                              Integer timeout, boolean withCoverage,
+                                              boolean includeAllPlugins, List<String> additionalBundles )
+    {
+        return runJUnitPluginTestPackage( projectName, packageName, timeout, withCoverage,
+            includeAllPlugins, additionalBundles, null );
+    }
+
+    /**
+     * Runs JUnit Plug-in Tests for all test classes in a specific package, optionally using a saved
+     * launch configuration as a base.
+     *
+     * @param launcherName optional saved launch config name; when set all its settings are reused
+     *                     and only the project/package targeting attributes are overridden
+     */
+    public String runJUnitPluginTestPackage( String projectName, String packageName,
+                                              Integer timeout, boolean withCoverage,
+                                              boolean includeAllPlugins, List<String> additionalBundles,
+                                              String launcherName )
+    {
+        Objects.requireNonNull( projectName, "Project name cannot be null" );
+        Objects.requireNonNull( packageName, "Package name cannot be null" );
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Project name cannot be empty" );
+        }
+        if ( packageName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Package name cannot be empty" );
+        }
+        if ( timeout == null || timeout <= 0 )
+        {
+            timeout = 300;
+        }
+
+        try
+        {
+            IJavaProject javaProject = getJavaProject( projectName );
+            IPackageFragment pkg = findPackage( javaProject, packageName );
+            if ( pkg == null )
+            {
+                return "Error: Package '" + packageName + "' not found in project '" + projectName + "'.";
+            }
+            return launchJUnitPluginTests( javaProject, pkg, List.of(), timeout, withCoverage,
+                includeAllPlugins, additionalBundles, launcherName );
         }
         catch ( IllegalArgumentException | CoreException e )
         {
@@ -372,9 +492,22 @@ public class PDEService
      */
     private static final int MAX_TEST_RUN_MINUTES = 120;
 
-    private String launchJUnitPluginTests( IJavaProject javaProject, Object packageFragment,
+    private String launchJUnitPluginTests( IJavaProject javaProject, IPackageFragment packageFragment,
                                             List<IType> testClasses, int timeout, boolean withCoverage,
                                             boolean includeAllPlugins, List<String> additionalBundles )
+    {
+        return launchJUnitPluginTests( javaProject, packageFragment, testClasses, timeout,
+            withCoverage, includeAllPlugins, additionalBundles, null );
+    }
+
+    /**
+     * Core PDE JUnit launch. When {@code launcherName} is non-null, that saved configuration is
+     * used as a base and only the test targeting attributes are overridden.
+     */
+    private String launchJUnitPluginTests( IJavaProject javaProject, IPackageFragment packageFragment,
+                                            List<IType> testClasses, int timeout, boolean withCoverage,
+                                            boolean includeAllPlugins, List<String> additionalBundles,
+                                            String launcherName )
     {
         CountDownLatch latch = new CountDownLatch( 1 );
         UnitTestService.TestRunResult[] testRunResults = new UnitTestService.TestRunResult[1];
@@ -411,8 +544,15 @@ public class PDEService
                         ? testCaseElement.getFailureTrace().getTrace() : "";
                     double time = testCaseElement.getElapsedTimeInSeconds();
                     currentRun.addTestResult( new UnitTestService.TestResult( clazz, testName, status, message, time ) );
-                    operation.ifPresent( op -> op.setProgress(
-                            finishedTests.incrementAndGet() + " tests finished; last: " + clazz + "#" + testName ) );
+                    int count = finishedTests.incrementAndGet();
+                    operation.ifPresent( op -> {
+                        op.setProgress( count + " tests finished; last: " + clazz + "#" + testName );
+                        // Publish typed intermediate results so getOperationStatus
+                        // can surface pass/fail counts and detailed test listing
+                        // while the run is still going.
+                        op.setIntermediateResult( "summary", currentRun.toSummary() );
+                        op.setIntermediateResult( "results", currentRun.toResults() );
+                    } );
                 }
             }
         };
@@ -422,33 +562,51 @@ public class PDEService
         try
         {
             ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
-            boolean selectedClassLaunch = testClasses.size() > 1;
-            String launchTypeId = selectedClassLaunch
-                ? SelectedJUnitPluginLaunchDelegate.LAUNCH_CONFIGURATION_TYPE
-                : "org.eclipse.pde.ui.JunitLaunchConfig";
-            ILaunchConfigurationType type = launchManager.getLaunchConfigurationType( launchTypeId );
-
-            if ( type == null )
-            {
-                return "Error: PDE JUnit Plug-in Test launch configuration type '" + launchTypeId
-                    + "' not found. Ensure the required PDE launcher is available.";
-            }
-
-            String launchName = buildLaunchName( javaProject, testClasses );
-            ILaunchConfiguration existing = findExistingLaunchConfig( launchManager, launchName );
             ILaunchConfigurationWorkingCopy workingCopy;
-            if ( existing != null )
+
+            if ( launcherName != null && !launcherName.isBlank() )
             {
-                workingCopy = existing.getWorkingCopy();
+                // Use the named saved config as a base — only override targeting attributes
+                ILaunchConfiguration base = findExistingLaunchConfig( launchManager, launcherName );
+                if ( base == null )
+                {
+                    JUnitCore.removeTestRunListener( listener );
+                    return "Error: Launch configuration not found: " + launcherName;
+                }
+                workingCopy = base.getWorkingCopy();
             }
             else
             {
-                workingCopy = type.newInstance( null, launchName );
+                boolean selectedClassLaunch = testClasses.size() > 1;
+                String launchTypeId = selectedClassLaunch
+                    ? SelectedJUnitPluginLaunchDelegate.LAUNCH_CONFIGURATION_TYPE
+                    : "org.eclipse.pde.ui.JunitLaunchConfig";
+                ILaunchConfigurationType type = launchManager.getLaunchConfigurationType( launchTypeId );
+
+                if ( type == null )
+                {
+                    JUnitCore.removeTestRunListener( listener );
+                    return "Error: PDE JUnit Plug-in Test launch configuration type '" + launchTypeId
+                        + "' not found. Ensure the required PDE launcher is available.";
+                }
+
+                String launchName = buildLaunchName( javaProject, packageFragment, testClasses );
+                ILaunchConfiguration existing = findExistingLaunchConfig( launchManager, launchName );
+                if ( existing != null )
+                {
+                    workingCopy = existing.getWorkingCopy();
+                }
+                else
+                {
+                    workingCopy = type.newInstance( null, launchName );
+                }
             }
 
+            // Always override targeting attributes — everything else from the base config is kept
             workingCopy.setAttribute( IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME,
                 javaProject.getElementName() );
 
+            boolean selectedClassLaunch = testClasses.size() > 1;
             if ( selectedClassLaunch )
             {
                 List<String> classNames = testClasses.stream()
@@ -466,6 +624,17 @@ public class PDEService
                     testClasses.get( 0 ).getFullyQualifiedName() );
                 workingCopy.setAttribute( "org.eclipse.jdt.junit.CONTAINER", "" );
             }
+            else if ( packageFragment != null )
+            {
+                // Package scope: set CONTAINER to the package's handle identifier.
+                // The JDT JUnit launcher resolves CONTAINER via JavaCore.create(handleId),
+                // which works for IPackageFragment handles as well as project handles.
+                workingCopy.setAttribute( SelectedJUnitPluginLaunchDelegate.ATTR_TEST_CLASSES,
+                    List.<String>of() );
+                workingCopy.setAttribute( IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "" );
+                workingCopy.setAttribute( "org.eclipse.jdt.junit.CONTAINER",
+                    packageFragment.getHandleIdentifier() );
+            }
             else
             {
                 workingCopy.setAttribute( SelectedJUnitPluginLaunchDelegate.ATTR_TEST_CLASSES,
@@ -477,43 +646,45 @@ public class PDEService
                     javaProject.getHandleIdentifier() );
             }
 
-            // Detect JUnit version
-            workingCopy.setAttribute( "org.eclipse.jdt.junit.TEST_KIND",
-                detectJUnitTestKind( javaProject ) );
-
-            // Set a fixed workspace data dir so the PDE launcher never shows
-            // the "Select a workspace" dialog interactively
-            String testWorkspace = System.getProperty( "java.io.tmpdir" )
-                + java.io.File.separator + "pde-test-workspace-"
-                + javaProject.getElementName() + "-"
-                + Integer.toHexString( launchName.hashCode() );
-            workingCopy.setAttribute( IPDELauncherConstants.LOCATION, testWorkspace );
-            workingCopy.setAttribute( IPDELauncherConstants.DOCLEAR, false );
-
-            if ( includeAllPlugins )
+            // Only set TEST_KIND and workspace/bundle config when not using a named launcher
+            if ( launcherName == null || launcherName.isBlank() )
             {
-                workingCopy.setAttribute( IPDELauncherConstants.USE_DEFAULT, true );
-                workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_ADD, true );
-            }
-            else
-            {
-                workingCopy.setAttribute( IPDELauncherConstants.USE_DEFAULT, false );
-                workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_ADD, false );
-                workingCopy.setAttribute( IPDELauncherConstants.INCLUDE_OPTIONAL, true );
-                workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_INCLUDE_REQUIREMENTS, true );
-                workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_VALIDATE, true );
+                workingCopy.setAttribute( "org.eclipse.jdt.junit.TEST_KIND",
+                    detectJUnitTestKind( javaProject ) );
 
-                Set<String> workspaceBundles = new TreeSet<>();
-                workspaceBundles.add( javaProject.getElementName() + "@default:false" );
-                if ( additionalBundles != null )
+                String launchName = buildLaunchName( javaProject, packageFragment, testClasses );
+                String testWorkspace = System.getProperty( "java.io.tmpdir" )
+                    + java.io.File.separator + "pde-test-workspace-"
+                    + javaProject.getElementName() + "-"
+                    + Integer.toHexString( launchName.hashCode() );
+                workingCopy.setAttribute( IPDELauncherConstants.LOCATION, testWorkspace );
+                workingCopy.setAttribute( IPDELauncherConstants.DOCLEAR, false );
+
+                if ( includeAllPlugins )
                 {
-                    for ( String bundle : additionalBundles )
-                    {
-                        workspaceBundles.add( bundle + "@default:false" );
-                    }
+                    workingCopy.setAttribute( IPDELauncherConstants.USE_DEFAULT, true );
+                    workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_ADD, true );
                 }
-                workingCopy.setAttribute( IPDELauncherConstants.SELECTED_WORKSPACE_BUNDLES, workspaceBundles );
-                workingCopy.setAttribute( IPDELauncherConstants.SELECTED_TARGET_BUNDLES, new TreeSet<String>() );
+                else
+                {
+                    workingCopy.setAttribute( IPDELauncherConstants.USE_DEFAULT, false );
+                    workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_ADD, false );
+                    workingCopy.setAttribute( IPDELauncherConstants.INCLUDE_OPTIONAL, true );
+                    workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_INCLUDE_REQUIREMENTS, true );
+                    workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_VALIDATE, true );
+
+                    Set<String> workspaceBundles = new TreeSet<>();
+                    workspaceBundles.add( javaProject.getElementName() + "@default:false" );
+                    if ( additionalBundles != null )
+                    {
+                        for ( String bundle : additionalBundles )
+                        {
+                            workspaceBundles.add( bundle + "@default:false" );
+                        }
+                    }
+                    workingCopy.setAttribute( IPDELauncherConstants.SELECTED_WORKSPACE_BUNDLES, workspaceBundles );
+                    workingCopy.setAttribute( IPDELauncherConstants.SELECTED_TARGET_BUNDLES, new TreeSet<String>() );
+                }
             }
 
             ILaunchConfiguration configuration = workingCopy.doSave();
@@ -645,6 +816,11 @@ public class PDEService
 
     private String buildLaunchName( IJavaProject project, List<IType> testClasses )
     {
+        return buildLaunchName( project, null, testClasses );
+    }
+
+    private String buildLaunchName( IJavaProject project, IPackageFragment pkg, List<IType> testClasses )
+    {
         String base = "AssistAI-PDE-" + project.getElementName();
         if ( testClasses.size() == 1 )
         {
@@ -657,6 +833,10 @@ public class PDEService
                 .toList();
             return base + "-Selected-" + testClasses.size() + "-"
                 + Integer.toHexString( classNames.hashCode() );
+        }
+        if ( pkg != null )
+        {
+            return base + "-" + pkg.getElementName();
         }
         return base;
     }
@@ -683,6 +863,23 @@ public class PDEService
             throw new IllegalArgumentException( "Project not found: " + projectName );
         }
         return JavaCore.create( project );
+    }
+
+    private IPackageFragment findPackage( IJavaProject javaProject, String packageName )
+        throws JavaModelException
+    {
+        for ( IPackageFragmentRoot root : javaProject.getPackageFragmentRoots() )
+        {
+            if ( root.getKind() == IPackageFragmentRoot.K_SOURCE )
+            {
+                IPackageFragment pkg = root.getPackageFragment( packageName );
+                if ( pkg.exists() )
+                {
+                    return pkg;
+                }
+            }
+        }
+        return null;
     }
 
     private String detectJUnitTestKind( IJavaProject javaProject ) throws JavaModelException

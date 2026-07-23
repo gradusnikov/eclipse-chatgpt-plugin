@@ -74,60 +74,89 @@ public class PDEMcpServer
     }
 
     @Tool(name = "runJUnitPluginTests",
-          description = "Runs all JUnit Plug-in Tests in the specified project using the PDE launcher. Returns test results including pass/fail counts.",
+          description = "Starts a JUnit Plug-in Test run asynchronously using the PDE launcher and returns an operationId for polling. "
+              + "Scope is inferred from parameters: className+methodName=single method, "
+              + "className=single class (or comma-separated for multiple classes in one launch), "
+              + "packageName=package, none=all tests in project. "
+              + "Use getOperationStatus to poll progress and results. "
+              + "Publishes typed intermediate results while running: "
+              + "'summary' (pass/fail counts) and 'results' (per-test details). "
+              + "getOperationStatus will show these automatically while the run is in progress.",
           longExecution = true,
           type = "object")
     public String runJUnitPluginTests(
-            @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the plug-in test classes") String projectName,
-            @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout,
-            @ToolParam(name = "withCoverage", description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false", required = false) String withCoverage,
-            @ToolParam(name = "includeAllPlugins", description = "If 'true', launches with all workspace and target platform plug-ins (USE_DEFAULT mode). If 'false' (default), only includes the test plug-in and lets Eclipse auto-resolve required dependencies.", required = false) String includeAllPlugins,
-            @ToolParam(name = "additionalBundles", description = "Comma-separated list of additional bundle/plug-in symbolic names to include in the launch (only used when includeAllPlugins is false). Use this when auto-resolved dependencies are insufficient.", required = false) String additionalBundles)
+            @ToolParam(name = "projectName",
+                       description = "The exact Eclipse project name containing the plug-in test classes",
+                       required = true)
+            String projectName,
+            @ToolParam(name = "className",
+                       description = "Fully qualified class name (e.g. 'com.example.MyPluginTest'), or "
+                           + "comma-separated names for running multiple classes in one PDE launch. "
+                           + "If omitted, runs all tests or the packageName scope.",
+                       required = false)
+            String className,
+            @ToolParam(name = "packageName",
+                       description = "The fully qualified package name (e.g. 'com.example.service'). "
+                           + "Ignored if className is set.",
+                       required = false)
+            String packageName,
+            @ToolParam(name = "timeout",
+                       description = "Maximum time in seconds to wait for test completion (default: 60)",
+                       required = false)
+            String timeout,
+            @ToolParam(name = "withCoverage",
+                       description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false",
+                       required = false)
+            String withCoverage,
+            @ToolParam(name = "includeAllPlugins",
+                       description = "If 'true', launches with all workspace and target platform plug-ins (USE_DEFAULT mode). "
+                           + "If 'false' (default), auto-resolves required dependencies.",
+                       required = false)
+            String includeAllPlugins,
+            @ToolParam(name = "additionalBundles",
+                       description = "Comma-separated additional bundle/plug-in symbolic names to include "
+                           + "(only used when includeAllPlugins is false).",
+                       required = false)
+            String additionalBundles,
+            @ToolParam(name = "launcherName",
+                       description = "Optional name of a saved launch configuration to use as the base "
+                           + "(use (eclipse-runner MCP server).listLaunchConfigurations with typeFilter='junit-plugin' to find it). "
+                           + "When set, all settings from that config are reused (VM args, program args, bundle selection, etc.) "
+                           + "and only the test target is overridden. includeAllPlugins and additionalBundles are ignored when set.",
+                       required = false)
+            String launcherName)
     {
         int timeoutSeconds = Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60);
         boolean coverage = Optional.ofNullable(withCoverage).map(Boolean::parseBoolean).orElse(false);
         boolean allPlugins = Optional.ofNullable(includeAllPlugins).map(Boolean::parseBoolean).orElse(false);
         List<String> extras = parseCommaSeparated(additionalBundles);
-        return pdeService.runJUnitPluginTests(projectName, timeoutSeconds, coverage, allPlugins, extras);
+
+        if ( className != null && !className.isBlank() )
+        {
+            List<String> classes = parseCommaSeparated( className );
+            if ( classes.size() > 1 )
+            {
+                return pdeService.runJUnitPluginTestClasses(
+                    projectName, classes, timeoutSeconds, allPlugins, extras, launcherName );
+            }
+            else
+            {
+                return pdeService.runJUnitPluginTestClass(
+                    projectName, classes.get( 0 ), timeoutSeconds, coverage, allPlugins, extras, launcherName );
+            }
+        }
+        else if ( packageName != null && !packageName.isBlank() )
+        {
+            return pdeService.runJUnitPluginTestPackage(
+                projectName, packageName, timeoutSeconds, coverage, allPlugins, extras, launcherName );
+        }
+        else
+        {
+            return pdeService.runJUnitPluginTests(
+                projectName, timeoutSeconds, coverage, allPlugins, extras, launcherName );
+        }
     }
 
-    @Tool(name = "runJUnitPluginTestClass",
-          description = "Runs all JUnit Plug-in Tests in a specific class using the PDE launcher. Returns test results.",
-          longExecution = true,
-          type = "object")
-    public String runJUnitPluginTestClass(
-            @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test class") String projectName,
-            @ToolParam(name = "className", description = "The fully qualified class name (e.g., 'com.example.MyPluginTest')") String className,
-            @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout,
-            @ToolParam(name = "withCoverage", description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false", required = false) String withCoverage,
-            @ToolParam(name = "includeAllPlugins", description = "If 'true', launches with all workspace and target platform plug-ins (USE_DEFAULT mode). If 'false' (default), only includes the test plug-in and lets Eclipse auto-resolve required dependencies.", required = false) String includeAllPlugins,
-            @ToolParam(name = "additionalBundles", description = "Comma-separated list of additional bundle/plug-in symbolic names to include in the launch (only used when includeAllPlugins is false). Use this when auto-resolved dependencies are insufficient.", required = false) String additionalBundles)
-    {
-        int timeoutSeconds = Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60);
-        boolean coverage = Optional.ofNullable(withCoverage).map(Boolean::parseBoolean).orElse(false);
-        boolean allPlugins = Optional.ofNullable(includeAllPlugins).map(Boolean::parseBoolean).orElse(false);
-        List<String> extras = parseCommaSeparated(additionalBundles);
-        return pdeService.runJUnitPluginTestClass(projectName, className, timeoutSeconds, coverage, allPlugins, extras);
-    }
-
-    @Tool(name = "runJUnitPluginTestClasses",
-          description = "Runs selected JUnit Plug-in Test classes in one PDE launch. Use this to avoid repeated workbench startup when testing several changed classes.",
-          longExecution = true,
-          type = "object")
-    public String runJUnitPluginTestClasses(
-            @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test classes") String projectName,
-            @ToolParam(name = "classNames", description = "Comma-separated fully qualified test class names") String classNames,
-            @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout,
-            @ToolParam(name = "includeAllPlugins", description = "If 'true', launches with all workspace and target platform plug-ins. If 'false' (default), only includes the test plug-in and auto-resolved dependencies.", required = false) String includeAllPlugins,
-            @ToolParam(name = "additionalBundles", description = "Comma-separated additional bundle symbolic names for selected plug-in mode.", required = false) String additionalBundles)
-    {
-        int timeoutSeconds = Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60);
-        boolean allPlugins = Optional.ofNullable(includeAllPlugins).map(Boolean::parseBoolean).orElse(false);
-        List<String> selectedClasses = parseCommaSeparated(classNames);
-        List<String> extras = parseCommaSeparated(additionalBundles);
-        return pdeService.runJUnitPluginTestClasses(
-            projectName, selectedClasses, timeoutSeconds, allPlugins, extras);
-    }
 
     private List<String> parseCommaSeparated(String value)
     {

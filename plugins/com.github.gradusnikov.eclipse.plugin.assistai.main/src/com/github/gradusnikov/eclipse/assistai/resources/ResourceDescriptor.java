@@ -15,10 +15,10 @@ import org.eclipse.jdt.core.IType;
  * for creating descriptors from Eclipse resource types.
  * 
  * URI Schemes:
- * - workspace:///ProjectName/path/to/file.java  â Workspace files (IFile)
- * - jdt:///com.example.ClassName                â Java types (IType)
- * - project:///ProjectName/layout               â Project structure
- * - console:///ConsoleName                      â Console output
+ * - workspace:///ProjectName/path/to/file.java  - Workspace files (IFile)
+ * - jdt:///com.example.ClassName                - Java types (IType)
+ * - project:///ProjectName/layout               - Project structure
+ * - console:///ConsoleName                      - Console output
  */
 public record ResourceDescriptor(
     URI uri,

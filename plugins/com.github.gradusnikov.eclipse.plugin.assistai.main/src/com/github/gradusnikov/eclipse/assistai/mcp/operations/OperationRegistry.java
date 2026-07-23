@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -135,20 +136,35 @@ public class OperationRegistry
             sb.append( "progress: " ).append( operation.getProgress() ).append( "\n" );
         }
         sb.append( "\nThe work was NOT cancelled and its result is being kept.\n" );
-        sb.append( "Poll:   getOperationStatus(operationId=\"" ).append( operation.getId() ).append( "\")\n" );
-        sb.append( "Output: getOperationStatus(operationId=\"" ).append( operation.getId() ).append( "\", outputLimit=\"100\", outputOffset=\"-100\")\n" );
-        sb.append( "Abort:  cancelOperation(operationId=\"" ).append( operation.getId() ).append( "\")" );
+        sb.append( "Poll:    getOperationStatus(operationId=\"" ).append( operation.getId() ).append( "\")\n" );
+        sb.append( "Results: getOperationStatus(operationId=\"" ).append( operation.getId() ).append( "\", includeResults=\"all\")\n" );
+        sb.append( "Output:  getOperationStatus(operationId=\"" ).append( operation.getId() ).append( "\", outputLimit=\"100\", outputOffset=\"-100\")\n" );
+        sb.append( "Abort:   cancelOperation(operationId=\"" ).append( operation.getId() ).append( "\")" );
         return sb.toString();
     }
 
     /**
      * Status of one operation, optionally with a page of its output.
-     *
-     * @param waitSeconds
-     *            block up to this long for a running operation to finish before
-     *            answering
+     * Passes {@code waitSeconds=-1} to trigger auto-backoff behaviour.
      */
     public String getOperationStatus( String operationId, int outputOffset, int outputLimit, int waitSeconds )
+    {
+        return getOperationStatus( operationId, outputOffset, outputLimit, waitSeconds, null );
+    }
+
+    /**
+     * Status of one operation, optionally with a page of its output and/or typed
+     * intermediate domain results.
+     *
+     * @param waitSeconds    seconds to block for a running operation to finish.
+     *                       Pass {@code -1} to use the operation's own auto-backoff
+     *                       sequence (2 → 3 → 5 → 10 → 15 s).
+     * @param includeResults comma-separated result-type keys (e.g. {@code "summary,results"}),
+     *                       {@code "all"} for everything, or {@code null}/blank to skip.
+     *                       For a running operation any non-null value also shows results.
+     */
+    public String getOperationStatus( String operationId, int outputOffset, int outputLimit,
+                                       int waitSeconds, String includeResults )
     {
         Optional<Operation> found = find( operationId );
         if ( found.isEmpty() )
@@ -157,11 +173,16 @@ public class OperationRegistry
         }
         Operation operation = found.get();
 
-        if ( waitSeconds > 0 && !operation.isTerminal() && operation.getFuture() != null )
+        // Resolve wait duration; -1 means "use auto-backoff"
+        int effectiveWait = ( waitSeconds == -1 && !operation.isTerminal() )
+                ? operation.nextAutoPollWaitSeconds()
+                : Math.max( 0, waitSeconds );
+
+        if ( effectiveWait > 0 && !operation.isTerminal() && operation.getFuture() != null )
         {
             try
             {
-                operation.getFuture().get( waitSeconds, TimeUnit.SECONDS );
+                operation.getFuture().get( effectiveWait, TimeUnit.SECONDS );
             }
             catch ( TimeoutException | CancellationException e )
             {
@@ -176,10 +197,20 @@ public class OperationRegistry
                 Thread.currentThread().interrupt();
             }
         }
-        return formatStatus( operation, outputOffset, outputLimit );
+        return formatStatus( operation, outputOffset, outputLimit, includeResults );
     }
 
     public String formatStatus( Operation operation, int outputOffset, int outputLimit )
+    {
+        return formatStatus( operation, outputOffset, outputLimit, null );
+    }
+
+    /**
+     * @param includeResults comma-separated result-type keys, {@code "all"}, or
+     *                       {@code null}/blank to omit the intermediate results section.
+     */
+    public String formatStatus( Operation operation, int outputOffset, int outputLimit,
+                                 String includeResults )
     {
         StringBuilder sb = new StringBuilder();
         sb.append( "Operation " ).append( operation.getId() ).append( " [" ).append( operation.getToolName() ).append( "]" );
@@ -203,9 +234,63 @@ public class OperationRegistry
             case RUNNING -> sb.append( "\nStill running. Poll again, or cancelOperation(operationId=\"" ).append( operation.getId() ).append( "\").\n" );
         }
 
+        // Typed intermediate results — e.g. JUnit summary/results published per test.
+        Map<String, String> allResults = operation.getIntermediateResults();
+        if ( !allResults.isEmpty() )
+        {
+            if ( includeResults != null && !includeResults.isBlank() )
+            {
+                // Caller asked for specific types or all — show them.
+                appendIntermediateResults( sb, allResults, includeResults );
+            }
+            else
+            {
+                // Not requested — show a hint, like the console output hint.
+                String qualifier = operation.isTerminal() ? "final" : "intermediate";
+                String keys = String.join( ", ", allResults.keySet() );
+                sb.append( "\nResults: " ).append( qualifier )
+                  .append( " results available (" ).append( keys ).append( "). " )
+                  .append( "Ask for them with includeResults (e.g. includeResults=\"all\").\n" );
+            }
+        }
+
         appendOutput( sb, operation, outputOffset, outputLimit );
         return sb.toString();
     }
+
+    private void appendIntermediateResults( StringBuilder sb, Map<String, String> allResults,
+                                             String includeResults )
+    {
+        // Determine which keys to show
+        Set<String> wantedKeys;
+        if ( includeResults == null || includeResults.isBlank()
+                || "all".equalsIgnoreCase( includeResults.trim() ) )
+        {
+            wantedKeys = allResults.keySet();  // all keys
+        }
+        else
+        {
+            wantedKeys = new java.util.LinkedHashSet<>();
+            for ( String part : includeResults.split( "," ) )
+            {
+                String key = part.trim();
+                if ( !key.isEmpty() )
+                {
+                    wantedKeys.add( key );
+                }
+            }
+        }
+
+        for ( String key : wantedKeys )
+        {
+            String value = allResults.get( key );
+            if ( value != null && !value.isBlank() )
+            {
+                sb.append( "\n[" ).append( key ).append( "]\n" ).append( value ).append( "\n" );
+            }
+        }
+    }
+
 
     private void appendOutput( StringBuilder sb, Operation operation, int outputOffset, int outputLimit )
     {

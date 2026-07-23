@@ -20,44 +20,37 @@ public class PromptRepository
 {
     @Inject
     ILog logger;
-    
+
     @Inject
     public PromptRepository( ILog logger )
     {
         Objects.requireNonNull( logger );
         this.logger = logger;
     }
-    
+
     public IPreferenceStore getPreferenceStore()
     {
         return Activator.getDefault().getPreferenceStore();
     }
-    
-    public String getPrompt( String key )
+
+    public String getPrompt( Prompts prompt )
     {
-        try
-        {
-            var prompt = Prompts.valueOf( key );
-            return getPreferenceStore().getString( prompt.preferenceName() );
-        }
-        catch ( Exception e )
-        {
-            if ( getPreferenceStore().contains( key ) )
-            {
-                return getPreferenceStore().getString( key );
-            }
-            logger.error(e.getMessage(), e);
-            return "";
-        }
+        return getPreferenceStore().getString( prompt.preferenceName() );
     }
-    
+
     public void setDefaultValue( String key, String promptText )
     {
-        
     }
-    public void setPrompt( String key, String promptText )
+
+    public void setPrompt( Prompts prompt, String promptText )
     {
-        getPreferenceStore().setValue( key, promptText );
+        getPreferenceStore().setValue( prompt.preferenceName(), promptText );
+    }
+
+    /** Backward-compatible overload that accepts a raw preference key string. */
+    public void setPrompt( String preferenceName, String promptText )
+    {
+        getPreferenceStore().setValue( preferenceName, promptText );
     }
 
     public String getPromptByIndex( int index )
@@ -65,7 +58,7 @@ public class PromptRepository
         var prompt = getPreferenceStore().getString( getPreferenceName( index ) );
         return prompt;
     }
-    
+
     private String getPreferenceName( int index )
     {
         return Prompts.values()[index].preferenceName();
@@ -91,20 +84,21 @@ public class PromptRepository
                      .filter( commandName -> commandName.startsWith( group ) )
                      .toList();
     }
+
     public Optional<Prompts> findPromptByCommandName( String name )
     {
         return Arrays.stream( Prompts.values() )
                      .filter( prompt -> prompt.getCommandName().equals( name ) )
                      .findFirst();
     }
+
     public List<String> listCommands()
     {
         return Arrays.stream( Prompts.values() ).map( Prompts::getCommandName ).toList();
     }
-    
+
     public List<Prompts> getAllPrompts()
     {
         return Arrays.stream( Prompts.values() ).toList();
     }
 }
-

@@ -330,7 +330,7 @@ public class CodeAnalysisService
                         }
                     }
 
-                    // Context snippet â any marker attached to an IFile with a line number
+                    // Context snippet - any marker attached to an IFile with a line number
                     if (lineNumber != null && marker.getResource() instanceof IFile ifile)
                     {
                         try 
@@ -704,7 +704,7 @@ public class CodeAnalysisService
      * Appends a quick-fix block for {@code marker} to {@code sb}.
      * Produces numbered proposals with descriptions and a hint to the LLM to
      * call {@code executeQuickFix} with the chosen index.
-     * Best-effort â any exception is silently swallowed.
+     * Best-effort - any exception is silently swallowed.
      *
      * @param marker the problem marker
      * @param sb     the builder to append to
@@ -742,7 +742,7 @@ public class CodeAnalysisService
 
 
     /**
-     * Unified quick fix descriptor â wraps either a JDT IJavaCompletionProposal
+     * Unified quick fix descriptor - wraps either a JDT IJavaCompletionProposal
      * or a platform IMarkerResolution so both can be presented and applied uniformly.
      */
     private record QuickFix(String label, String description, java.util.function.Consumer<IMarker> applyFn)

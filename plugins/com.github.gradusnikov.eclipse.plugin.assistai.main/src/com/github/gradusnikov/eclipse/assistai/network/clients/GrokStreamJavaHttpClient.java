@@ -102,7 +102,7 @@ public class GrokStreamJavaHttpClient extends AbstractLanguageModelClient
             var messages = new ArrayList<Map<String, Object>>();
 
             // System message
-            String systemPrompt = promptRepository.getPrompt( Prompts.SYSTEM.name() );
+            String systemPrompt = promptRepository.getPrompt( Prompts.SYSTEM );
             
             // Inject cached resources block at the beginning of system prompt
             String resourcesBlock = resourceCache.toContextBlock();

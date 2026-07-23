@@ -126,7 +126,7 @@ public class AnthropicStreamJavaHttpClient extends AbstractLanguageModelClient
             var messages = new ArrayList<Map<String, Object>>();
 
             // System message should be placed in system key, not in messages array for Anthropic
-            String systemPrompt =  promptRepository.getPrompt(  Prompts.SYSTEM.name() );
+            String systemPrompt =  promptRepository.getPrompt( Prompts.SYSTEM );
             
             // Inject cached resources block at the beginning of system prompt
             String resourcesBlock = resourceCache.toContextBlock();

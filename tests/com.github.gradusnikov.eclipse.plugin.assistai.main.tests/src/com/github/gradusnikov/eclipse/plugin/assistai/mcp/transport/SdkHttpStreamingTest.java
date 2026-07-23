@@ -45,7 +45,7 @@ import jakarta.servlet.Servlet;
  * Must be run as a <em>JUnit Plug-in Test</em> (PDE launcher) so that real OSGi
  * classloader boundaries are active. Running as a plain JUnit test will not reproduce:
  * <ul>
- *   <li>{@code ServiceLoader} failures in {@code McpJsonDefaults} â the Jackson
+ *   <li>{@code ServiceLoader} failures in {@code McpJsonDefaults} - the Jackson
  *       provider is on the main plugin's {@code Bundle-Classpath} and is invisible
  *       to {@code mcp-core}'s classloader in OSGi</li>
  *   <li>Split-package {@code IncompatibleClassChangeError} for
@@ -167,7 +167,7 @@ public class SdkHttpStreamingTest
             .tools(syncToolSpecification)
             .build();
         
-        // Disable Tomcat's URLStreamHandlerFactory registration â inside OSGi (Eclipse/Equinox)
+        // Disable Tomcat's URLStreamHandlerFactory registration - inside OSGi (Eclipse/Equinox)
         // the JVM URL stream handler factory is already set by Equinox at startup.
         // Attempting to register again throws java.lang.Error: factory already defined.
         org.apache.catalina.webresources.TomcatURLStreamHandlerFactory.disable();

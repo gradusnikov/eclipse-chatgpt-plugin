@@ -306,7 +306,7 @@ public class ResourceCache implements IResourceChangeListener {
         
         return resources.values().stream()
             .map(CachedResource::toSummary)
-            .collect(Collectors.joining("\nâ¢ ", "â¢ ", ""));
+            .collect(Collectors.joining("\n- ", "- ", ""));
     }
     
     /**

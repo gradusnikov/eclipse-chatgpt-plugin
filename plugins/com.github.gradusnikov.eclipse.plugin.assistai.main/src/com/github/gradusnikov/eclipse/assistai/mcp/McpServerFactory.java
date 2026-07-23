@@ -298,19 +298,55 @@ public class McpServerFactory
             this.operationRegistry = operationRegistry;
         }
 
-        @Tool( name = "getOperationStatus", description = "Reports on a long running operation started by another tool: its state, how long it has been running, progress, the result once it finishes, and optionally a page of its output.", type = "object" )
+        @Tool( name = "getOperationStatus",
+               description = "Reports on a long running operation: its state, elapsed time, progress, "
+                   + "result once finished, and optionally process output and/or typed intermediate results "
+                   + "(e.g. JUnit 'summary' or 'results' published per test while the run is still going). "
+                   + "When waitSeconds is omitted, an auto-increasing backoff is used per operation: "
+                   + "2 s, 3 s, 5 s, 10 s, 15 s (capped). Pass an explicit value to override. "
+                   + "While the operation is RUNNING, all published intermediate results are always shown. "
+                   + "After it finishes, pass includeResults to retrieve specific types.",
+               type = "object" )
         public String getOperationStatus(
-                @ToolParam( name = "operationId", description = "The operationId handed back by the tool that started the work (e.g. 'op-3'). Use listOperations if you lost it." )
+                @ToolParam( name = "operationId",
+                            description = "The operationId handed back by the tool that started "
+                                + "the work (e.g. 'op-3'). Use listOperations if you lost it." )
                 String operationId,
-                @ToolParam( name = "outputOffset", description = "0-based index of the first output line to return. Negative counts back from the end, so '-100' is the last 100 lines. Default: 0.", required = false )
+                @ToolParam( name = "outputOffset",
+                            description = "0-based index of the first output line to return. "
+                                + "Negative counts back from the end, so '-100' is the last 100 lines. Default: 0.",
+                            required = false )
                 String outputOffset,
-                @ToolParam( name = "outputLimit", description = "Number of output lines to return (default: 0, meaning none). The reply reports the total and the next offset.", required = false )
+                @ToolParam( name = "outputLimit",
+                            description = "Number of output lines to return (default: 0, meaning none). "
+                                + "The reply reports the total and the next offset.",
+                            required = false )
                 String outputLimit,
-                @ToolParam( name = "waitSeconds", description = "Block up to this many seconds for the operation to finish before replying (default: 0, reply immediately).", required = false )
-                String waitSeconds )
+                @ToolParam( name = "waitSeconds",
+                            description = "Seconds to block for the operation to finish before replying. "
+                                + "Omit (or pass null) to use the automatic backoff sequence "
+                                + "(2 s → 3 s → 5 s → 10 s → 15 s). Pass 0 to reply immediately.",
+                            required = false )
+                String waitSeconds,
+                @ToolParam( name = "includeResults",
+                            description = "Comma-separated result-type keys to include in the reply "
+                                + "(e.g. 'summary', 'results', 'summary,results'), or 'all' for every type. "
+                                + "When omitted, only a hint is shown listing the available types and their "
+                                + "qualifier ('intermediate' if still running, 'final' if finished), "
+                                + "similar to how console output is hinted when outputLimit is not set.",
+                            required = false )
+                String includeResults )
         {
-            return operationRegistry.getOperationStatus( operationId, intArg( outputOffset, 0 ), intArg( outputLimit, 0 ), intArg( waitSeconds, 0 ) );
+            // null/blank waitSeconds → -1 → auto-backoff in the registry
+            int wait = ( waitSeconds == null || waitSeconds.isBlank() ) ? -1 : intArg( waitSeconds, 0 );
+            return operationRegistry.getOperationStatus(
+                operationId,
+                intArg( outputOffset, 0 ),
+                intArg( outputLimit, 0 ),
+                wait,
+                ( includeResults == null || includeResults.isBlank() ) ? null : includeResults );
         }
+
 
         @Tool( name = "listOperations", description = "Lists long running operations - those still running and the last few that finished - with their operationId, state and elapsed time.", type = "object" )
         public String listOperations()

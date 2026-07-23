@@ -6,6 +6,10 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
@@ -199,58 +203,98 @@ public class JavaLaunchService
     }
 
     /**
-     * Lists all saved launch configurations in the workspace, with their type and
-     * (for Java application configurations) project and main class. Use this to
-     * discover the exact name to pass to {@link #launchConfiguration}.
+     * Lists all saved launch configurations in the workspace as a JSON array.
+     * Each entry contains name, typeId, typeName, projectName, and mainClass.
+     * Use this to discover the exact name to pass to {@link #launchConfiguration}.
      *
-     * @return A formatted list of launch configurations
+     * @return JSON array of launch configuration descriptors
      */
     public String listLaunchConfigurations()
+    {
+        return listLaunchConfigurations( null );
+    }
+
+    /**
+     * Lists saved launch configurations in the workspace as a JSON array,
+     * optionally filtered by type.
+     *
+     * <p>Recognised {@code typeFilter} values:
+     * <ul>
+     *   <li>{@code null}, {@code ""} or {@code "all"} — return every configuration</li>
+     *   <li>{@code "junit"} — only {@code org.eclipse.jdt.junit.launchconfig}</li>
+     *   <li>{@code "junit-plugin"} — only {@code org.eclipse.pde.ui.JunitLaunchConfig}</li>
+     *   <li>any other string — substring match against the type identifier</li>
+     * </ul>
+     *
+     * @param typeFilter optional filter (see above)
+     * @return JSON array of launch configuration descriptors, e.g.
+     *         {@code [{"name":"...","typeId":"...","typeName":"...","projectName":"...","mainClass":"..."}]}
+     */
+    public String listLaunchConfigurations( String typeFilter )
     {
         try
         {
             ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
             ILaunchConfiguration[] configurations = launchManager.getLaunchConfigurations();
 
-            if (configurations.length == 0)
-            {
-                return "No launch configurations found.";
-            }
+            ObjectMapper mapper = new ObjectMapper();
+            ArrayNode array = mapper.createArrayNode();
 
-            var result = new StringBuilder();
-            result.append("Launch configurations (").append(configurations.length).append("):\n");
-
-            for (ILaunchConfiguration configuration : configurations)
+            for ( ILaunchConfiguration config : configurations )
             {
-                result.append("- ").append(configuration.getName());
+                String typeId   = "";
+                String typeName = "";
                 try
                 {
-                    result.append(" [").append(configuration.getType().getName()).append("]");
+                    ILaunchConfigurationType t = config.getType();
+                    typeId   = t.getIdentifier();
+                    typeName = t.getName();
                 }
-                catch (CoreException e) { /* type unavailable - skip */ }
+                catch ( CoreException ignored ) {}
 
-                String projectName = configuration.getAttribute(
-                        IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, "");
-                String mainType = configuration.getAttribute(
-                        IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "");
-                if (!projectName.isEmpty())
+                if ( !matchesTypeFilter( typeId, typeFilter ) )
                 {
-                    result.append(" project=").append(projectName);
+                    continue;
                 }
-                if (!mainType.isEmpty())
-                {
-                    result.append(" main=").append(mainType);
-                }
-                result.append("\n");
+
+                String projectName = config.getAttribute(
+                        IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, "" );
+                String mainClass = config.getAttribute(
+                        IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "" );
+
+                ObjectNode entry = mapper.createObjectNode();
+                entry.put( "name", config.getName() );
+                if ( !typeId.isEmpty()   ) entry.put( "typeId",      typeId );
+                if ( !typeName.isEmpty() ) entry.put( "typeName",     typeName );
+                if ( !projectName.isEmpty() ) entry.put( "projectName", projectName );
+                if ( !mainClass.isEmpty()   ) entry.put( "mainClass",   mainClass );
+                array.add( entry );
             }
 
-            return result.toString();
+            return mapper.writeValueAsString( array );
         }
-        catch (Exception e)
+        catch ( Exception e )
         {
-            logger.error("Error listing launch configurations", e);
+            logger.error( "Error listing launch configurations", e );
             return "Error: " + e.getMessage();
         }
+    }
+
+    /**
+     * Returns true if the given type identifier matches the requested filter.
+     */
+    private boolean matchesTypeFilter( String typeId, String typeFilter )
+    {
+        if ( typeFilter == null || typeFilter.isBlank() || "all".equalsIgnoreCase( typeFilter ) )
+        {
+            return true;
+        }
+        return switch ( typeFilter.toLowerCase() )
+        {
+            case "junit"        -> "org.eclipse.jdt.junit.launchconfig".equals( typeId );
+            case "junit-plugin" -> "org.eclipse.pde.ui.JunitLaunchConfig".equals( typeId );
+            default             -> typeId.toLowerCase().contains( typeFilter.toLowerCase() );
+        };
     }
 
     /**
