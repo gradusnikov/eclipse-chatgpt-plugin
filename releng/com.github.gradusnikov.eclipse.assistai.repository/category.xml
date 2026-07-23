@@ -79,6 +79,11 @@
     <category name="assistai-deps"/>
   </bundle>
 
+  <!-- Vineflower Java decompiler -->
+  <bundle id="wrapped.org.vineflower.vineflower" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+
   <!-- jsoup -->
   <bundle id="org.jsoup" version="0.0.0">
     <category name="assistai-deps"/>
