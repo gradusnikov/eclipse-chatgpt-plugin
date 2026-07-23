@@ -145,7 +145,7 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | insertIntoFile | Inserts content at a specific position in an existing file |
 | replaceString | Replaces a specific string in a file, optionally within a line range |
 | applyPatch | Atomically applies a validated unified diff, preserves line endings, supports multi-hunk edits, creates an undo backup, and reveals the first changed line |
-| formatFile | Formats a Java file using Eclipse's code formatter |
+| formatFile | Formats a file using its registered Eclipse editor formatter (Java, XML, JSON, HTML, SQL, and other supported editors) |
 | undoEdit | Restores a file from its backup (undo last edit) |
 | createDirectories | Creates a directory structure recursively |
 | renameFile | Renames a file in a project |

@@ -12,13 +12,16 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.eclipse.core.commands.ParameterizedCommand;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFileState;
@@ -51,6 +54,9 @@ import org.eclipse.jdt.core.refactoring.IJavaRefactorings;
 import org.eclipse.jdt.core.refactoring.descriptors.MoveDescriptor;
 import org.eclipse.jdt.core.refactoring.descriptors.RenameJavaElementDescriptor;
 import org.eclipse.jdt.core.search.TypeNameMatch;
+import org.eclipse.jface.bindings.Binding;
+import org.eclipse.jface.bindings.keys.KeySequence;
+import org.eclipse.jface.bindings.keys.KeyStroke;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.Document;
 import org.eclipse.jface.text.IDocument;
@@ -60,6 +66,7 @@ import org.eclipse.jgit.diff.HistogramDiff;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.ltk.core.refactoring.Change;
+import org.eclipse.swt.SWT;
 import org.eclipse.ltk.core.refactoring.Refactoring;
 import org.eclipse.ltk.core.refactoring.RefactoringContribution;
 import org.eclipse.ltk.core.refactoring.RefactoringCore;
@@ -75,6 +82,8 @@ import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.ide.IDE;
+import org.eclipse.ui.handlers.IHandlerService;
+import org.eclipse.ui.keys.IBindingService;
 import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.texteditor.ITextEditor;
 
@@ -798,7 +807,8 @@ public class CodeEditingService
     }
 
     /**
-     * Formats an entire Java file using Eclipse's code formatter.
+     * Formats an entire file. Java uses JDT directly; other file types use the
+     * formatter contributed by their registered Eclipse editor.
      *
      * @param projectName
      *            The project name
@@ -830,28 +840,129 @@ public class CodeEditingService
             // Read the file content
             String originalContent = ResourceUtilities.readFileContent( file );
 
-            // Format using Eclipse's formatter
-            String formattedContent = formatCode( originalContent, projectName );
+            // Format using the language-aware formatter
+            String formatter;
+            String formattedContent;
+            if ( "java".equalsIgnoreCase( file.getFileExtension() ) )
+            {
+                formatter = "JDT Java formatter";
+                formattedContent = formatCode( originalContent, projectName );
+            }
+            else
+            {
+                formatter = formatUsingRegisteredEditor( file );
+                formattedContent = ResourceUtilities.readFileContent( file );
+            }
 
             if ( formattedContent.equals( originalContent ) )
             {
-                return "File '" + filePath + "' is already properly formatted.";
+                return "File '" + filePath + "' is already properly formatted by " + formatter + ".";
             }
 
             // Write back
             try (ByteArrayInputStream source = new ByteArrayInputStream( formattedContent.getBytes( Charset.forName( file.getCharset() ) ) ))
             {
-                file.setContents( source, IResource.FORCE, null );
+                if ( "java".equalsIgnoreCase( file.getFileExtension() ) )
+                {
+                    file.setContents( source, IResource.FORCE, null );
+                }
             }
 
             String workspaceState = synchronizeAfterEdit( file, 1 );
 
-            String diff = generateCodeDiff( projectName, filePath, formattedContent, 3 );
-            return "Success: File '" + filePath + "' formatted.\nChanges:\n```diff\n" + diff + "\n```" + workspaceState;
+
+            return "Success: File '" + filePath + "' formatted using " + formatter + "." + workspaceState;
         }
         catch ( Exception e )
         {
             throw new RuntimeException( "Error formatting file: " + e.getMessage(), e );
+        }
+    }
+
+    /**
+     * Invokes the active editor's context-sensitive Format action and saves the
+     * result. This resolves the same platform binding used by Ctrl/Cmd+Shift+F
+     * so any installed editor can supply the formatter.
+     */
+    protected String formatUsingRegisteredEditor( IFile file ) throws Exception
+    {
+        AtomicReference<String> formatterCommand = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        sync.syncExec( () -> {
+            try
+            {
+                if ( !PlatformUI.isWorkbenchRunning() )
+                {
+                    throw new IllegalStateException( "The Eclipse workbench is not running." );
+                }
+
+                IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+                if ( window == null || window.getActivePage() == null )
+                {
+                    throw new IllegalStateException( "No active Eclipse workbench window is available." );
+                }
+
+                IWorkbenchPage page = window.getActivePage();
+                IEditorPart editor = IDE.openEditor( page, file );
+                page.activate( editor );
+                editor.setFocus();
+                ITextEditor textEditor = editor instanceof ITextEditor directEditor ? directEditor : editor.getAdapter( ITextEditor.class );
+                if ( textEditor != null )
+                {
+                    textEditor.selectAndReveal( 0, 0 );
+                }
+
+                IBindingService bindingService = editor.getSite().getService( IBindingService.class );
+                KeySequence formatKeys = KeySequence.getInstance( KeyStroke.getInstance( SWT.MOD1 | SWT.SHIFT, 'F' ) );
+                Binding binding = bindingService == null ? null : bindingService.getPerfectMatch( formatKeys );
+                ParameterizedCommand command = binding == null ? null : binding.getParameterizedCommand();
+                if ( !isFormatCommand( command ) )
+                {
+                    throw new IllegalStateException( "The editor for '" + file.getName() + "' does not contribute a Format command." );
+                }
+
+                IHandlerService handlerService = editor.getSite().getService( IHandlerService.class );
+                if ( handlerService == null )
+                {
+                    throw new IllegalStateException( "The editor for '" + file.getName() + "' does not provide a command handler." );
+                }
+
+                handlerService.executeCommand( command, null );
+                editor.doSave( new NullProgressMonitor() );
+                formatterCommand.set( command.getId() );
+            }
+            catch ( Exception e )
+            {
+                failure.set( e );
+            }
+        } );
+
+        if ( failure.get() != null )
+        {
+            throw failure.get();
+        }
+        file.refreshLocal( IResource.DEPTH_ZERO, null );
+        return formatterCommand.get();
+    }
+
+    static boolean isFormatCommand( ParameterizedCommand command )
+    {
+        if ( command == null )
+        {
+            return false;
+        }
+        if ( command.getId().toLowerCase( Locale.ROOT ).contains( "format" ) )
+        {
+            return true;
+        }
+        try
+        {
+            return command.getName().toLowerCase( Locale.ROOT ).contains( "format" );
+        }
+        catch ( Exception e )
+        {
+            return false;
         }
     }
 

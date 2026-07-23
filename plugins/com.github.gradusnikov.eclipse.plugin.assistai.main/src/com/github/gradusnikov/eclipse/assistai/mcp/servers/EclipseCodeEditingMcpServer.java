@@ -231,10 +231,10 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.applyPatch(projectName, filePath, patch, showPatchDialog);
     }
 
-    @Tool(name="formatFile", description="Formats an entire Java file using Eclipse's code formatter (equivalent to Ctrl+Shift+F). Applies the project-specific or workspace formatter settings.", type="object")
+    @Tool(name="formatFile", description="Formats an entire file using its registered Eclipse editor's formatter (equivalent to Ctrl/Cmd+Shift+F). Java files use JDT directly; formats such as XML, JSON, HTML, and SQL use the formatter contributed by the installed editor.", type="object")
     public String formatFile(
         @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
-        @ToolParam(name="filePath", description="The path to the Java file relative to the project root. Do not include project name!", required=true) String filePath)
+        @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath)
     {
         return codeEditingService.formatFile(projectName, filePath);
     }

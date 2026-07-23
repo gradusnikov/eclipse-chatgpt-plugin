@@ -600,6 +600,34 @@ public class ApplicationNew {
     }
 
 	
+    @Test
+    public void testFormatFileUsesRegisteredEditorForNonJavaResource() throws Exception
+    {
+        IFile file = createFile( "src/settings.json", "{\"enabled\":true}" );
+        CodeEditingService editorBackedService = new CodeEditingService()
+        {
+            @Override
+            protected String formatUsingRegisteredEditor( IFile target ) throws Exception
+            {
+                String formatted = "{\n  \"enabled\": true\n}\n";
+                try (ByteArrayInputStream source = new ByteArrayInputStream( formatted.getBytes() ))
+                {
+                    target.setContents( source, IResource.FORCE, null );
+                }
+                return "test.json.format";
+            }
+        };
+        editorBackedService.logger = service.logger;
+        editorBackedService.sync = service.sync;
+        editorBackedService.resourceCache = resourceCache;
+
+        String result = editorBackedService.formatFile( TEST_PROJECT_NAME, "src/settings.json" );
+
+        assertEquals( "{\n  \"enabled\": true\n}\n", ResourceUtilities.readFileContent( file ) );
+        assertTrue( result.contains( "formatted using test.json.format" ) );
+        assertTrue( result.contains( "Workspace state: saved=true" ) );
+    }
+
     private IFile createFile(String path, String content) throws CoreException {
         IFile file = project.getFile(new Path(path));
         ByteArrayInputStream source = new ByteArrayInputStream(content.getBytes());

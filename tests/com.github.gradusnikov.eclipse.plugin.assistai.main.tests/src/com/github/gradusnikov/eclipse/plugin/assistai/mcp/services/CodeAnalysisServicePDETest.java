@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.UUID;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
@@ -40,7 +41,8 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeAnalysisService;
 
 public class CodeAnalysisServicePDETest {
 
-    private static final String TEST_PROJECT_NAME = "CodeAnalysisTestProject";
+    private static final String TEST_PROJECT_NAME_PREFIX = "CodeAnalysisTestProject";
+    private String testProjectName;
     private IProject project;
     private IJavaProject javaProject;
     private CodeAnalysisService service;
@@ -55,9 +57,10 @@ public class CodeAnalysisServicePDETest {
         workspaceTracker.open();
         IWorkspace workspace = workspaceTracker.getService();
         IWorkspaceRoot root = workspace.getRoot();
+        testProjectName = TEST_PROJECT_NAME_PREFIX + "_" + UUID.randomUUID();
         
         // Delete the project if it exists
-        project = root.getProject(TEST_PROJECT_NAME);
+        project = root.getProject(testProjectName);
         if (project.exists()) {
             project.delete(true, true, monitor);
         }
@@ -65,7 +68,7 @@ public class CodeAnalysisServicePDETest {
         // Create a test project â create plain (closed), then open, then add natures.
         // Natures MUST be added via setDescription() on an already-open project so that
         // JavaNature.configure() is invoked and registers javabuilder in the build spec.
-        project = root.getProject(TEST_PROJECT_NAME);
+        project = root.getProject(testProjectName);
         IProjectDescription desc = project.getWorkspace().newProjectDescription(project.getName());
         project.create(desc, monitor);
         project.open(monitor);
@@ -151,14 +154,25 @@ public class CodeAnalysisServicePDETest {
         });
 
         if (project != null && project.exists()) {
-            // On Windows, file buffers may not release immediately. Retry a few times.
-            for (int attempt = 0; attempt < 5; attempt++) {
+            // Closing the project releases JDT and file-buffer handles before the
+            // Windows filesystem deletion. Antivirus/indexer locks can still lag,
+            // so retry the destructive part for a bounded period.
+            if (project.isOpen()) {
+                project.close(monitor);
+            }
+            for (int attempt = 0; attempt < 10; attempt++) {
                 try {
                     project.delete(true, true, monitor);
                     break;
                 } catch (CoreException e) {
-                    if (attempt == 4) throw e;
-                    Thread.sleep(500);
+                    if (attempt == 9) {
+                        // The launch workspace is disposable. Remove the project from
+                        // the workspace even if an external Windows process still owns
+                        // a file handle; the unique location cannot affect another test.
+                        project.delete(false, true, monitor);
+                        break;
+                    }
+                    Thread.sleep(1000);
                 }
             }
         }
@@ -215,7 +229,7 @@ public class CodeAnalysisServicePDETest {
         
         // Test getting compilation errors for the project
         String result = service.getCompilationErrors(
-                TEST_PROJECT_NAME, 
+                testProjectName, 
                 "ALL", 
                 50);
         
@@ -243,7 +257,7 @@ public class CodeAnalysisServicePDETest {
         
         // Test getting only ERROR severity problems
         String errorResult = service.getCompilationErrors(
-                TEST_PROJECT_NAME, 
+                testProjectName, 
                 "ERROR", 
                 50);
         
@@ -251,7 +265,7 @@ public class CodeAnalysisServicePDETest {
         
         // Test getting only WARNING severity problems
         String warningResult = service.getCompilationErrors(
-                TEST_PROJECT_NAME, 
+                testProjectName, 
                 "WARNING", 
                 50);
         
@@ -290,7 +304,7 @@ public class CodeAnalysisServicePDETest {
         org.junit.jupiter.api.Assumptions.assumeTrue(markers.length > 0,
                 "No error markers generated - Java builder not active in this environment");
 
-        String result = service.getCompilationErrors(TEST_PROJECT_NAME, "ALL", 50);
+        String result = service.getCompilationErrors(testProjectName, "ALL", 50);
         System.out.println("getCompilationErrors (with quick fixes) result:\n" + result);
 
         assertTrue(result.contains("Marker ID:"), "Should contain Marker ID");
@@ -325,7 +339,7 @@ public class CodeAnalysisServicePDETest {
                 "No error markers on FixMe.java â Java builder not active in this environment");
 
         // Obtain marker ID the same way an LLM would: via getCompilationErrors
-        String errorsResult = service.getCompilationErrors(TEST_PROJECT_NAME, "ALL", 50);
+        String errorsResult = service.getCompilationErrors(testProjectName, "ALL", 50);
         System.out.println("getCompilationErrors before apply:\n" + errorsResult);
         assertTrue(errorsResult.contains("Marker ID:"), "Errors result must contain a Marker ID");
 
