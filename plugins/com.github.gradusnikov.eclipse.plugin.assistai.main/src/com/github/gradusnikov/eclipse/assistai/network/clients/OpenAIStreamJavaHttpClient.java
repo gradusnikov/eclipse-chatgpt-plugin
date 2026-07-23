@@ -92,7 +92,7 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient {
 			var systemMessage = new LinkedHashMap<String, Object>();
 			systemMessage.put("role", "developer");
 
-			String systemPrompt = promptRepository.getPrompt(Prompts.SYSTEM.name());
+			String systemPrompt = promptRepository.getPrompt( Prompts.SYSTEM );
 
 			// Inject cached resources block at the beginning of system prompt
 			String resourcesBlock = resourceCache.toContextBlock();

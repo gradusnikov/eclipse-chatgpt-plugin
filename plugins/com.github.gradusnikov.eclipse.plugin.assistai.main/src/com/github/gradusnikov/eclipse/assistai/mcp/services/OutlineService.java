@@ -46,7 +46,7 @@ public class OutlineService
 
     /**
      * Returns a compact outline of a Java class: class declaration, fields,
-     * method signatures (no bodies), and inner types â all with line numbers.
+     * method signatures (no bodies), and inner types - all with line numbers.
      */
     public ResourceToolResult getClassOutline(String fullyQualifiedClassName, boolean includeFields)
     {

@@ -1,7 +1,7 @@
 package com.github.gradusnikov.eclipse.plugin.assistai.mcp.services;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -44,6 +44,8 @@ import org.osgi.framework.FrameworkUtil;
 import org.osgi.util.tracker.ServiceTracker;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CoverageService;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.TestRunManager;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.TestRunSession;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.UnitTestService;
 
 @TestInstance( TestInstance.Lifecycle.PER_CLASS )
@@ -54,6 +56,7 @@ public class CoverageServiceTest
 
     private CoverageService coverageService;
     private UnitTestService unitTestService;
+    private TestRunManager testRunManager;
 
     @BeforeAll
     public void setUp() throws Exception
@@ -91,6 +94,7 @@ public class CoverageServiceTest
 
         coverageService = ContextInjectionFactory.make( CoverageService.class, context );
         unitTestService = ContextInjectionFactory.make( UnitTestService.class, context );
+        testRunManager  = ContextInjectionFactory.make( TestRunManager.class, context );
 
         createTestProject();
     }
@@ -131,7 +135,6 @@ public class CoverageServiceTest
                 }
                 catch ( CoreException e2 )
                 {
-                    // Project exists but cannot be deleted; reuse it
                     testProject.open( monitor );
                     return;
                 }
@@ -202,6 +205,25 @@ public class CoverageServiceTest
         pkg.createCompilationUnit( "CalculatorTest.java", testSource, true, monitor );
 
         testProject.build( org.eclipse.core.resources.IncrementalProjectBuilder.FULL_BUILD, monitor );
+    }
+
+    // -------------------------------------------------------------------------
+    // Helper: wait for a run to complete
+    // -------------------------------------------------------------------------
+
+    private String waitForRun( String runId, int timeoutSeconds ) throws InterruptedException
+    {
+        long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
+        while ( System.currentTimeMillis() < deadline )
+        {
+            TestRunSession session = testRunManager.getSession( runId );
+            if ( session != null && session.getState() != TestRunSession.State.RUNNING )
+            {
+                return testRunManager.formatResults( session );
+            }
+            Thread.sleep( 500 );
+        }
+        return "Error: Timed out waiting for test run " + runId;
     }
 
     // -------------------------------------------------------------------------
@@ -291,7 +313,8 @@ public class CoverageServiceTest
         try ( FileOutputStream fos = new FileOutputStream( tempExec.toFile() ) )
         {
             ExecutionDataWriter writer = new ExecutionDataWriter( fos );
-            writer.visitSessionInfo( new SessionInfo( "test-session", System.currentTimeMillis() - 1000, System.currentTimeMillis() ) );
+            writer.visitSessionInfo( new SessionInfo( "test-session",
+                System.currentTimeMillis() - 1000, System.currentTimeMillis() ) );
         }
 
         try
@@ -312,18 +335,25 @@ public class CoverageServiceTest
 
     @Test
     @Order( 10 )
-    public void testRunClassTests_withoutCoverage_passes()
+    public void testRunClassTests_withoutCoverage_passes() throws InterruptedException
     {
-        String result = unitTestService.runClassTests( TEST_PROJECT_NAME, "com.example.CalculatorTest", 60, false );
-        System.out.println( "runClassTests without coverage: " + result );
+        String runId = unitTestService.startClassTests( TEST_PROJECT_NAME, "com.example.CalculatorTest", false );
+        assertNotNull( runId, "Expected a non-null run ID" );
+        assertFalse( runId.isBlank(), "Expected a non-blank run ID" );
 
-        assumeTrue( !result.contains( "Error running tests" ),
+        String result = waitForRun( runId, 60 );
+        System.out.println( "startClassTests without coverage: " + result );
+
+        assumeTrue( !result.contains( "Error:" ),
             "Skipping: test runtime does not support nested JUnit launches (" + result + ")" );
 
         assertTrue( result.contains( "Passed" ) || result.contains( "passed" ) || result.contains( "OK" ),
             "Expected passing test result, got: " + result );
-        assertTrue( !result.contains( "--- Coverage ---" ),
-            "Should NOT contain coverage section when withCoverage=false" );
+
+        TestRunSession session = testRunManager.getSession( runId );
+        assertNotNull( session );
+        assertTrue( session.getCoverageInfo() == null || session.getCoverageInfo().isEmpty(),
+            "Should NOT contain coverage info when withCoverage=false" );
     }
 
     // -------------------------------------------------------------------------
@@ -337,27 +367,25 @@ public class CoverageServiceTest
         assumeTrue( coverageService.isCoverageAvailable(),
             "Skipping: EclEmma/JaCoCo not installed" );
 
-        String result = unitTestService.runClassTests( TEST_PROJECT_NAME, "com.example.CalculatorTest", 60, true );
-        System.out.println( "runClassTests with coverage: " + result );
+        String runId = unitTestService.startClassTests( TEST_PROJECT_NAME, "com.example.CalculatorTest", true );
+        assertNotNull( runId );
 
-        assumeTrue( !result.contains( "Error running tests" ),
+        String result = waitForRun( runId, 60 );
+        System.out.println( "startClassTests with coverage: " + result );
+
+        assumeTrue( !result.contains( "Error:" ),
             "Skipping: test runtime does not support nested JUnit launches (" + result + ")" );
 
         assertTrue( result.contains( "Passed" ) || result.contains( "passed" ) || result.contains( "OK" ),
             "Expected passing test result, got: " + result );
 
-        if ( !result.contains( "--- Coverage ---" ) )
-        {
-            Thread.sleep( 3000 );
-            String execFile = coverageService.findLatestCoverageFile();
-            assertTrue( execFile != null,
-                "Expected coverage .exec file to be written after test run, but none found. Result: " + result );
-        }
-        else
-        {
-            assertTrue( result.contains( "Coverage data file:" ),
-                "Expected coverage data file path in result, got: " + result );
-        }
+        TestRunSession session = testRunManager.getSession( runId );
+        assertNotNull( session.getCoverageInfo(),
+            "Expected coverage info to be set on session" );
+        assertFalse( session.getCoverageInfo().isEmpty(),
+            "Expected non-empty coverage info" );
+        assertTrue( session.getCoverageInfo().contains( "line coverage" ),
+            "Expected coverage report in coverage info, got: " + session.getCoverageInfo() );
     }
 
     @Test
@@ -367,27 +395,25 @@ public class CoverageServiceTest
         assumeTrue( coverageService.isCoverageAvailable(),
             "Skipping: EclEmma/JaCoCo not installed" );
 
-        String result = unitTestService.runAllTests( TEST_PROJECT_NAME, 60, true );
-        System.out.println( "runAllTests with coverage: " + result );
+        String runId = unitTestService.startAllTests( TEST_PROJECT_NAME, true );
+        assertNotNull( runId );
 
-        assumeTrue( !result.contains( "Error running tests" ),
+        String result = waitForRun( runId, 60 );
+        System.out.println( "startAllTests with coverage: " + result );
+
+        assumeTrue( !result.contains( "Error:" ),
             "Skipping: test runtime does not support nested JUnit launches (" + result + ")" );
 
         assertTrue( result.contains( "Passed" ) || result.contains( "passed" ) || result.contains( "OK" ),
             "Expected passing test result, got: " + result );
 
-        if ( !result.contains( "--- Coverage ---" ) )
-        {
-            Thread.sleep( 3000 );
-            String execFile = coverageService.findLatestCoverageFile();
-            assertTrue( execFile != null,
-                "Expected coverage .exec file to be written after test run, but none found. Result: " + result );
-        }
-        else
-        {
-            assertTrue( result.contains( "Coverage data file:" ),
-                "Expected coverage data file path in result, got: " + result );
-        }
+        TestRunSession session = testRunManager.getSession( runId );
+        assertNotNull( session.getCoverageInfo(),
+            "Expected coverage info to be set on session" );
+        assertFalse( session.getCoverageInfo().isEmpty(),
+            "Expected non-empty coverage info" );
+        assertTrue( session.getCoverageInfo().contains( "line coverage" ),
+            "Expected coverage report in coverage info, got: " + session.getCoverageInfo() );
     }
 
     @Test

@@ -62,7 +62,7 @@ public class CodeAnalysisServiceTest {
             project.delete(true, true, monitor);
         }
         
-        // Create a test project â create plain (closed), then open, then add natures.
+        // Create a test project - create plain (closed), then open, then add natures.
         // Natures MUST be added via setDescription() on an already-open project so that
         // JavaNature.configure() is invoked and registers javabuilder in the build spec.
         project = root.getProject(TEST_PROJECT_NAME);
@@ -70,7 +70,7 @@ public class CodeAnalysisServiceTest {
         project.create(desc, monitor);
         project.open(monitor);
 
-        // Add Java nature to the open project â triggers JavaNature.configure()
+        // Add Java nature to the open project - triggers JavaNature.configure()
         IProjectDescription openDesc = project.getDescription();
         openDesc.setNatureIds(new String[] { JavaCore.NATURE_ID });
         project.setDescription(openDesc, monitor);
@@ -129,7 +129,7 @@ public class CodeAnalysisServiceTest {
     @AfterEach
     public void afterEach() throws CoreException, InterruptedException {
         // Wait for all background build/index jobs to finish before deleting the
-        // project â otherwise JDT still holds file handles and Eclipse shows a
+        // project - otherwise JDT still holds file handles and Eclipse shows a
         // "resource already deleted" dialog.
         Job.getJobManager().join(ResourcesPlugin.FAMILY_MANUAL_BUILD, monitor);
         Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
@@ -322,7 +322,7 @@ public class CodeAnalysisServiceTest {
 
         IMarker[] markersBefore = file.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_ZERO);
         org.junit.jupiter.api.Assumptions.assumeTrue(markersBefore.length > 0,
-                "No error markers on FixMe.java â Java builder not active in this environment");
+                "No error markers on FixMe.java - Java builder not active in this environment");
 
         // Obtain marker ID the same way an LLM would: via getCompilationErrors
         String errorsResult = service.getCompilationErrors(TEST_PROJECT_NAME, "ALL", 50);

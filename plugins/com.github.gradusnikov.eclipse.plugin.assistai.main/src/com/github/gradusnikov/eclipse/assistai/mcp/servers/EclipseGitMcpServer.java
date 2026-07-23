@@ -68,7 +68,7 @@ public class EclipseGitMcpServer
         return gitService.listBranches(projectName, remote);
     }
 
-    @Tool(name = "gitCreateBranch", description = "Creates a new branch. Does not switch to it â use gitCheckout to switch.", type = "object")
+    @Tool(name = "gitCreateBranch", description = "Creates a new branch. Does not switch to it - use gitCheckout to switch.", type = "object")
     public String gitCreateBranch(
             @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
             @ToolParam(name = "branchName", description = "Name of the new branch to create", required = true) String branchName,

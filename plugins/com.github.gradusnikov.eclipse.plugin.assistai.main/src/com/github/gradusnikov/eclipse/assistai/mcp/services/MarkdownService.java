@@ -155,7 +155,7 @@ public class MarkdownService
         }
         catch (NumberFormatException e)
         {
-            // Not a number â search by text (case-insensitive substring match)
+            // Not a number - search by text (case-insensitive substring match)
         }
 
         if (target == null)

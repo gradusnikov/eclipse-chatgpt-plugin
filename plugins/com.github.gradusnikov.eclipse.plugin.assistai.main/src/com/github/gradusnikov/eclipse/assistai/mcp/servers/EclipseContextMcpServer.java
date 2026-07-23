@@ -69,7 +69,7 @@ public class EclipseContextMcpServer
     @Tool(name = "getCachedResource",
           description = "Gets the content of a specific cached resource by URI without re-reading from disk. "
                       + "Use listCachedResources first to see available URIs. "
-                      + "Returns the cached version â fast, no I/O.",
+                      + "Returns the cached version - fast, no I/O.",
           type = "object")
     public String getCachedResource(
             @ToolParam(name = "resourceUri",
@@ -94,7 +94,7 @@ public class EclipseContextMcpServer
         }
         catch ( Exception e )
         {
-            return "Invalid URI: " + resourceUri + " â " + e.getMessage();
+            return "Invalid URI: " + resourceUri + " - " + e.getMessage();
         }
     }
 

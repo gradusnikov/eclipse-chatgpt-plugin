@@ -2662,7 +2662,7 @@ public class CodeEditingService
     {
         if (expectedLines.isEmpty())
         {
-            // Pure insertion hunk â use the hint position directly
+            // Pure insertion hunk - use the hint position directly
             return Math.min(hintPosition, lines.size());
         }
 

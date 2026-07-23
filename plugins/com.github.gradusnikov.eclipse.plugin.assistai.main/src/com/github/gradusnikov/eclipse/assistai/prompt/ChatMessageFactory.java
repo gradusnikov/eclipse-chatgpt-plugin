@@ -56,36 +56,36 @@ public class ChatMessageFactory
     
     private Supplier<String> completionPromptSupplier()
     {
-        return () -> promptRepository.getPrompt( Prompts.COMPLETION.name() );
+        return () -> promptRepository.getPrompt( Prompts.COMPLETION );
     }
     
     private Supplier<String> fixErrorsPromptSupplier( )
     {
-        return () -> promptRepository.getPrompt( Prompts.FIX_ERRORS.name() );
+        return () -> promptRepository.getPrompt( Prompts.FIX_ERRORS );
     }
 
     private Supplier<String> discussCodePromptSupplier()
     {
-        return () -> promptRepository.getPrompt( Prompts.DISCUSS.name() );
+        return () -> promptRepository.getPrompt( Prompts.DISCUSS );
     }
 
     private Supplier<String> javaDocPromptSupplier()
     {
-        return () -> promptRepository.getPrompt( Prompts.DOCUMENT.name() );
+        return () -> promptRepository.getPrompt( Prompts.DOCUMENT );
     }
     private Supplier<String> refactorPromptSupplier()
     {
-        return () -> promptRepository.getPrompt( Prompts.REFACTOR.name() );
+        return () -> promptRepository.getPrompt( Prompts.REFACTOR );
     }
     private Supplier<String> unitTestSupplier( )
     {
-        return () -> promptRepository.getPrompt( Prompts.TEST_CASE.name() );
+        return () -> promptRepository.getPrompt( Prompts.TEST_CASE );
     }
 
     
     public ChatMessage createGenerateGitCommitCommentJob( )
     {
-        Supplier<String> promptSupplier  =  () -> promptRepository.getPrompt( Prompts.GIT_COMMENT.name() );
+        Supplier<String> promptSupplier  =  () -> promptRepository.getPrompt( Prompts.GIT_COMMENT );
         
         return createUserChatMessage( promptSupplier );
     }

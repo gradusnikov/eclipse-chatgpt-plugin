@@ -128,7 +128,7 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
         requestBody.put("model", model.modelName());
         
         // Instructions (system prompt)
-        var systemPrompt = promptRepository.getPrompt( Prompts.SYSTEM.name() );
+        var systemPrompt = promptRepository.getPrompt( Prompts.SYSTEM );
         
         // Inject cached resources block at the beginning of system prompt
         String resourcesBlock = resourceCache.toContextBlock();

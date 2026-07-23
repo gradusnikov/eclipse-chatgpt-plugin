@@ -141,7 +141,7 @@ public class ChatMessageFactoryTest {
     @Test
     public void testCreateUserChatMessage_Document() throws CoreException {
         // Setup test data - use ${currentFileName} which resolves deterministically from the opened file
-        promptRepository.setPrompt(Prompts.DOCUMENT.name(), "Create documentation for ${currentFileName}");
+        promptRepository.setPrompt(Prompts.DOCUMENT, "Create documentation for ${currentFileName}");
         
         IFile testFile = createFile( "/src/Test.java", """
                 publi static void main(String[] args) {

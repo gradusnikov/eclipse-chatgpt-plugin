@@ -20,6 +20,8 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.OutlineService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ProjectService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ResourceService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.SearchService;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.TestRunManager;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.TestRunSession;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.UnitTestService;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceResultSerializer;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
@@ -58,6 +60,9 @@ public class EclipseIntegrationsMcpServer
     private UnitTestService unitTestService;
 
     @Inject
+    private TestRunManager testRunManager;
+
+    @Inject
     private MavenService mavenService;
 
     @Inject
@@ -90,7 +95,7 @@ public class EclipseIntegrationsMcpServer
         return ResourceResultSerializer.serialize(result);
     }
 
-    @Tool(name = "getClassOutline", description = "Returns a compact outline of a Java class: class declaration, field declarations, method signatures (no bodies), and inner types â all with line numbers. Much more token-efficient than getSource for understanding class structure. Use this first, then getMethodSource for specific methods.", type = "object")
+    @Tool(name = "getClassOutline", description = "Returns a compact outline of a Java class: class declaration, field declarations, method signatures (no bodies), and inner types — all with line numbers. Much more token-efficient than getSource for understanding class structure. Use this first, then getMethodSource for specific methods.", type = "object")
     public String getClassOutline(
             @ToolParam(name = "fullyQualifiedClassName", description = "A fully qualified class name (e.g. 'com.example.MyClass')", required = true) String fullyQualifiedClassName,
             @ToolParam(name = "includeFields", description = "Whether to include field declarations (default: true)", required = false) String includeFields)
@@ -219,56 +224,172 @@ public class EclipseIntegrationsMcpServer
         return ResourceResultSerializer.serialize(result);
     }
 
-    // Unit Test Service Tools
+    // Unit Test Service Tools — async poll model
 
-    @Tool(name = "runAllTests", description = "Runs all JUnit tests in a specified project and returns the results. Use findTestClasses first if unsure which project contains tests. The projectName must be the test project (e.g. 'my.app.tests'), not the main source project.", type = "object")
-    public String runAllTests(
-            @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test classes (use listProjects to find it)", required = true) String projectName,
-            @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout,
-            @ToolParam(name = "withCoverage", description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Coverage data file path is included in results. Default: false", required = false) String withCoverage)
+    @Tool(name = "startJUnitTestRun",
+          description = "Starts a JUnit test run asynchronously and returns a run ID for polling. "
+              + "Scope is inferred from parameters: className+methodName=single method, "
+              + "className=single class, packageName=package, none=all tests. "
+              + "Use getTestRunStatus to poll progress, stopTestRun to cancel. "
+              + "For PDE plug-in tests, use startJUnitPluginTestRun in the eclipse-pde server instead. "
+              + "If a previous run gave an idea about how long the tests take, use that to set your "
+              + "polling interval — avoid polling too frequently to save tokens.",
+          type = "object")
+    public String startJUnitTestRun(
+            @ToolParam(name = "projectName",
+                       description = "The exact Eclipse project name containing the test classes (use listProjects to find it)",
+                       required = true) String projectName,
+            @ToolParam(name = "className",
+                       description = "The fully qualified class name (e.g. 'com.example.MyServiceTest'). If omitted, runs all tests or package tests.",
+                       required = false) String className,
+            @ToolParam(name = "methodName",
+                       description = "The test method name (e.g. 'testCreate'). Requires className.",
+                       required = false) String methodName,
+            @ToolParam(name = "packageName",
+                       description = "The fully qualified package name (e.g. 'com.example.service'). Ignored if className is set.",
+                       required = false) String packageName,
+            @ToolParam(name = "withCoverage",
+                       description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo). Default: false",
+                       required = false) String withCoverage,
+            @ToolParam(name = "launcherName",
+                       description = "Optional name of a saved launch configuration to use as the base "
+                           + "(use (eclipse-runner MCP server).listLaunchConfigurations with typeFilter='junit' to find it). "
+                           + "When set, all settings from that config are reused (VM args, classpath, env vars, etc.) "
+                           + "and only the test target (project/class/method/package) is overridden.",
+                       required = false) String launcherName)
     {
-        boolean coverage = Optional.ofNullable(withCoverage).map(Boolean::parseBoolean).orElse(false);
-        return unitTestService.runAllTests(projectName, Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60), coverage);
+        boolean coverage = Optional.ofNullable( withCoverage ).map( Boolean::parseBoolean ).orElse( false );
+        try
+        {
+            String runId;
+            String desc;
+            if ( className != null && !className.isBlank() && methodName != null && !methodName.isBlank() )
+            {
+                runId = unitTestService.startTestMethod( projectName, className, methodName, coverage, launcherName );
+                desc = "Running " + className + "." + methodName + " in " + projectName;
+            }
+            else if ( className != null && !className.isBlank() )
+            {
+                runId = unitTestService.startClassTests( projectName, className, coverage, launcherName );
+                desc = "Running " + className + " in " + projectName;
+            }
+            else if ( packageName != null && !packageName.isBlank() )
+            {
+                runId = unitTestService.startPackageTests( projectName, packageName, coverage, launcherName );
+                desc = "Running package " + packageName + " in " + projectName;
+            }
+            else
+            {
+                runId = unitTestService.startAllTests( projectName, coverage, launcherName );
+                desc = "Running all tests in " + projectName;
+            }
+            return "Run ID: " + runId + "\nStatus: RUNNING\nDescription: " + desc + "\n";
+        }
+        catch ( Exception e )
+        {
+            return "Error: " + e.getMessage();
+        }
     }
 
-    @Tool(name = "runPackageTests", description = "Runs all JUnit tests in a specific package and returns the results.", type = "object")
-    public String runPackageTests(
-            @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test classes (use listProjects to find it)", required = true) String projectName,
-            @ToolParam(name = "packageName", description = "The fully qualified package name (e.g. 'com.example.service')", required = true) String packageName,
-            @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout,
-            @ToolParam(name = "withCoverage", description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false", required = false) String withCoverage)
+    @Tool(name = "getTestRunStatus",
+          description = "Polls the status of a test run started by startJUnitTestRun or startJUnitPluginTestRun. "
+              + "Use the 'include' parameter to control response verbosity. "
+              + "If the run is still in progress, the tool waits 'secondsToWaitBeforeReturning' seconds "
+              + "before reading and returning status. When omitted, an automatic backoff is used: "
+              + "2s, 3s, 5s, 5s, 10s, 15s (capped). Pass an explicit value to override "
+              + "(e.g. 30 for long-running test suites).",
+          type = "object")
+    public String getTestRunStatus(
+            @ToolParam(name = "runId",
+                       description = "The run ID returned by startJUnitTestRun or startJUnitPluginTestRun",
+                       required = true) String runId,
+            @ToolParam(name = "include",
+                       description = "What to include: 'status' (default, progress summary), 'results' (per-test details), 'console' (JVM output), or 'all'",
+                       required = false) String include,
+            @ToolParam(name = "consoleOffset",
+                       description = "Line offset for console output (0-based, default: 0)",
+                       required = false) String consoleOffset,
+            @ToolParam(name = "consoleLimit",
+                       description = "Max console lines to return (default: 50)",
+                       required = false) String consoleLimit,
+            @ToolParam(name = "secondsToWaitBeforeReturning",
+                       description = "Seconds to wait before reading and returning status. "
+                           + "Only waits if the run is still in progress. "
+                           + "If omitted, uses an auto-increasing backoff per run ID: "
+                           + "2s, 3s, 5s, 5s, 10s, 15s (capped at 15s).",
+                       required = false) String secondsToWaitBeforeReturning)
     {
-        boolean coverage = Optional.ofNullable(withCoverage).map(Boolean::parseBoolean).orElse(false);
-        return unitTestService.runPackageTests(projectName, packageName,
-                Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60), coverage);
+        TestRunSession session = testRunManager.getSession( runId );
+        if ( session == null )
+        {
+            return "Error: Run ID not found: " + runId;
+        }
+
+        // Resolve wait duration — always increment the poll count, even if an explicit value was given
+        int autoWait = session.nextAutoPollWaitSeconds();
+        int waitSeconds = Optional.ofNullable( secondsToWaitBeforeReturning )
+                                  .map( Integer::parseInt )
+                                  .orElse( autoWait );
+
+        // Only sleep while the run is still active
+        if ( session.getState() == TestRunSession.State.RUNNING && waitSeconds > 0 )
+        {
+            try
+            {
+                Thread.sleep( waitSeconds * 1000L );
+            }
+            catch ( InterruptedException e )
+            {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        String inc = Optional.ofNullable( include ).orElse( "status" );
+        int offset = Optional.ofNullable( consoleOffset ).map( Integer::parseInt ).orElse( 0 );
+        int limit = Optional.ofNullable( consoleLimit ).map( Integer::parseInt ).orElse( 50 );
+
+        StringBuilder sb = new StringBuilder();
+        if ( inc.equals( "status" ) || inc.equals( "all" ) )
+        {
+            sb.append( testRunManager.formatStatus( session ) );
+        }
+        if ( inc.equals( "results" ) || inc.equals( "all" ) )
+        {
+            sb.append( testRunManager.formatResults( session ) );
+        }
+        if ( inc.equals( "console" ) || inc.equals( "all" ) )
+        {
+            sb.append( testRunManager.formatConsole( session, offset, limit ) );
+        }
+        if ( inc.equals( "all" ) && session.getCoverageInfo() != null )
+        {
+            sb.append( session.getCoverageInfo() );
+        }
+        return sb.toString();
     }
 
-    @Tool(name = "runClassTests", description = "Runs all JUnit tests in a specific test class and returns the results.", type = "object")
-    public String runClassTests(
-            @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test class (use listProjects to find it)", required = true) String projectName,
-            @ToolParam(name = "className", description = "The fully qualified class name including package (e.g. 'com.example.MyServiceTest')", required = true) String className,
-            @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout,
-            @ToolParam(name = "withCoverage", description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false", required = false) String withCoverage)
+    @Tool(name = "stopTestRun",
+          description = "Stops/cancels a running test run.",
+          type = "object")
+    public String stopTestRun(
+            @ToolParam(name = "runId",
+                       description = "The run ID returned by startJUnitTestRun or startJUnitPluginTestRun",
+                       required = true) String runId)
     {
-        boolean coverage = Optional.ofNullable(withCoverage).map(Boolean::parseBoolean).orElse(false);
-        return unitTestService.runClassTests(projectName, className,
-                Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60), coverage);
+        boolean stopped = testRunManager.stopTestRun( runId );
+        if ( stopped )
+        {
+            return "Test run cancelled successfully.";
+        }
+        TestRunSession session = testRunManager.getSession( runId );
+        if ( session == null )
+        {
+            return "Error: Run ID not found: " + runId;
+        }
+        return "Error: Test run is not in RUNNING state (current state: " + session.getState() + ").";
     }
 
-    @Tool(name = "runTestMethod", description = "Runs a single JUnit test method and returns the results.", type = "object")
-    public String runTestMethod(
-            @ToolParam(name = "projectName", description = "The exact Eclipse project name containing the test class (use listProjects to find it)", required = true) String projectName,
-            @ToolParam(name = "className", description = "The fully qualified class name including package (e.g. 'com.example.MyServiceTest')", required = true) String className,
-            @ToolParam(name = "methodName", description = "The test method name without parentheses (e.g. 'testCreate')", required = true) String methodName,
-            @ToolParam(name = "timeout", description = "Maximum time in seconds to wait for test completion (default: 60)", required = false) String timeout,
-            @ToolParam(name = "withCoverage", description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false", required = false) String withCoverage)
-    {
-        boolean coverage = Optional.ofNullable(withCoverage).map(Boolean::parseBoolean).orElse(false);
-        return unitTestService.runTestMethod(projectName, className, methodName,
-                Optional.ofNullable(timeout).map(Integer::parseInt).orElse(60), coverage);
-    }
-
-    @Tool(name = "findTestClasses", description = "Finds all test classes in a project. Use this before runAllTests or runClassTests to discover the correct project name and fully qualified class names.", type = "object")
+    @Tool(name = "findTestClasses", description = "Finds all test classes in a project. Use this before startJUnitTestRun to discover the correct project name and fully qualified class names.", type = "object")
     public String findTestClasses(
             @ToolParam(name = "projectName", description = "The exact Eclipse project name to search (use listProjects to find it)", required = true) String projectName)
     {
@@ -393,7 +514,7 @@ public class EclipseIntegrationsMcpServer
     public String getMarkdownSection(
             @ToolParam(name = "projectName", description = "The name of the project containing the Markdown file", required = true) String projectName,
             @ToolParam(name = "resourcePath", description = "The path to the Markdown file relative to the project root", required = true) String resourcePath,
-            @ToolParam(name = "heading", description = "The heading to find â either a 1-based index from the outline, or a text substring to match (case-insensitive)", required = true) String heading,
+            @ToolParam(name = "heading", description = "The heading to find — either a 1-based index from the outline, or a text substring to match (case-insensitive)", required = true) String heading,
             @ToolParam(name = "includeSubsections", description = "If 'true', includes all subsections under the matched heading. If 'false', returns only the content up to the next heading of any level. Default: true", required = false) String includeSubsections)
     {
         boolean includeSubs = Optional.ofNullable(includeSubsections).map(Boolean::parseBoolean).orElse(true);

@@ -16,14 +16,18 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.jobs.IJobChangeEvent;
 import org.eclipse.core.runtime.jobs.JobChangeAdapter;
+import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.DebugPlugin;
+import org.eclipse.debug.core.ILaunch;
 import org.eclipse.debug.core.ILaunchConfiguration;
 import org.eclipse.debug.core.ILaunchConfigurationType;
 import org.eclipse.debug.core.ILaunchConfigurationWorkingCopy;
 import org.eclipse.debug.core.ILaunchManager;
+import org.eclipse.debug.core.model.IProcess;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.IPackageFragment;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
@@ -37,7 +41,6 @@ import org.eclipse.pde.core.target.ITargetHandle;
 import org.eclipse.pde.core.target.ITargetPlatformService;
 import org.eclipse.pde.core.target.LoadTargetDefinitionJob;
 import org.eclipse.pde.launching.IPDELauncherConstants;
-import org.eclipse.swt.widgets.Display;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -59,14 +62,15 @@ public class PDEService
     @Inject
     private CoverageService coverageService;
 
+    @Inject
+    private TestRunManager testRunManager;
+
     // -------------------------------------------------------------------------
     // Target platform
     // -------------------------------------------------------------------------
 
     /**
      * Returns a description of the currently active target platform.
-     * If the workspace is using the running platform (no explicit target set),
-     * returns a message saying so.
      */
     public String getActiveTarget()
     {
@@ -104,11 +108,7 @@ public class PDEService
     }
 
     /**
-     * Sets the active target platform to the given workspace-relative target file path
-     * (e.g. "MyProject/my.target"). The job runs asynchronously; this method waits
-     * up to 120 seconds for it to complete.
-     *
-     * @param targetFilePath workspace-relative path to the .target file
+     * Sets the active target platform from a workspace-relative .target file path.
      */
     public String setActiveTarget( String targetFilePath )
     {
@@ -157,8 +157,7 @@ public class PDEService
     }
 
     /**
-     * Reloads (resolves) the currently active target platform.
-     * Should be called after modifying the active .target file.
+     * Reloads the currently active target platform.
      */
     public String reloadTarget()
     {
@@ -202,125 +201,257 @@ public class PDEService
     }
 
     // -------------------------------------------------------------------------
-    // JUnit Plug-in Test
+    // JUnit Plug-in Test - async public API
     // -------------------------------------------------------------------------
 
     /**
-     * Runs all JUnit Plug-in Tests in the given project.
+     * Starts all JUnit Plug-in Tests in the given project asynchronously.
+     * @return run ID - use getTestRunStatus (eclipse-ide server) to poll for results
      */
-    public String runJUnitPluginTests( String projectName, Integer timeout )
+    public String startJUnitPluginTests( String projectName, boolean withCoverage,
+                                         boolean includeAllPlugins, List<String> additionalBundles )
     {
-        return runJUnitPluginTests( projectName, timeout, false, false, List.of() );
+        return startJUnitPluginTests( projectName, withCoverage, includeAllPlugins, additionalBundles, null );
     }
 
-    public String runJUnitPluginTests( String projectName, Integer timeout, boolean withCoverage )
-    {
-        return runJUnitPluginTests( projectName, timeout, withCoverage, false, List.of() );
-    }
-
-    public String runJUnitPluginTests( String projectName, Integer timeout, boolean withCoverage,
-                                        boolean includeAllPlugins, List<String> additionalBundles )
+    /**
+     * Starts all JUnit Plug-in Tests in the given project asynchronously, optionally based on a
+     * named launch configuration. When {@code launcherName} is provided the saved config is used as
+     * a base and only the project/container attributes are overridden.
+     *
+     * @param launcherName optional saved launch config name (use (eclipse-runner MCP server).listLaunchConfigurations to find it)
+     * @return run ID - use getTestRunStatus (eclipse-ide server) to poll for results
+     */
+    public String startJUnitPluginTests( String projectName, boolean withCoverage,
+                                         boolean includeAllPlugins, List<String> additionalBundles,
+                                         String launcherName )
     {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         if ( projectName.isEmpty() )
         {
             throw new IllegalArgumentException( "Project name cannot be empty" );
         }
-        if ( timeout == null || timeout <= 0 )
-        {
-            timeout = 300;
-        }
-
         try
         {
             IJavaProject javaProject = getJavaProject( projectName );
-            return launchJUnitPluginTests( javaProject, null, null, timeout, withCoverage, includeAllPlugins, additionalBundles );
+            return startPluginTests( javaProject, null, null, withCoverage, includeAllPlugins,
+                additionalBundles, "Running all plug-in tests in " + projectName, launcherName );
         }
-        catch ( IllegalArgumentException | CoreException e )
+        catch ( CoreException e )
         {
-            return "Error running plug-in tests: " + e.getMessage();
+            throw new RuntimeException( "Error starting plug-in tests: " + e.getMessage(), e );
         }
     }
 
     /**
-     * Runs JUnit Plug-in Tests for a specific class.
+     * Starts JUnit Plug-in Tests for a specific class asynchronously.
+     * @return run ID - use getTestRunStatus (eclipse-ide server) to poll for results
      */
-    public String runJUnitPluginTestClass( String projectName, String className, Integer timeout )
+    public String startJUnitPluginTestClass( String projectName, String className,
+                                              boolean withCoverage, boolean includeAllPlugins,
+                                              List<String> additionalBundles )
     {
-        return runJUnitPluginTestClass( projectName, className, timeout, false, false, List.of() );
+        return startJUnitPluginTestClass( projectName, className, withCoverage, includeAllPlugins,
+            additionalBundles, null );
     }
 
-    public String runJUnitPluginTestClass( String projectName, String className, Integer timeout, boolean withCoverage )
-    {
-        return runJUnitPluginTestClass( projectName, className, timeout, withCoverage, false, List.of() );
-    }
-
-    public String runJUnitPluginTestClass( String projectName, String className, Integer timeout, boolean withCoverage,
-                                            boolean includeAllPlugins, List<String> additionalBundles )
+    /**
+     * Starts JUnit Plug-in Tests for a specific class asynchronously, optionally based on a named
+     * launch configuration. When {@code launcherName} is provided the saved config is used as a base
+     * and only the project/class attributes are overridden.
+     *
+     * @param launcherName optional saved launch config name (use (eclipse-runner MCP server).listLaunchConfigurations to find it)
+     * @return run ID - use getTestRunStatus (eclipse-ide server) to poll for results
+     */
+    public String startJUnitPluginTestClass( String projectName, String className,
+                                              boolean withCoverage, boolean includeAllPlugins,
+                                              List<String> additionalBundles, String launcherName )
     {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         Objects.requireNonNull( className, "Class name cannot be null" );
-        if ( timeout == null || timeout <= 0 )
+        if ( projectName.isEmpty() )
         {
-            timeout = 300;
+            throw new IllegalArgumentException( "Project name cannot be empty" );
         }
-
         try
         {
             IJavaProject javaProject = getJavaProject( projectName );
             IType type = javaProject.findType( className );
             if ( type == null )
             {
-                return "Error: Class '" + className + "' not found in project '" + projectName + "'.";
+                throw new RuntimeException(
+                    "Class '" + className + "' not found in project '" + projectName + "'" );
             }
-            return launchJUnitPluginTests( javaProject, null, type, timeout, withCoverage, includeAllPlugins, additionalBundles );
+            return startPluginTests( javaProject, type, null, withCoverage, includeAllPlugins,
+                additionalBundles, "Running " + className + " in " + projectName, launcherName );
         }
-        catch ( IllegalArgumentException | CoreException e )
+        catch ( CoreException e )
         {
-            return "Error running plug-in tests: " + e.getMessage();
+            throw new RuntimeException( "Error starting plug-in tests: " + e.getMessage(), e );
+        }
+    }
+
+    /**
+     * Starts JUnit Plug-in Tests for a specific package asynchronously.
+     * @return run ID - use getTestRunStatus (eclipse-ide server) to poll for results
+     */
+    public String startJUnitPluginTestPackage( String projectName, String packageName,
+                                               boolean withCoverage, boolean includeAllPlugins,
+                                               List<String> additionalBundles )
+    {
+        return startJUnitPluginTestPackage( projectName, packageName, withCoverage, includeAllPlugins,
+            additionalBundles, null );
+    }
+
+    /**
+     * Starts JUnit Plug-in Tests for a specific package asynchronously, optionally based on a named
+     * launch configuration. When {@code launcherName} is provided the saved config is used as a base
+     * and only the project/package attributes are overridden.
+     *
+     * @param launcherName optional saved launch config name (use (eclipse-runner MCP server).listLaunchConfigurations to find it)
+     * @return run ID - use getTestRunStatus (eclipse-ide server) to poll for results
+     */
+    public String startJUnitPluginTestPackage( String projectName, String packageName,
+                                               boolean withCoverage, boolean includeAllPlugins,
+                                               List<String> additionalBundles, String launcherName )
+    {
+        Objects.requireNonNull( projectName, "Project name cannot be null" );
+        Objects.requireNonNull( packageName, "Package name cannot be null" );
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Project name cannot be empty" );
+        }
+        if ( packageName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Package name cannot be empty" );
+        }
+        try
+        {
+            IJavaProject javaProject = getJavaProject( projectName );
+            IPackageFragment pkg = JavaModelUtils.findPackage( javaProject, packageName );
+            if ( pkg == null )
+            {
+                throw new RuntimeException(
+                    "Package '" + packageName + "' not found in project '" + projectName + "'" );
+            }
+            return startPluginTests( javaProject, null, pkg, withCoverage, includeAllPlugins,
+                additionalBundles, "Running package " + packageName + " in " + projectName,
+                launcherName );
+        }
+        catch ( CoreException e )
+        {
+            throw new RuntimeException( "Error starting plug-in tests: " + e.getMessage(), e );
         }
     }
 
     // -------------------------------------------------------------------------
-    // Private helpers
+    // Core async launch logic
     // -------------------------------------------------------------------------
 
-    private String launchJUnitPluginTests( IJavaProject javaProject, Object packageFragment,
-                                            IType testClass, int timeout, boolean withCoverage,
-                                            boolean includeAllPlugins, List<String> additionalBundles )
+    private String startPluginTests( IJavaProject javaProject, IType testClass,
+                                      IPackageFragment packageFragment,
+                                      boolean withCoverage, boolean includeAllPlugins,
+                                      List<String> additionalBundles, String description,
+                                      String launcherName )
     {
-        CountDownLatch latch = new CountDownLatch( 1 );
-        UnitTestService.TestRunResult[] testRunResults = new UnitTestService.TestRunResult[1];
+        TestRunSession session = testRunManager.createSession( description, withCoverage,
+            javaProject.getElementName() );
 
         TestRunListener listener = new TestRunListener()
         {
+            private ITestRunSession ourSession = null;
             private UnitTestService.TestRunResult currentRun = null;
 
             @Override
-            public void sessionStarted( ITestRunSession session )
+            public void sessionStarted( ITestRunSession s )
             {
-                currentRun = new UnitTestService.TestRunResult( session.getTestRunName() );
-            }
-
-            @Override
-            public void sessionFinished( ITestRunSession session )
-            {
-                testRunResults[0] = currentRun;
-                latch.countDown();
-            }
-
-            @Override
-            public void testCaseFinished( ITestCaseElement testCaseElement )
-            {
-                if ( currentRun != null )
+                if ( ourSession == null )
                 {
-                    String clazz = testCaseElement.getTestClassName();
-                    String testName = testCaseElement.getTestMethodName();
-                    String status = testCaseElement.getTestResult( true ).toString();
-                    String message = testCaseElement.getFailureTrace() != null
-                        ? testCaseElement.getFailureTrace().getTrace() : "";
-                    double time = testCaseElement.getElapsedTimeInSeconds();
-                    currentRun.addTestResult( new UnitTestService.TestResult( clazz, testName, status, message, time ) );
+                    ourSession = s;
+                    currentRun = new UnitTestService.TestRunResult( s.getTestRunName() );
+                    session.setTestRunResult( currentRun );
+                }
+            }
+
+            @Override
+            public void testCaseFinished( ITestCaseElement e )
+            {
+                if ( e.getTestRunSession() == ourSession )
+                {
+                    String clazz = e.getTestClassName();
+                    String name = e.getTestMethodName();
+                    String status = e.getTestResult( true ).toString();
+                    String msg = e.getFailureTrace() != null ? e.getFailureTrace().getTrace() : "";
+                    double time = e.getElapsedTimeInSeconds();
+                    currentRun.addTestResult(
+                        new UnitTestService.TestResult( clazz, name, status, msg, time ) );
+                }
+            }
+
+            @Override
+            public void sessionFinished( ITestRunSession s )
+            {
+                if ( s != ourSession )
+                {
+                    return;
+                }
+                try
+                {
+                    if ( withCoverage && coverageService.isCoverageAvailable() )
+                    {
+                        String execFile = coverageService.waitForLatestCoverageFile(
+                            session.getStartTime(), 10000 );
+                        session.setCoverageInfo( coverageService.formatCoverageInfo(
+                            execFile, session.getProjectName() ) );
+                    }
+                }
+                finally
+                {
+                    JUnitCore.removeTestRunListener( this );
+                    // Delay COMPLETED until the child Eclipse JVM has fully exited so that
+                    // a subsequent launch on the same workspace path does not hit the
+                    // "workspace is used by another application" lock conflict.
+                    ILaunch launch = session.getLaunch();
+                    if ( launch != null && !launch.isTerminated() )
+                    {
+                        Thread waiter = new Thread( () -> {
+                            long deadline = System.currentTimeMillis() + 20_000;
+                            for ( IProcess p : launch.getProcesses() )
+                            {
+                                while ( !p.isTerminated()
+                                        && System.currentTimeMillis() < deadline )
+                                {
+                                    try { Thread.sleep( 200 ); }
+                                    catch ( InterruptedException ie )
+                                    {
+                                        Thread.currentThread().interrupt();
+                                        break;
+                                    }
+                                }
+                                if ( !p.isTerminated() )
+                                {
+                                    try
+                                    {
+                                        p.terminate();
+                                        logger.log( org.eclipse.core.runtime.Status.warning(
+                                            "PDE test process did not exit within 20 s — force-terminated" ) );
+                                    }
+                                    catch ( DebugException e )
+                                    {
+                                        logger.log( org.eclipse.core.runtime.Status.error(
+                                            "Could not force-terminate PDE test process", e ) );
+                                    }
+                                }
+                            }
+                            session.setState( TestRunSession.State.COMPLETED );
+                        }, "pde-process-wait-" + session.getRunId() );
+                        waiter.setDaemon( true );
+                        waiter.start();
+                    }
+                    else
+                    {
+                        session.setState( TestRunSession.State.COMPLETED );
+                    }
                 }
             }
         };
@@ -330,28 +461,48 @@ public class PDEService
         try
         {
             ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
-            // PDE JUnit Plug-in Test launch config type
-            ILaunchConfigurationType type = launchManager.getLaunchConfigurationType(
-                "org.eclipse.pde.ui.JunitLaunchConfig" );
-
-            if ( type == null )
-            {
-                return "Error: PDE JUnit Plug-in Test launch configuration type not found. "
-                    + "Ensure org.eclipse.pde.ui is available in the running Eclipse instance.";
-            }
-
-            String launchName = buildLaunchName( javaProject, testClass );
-            ILaunchConfiguration existing = findExistingLaunchConfig( launchManager, launchName );
             ILaunchConfigurationWorkingCopy workingCopy;
-            if ( existing != null )
+
+            if ( launcherName != null && !launcherName.isBlank() )
             {
-                workingCopy = existing.getWorkingCopy();
+                // Use the named saved config as base — only override targeting attributes
+                ILaunchConfiguration base = findExistingLaunchConfig( launchManager, launcherName );
+                if ( base == null )
+                {
+                    JUnitCore.removeTestRunListener( listener );
+                    session.setErrorMessage( "Launch configuration not found: " + launcherName );
+                    session.setState( TestRunSession.State.FAILED );
+                    throw new RuntimeException( "Launch configuration not found: " + launcherName );
+                }
+                workingCopy = base.getWorkingCopy();
             }
             else
             {
-                workingCopy = type.newInstance( null, launchName );
+                ILaunchConfigurationType type = launchManager.getLaunchConfigurationType(
+                    "org.eclipse.pde.ui.JunitLaunchConfig" );
+
+                if ( type == null )
+                {
+                    JUnitCore.removeTestRunListener( listener );
+                    session.setErrorMessage( "PDE JUnit Plug-in Test launch configuration type not found. "
+                        + "Ensure org.eclipse.pde.ui is available in the running Eclipse instance." );
+                    session.setState( TestRunSession.State.FAILED );
+                    return session.getRunId();
+                }
+
+                String launchName = buildLaunchName( javaProject, testClass, packageFragment );
+                ILaunchConfiguration existing = findExistingLaunchConfig( launchManager, launchName );
+                if ( existing != null )
+                {
+                    workingCopy = existing.getWorkingCopy();
+                }
+                else
+                {
+                    workingCopy = type.newInstance( null, launchName );
+                }
             }
 
+            // Always override the targeting attributes
             workingCopy.setAttribute( IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME,
                 javaProject.getElementName() );
 
@@ -361,132 +512,110 @@ public class PDEService
                     testClass.getFullyQualifiedName() );
                 workingCopy.setAttribute( "org.eclipse.jdt.junit.CONTAINER", "" );
             }
+            else if ( packageFragment != null )
+            {
+                workingCopy.setAttribute( IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "" );
+                workingCopy.setAttribute( "org.eclipse.jdt.junit.CONTAINER",
+                    packageFragment.getHandleIdentifier() );
+            }
             else
             {
                 workingCopy.setAttribute( IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "" );
-                // CONTAINER must be the Java element handle identifier for the project:
-                // "=<projectName>" is the format JDT JUnit launcher expects
                 workingCopy.setAttribute( "org.eclipse.jdt.junit.CONTAINER",
                     javaProject.getHandleIdentifier() );
             }
 
-            // Detect JUnit version
-            workingCopy.setAttribute( "org.eclipse.jdt.junit.TEST_KIND",
-                detectJUnitTestKind( javaProject ) );
-
-            // Set a fixed workspace data dir so the PDE launcher never shows
-            // the "Select a workspace" dialog interactively
-            String testWorkspace = System.getProperty( "java.io.tmpdir" )
-                + java.io.File.separator + "pde-test-workspace-"
-                + javaProject.getElementName();
-            workingCopy.setAttribute( IPDELauncherConstants.LOCATION, testWorkspace );
-            workingCopy.setAttribute( IPDELauncherConstants.DOCLEAR, false );
-
-            if ( includeAllPlugins )
+            // Only set TEST_KIND and PDE bundle config when not using a named launcher
+            if ( launcherName == null || launcherName.isBlank() )
             {
-                workingCopy.setAttribute( IPDELauncherConstants.USE_DEFAULT, true );
-                workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_ADD, true );
-            }
-            else
-            {
-                workingCopy.setAttribute( IPDELauncherConstants.USE_DEFAULT, false );
-                workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_ADD, false );
-                workingCopy.setAttribute( IPDELauncherConstants.INCLUDE_OPTIONAL, true );
-                workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_INCLUDE_REQUIREMENTS, true );
-                workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_VALIDATE, true );
+                workingCopy.setAttribute( "org.eclipse.jdt.junit.TEST_KIND",
+                    detectJUnitTestKind( javaProject ) );
 
-                Set<String> workspaceBundles = new TreeSet<>();
-                workspaceBundles.add( javaProject.getElementName() + "@default:false" );
-                if ( additionalBundles != null )
+                String testWorkspace = System.getProperty( "java.io.tmpdir" )
+                    + java.io.File.separator + "pde-test-workspace-"
+                    + javaProject.getElementName();
+                workingCopy.setAttribute( IPDELauncherConstants.LOCATION, testWorkspace );
+                workingCopy.setAttribute( IPDELauncherConstants.DOCLEAR, true );
+                workingCopy.setAttribute( IPDELauncherConstants.ASKCLEAR, false );
+
+                if ( includeAllPlugins )
                 {
-                    for ( String bundle : additionalBundles )
-                    {
-                        workspaceBundles.add( bundle + "@default:false" );
-                    }
+                    workingCopy.setAttribute( IPDELauncherConstants.USE_DEFAULT, true );
+                    workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_ADD, true );
                 }
-                workingCopy.setAttribute( IPDELauncherConstants.SELECTED_WORKSPACE_BUNDLES, workspaceBundles );
-                workingCopy.setAttribute( IPDELauncherConstants.SELECTED_TARGET_BUNDLES, new TreeSet<String>() );
+                else
+                {
+                    workingCopy.setAttribute( IPDELauncherConstants.USE_DEFAULT, false );
+                    workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_ADD, false );
+                    workingCopy.setAttribute( IPDELauncherConstants.INCLUDE_OPTIONAL, true );
+                    workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_INCLUDE_REQUIREMENTS, true );
+                    workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_VALIDATE, true );
+
+                    Set<String> workspaceBundles = new TreeSet<>();
+                    workspaceBundles.add( javaProject.getElementName() + "@default:false" );
+                    if ( additionalBundles != null )
+                    {
+                        for ( String bundle : additionalBundles )
+                        {
+                            workspaceBundles.add( bundle + "@default:false" );
+                        }
+                    }
+                    workingCopy.setAttribute( IPDELauncherConstants.SELECTED_WORKSPACE_BUNDLES,
+                        workspaceBundles );
+                    workingCopy.setAttribute( IPDELauncherConstants.SELECTED_TARGET_BUNDLES,
+                        new TreeSet<String>() );
+                }
             }
 
             ILaunchConfiguration configuration = workingCopy.doSave();
 
             boolean useCoverage = withCoverage && coverageService.isCoverageAvailable();
-            String launchMode = useCoverage ? coverageService.getCoverageLaunchMode() : ILaunchManager.RUN_MODE;
+            String launchMode = useCoverage ? coverageService.getCoverageLaunchMode()
+                                            : ILaunchManager.RUN_MODE;
 
-            long launchStartTime = System.currentTimeMillis();
-            CoreException[] launchError = new CoreException[1];
-            org.eclipse.debug.core.ILaunch[] launchRef = new org.eclipse.debug.core.ILaunch[1];
             sync.asyncExec( () -> {
                 try
                 {
-                    launchRef[0] = configuration.launch( launchMode, new NullProgressMonitor() );
+                    var launch = configuration.launch( launchMode, new NullProgressMonitor() );
+                    session.setLaunch( launch );
+                    testRunManager.attachConsoleCapture( session );
                 }
                 catch ( CoreException e )
                 {
-                    launchError[0] = e;
-                    latch.countDown();
-                    logger.log( org.eclipse.core.runtime.Status.error( "Error launching plug-in tests", e ) );
+                    JUnitCore.removeTestRunListener( listener );
+                    session.setErrorMessage( e.getMessage() );
+                    session.setState( TestRunSession.State.FAILED );
+                    logger.log( org.eclipse.core.runtime.Status.error(
+                        "Error launching plug-in tests", e ) );
                 }
             } );
 
-            long deadline = System.currentTimeMillis() + timeout * 1000L;
-            Display display = Display.getCurrent();
-            boolean completed = false;
-            while ( !completed && System.currentTimeMillis() < deadline )
-            {
-                if ( display != null && !display.isDisposed() )
-                {
-                    while ( display.readAndDispatch() )
-                    {
-                    }
-                }
-                completed = latch.await( 100, TimeUnit.MILLISECONDS );
-                if ( !completed && launchRef[0] != null && launchRef[0].isTerminated() )
-                {
-                    completed = true;
-                }
-            }
-
-            if ( launchError[0] != null )
-            {
-                return "Error launching plug-in tests: " + launchError[0].getMessage();
-            }
-            if ( !completed )
-            {
-                return "Error: Test execution timed out after " + timeout + " seconds.";
-            }
-            if ( testRunResults[0] == null )
-            {
-                return "Error: No test results collected. The test run may have failed to start.";
-            }
-
-            String results = testRunResults[0].toString();
-
-            if ( useCoverage )
-            {
-                String execFile = coverageService.waitForLatestCoverageFile( launchStartTime, 10000 );
-                results += coverageService.formatCoverageInfo( execFile, javaProject.getProject().getName() );
-            }
-
-            return results;
+            return session.getRunId();
         }
         catch ( Exception e )
         {
-            logger.error( "Error running plug-in tests", e );
-            return "Error running plug-in tests: " + e.getMessage();
-        }
-        finally
-        {
             JUnitCore.removeTestRunListener( listener );
+            session.setErrorMessage( e.getMessage() );
+            session.setState( TestRunSession.State.FAILED );
+            throw new RuntimeException( "Error setting up plug-in test launch: " + e.getMessage(), e );
         }
     }
 
-    private String buildLaunchName( IJavaProject project, IType testClass )
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
+    private String buildLaunchName( IJavaProject project, IType testClass,
+                                     IPackageFragment packageFragment )
     {
         String base = "AssistAI-PDE-" + project.getElementName();
         if ( testClass != null )
         {
             base += "-" + testClass.getElementName();
+        }
+        else if ( packageFragment != null )
+        {
+            base += "-" + packageFragment.getElementName();
         }
         return base;
     }
@@ -506,13 +635,7 @@ public class PDEService
 
     private IJavaProject getJavaProject( String projectName ) throws CoreException
     {
-        IWorkspace workspace = ResourcesPlugin.getWorkspace();
-        var project = workspace.getRoot().getProject( projectName );
-        if ( !project.exists() )
-        {
-            throw new IllegalArgumentException( "Project not found: " + projectName );
-        }
-        return JavaCore.create( project );
+        return JavaModelUtils.getJavaProject( projectName );
     }
 
     private String detectJUnitTestKind( IJavaProject javaProject ) throws JavaModelException
