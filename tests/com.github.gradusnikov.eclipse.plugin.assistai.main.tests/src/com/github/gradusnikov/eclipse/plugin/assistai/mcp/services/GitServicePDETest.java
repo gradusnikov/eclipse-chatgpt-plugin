@@ -22,6 +22,7 @@ import org.eclipse.egit.core.op.ConnectProviderOperation;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheEntry;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.Repository;
 import org.junit.jupiter.api.AfterEach;
@@ -38,7 +39,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.GitService;
 import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 
-public class GitServiceTest
+public class GitServicePDETest
 {
     private static final String TEST_PROJECT_NAME = "GitServiceTestProject";
     private static final NullProgressMonitor monitor = new NullProgressMonitor();
@@ -51,7 +52,7 @@ public class GitServiceTest
     @BeforeEach
     public void beforeEach() throws Exception
     {
-        BundleContext bundleContext = FrameworkUtil.getBundle(GitServiceTest.class).getBundleContext();
+        BundleContext bundleContext = FrameworkUtil.getBundle(GitServicePDETest.class).getBundleContext();
         ServiceTracker<IWorkspace, IWorkspace> workspaceTracker = new ServiceTracker<>(bundleContext, IWorkspace.class, null);
         workspaceTracker.open();
         IWorkspace workspace = workspaceTracker.getService();
@@ -68,7 +69,8 @@ public class GitServiceTest
         project.open(monitor);
 
         repoDir = project.getLocation().toFile();
-        git = Git.init().setDirectory(repoDir).call();
+        git = Git.init().setDirectory(repoDir).setInitialBranch("master").call();
+        git.getRepository().updateRef(Constants.HEAD).link(Constants.R_HEADS + "master");
 
         File srcFile = new File(repoDir, "src/Hello.java");
         srcFile.getParentFile().mkdirs();
@@ -80,7 +82,11 @@ public class GitServiceTest
         Files.writeString(readmeFile.toPath(), "# Test Project\n", StandardCharsets.UTF_8);
 
         git.add().addFilepattern(".").call();
-        git.commit().setMessage("Initial commit").call();
+        git.commit()
+                .setMessage("Initial commit")
+                .setAuthor("AssistAI Tests", "assistai-tests@example.invalid")
+                .setCommitter("AssistAI Tests", "assistai-tests@example.invalid")
+                .call();
 
         ConnectProviderOperation connectOp = new ConnectProviderOperation(project, git.getRepository().getDirectory());
         connectOp.execute(monitor);
@@ -268,6 +274,40 @@ public class GitServiceTest
     }
 
     @Test
+    public void testGetDiff_filtersProjectRelativePaths() throws Exception
+    {
+        Files.writeString(new File(repoDir, "README.md").toPath(), "# Changed readme\n", StandardCharsets.UTF_8);
+        Files.writeString(new File(repoDir, "src/Hello.java").toPath(),
+                "package src;\npublic class Hello { String value = \"changed source\"; }\n", StandardCharsets.UTF_8);
+        project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
+
+        String diff = service.getDiff(TEST_PROJECT_NAME, false, "README.md", false);
+
+        assertTrue(diff.contains("Changed readme"));
+        assertFalse(diff.contains("changed source"));
+        assertFalse(diff.contains("src/Hello.java"));
+    }
+
+    @Test
+    public void testGetDiff_rejectsPathTraversal()
+    {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.getDiff(TEST_PROJECT_NAME, false, "../outside.txt", false));
+    }
+
+    @Test
+    public void testGetDiff_canIgnoreWhitespace() throws Exception
+    {
+        Files.writeString(new File(repoDir, "README.md").toPath(), "#   Test   Project\n", StandardCharsets.UTF_8);
+        project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
+
+        String diff = service.getDiff(TEST_PROJECT_NAME, false, "README.md", true);
+
+        assertFalse(diff.contains("-# Test Project"));
+        assertFalse(diff.contains("+#   Test   Project"));
+    }
+
+    @Test
     public void testListBranches() throws Exception
     {
         String branches = service.listBranches(TEST_PROJECT_NAME, false);
@@ -363,6 +403,31 @@ public class GitServiceTest
     {
         String result = service.stashList(TEST_PROJECT_NAME);
         assertTrue(result.contains("No stash") || result.isEmpty() || result.contains("stash"), "Should handle empty stash list");
+    }
+
+    @Test
+    public void testReadFileAtRevision_readsHeadInsteadOfWorkingTree() throws Exception
+    {
+        Files.writeString(new File(repoDir, "README.md").toPath(), "# Working tree\n", StandardCharsets.UTF_8);
+
+        assertEquals("# Test Project\n", service.readFileAtRevision(TEST_PROJECT_NAME, "README.md", "HEAD"));
+    }
+
+    @Test
+    public void testReadFileAtRevision_readsIndex() throws Exception
+    {
+        Files.writeString(new File(repoDir, "README.md").toPath(), "# Staged version\n", StandardCharsets.UTF_8);
+        git.add().addFilepattern("README.md").call();
+        Files.writeString(new File(repoDir, "README.md").toPath(), "# Working tree version\n", StandardCharsets.UTF_8);
+
+        assertEquals("# Staged version\n", service.readFileAtRevision(TEST_PROJECT_NAME, "README.md", "INDEX"));
+    }
+
+    @Test
+    public void testReadFileAtRevision_rejectsPathTraversal()
+    {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.readFileAtRevision(TEST_PROJECT_NAME, "../outside.txt", "HEAD"));
     }
 
     @Test

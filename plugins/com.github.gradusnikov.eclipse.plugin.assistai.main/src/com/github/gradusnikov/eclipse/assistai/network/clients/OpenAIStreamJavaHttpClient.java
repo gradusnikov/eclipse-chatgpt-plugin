@@ -37,6 +37,7 @@ import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
 import io.modelcontextprotocol.spec.McpSchema.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpToolSchemas;
 import jakarta.inject.Inject;
 
 /**
@@ -133,8 +134,8 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient {
 		functionObj.put("name", toolName);
 		functionObj.put("description", Optional.ofNullable(tool.description()).orElse(""));
 		functionObj.put("parameters",
-				Map.of("type", tool.inputSchema().type(), "properties", tool.inputSchema().properties(), "required",
-						Optional.ofNullable(tool.inputSchema().required()).orElse(List.of())));
+				Map.of("type", McpToolSchemas.type(tool), "properties", McpToolSchemas.properties(tool), "required",
+						McpToolSchemas.required(tool)));
 
 		var toolObject = new LinkedHashMap<String, Object>();
 		toolObject.put("type", "function");
@@ -300,13 +301,13 @@ public class OpenAIStreamJavaHttpClient extends AbstractLanguageModelClient {
 										if (functionNode == null || functionNode.isNull()) {
 											continue;
 										}
-										if (functionNode.has("name")) {
+										if (functionNode.has("name") && !functionNode.get("name").asText().isEmpty()) {
 											var toolId = toolCall.has("id") ? toolCall.get("id").asText() : "";
 											publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL, String.format(
 													"\"function_call\" : { \n \"id\": \"%s\",\n \"name\": \"%s\",\n \"arguments\" :",
 													toolId, functionNode.get("name").asText())));
 										}
-										if (functionNode.has("arguments")) {
+										if (functionNode.has("arguments") && !functionNode.get("arguments").asText().isEmpty()) {
 											publisher.submit(new Incoming(Incoming.Type.FUNCTION_CALL,
 													functionNode.get("arguments").asText()));
 										}

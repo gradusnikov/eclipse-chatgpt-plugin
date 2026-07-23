@@ -106,6 +106,7 @@ With the MCP tools, an external agent can:
 - **Search** -- text search, regex search, file glob search, search-and-replace across the workspace
 - **Run and debug** -- launch Java applications, set breakpoints (including conditional), step through code, inspect stack traces, evaluate expressions, hot-swap code
 - **Access context** -- read JavaDoc, console output, editor selection, effective POM, project dependencies
+- **Inspect workspace images** -- return raster resources as native MCP image content for vision-capable agents
 - **Browse and restore file history** -- list Local History versions, view old content, restore to any previous version, diff current vs. historical
 - **Inspect the resource cache** -- see what files/classes are loaded in the conversation context, read cached content without I/O
 - **Manage Git repositories** -- status, log, diff, stage, commit, branch, checkout, stash -- all through EGit, keeping Eclipse workspace in sync
@@ -127,6 +128,8 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 
 **Token-efficient navigation:** Instead of reading entire files, agents can use `getClassOutline` to see the structure (~30 lines for a 500-line class), then `getMethodSource` to read only the methods they need, or `getFilteredSource` to see the full file with irrelevant methods collapsed to one-line signatures. The `readProjectResource` tool supports `excludeImports` to further reduce token usage.
 
+**Workspace images:** Vision-capable agents can call `readImageResource(projectName, resourcePath)` to receive an image as native MCP `ImageContent` instead of base64 text. The tool supports PNG, JPEG, GIF, BMP, TIFF, and ICO resources up to 20 MiB, and enforces the same `.aiignore`/`.noai` access rules as text reads. For example: `readImageResource(projectName="my-project", resourcePath="docs/architecture.png")`.
+
 **Resource cache:** Files and classes read through Eclipse MCP tools are automatically cached with version tracking and file modification timestamps (tied to Eclipse's Local History). Agents can call `listCachedResources` to see what's already loaded, or `getCachedResource` to re-read cached content instantly -- no disk I/O, no re-parsing.
 
 **Local History:** Eclipse automatically maintains a Local History for every file modified through the IDE. Agents can browse past versions (`getFileHistory`), read historical content (`getFileHistoryContent`), compare with the current version (`compareWithHistory`), or restore to any previous state (`restoreFileVersion`). This is more powerful than a simple undo -- it preserves every edit across the entire session, including changes made by the agent itself.
@@ -141,7 +144,7 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | createFile | Creates a new file, adds it to the project, and opens it in the editor |
 | insertIntoFile | Inserts content at a specific position in an existing file |
 | replaceString | Replaces a specific string in a file, optionally within a line range |
-| applyPatch | Applies a unified diff patch with fuzzy context matching -- preferred for multi-hunk edits |
+| applyPatch | Atomically applies a validated unified diff, preserves line endings, supports multi-hunk edits, creates an undo backup, and reveals the first changed line |
 | formatFile | Formats a Java file using Eclipse's code formatter |
 | undoEdit | Restores a file from its backup (undo last edit) |
 | createDirectories | Creates a directory structure recursively |
@@ -150,21 +153,26 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | replaceFileContent | Replaces the entire content of a file |
 | deleteLinesInFile | Deletes a range of lines (1-based indexing) |
 | refactorRenameJavaType | Renames a Java type using Eclipse's refactoring, updating all references |
+| refactorExtractTypeToNewFile | Extracts a nested Java type to a new top-level Java file using Eclipse's refactoring |
 | refactorMoveJavaType | Moves a Java type to a different package, updating all references |
 | refactorRenamePackage | Renames a package, updating all declarations and references |
 | moveResource | Moves a file or folder to a different location |
-| organizeImports | Organizes imports in a Java file (Ctrl+Shift+O equivalent) |
-| organizeImportsInPackage | Organizes imports in all Java files within a package |
+| organizeImports | Removes unused imports and sorts existing imports; does not add missing imports |
+| organizeImportsInPackage | Removes unused imports and sorts existing imports across a package |
+
+Direct file-editing tools complete a workspace synchronization barrier before returning: the content is saved, the resource is refreshed, pending workspace notifications are checkpointed, cached content is updated, Java compilation units are made consistent, and the editor reveals the changed line. Their response includes the synchronization state and resulting modification stamp. Multi-file operations reveal the primary or first changed file.
 
 ### eclipse-ide -- Code Analysis, Navigation & Build
 
 | Tool | Description |
 |------|-------------|
-| getSource | Full source of a class |
+| getSource | Source of a workspace or referenced-library class; prefers attached source JARs and decompiles binaries when source is unavailable |
+| explainTypeResolution | Explain how a type resolves in a specific project's JDT classpath: source/binary origin, root, entry, attachment, class file, and source/decompilation strategy |
 | getClassOutline | Compact class outline -- declarations and method signatures (no bodies) with line numbers |
 | getMethodSource | Source of specific methods by name, with overload disambiguation |
 | getFilteredSource | Full source with non-selected methods collapsed to signatures |
 | readProjectResource | Read a text resource, with optional import block collapsing |
+| readImageResource | Return a workspace image as native MCP `ImageContent` (PNG, JPEG, GIF, BMP, TIFF, or ICO; maximum 20 MiB) |
 | getJavaDoc | JavaDoc for a compilation unit |
 | formatCode | Format code using Eclipse formatter settings |
 | getProjectProperties | Project properties and configuration |
@@ -188,7 +196,7 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | runPackageTests | Run tests in a specific package |
 | runClassTests | Run tests for a specific class |
 | runTestMethod | Run a specific test method |
-| findTestClasses | Find all test classes in a project |
+| findTestClasses | Classify plain JUnit and `*PDETest` harness tests; warns about likely PDE-dependent tests that violate the naming convention |
 | runMavenBuild | Run a Maven build with specified goals |
 | getEffectivePom | Effective POM for a Maven project |
 | getProjectDependencies | Maven project dependencies |
@@ -235,8 +243,10 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 |------|-------------|
 | gitStatus | Working tree status -- staged, unstaged, untracked files, branch tracking info |
 | gitLog | Commit history with author, date, and message |
-| gitDiff | Unified diff of working tree or staged changes |
+| gitReadFile | Read a UTF-8 text file from `HEAD`, a branch/tag/commit, or the staged `INDEX` without changing the working tree |
+| gitDiff | Unified diff of working tree or staged changes, with optional comma-separated project-relative path filters and whitespace-insensitive comparison |
 | gitAdd | Stage files for commit (supports patterns, '.' for all) |
+| gitStagePatch | Stage selected unified-diff hunks directly into the index without changing the working tree |
 | gitCommit | Commit staged changes with a message |
 | gitReset | Unstage files from the index |
 | gitBranch | List branches (local or including remote) |
@@ -246,6 +256,21 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | gitStash | Stash working directory changes |
 | gitStashPop | Apply and drop the most recent stash |
 | gitStashList | List all stash entries |
+
+### eclipse-pde -- Plug-in Development
+
+| Tool | Description |
+|------|-------------|
+| getActiveTarget | Show the active PDE target platform |
+| setActiveTarget | Load and activate a target definition |
+| reloadTarget | Reload the active target after its contents change |
+| runJUnitPluginTests | Run a plug-in project's tests in the PDE harness |
+| runJUnitPluginTestClass | Run one `*PDETest` class in the PDE harness |
+| runJUnitPluginTestClasses | Run selected `*PDETest` classes in one PDE launch, avoiding repeated workbench startup |
+| restartMcpServers | Rebuild HTTP MCP servers after a safe delay so the current response can finish |
+| reloadWorkspaceBundle | Update an OSGi bundle only when backed by an open workspace project; system, fragment, and installed-only bundles are rejected |
+
+Tests that use Eclipse workspace, JDT, UI, platform, or OSGi runtime services must follow the `*PDETest.java` naming convention so test discovery runs them in the PDE harness.
 
 ### Utility Servers
 
@@ -364,6 +389,7 @@ Features:
 - Discuss code with full file context
 - Generate git commit messages from staged changes
 - Drag-and-drop images for vision model discussions
+- Display images returned by MCP tools as chat attachments
 - LaTeX and table rendering in responses
 - In-text code completion with Alt+/
 - Smart resource caching -- LLM always sees the latest version of attached files

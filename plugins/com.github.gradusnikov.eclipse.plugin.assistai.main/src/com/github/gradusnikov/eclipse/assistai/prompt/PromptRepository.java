@@ -47,6 +47,12 @@ public class PromptRepository
         getPreferenceStore().setValue( prompt.preferenceName(), promptText );
     }
 
+    /** Backward-compatible overload that accepts a raw preference key string. */
+    public void setPrompt( String preferenceName, String promptText )
+    {
+        getPreferenceStore().setValue( preferenceName, promptText );
+    }
+
     public String getPromptByIndex( int index )
     {
         var prompt = getPreferenceStore().getString( getPreferenceName( index ) );

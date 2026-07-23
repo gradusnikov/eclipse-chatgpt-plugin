@@ -130,7 +130,7 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.renameFile(projectName, filePath, newFileName);
     }
 
-    @Tool(name="refactorRenameJavaType", description="Renames a Java class/interface/enum using Eclipse's refactoring mechanism. This updates the type name, file name, and ALL references throughout the workspace. Use this instead of renameFile for Java files to ensure all references are updated correctly.", type="object")
+    @Tool(name="refactorRenameJavaType", longExecution=true, description="Renames a Java class/interface/enum using Eclipse's refactoring mechanism. This updates the type name, file name, and ALL references throughout the workspace. Use this instead of renameFile for Java files to ensure all references are updated correctly.", type="object")
     public String refactorRenameJavaType(
         @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java')", required=true) String filePath,
@@ -139,7 +139,16 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.refactorRenameJavaType(projectName, filePath, newTypeName);
     }
 
-    @Tool(name="refactorMoveJavaType", description="Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism. This updates the package declaration and ALL references throughout the workspace. The target package will be created if it doesn't exist.", type="object")
+    @Tool(name="refactorExtractTypeToNewFile", longExecution=true, description="Extracts a nested Java class, interface, enum, or record into a new top-level Java file using Eclipse's Move Type to New File refactoring. The type name must be relative to the source compilation unit, for example 'Outer.Inner'. Eclipse validates the change and updates all required references.", type="object")
+    public String refactorExtractTypeToNewFile(
+        @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
+        @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/Outer.java')", required=true) String filePath,
+        @ToolParam(name="nestedTypeName", description="The nested type to extract, relative to the compilation unit (e.g., 'Outer.Inner')", required=true) String nestedTypeName)
+    {
+        return codeEditingService.refactorExtractTypeToNewFile(projectName, filePath, nestedTypeName);
+    }
+
+    @Tool(name="refactorMoveJavaType", longExecution=true, description="Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism. This updates the package declaration and ALL references throughout the workspace. The target package will be created if it doesn't exist.", type="object")
     public String refactorMoveJavaType(
         @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java')", required=true) String filePath,
@@ -148,7 +157,7 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.refactorMoveJavaType(projectName, filePath, targetPackage);
     }
 
-    @Tool(name="refactorRenamePackage", description="Renames a Java package using Eclipse's refactoring mechanism. This renames the package directory, updates all package declarations in contained files, and updates ALL references throughout the workspace.", type="object")
+    @Tool(name="refactorRenamePackage", longExecution=true, description="Renames a Java package using Eclipse's refactoring mechanism. This renames the package directory, updates all package declarations in contained files, and updates ALL references throughout the workspace.", type="object")
     public String refactorRenamePackage(
         @ToolParam(name="projectName", description="The name of the project containing the package", required=true) String projectName,
         @ToolParam(name="packageName", description="The current fully qualified package name (e.g., 'com.example.oldpackage')", required=true) String packageName,
@@ -166,7 +175,7 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.moveResource(projectName, sourcePath, targetPath);
     }
 
-    @Tool(name="organizeImports", description="Organizes imports in a Java file using Eclipse's organize imports mechanism. This removes unused imports, adds missing imports, and sorts them according to project settings. Equivalent to pressing Ctrl+Shift+O in Eclipse.", type="object")
+    @Tool(name="organizeImports", description="Cleans up existing imports in a Java file using Eclipse's organize imports mechanism: removes unused imports and sorts the remaining imports according to project settings. This tool does NOT add imports for unresolved types. To add a missing import, use eclipse-ide getImportSuggestions and then edit the file explicitly.", type="object")
     public String organizeImports(
         @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java')", required=true) String filePath) 
@@ -174,7 +183,7 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.organizeImports(projectName, filePath);
     }
 
-    @Tool(name="organizeImportsInPackage", description="Organizes imports in all Java files within a package. This is useful for cleaning up imports across multiple files at once.", type="object")
+    @Tool(name="organizeImportsInPackage", longExecution=true, description="Cleans up existing imports in all Java files within a package by removing unused imports and sorting the remaining imports. This tool does NOT add imports for unresolved types.", type="object")
     public String organizeImportsInPackage(
         @ToolParam(name="projectName", description="The name of the project containing the package", required=true) String projectName,
         @ToolParam(name="packageName", description="The fully qualified package name (e.g., 'com.example.mypackage')", required=true) String packageName) 
@@ -211,7 +220,7 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.deleteLinesInFile(projectName, filePath, startLineNum, endLineNum);
     }
 
-    @Tool(name="applyPatch", description="Applies a unified diff patch to a file. The patch should be in standard unified diff format with @@ hunk headers. Context lines are used for fuzzy matching, so the patch can be applied even if line numbers have shifted. This is more reliable than replaceString for multi-hunk edits. Optionally shows Eclipse's Apply Patch dialog for user review.", type="object")
+    @Tool(name="applyPatch", description="Atomically applies a unified diff with one or more hunks to a workspace file. Validates all hunk context before writing, preserves the file's line delimiter, and creates an undo backup. File headers are optional.", type="object")
     public String applyPatch(
         @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,

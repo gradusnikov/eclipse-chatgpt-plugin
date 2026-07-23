@@ -28,7 +28,7 @@ import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ProjectService;
 import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
 
-public class ProjectServiceTest {
+public class ProjectServicePDETest {
 
     private ProjectService service;
     private IWorkspaceRoot root;
@@ -37,7 +37,7 @@ public class ProjectServiceTest {
 
     @BeforeEach
     public void beforeEach() throws CoreException, IOException {
-        BundleContext bundleContext = FrameworkUtil.getBundle(ProjectServiceTest.class).getBundleContext();
+        BundleContext bundleContext = FrameworkUtil.getBundle(ProjectServicePDETest.class).getBundleContext();
         ServiceTracker<IWorkspace, IWorkspace> workspaceTracker = new ServiceTracker<>(bundleContext, IWorkspace.class, null);
         workspaceTracker.open();
         IWorkspace workspace = workspaceTracker.getService();

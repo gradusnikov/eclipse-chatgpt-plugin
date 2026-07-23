@@ -1,7 +1,7 @@
 ---
 name: eclipse-edit
 description: Edit files in Eclipse projects using MCP tools. Use this when modifying code in Eclipse workspace projects — it keeps Eclipse editors in sync, triggers incremental compilation, and provides undo via local history.
-argument-hint: [description of changes]
+argument-hint: "[description of changes]"
 allowed-tools: mcp__eclipse-coder__applyPatch, mcp__eclipse-coder__replaceString, mcp__eclipse-coder__insertIntoFile, mcp__eclipse-coder__createFile, mcp__eclipse-coder__deleteFile, mcp__eclipse-coder__deleteLinesInFile, mcp__eclipse-coder__replaceFileContent, mcp__eclipse-coder__formatFile, mcp__eclipse-coder__organizeImports, mcp__eclipse-coder__organizeImportsInPackage, mcp__eclipse-coder__undoEdit, mcp__eclipse-coder__renameFile, mcp__eclipse-coder__createDirectories, mcp__eclipse-coder__moveResource, mcp__eclipse-coder__refactorRenameJavaType, mcp__eclipse-coder__refactorMoveJavaType, mcp__eclipse-coder__refactorRenamePackage, mcp__eclipse-ide__getCompilationErrors, mcp__eclipse-ide__getProjectLayout, mcp__eclipse-ide__readProjectResource, mcp__eclipse-ide__getClassOutline, mcp__eclipse-ide__getMethodSource, mcp__eclipse-ide__getFilteredSource, mcp__eclipse-ide__getSource
 ---
 
@@ -11,7 +11,7 @@ Edit files in Eclipse workspace projects using the eclipse-coder MCP tools. Thes
 
 ## Available Editing Tools
 
-- **applyPatch** — Apply a unified diff patch. Supports multiple hunks with fuzzy context matching. Best for multi-location edits. Set `showDialog=true` to let the user review via Eclipse's Apply Patch wizard.
+- **applyPatch** — Atomically apply a unified diff after validating every hunk. It supports multiple hunks and fuzzy context matching, preserves the file's line delimiter, creates an `undoEdit` backup, and can show Eclipse's Apply Patch wizard with `showDialog=true`.
 - **replaceString** — Find and replace exact string. Good for single targeted changes. Optionally scoped to a line range.
 - **insertIntoFile** — Insert content before a specific line (1-based).
 - **createFile** — Create a new file and open it in the editor.
@@ -22,6 +22,8 @@ Edit files in Eclipse workspace projects using the eclipse-coder MCP tools. Thes
 - **organizeImports** — Organize imports in a Java file (Ctrl+Shift+O).
 - **organizeImportsInPackage** — Organize imports across all files in a package.
 - **undoEdit** — Restore a file from Eclipse's local history.
+
+Direct file edits return only after Eclipse has synchronized the saved resource, workspace notifications, cached content, JDT compilation unit (for Java files), and editor selection. Check the `Workspace state` line in the result for `saved`, cache/JDT state, and the final modification stamp.
 
 ## Refactoring Tools
 
@@ -48,5 +50,6 @@ For Java files, prefer refactoring tools over manual rename/move — they update
 - For multi-hunk changes, prefer `applyPatch` over multiple `replaceString` calls
 - `replaceString` requires exact whitespace matching — if it fails, try `applyPatch` instead
 - All tools require `projectName` (Eclipse project name) and `filePath` (relative to project root, without project name)
+- Editing tools open/refresh the affected file and reveal the edited line; multi-file refactorings reveal the primary or first changed file
 - Use `getProjectLayout` with `scopePath` and `maxDepth` to navigate large projects
 - Line numbers from `getClassOutline`, `getMethodSource`, and `getFilteredSource` are always accurate for `replaceString` line ranges and `applyPatch` hunks

@@ -3,12 +3,17 @@ package com.github.gradusnikov.eclipse.assistai.mcp.services;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Deque;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -74,1997 +79,2227 @@ import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import com.github.gradusnikov.eclipse.assistai.completion.CompletionContext;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
 import com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilities;
 
 import jakarta.inject.Inject;
 
-
 @Creatable
 public class CodeEditingService
 {
     @Inject
-    ILog logger;
-    
+    ILog                logger;
+
     @Inject
-    UISynchronize sync;
-    
+    UISynchronize       sync;
+
     @Inject
     CodeAnalysisService codeAnalysisService;
 
     @Inject
-    AiIgnoreService aiIgnoreService;
-    
-	/**
-	 * Creates a directory structure (recursively) in the specified project.
-	 * 
-	 * @param projectName The name of the project where directories should be created
-	 * @param directoryPath The path of directories to create, relative to the project root
-	 * @return A status message indicating success or failure
-	 */
-	public String createDirectories(String projectName, String directoryPath) {
-	    Objects.requireNonNull(projectName);
-	    Objects.requireNonNull(directoryPath);
-	    
-	    if (projectName.isEmpty()) 
-	    {
-	        throw new IllegalArgumentException("Error: Project name cannot be empty.");
-	    }
-	    if (directoryPath.isEmpty()) 
-	    {
-	        throw new IllegalArgumentException("Error: Directory path cannot be empty.");
-	    }
-	    
-	    try 
-	    {
-	        // Get the project
-	        IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-	        IProject project = root.getProject(projectName);
-	        
-	        if (!project.exists()) 
-	        {
-	            throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
-	        }
-	        if (!project.isOpen()) 
-	        {
-	            project.open(null);
-	        }
-	        
-	        // Fix the path by removing any leading slash
-	        String normalizedPath = directoryPath;
-	        while (normalizedPath.startsWith("/") || normalizedPath.startsWith("\\")) 
-	        {
-	            normalizedPath = normalizedPath.substring(1);
-	        }
-	        
-	        if (normalizedPath.isEmpty()) 
-	        {
-	            throw new RuntimeException("Error: Invalid directory path. Path cannot be empty after normalization.");
-	        }
-	        
-	        // Get the folder handle
-	        IFolder folder = project.getFolder(normalizedPath);
-	        
-	        if (folder.exists()) 
-	        {
-	            return "Directory '" + normalizedPath + "' already exists in project '" + projectName + "'.";
-	        }
-	        
-	        // Create the folder hierarchy
-	        ResourceUtilities.createFolderHierarchy(folder);
-	        
-	        // Add this line to refresh the parent container (or project)
-	        folder.getParent().refreshLocal(IResource.DEPTH_INFINITE, null);
+    AiIgnoreService     aiIgnoreService;
 
-	        
-	        return "Success: Directory structure '" + normalizedPath + "' created in project '" + projectName + "'.";
-	    } 
-	    catch (CoreException e) 
-	    {
-	        throw new RuntimeException(e);
-	    }
-	}
+    @Inject
+    ResourceCache       resourceCache;
 
-	/**
-	 * Undoes the last edit operation by restoring a file from its backup.
-	 * 
-	 * @param projectName The name of the project containing the file
-	 * @param filePath The path to the file relative to the project root
-	 * @return A status message indicating success or failure
-	 */
-	public String undoEdit(String projectName, String filePath) 
-	{
-	    Objects.requireNonNull(projectName);
-	    Objects.requireNonNull(filePath);
-	    
-	    if (projectName.isEmpty()) 
-	    {
-	        throw new IllegalArgumentException("Error: Project name cannot be empty.");
-	    }
-	    if (filePath.isEmpty()) 
-	    {
-	        throw new IllegalArgumentException("Error: File path cannot be empty.");
-	    }
-	    
-	    try 
-	    {
-	        // Get the project and file
-	        IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-	        IProject project = root.getProject(projectName);
-	        
-	        if (!project.exists()) 
-	        {
-	            throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
-	        }
-	        if (!project.isOpen()) 
-	        {
-	            project.open(null);
-	        }
-	        
-	        IPath path = IPath.fromPath(Path.of(filePath));
-	        IFile file = project.getFile(path);
-	        
-	        if (!file.exists()) 
-	        {
-	            throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
-	        }
-	        // Try to refresh the editor if the file is open
-	        sync.syncExec(() -> 
-	        {
-	            safeOpenEditor(file);
-	            refreshEditor(file);
-	        });
-	        
-	        // Use Eclipse's built-in local history to undo changes
-	        IFileState[] history = file.getHistory(null);
-	        if (history == null || history.length == 0) 
-	        {
-	            throw new RuntimeException("Error: No edit history found for file '" + filePath + "'.");
-	        }
-	        
-	        // Get the most recent history state
-	        IFileState previousState = history[0];
-	        
-	        var previousContentString = new String( ResourceUtilities.readInputStream(previousState.getContents()), Charset.forName( file.getCharset() ));
-	        
-	        // Restore the file from the previous state
-	        try (ByteArrayInputStream source = new ByteArrayInputStream(previousContentString.getBytes(Charset.forName( file.getCharset() )))) 
-	        {
-	            file.setContents(source, IResource.FORCE, null);
-	        }
-	        
-	        // Add this line to refresh the parent container (or project)
-	        file.getParent().refreshLocal(IResource.DEPTH_ONE, null);
+    private static final int MAX_EDIT_BACKUPS = 20;
 
-	        // Try to refresh the editor if the file is open
-	        sync.asyncExec(() -> 
-	        {
-	            refreshEditor(file);
-	        });
-	        
-	        return "Success: Undid last edit in file '" + filePath + "' in project '" + projectName + "'." +
-	        	   "Updated file content:\n```" + ResourceUtilities.readFileContent(file) + "\n```";
-	    } 
-	    catch (CoreException | IOException e) 
-	    {
-	        throw new RuntimeException(e);
-	    }
-	}
-	
+    private final Map<IPath, Deque<byte[]>> editBackups = new ConcurrentHashMap<>();
 
-	/**
-	 * Replaces a specific string in a file with a new string, optionally within a specified line range.
-	 * 
-	 * @param projectName The name of the project containing the file
-	 * @param filePath The path to the file relative to the project root
-	 * @param oldString The exact string to replace
-	 * @param newString The new string to insert
-	 * @param startLine Optional line number to start searching from (0 for beginning of file)
-	 * @param endLine Optional line number to start searching from (0 for beginning of file)
-	 * @return A status message indicating success or failure
-	 */
-	public String replaceStringInFile(String projectName, String filePath, String oldString, String newString, 
-	                                 Integer startLine, Integer endLine) {
-	    
-	    Objects.requireNonNull(projectName);
-	    Objects.requireNonNull(filePath);
-	    Objects.requireNonNull(oldString);
-	    
-	    if (projectName.isEmpty()) 
-	    {
-	        throw new IllegalArgumentException("Error: Project name cannot be empty.");
-	    }
-	    
-	    if (filePath.isEmpty()) 
-	    {
-	        throw new IllegalArgumentException( "Error: File path cannot be empty.");
-	    }
-	    if (newString == null) 
-	    {
-	        newString = ""; // Allow empty replacement
-	    }
-	    
-	    try 
-	    {
-	        // Get the project and file
-	        IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-	        IProject project = root.getProject(projectName);
-	        
-	        if (!project.exists()) 
-	        {
-	            throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
-	        }
-	        if (!project.isOpen()) 
-	        {
-	        	throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
-	        }
-	        
-	        IPath path = IPath.fromPath(Path.of(filePath));
-	        IFile file = project.getFile(path);
-	        
-	        if (!file.exists()) 
-	        {
-	            throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
-	        }
-
-		        aiIgnoreService.assertAccessAllowed(file);
-
-	        // Try to refresh the editor if the file is open
-	        sync.syncExec(() -> 
-	        {
-	            safeOpenEditor(file);
-	            refreshEditor(file);
-	        });
-	        
-	        // Read the file line by line for better range handling
-	        List<String> lines = ResourceUtilities.readFileLinesWithTerminators(file);
-	        
-	        // Validate line range
-	        int totalLines = lines.size();
-	        
-	        // Convert to 0-based indexing for internal use
-	        int effectiveStartLine = (startLine != null) ? Math.max(0, startLine - 1) : 0;
-	        int effectiveEndLine = (endLine != null) ? Math.min(totalLines - 1, endLine - 1) : totalLines - 1;
-	        
-	        // Validate range
-	        if (effectiveStartLine >= totalLines) 
-	        {
-	            throw new RuntimeException("Error: Start line " + startLine + " is beyond the end of the file (total lines: " + totalLines + ").");
-	        }
-	        effectiveEndLine = Math.min(effectiveEndLine, totalLines - 1);
-	        
-	        if (effectiveStartLine > effectiveEndLine) 
-	        {
-	            throw new RuntimeException("Error: Start line cannot be greater than end line.");
-	        }
-	        
-	        // Store the content as a single string for the range we're working with
-	        StringBuilder rangeContent = new StringBuilder();
-	        for (int i = effectiveStartLine; i <= effectiveEndLine; i++) 
-	        {
-	            rangeContent.append(lines.get(i));
-	        }
-	        
-	        String rangeText = rangeContent.toString();
-	        
-	        // Check if the range contains the target string
-	        if (!rangeText.contains(oldString)) 
-	        {
-	            String rangeInfo = "";
-	            if (startLine != null || endLine != null) 
-	            {
-	                rangeInfo = " within range (lines " + (startLine != null ? startLine : 1) + " to " + (endLine != null ? endLine : totalLines) + ")";
-	            }
-	            throw new RuntimeException("Error: The specified string was not found in the file" + rangeInfo + ".");
-	        }
-	        
-	        // Replace the string in the range
-	        String replacedRangeText = rangeText.replace(oldString, newString);
-	        
-	        // Build the new content
-	        StringBuilder modifiedContent = new StringBuilder();
-	        
-	        // Add lines before the range
-	        for (int i = 0; i < effectiveStartLine; i++) 
-	        {
-	            modifiedContent.append(lines.get(i));
-	        }
-	        
-	        // Add the modified range content
-	        modifiedContent.append(replacedRangeText);
-	        
-	        // Add lines after the range
-	        for (int i = effectiveEndLine + 1; i < totalLines; i++) 
-	        {
-	            modifiedContent.append(lines.get(i));
-	        }
-	        
-	        var modifiedContentString = modifiedContent.toString();
-	        String diff = generateCodeDiff(projectName, filePath, modifiedContentString, 3);
-	        
-	        // Write back to the file
-	        try (ByteArrayInputStream source = new ByteArrayInputStream(modifiedContentString.getBytes(Charset.forName( file.getCharset() )))) 
-	        {
-	            file.setContents(source, IResource.FORCE, null);
-	        }
-	        
-	        // Refresh and reveal the changed location in the editor
-	        final int revealLine = effectiveStartLine + 1; // convert back to 1-based
-	        sync.asyncExec(() -> {
-	        	refreshEditor(file);
-	        	revealLineInEditor(file, revealLine);
-	        });
-	
-	        
-	        return "Success: String replaced in file '" + filePath + "' in project '" + projectName + "'. "  + "'.\n" +
-	        	   "Changes:\n```diff\n" + diff + "\n```";
-	        
-	    } 
-	    catch (CoreException | IOException e) 
-	    {
-	        throw new RuntimeException(e);
-	    }
-	}
-
-    
-    
-	/**
-	 * Inserts content after a specific line in an existing file.
-	 * 
-	 * @param projectName The name of the project containing the file
-	 * @param filePath The path to the file relative to the project root
-	 * @param content The content to insert into the file
-	 * @param atLine The line number after which to insert the text (0 for beginning of file)
-	 * @return A status message indicating success or failure
-	 */
-	public String insertIntoFile(String projectName, String filePath, String content, int atLine) 
-	{
-		Objects.requireNonNull(projectName);
-		Objects.requireNonNull(filePath);
-		
-		if (projectName.isEmpty()) 
-	    {
-	        throw new IllegalArgumentException("Error: Project name cannot be empty.");
-	    }
-	    if (filePath.isEmpty()) 
-	    {
-	    	throw new IllegalArgumentException( "Error: File path cannot be empty.");
-	    }
-	    if ( Objects.isNull(content) )  
-	    {
-	        content = ""; // Allow empty content
-	    }
-	    
-	    try 
-	    {
-	        // Get the project and file
-	        IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-	        IProject project = root.getProject(projectName);
-	        
-	        if (!project.exists()) 
-	        {
-	            throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
-	        }
-	        if (!project.isOpen()) 
-	        {
-	        	throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
-	        }
-	        IPath path = IPath.fromPath(Path.of(filePath));
-	        IFile file = project.getFile(path);
-	        
-	        if (!file.exists()) 
-	        {
-	            throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
-	        }
-
-		        aiIgnoreService.assertAccessAllowed(file);
-
-	        // Try to refresh the editor if the file is open
-	        sync.syncExec(() -> 
-	        {
-	        	safeOpenEditor(file);
-	        	refreshEditor(file);
-	        });
-	        List<String> lines = ResourceUtilities.readFileLinesWithTerminators(file);
-	        
-	        // convert to 0-based indexing
-	        var effectiveAtLine = atLine - 1;
-	        // Validate line number
-	        if (effectiveAtLine < 0 || effectiveAtLine > lines.size() ) 
-	        {
-	            throw new RuntimeException("Error: Invalid line number " + atLine + ". File has " + lines.size() + " lines.");
-	        }
-	        
-	        // Build the new content
-	        StringBuilder modifiedContent = new StringBuilder();
-	        
-	        // Add lines before insertion point
-	        for (int i = 0; i < effectiveAtLine; i++) 
-	        {
-	            modifiedContent.append(lines.get(i));
-	        }
-	        
-	        // Add the new content
-	        modifiedContent.append(content);
-	        if (!content.endsWith("\n")) 
-	        {
-	            modifiedContent.append("\n");
-	        }
-	        
-	        // Add the remaining lines
-	        for (int i = effectiveAtLine; i < lines.size(); i++) 
-	        {
-	            modifiedContent.append(lines.get(i) );
-	        }
-	        
-	        var modifiedContentString = modifiedContent.toString();
-	        String diff = generateCodeDiff(projectName, filePath, modifiedContentString, 3);
-
-	        // Write back to the file
-	        try (ByteArrayInputStream source = new ByteArrayInputStream(modifiedContentString.getBytes(Charset.forName( file.getCharset() )))) 
-	        {
-	            file.setContents(source, IResource.FORCE, null);
-	        }
-	        
-	        // Add this line to refresh the parent container (or project)
-	        file.getParent().refreshLocal(IResource.DEPTH_ONE, null);
-
-	        // Refresh and reveal the insertion point in the editor
-	        sync.syncExec( () -> {
-	        	refreshEditor(file);
-	        	revealLineInEditor(file, atLine);
-	        });
-	        
-	        return "Success: file '" + filePath + "' in project '" + projectName + "' was updated.\n" +
-	        	   "Changes:\n```diff\n" + diff + "\n```";
-
-	    } 
-	    catch (CoreException | IOException e) 
-	    {
-	        throw new RuntimeException(e); 
-	    }
-	}
-
-	/**
-	 * Does the actual work of refreshing an editor.
-	 */
-	private void refreshEditor(IFile file) 
-	{
-	    try 
-	    {
-	    	file.getParent().refreshLocal(IResource.DEPTH_ONE, null);
-	        
-	    	Optional.ofNullable(PlatformUI.getWorkbench())
-	            .map(IWorkbench::getActiveWorkbenchWindow)
-	            .map(IWorkbenchWindow::getActivePage)
-	            .ifPresent(page -> {
-	                // Try to find an editor for this file
-	                Arrays.stream(page.getEditorReferences())
-	                    .map(ref -> ref.getEditor(false))
-	                    .filter(Objects::nonNull)
-	                    .filter(editor -> {
-	                        IEditorInput input = editor.getEditorInput();
-	                        return input instanceof IFileEditorInput && 
-	                               file.equals(((IFileEditorInput) input).getFile());
-	                    })
-	                    .findFirst()
-	                    .ifPresent(editor -> {
-	                        try
-	                        {
-	                        	// Found the editor, now refresh it
-	                        	IEditorInput input = editor.getEditorInput();
-	                        	if (editor instanceof ITextEditor) 
-	                        	{
-	                        		((ITextEditor) editor).getDocumentProvider().resetDocument(input);
-	                        	} 
-	                        }
-	                        catch ( Exception e )
-	                        {
-	                        	throw new RuntimeException( e );
-	                        }
-	                    });
-	            });
-	    } 
-	    catch (Exception e) 
-	    {
-	        logger.error("Error refreshing editor: " + e.getMessage());
-	    }
-	}
-
-	
-
-    
-	/**
-	 * * Generates a diff between proposed code and an existing file in the project.
-	 * 
-	 * @param projectName The name of the project containing the file 
-	 * @param filePath The path to the file relative to the project root 
-	 * @param proposedCode The new/updated code being proposed 
-	 * @param contextLines Number of context lines to include in the diff 
-	 * @return A formatted string containing the diff and a summary of changes
-	 */
-    public String generateCodeDiff(String projectName, String filePath, String proposedCode, Integer contextLines)
+    /**
+     * Creates a directory structure (recursively) in the specified project.
+     * 
+     * @param projectName
+     *            The name of the project where directories should be created
+     * @param directoryPath
+     *            The path of directories to create, relative to the project
+     *            root
+     * @return A status message indicating success or failure
+     */
+    public String createDirectories( String projectName, String directoryPath )
     {
-		Objects.requireNonNull(projectName);
-		Objects.requireNonNull(filePath);
-		
-		if (projectName.isEmpty()) 
-	    {
-	        throw new IllegalArgumentException("Error: Project name cannot be empty.");
-	    }
-	    if (filePath.isEmpty()) 
-	    {
-	    	throw new IllegalArgumentException( "Error: File path cannot be empty.");
-	    }
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( directoryPath );
 
-    	
-        if (contextLines == null || contextLines < 0) 
+        if ( projectName.isEmpty() )
         {
-            contextLines = 3; // Default context lines
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
         }
-        try 
+        if ( directoryPath.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Directory path cannot be empty." );
+        }
+
+        try
         {
             // Get the project
-            IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
-            if (!project.exists()) 
-            {
-                throw new RuntimeException("Error: Project '" + projectName + "' not found.");
-            }
-            
-            if (!project.isOpen()) 
-            {
-                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
-            }
-            
-            // Get the file
-            IResource resource = project.findMember(filePath);
-            if (resource == null || !resource.exists()) 
-            {
-                throw new RuntimeException("Error: File '" + filePath + "' not found in project '" + projectName + "'.");
-            }
-            
-            // Check if the resource is a file
-            if (!(resource instanceof IFile)) 
-            {
-                throw new RuntimeException("Error: Resource '" + filePath + "' is not a file.");
-            }
-            
-            IFile file = (IFile) resource;
-            
-	        // Try to refresh the editor if the file is open
-	        sync.syncExec(() -> 
-	        {
-	            safeOpenEditor(file);
-	            refreshEditor(file);
-	        });
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject( projectName );
 
-            // Read the original file content
-            String originalContent = ResourceUtilities.readFileContent(file);
-            
-            // Create temporary files for diff
-            Path originalFile = Files.createTempFile("original-", ".tmp");
-            Path proposedFile = Files.createTempFile("proposed-", ".tmp");
-            
-            try 
+            if ( !project.exists() )
             {
-                // Write contents to temp files
-                Files.writeString(originalFile, originalContent);
-                Files.writeString(proposedFile, proposedCode);
-                
-                // Generate diff using JGit
-                ByteArrayOutputStream diffOutput = new ByteArrayOutputStream();
-                DiffFormatter formatter = new DiffFormatter(diffOutput);
-                formatter.setContext(contextLines);
-                formatter.setDiffComparator(RawTextComparator.DEFAULT);
-                
-                RawText rawOriginal = new RawText(originalFile.toFile());
-                RawText rawProposed = new RawText(proposedFile.toFile());
-                
-                // Write a diff header
-                diffOutput.write(("--- /" + filePath + "\n").getBytes());
-                diffOutput.write(("+++ /" + filePath + "\n").getBytes());
-                
-                // Generate edit list
-                EditList edits = new HistogramDiff().diff(RawTextComparator.DEFAULT, rawOriginal, rawProposed);
-                
-                // Format the edits with proper context
-                formatter.format(edits, rawOriginal, rawProposed);
-                
-                String diffResult = diffOutput.toString();
-                formatter.close();
-                
-                // If there are no changes, inform the user
-                if (diffResult.trim().isEmpty() || !diffResult.contains("@@")) 
-                {
-                    // No changes detected. The proposed code is identical to the existing file.
-                    return "";
-                }
-                
-                return diffResult;
-            } 
-            finally 
-            {
-                // Clean up temporary files
-                Files.deleteIfExists(originalFile);
-                Files.deleteIfExists(proposedFile);
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
             }
-        } 
-        catch (Exception e) 
+            if ( !project.isOpen() )
+            {
+                project.open( null );
+            }
+
+            // Fix the path by removing any leading slash
+            String normalizedPath = directoryPath;
+            while ( normalizedPath.startsWith( "/" ) || normalizedPath.startsWith( "\\" ) )
+            {
+                normalizedPath = normalizedPath.substring( 1 );
+            }
+
+            if ( normalizedPath.isEmpty() )
+            {
+                throw new RuntimeException( "Error: Invalid directory path. Path cannot be empty after normalization." );
+            }
+
+            // Get the folder handle
+            IFolder folder = project.getFolder( normalizedPath );
+
+            if ( folder.exists() )
+            {
+                return "Directory '" + normalizedPath + "' already exists in project '" + projectName + "'.";
+            }
+
+            // Create the folder hierarchy
+            ResourceUtilities.createFolderHierarchy( folder );
+
+            // Add this line to refresh the parent container (or project)
+            folder.getParent().refreshLocal( IResource.DEPTH_INFINITE, null );
+
+            return "Success: Directory structure '" + normalizedPath + "' created in project '" + projectName + "'.";
+        }
+        catch ( CoreException e )
         {
-            logger.error(e.getMessage(), e);
-            throw new RuntimeException("Error generating diff: " + ExceptionUtils.getRootCauseMessage(e));
+            throw new RuntimeException( e );
         }
     }
 
     /**
-     * Formats the given code string according to the current Eclipse formatter settings.
-     * This is equivalent to pressing Ctrl+Shift+F in the Eclipse editor.
+     * Undoes the last edit operation by restoring a file from its backup.
      * 
-     * @param code The unformatted code string
-     * @param projectName Optional project name to use project-specific formatter settings
+     * @param projectName
+     *            The name of the project containing the file
+     * @param filePath
+     *            The path to the file relative to the project root
+     * @return A status message indicating success or failure
+     */
+    public String undoEdit( String projectName, String filePath )
+    {
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
+        }
+        if ( filePath.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
+        }
+
+        try
+        {
+            // Get the project and file
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
+            }
+            if ( !project.isOpen() )
+            {
+                project.open( null );
+            }
+
+            IPath path = IPath.fromPath( Path.of( filePath ) );
+            IFile file = project.getFile( path );
+
+            if ( !file.exists() )
+            {
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
+            }
+            // Try to refresh the editor if the file is open
+            sync.syncExec( () -> {
+                safeOpenEditor( file );
+                refreshEditor( file );
+            } );
+
+            byte[] previousContent = takeEditBackup( file );
+            if ( previousContent == null )
+            {
+                IFileState[] history = file.getHistory( null );
+                if ( history == null || history.length == 0 )
+                {
+                    throw new RuntimeException( "Error: No edit history found for file '" + filePath + "'." );
+                }
+                previousContent = ResourceUtilities.readInputStream( history[0].getContents() );
+            }
+
+            try (ByteArrayInputStream source = new ByteArrayInputStream( previousContent ))
+            {
+                file.setContents( source, IResource.FORCE, null );
+            }
+
+            String workspaceState = synchronizeAfterEdit( file, 1 );
+
+            return "Success: Undid last edit in file '" + filePath + "' in project '" + projectName + "'." + "Updated file content:\n```"
+                    + ResourceUtilities.readFileContent( file ) + "\n```" + workspaceState;
+        }
+        catch ( CoreException | IOException e )
+        {
+            throw new RuntimeException( e );
+        }
+    }
+
+    /**
+     * Replaces a specific string in a file with a new string, optionally within
+     * a specified line range.
+     * 
+     * @param projectName
+     *            The name of the project containing the file
+     * @param filePath
+     *            The path to the file relative to the project root
+     * @param oldString
+     *            The exact string to replace
+     * @param newString
+     *            The new string to insert
+     * @param startLine
+     *            Optional line number to start searching from (0 for beginning
+     *            of file)
+     * @param endLine
+     *            Optional line number to start searching from (0 for beginning
+     *            of file)
+     * @return A status message indicating success or failure
+     */
+    public String replaceStringInFile( String projectName, String filePath, String oldString, String newString, Integer startLine, Integer endLine )
+    {
+
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+        Objects.requireNonNull( oldString );
+
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
+        }
+
+        if ( filePath.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
+        }
+        if ( newString == null )
+        {
+            newString = ""; // Allow empty replacement
+        }
+
+        try
+        {
+            // Get the project and file
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
+            }
+            if ( !project.isOpen() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
+            }
+
+            IPath path = IPath.fromPath( Path.of( filePath ) );
+            IFile file = project.getFile( path );
+
+            if ( !file.exists() )
+            {
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
+            }
+
+            aiIgnoreService.assertAccessAllowed( file );
+
+            // Try to refresh the editor if the file is open
+            sync.syncExec( () -> {
+                safeOpenEditor( file );
+                refreshEditor( file );
+            } );
+
+            // Read the file line by line for better range handling
+            List<String> lines = ResourceUtilities.readFileLinesWithTerminators( file );
+
+            // Validate line range
+            int totalLines = lines.size();
+
+            // Convert to 0-based indexing for internal use
+            int effectiveStartLine = ( startLine != null ) ? Math.max( 0, startLine - 1 ) : 0;
+            int effectiveEndLine = ( endLine != null ) ? Math.min( totalLines - 1, endLine - 1 ) : totalLines - 1;
+
+            // Validate range
+            if ( effectiveStartLine >= totalLines )
+            {
+                throw new RuntimeException( "Error: Start line " + startLine + " is beyond the end of the file (total lines: " + totalLines + ")." );
+            }
+            effectiveEndLine = Math.min( effectiveEndLine, totalLines - 1 );
+
+            if ( effectiveStartLine > effectiveEndLine )
+            {
+                throw new RuntimeException( "Error: Start line cannot be greater than end line." );
+            }
+
+            // Store the content as a single string for the range we're working
+            // with
+            StringBuilder rangeContent = new StringBuilder();
+            for ( int i = effectiveStartLine; i <= effectiveEndLine; i++ )
+            {
+                rangeContent.append( lines.get( i ) );
+            }
+
+            String rangeText = rangeContent.toString();
+
+            // Check if the range contains the target string
+            if ( !rangeText.contains( oldString ) )
+            {
+                String rangeInfo = "";
+                if ( startLine != null || endLine != null )
+                {
+                    rangeInfo = " within range (lines " + ( startLine != null ? startLine : 1 ) + " to " + ( endLine != null ? endLine : totalLines ) + ")";
+                }
+                throw new RuntimeException( "Error: The specified string was not found in the file" + rangeInfo + "." );
+            }
+
+            // Replace the string in the range
+            String replacedRangeText = rangeText.replace( oldString, newString );
+
+            // Build the new content
+            StringBuilder modifiedContent = new StringBuilder();
+
+            // Add lines before the range
+            for ( int i = 0; i < effectiveStartLine; i++ )
+            {
+                modifiedContent.append( lines.get( i ) );
+            }
+
+            // Add the modified range content
+            modifiedContent.append( replacedRangeText );
+
+            // Add lines after the range
+            for ( int i = effectiveEndLine + 1; i < totalLines; i++ )
+            {
+                modifiedContent.append( lines.get( i ) );
+            }
+
+            var modifiedContentString = modifiedContent.toString();
+            String diff = generateCodeDiff( projectName, filePath, modifiedContentString, 3 );
+
+            // Write back to the file
+            try (ByteArrayInputStream source = new ByteArrayInputStream( modifiedContentString.getBytes( Charset.forName( file.getCharset() ) ) ))
+            {
+                file.setContents( source, IResource.FORCE, null );
+            }
+
+            final int revealLine = effectiveStartLine + 1;
+            String workspaceState = synchronizeAfterEdit( file, revealLine );
+
+            return "Success: String replaced in file '" + filePath + "' in project '" + projectName + "'.\n" + "Changes:\n```diff\n" + diff + "\n```"
+                    + workspaceState;
+
+        }
+        catch ( CoreException | IOException e )
+        {
+            throw new RuntimeException( e );
+        }
+    }
+
+    /**
+     * Inserts content after a specific line in an existing file.
+     * 
+     * @param projectName
+     *            The name of the project containing the file
+     * @param filePath
+     *            The path to the file relative to the project root
+     * @param content
+     *            The content to insert into the file
+     * @param atLine
+     *            The line number after which to insert the text (0 for
+     *            beginning of file)
+     * @return A status message indicating success or failure
+     */
+    public String insertIntoFile( String projectName, String filePath, String content, int atLine )
+    {
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
+        }
+        if ( filePath.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
+        }
+        if ( Objects.isNull( content ) )
+        {
+            content = ""; // Allow empty content
+        }
+
+        try
+        {
+            // Get the project and file
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
+            }
+            if ( !project.isOpen() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
+            }
+            IPath path = IPath.fromPath( Path.of( filePath ) );
+            IFile file = project.getFile( path );
+
+            if ( !file.exists() )
+            {
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
+            }
+
+            aiIgnoreService.assertAccessAllowed( file );
+
+            // Try to refresh the editor if the file is open
+            sync.syncExec( () -> {
+                safeOpenEditor( file );
+                refreshEditor( file );
+            } );
+            List<String> lines = ResourceUtilities.readFileLinesWithTerminators( file );
+
+            // convert to 0-based indexing
+            var effectiveAtLine = atLine - 1;
+            // Validate line number
+            if ( effectiveAtLine < 0 || effectiveAtLine > lines.size() )
+            {
+                throw new RuntimeException( "Error: Invalid line number " + atLine + ". File has " + lines.size() + " lines." );
+            }
+
+            // Build the new content
+            StringBuilder modifiedContent = new StringBuilder();
+
+            // Add lines before insertion point
+            for ( int i = 0; i < effectiveAtLine; i++ )
+            {
+                modifiedContent.append( lines.get( i ) );
+            }
+
+            // Add the new content
+            modifiedContent.append( content );
+            if ( !content.endsWith( "\n" ) )
+            {
+                modifiedContent.append( "\n" );
+            }
+
+            // Add the remaining lines
+            for ( int i = effectiveAtLine; i < lines.size(); i++ )
+            {
+                modifiedContent.append( lines.get( i ) );
+            }
+
+            var modifiedContentString = modifiedContent.toString();
+            String diff = generateCodeDiff( projectName, filePath, modifiedContentString, 3 );
+
+            // Write back to the file
+            try (ByteArrayInputStream source = new ByteArrayInputStream( modifiedContentString.getBytes( Charset.forName( file.getCharset() ) ) ))
+            {
+                file.setContents( source, IResource.FORCE, null );
+            }
+
+            String workspaceState = synchronizeAfterEdit( file, atLine );
+
+            return "Success: file '" + filePath + "' in project '" + projectName + "' was updated.\n" + "Changes:\n```diff\n" + diff + "\n```"
+                    + workspaceState;
+
+        }
+        catch ( CoreException | IOException e )
+        {
+            throw new RuntimeException( e );
+        }
+    }
+
+    /**
+     * Does the actual work of refreshing an editor.
+     */
+    private void refreshEditor( IFile file )
+    {
+        try
+        {
+            file.getParent().refreshLocal( IResource.DEPTH_ONE, null );
+
+            Optional.ofNullable( PlatformUI.getWorkbench() ).map( IWorkbench::getActiveWorkbenchWindow ).map( IWorkbenchWindow::getActivePage )
+                    .ifPresent( page -> {
+                        // Try to find an editor for this file
+                        Arrays.stream( page.getEditorReferences() ).map( ref -> ref.getEditor( false ) ).filter( Objects::nonNull ).filter( editor -> {
+                            IEditorInput input = editor.getEditorInput();
+                            return input instanceof IFileEditorInput && file.equals( ( (IFileEditorInput) input ).getFile() );
+                        } ).findFirst().ifPresent( editor -> {
+                            try
+                            {
+                                // Found the editor, now refresh it
+                                IEditorInput input = editor.getEditorInput();
+                                if ( editor instanceof ITextEditor )
+                                {
+                                    ( (ITextEditor) editor ).getDocumentProvider().resetDocument( input );
+                                }
+                            }
+                            catch ( Exception e )
+                            {
+                                throw new RuntimeException( e );
+                            }
+                        } );
+                    } );
+        }
+        catch ( Exception e )
+        {
+            logger.error( "Error refreshing editor: " + e.getMessage() );
+        }
+    }
+
+    /**
+     * Completes an edit before its MCP call returns. The file is persisted by
+     * the IFile mutation itself; this barrier then aligns the filesystem,
+     * workspace notifications, JDT model, resource cache, and editor view.
+     */
+    private String synchronizeAfterEdit( IFile file, int revealLine ) throws CoreException
+    {
+        file.refreshLocal( IResource.DEPTH_ZERO, null );
+        ResourcesPlugin.getWorkspace().checkpoint( false );
+
+        String jdtState = "not-applicable";
+        IJavaElement javaElement = JavaCore.create( file );
+        if ( javaElement instanceof ICompilationUnit compilationUnit )
+        {
+            compilationUnit.makeConsistent( new NullProgressMonitor() );
+            jdtState = Boolean.toString( compilationUnit.isConsistent() );
+        }
+
+        boolean cached = resourceCache.get( file ).isPresent();
+        resourceCache.resourceChanged( file.getFullPath() );
+
+        sync.syncExec( () -> {
+            safeOpenEditor( file );
+            refreshEditor( file );
+            revealLineInEditor( file, revealLine );
+        } );
+
+        return "\nWorkspace state: saved=" + file.isSynchronized( IResource.DEPTH_ZERO )
+                + ", refreshed=true, cache=" + ( cached ? "updated" : "not-cached" )
+                + ", jdtConsistent=" + jdtState
+                + ", modificationStamp=" + file.getModificationStamp();
+    }
+
+    /**
+     * * Generates a diff between proposed code and an existing file in the
+     * project.
+     * 
+     * @param projectName
+     *            The name of the project containing the file
+     * @param filePath
+     *            The path to the file relative to the project root
+     * @param proposedCode
+     *            The new/updated code being proposed
+     * @param contextLines
+     *            Number of context lines to include in the diff
+     * @return A formatted string containing the diff and a summary of changes
+     */
+    public String generateCodeDiff( String projectName, String filePath, String proposedCode, Integer contextLines )
+    {
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
+        }
+        if ( filePath.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
+        }
+
+        if ( contextLines == null || contextLines < 0 )
+        {
+            contextLines = 3; // Default context lines
+        }
+        try
+        {
+            // Get the project
+            IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( projectName );
+            if ( !project.exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' not found." );
+            }
+
+            if ( !project.isOpen() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
+            }
+
+            // Get the file
+            IResource resource = project.findMember( filePath );
+            if ( resource == null || !resource.exists() )
+            {
+                throw new RuntimeException( "Error: File '" + filePath + "' not found in project '" + projectName + "'." );
+            }
+
+            // Check if the resource is a file
+            if ( ! ( resource instanceof IFile ) )
+            {
+                throw new RuntimeException( "Error: Resource '" + filePath + "' is not a file." );
+            }
+
+            IFile file = (IFile) resource;
+
+            // Try to refresh the editor if the file is open
+            sync.syncExec( () -> {
+                safeOpenEditor( file );
+                refreshEditor( file );
+            } );
+
+            // Read the original file content
+            String originalContent = ResourceUtilities.readFileContent( file );
+
+            // Create temporary files for diff
+            Path originalFile = Files.createTempFile( "original-", ".tmp" );
+            Path proposedFile = Files.createTempFile( "proposed-", ".tmp" );
+
+            try
+            {
+                // Write contents to temp files
+                Files.writeString( originalFile, originalContent );
+                Files.writeString( proposedFile, proposedCode );
+
+                // Generate diff using JGit
+                ByteArrayOutputStream diffOutput = new ByteArrayOutputStream();
+                DiffFormatter formatter = new DiffFormatter( diffOutput );
+                formatter.setContext( contextLines );
+                formatter.setDiffComparator( RawTextComparator.DEFAULT );
+
+                RawText rawOriginal = new RawText( originalFile.toFile() );
+                RawText rawProposed = new RawText( proposedFile.toFile() );
+
+                // Write a diff header
+                diffOutput.write( ( "--- /" + filePath + "\n" ).getBytes() );
+                diffOutput.write( ( "+++ /" + filePath + "\n" ).getBytes() );
+
+                // Generate edit list
+                EditList edits = new HistogramDiff().diff( RawTextComparator.DEFAULT, rawOriginal, rawProposed );
+
+                // Format the edits with proper context
+                formatter.format( edits, rawOriginal, rawProposed );
+
+                String diffResult = diffOutput.toString();
+                formatter.close();
+
+                // If there are no changes, inform the user
+                if ( diffResult.trim().isEmpty() || !diffResult.contains( "@@" ) )
+                {
+                    // No changes detected. The proposed code is identical to
+                    // the existing file.
+                    return "";
+                }
+
+                return diffResult;
+            }
+            finally
+            {
+                // Clean up temporary files
+                Files.deleteIfExists( originalFile );
+                Files.deleteIfExists( proposedFile );
+            }
+        }
+        catch ( Exception e )
+        {
+            logger.error( e.getMessage(), e );
+            throw new RuntimeException( "Error generating diff: " + ExceptionUtils.getRootCauseMessage( e ) );
+        }
+    }
+
+    /**
+     * Formats the given code string according to the current Eclipse formatter
+     * settings. This is equivalent to pressing Ctrl+Shift+F in the Eclipse
+     * editor.
+     * 
+     * @param code
+     *            The unformatted code string
+     * @param projectName
+     *            Optional project name to use project-specific formatter
+     *            settings
      * @return The formatted code string
      */
-	public String formatCode(String code, String projectName) {
-		Objects.requireNonNull(code, "Code cannot be null");
-		try
-		{
-			// Get formatting options - first try project-specific settings if project is
-			// provided
-			Map<String, String> options;
+    public String formatCode( String code, String projectName )
+    {
+        Objects.requireNonNull( code, "Code cannot be null" );
+        try
+        {
+            // Get formatting options - first try project-specific settings if
+            // project is
+            // provided
+            Map<String, String> options;
 
-			if (projectName != null && !projectName.isEmpty()) 
-			{
-				IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
-				if (project.exists() && project.isOpen()) 
-				{
-					IJavaProject javaProject = JavaCore.create(project);
-					options = javaProject.getOptions(true);
-				}
-				else 
-				{
-					// Fall back to workspace defaults if project doesn't exist or is closed
-					options = JavaCore.getOptions();
-				}
-			} 
-			else 
-			{
-				// Use workspace defaults
-				options = JavaCore.getOptions();
-			}
+            if ( projectName != null && !projectName.isEmpty() )
+            {
+                IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( projectName );
+                if ( project.exists() && project.isOpen() )
+                {
+                    IJavaProject javaProject = JavaCore.create( project );
+                    options = javaProject.getOptions( true );
+                }
+                else
+                {
+                    // Fall back to workspace defaults if project doesn't exist
+                    // or is closed
+                    options = JavaCore.getOptions();
+                }
+            }
+            else
+            {
+                // Use workspace defaults
+                options = JavaCore.getOptions();
+            }
 
-			// Create formatter with the options
-			CodeFormatter formatter = ToolFactory.createCodeFormatter(options);
+            // Create formatter with the options
+            CodeFormatter formatter = ToolFactory.createCodeFormatter( options );
 
-			// Format the code
-			TextEdit textEdit = formatter.format(CodeFormatter.K_COMPILATION_UNIT | CodeFormatter.F_INCLUDE_COMMENTS,
-					code, 0, code.length(), 0, null);
+            // Format the code
+            TextEdit textEdit = formatter.format( CodeFormatter.K_COMPILATION_UNIT | CodeFormatter.F_INCLUDE_COMMENTS, code, 0, code.length(), 0, null );
 
-			if (textEdit == null) 
-			{
-				// If formatting failed, return the original code
-				logger.warn("Code formatting failed - returning unformatted code");
-				return code;
-			}
+            if ( textEdit == null )
+            {
+                // If formatting failed, return the original code
+                logger.warn( "Code formatting failed - returning unformatted code" );
+                return code;
+            }
 
-			// Apply the formatting changes
-			IDocument document = new Document(code);
-			textEdit.apply(document);
+            // Apply the formatting changes
+            IDocument document = new Document( code );
+            textEdit.apply( document );
 
-			// Return the formatted code
-			return document.get();
-		} 
-		catch (MalformedTreeException | BadLocationException e)
-		{
-			logger.error("Error during code formatting: " + e.getMessage(), e);
-			throw new RuntimeException("Error formatting code: " + e.getMessage(), e);
-		}
-	}
-
+            // Return the formatted code
+            return document.get();
+        }
+        catch ( MalformedTreeException | BadLocationException e )
+        {
+            logger.error( "Error during code formatting: " + e.getMessage(), e );
+            throw new RuntimeException( "Error formatting code: " + e.getMessage(), e );
+        }
+    }
 
     /**
      * Formats an entire Java file using Eclipse's code formatter.
      *
-     * @param projectName The project name
-     * @param filePath The file path relative to the project root
+     * @param projectName
+     *            The project name
+     * @param filePath
+     *            The file path relative to the project root
      * @return A status message
      */
-    public String formatFile(String projectName, String filePath)
+    public String formatFile( String projectName, String filePath )
     {
-        Objects.requireNonNull(projectName);
-        Objects.requireNonNull(filePath);
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
 
         try
         {
             IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-            IProject project = root.getProject(projectName);
-            if (!project.exists() || !project.isOpen())
+            IProject project = root.getProject( projectName );
+            if ( !project.exists() || !project.isOpen() )
             {
                 return "Error: Project '" + projectName + "' not found or not open.";
             }
 
-            IPath path = IPath.fromPath(Path.of(filePath));
-            IFile file = project.getFile(path);
-            if (!file.exists())
+            IPath path = IPath.fromPath( Path.of( filePath ) );
+            IFile file = project.getFile( path );
+            if ( !file.exists() )
             {
                 return "Error: File '" + filePath + "' not found.";
             }
 
             // Read the file content
-            String originalContent = ResourceUtilities.readFileContent(file);
+            String originalContent = ResourceUtilities.readFileContent( file );
 
             // Format using Eclipse's formatter
-            String formattedContent = formatCode(originalContent, projectName);
+            String formattedContent = formatCode( originalContent, projectName );
 
-            if (formattedContent.equals(originalContent))
+            if ( formattedContent.equals( originalContent ) )
             {
                 return "File '" + filePath + "' is already properly formatted.";
             }
 
             // Write back
-            try (ByteArrayInputStream source = new ByteArrayInputStream(
-                    formattedContent.getBytes(Charset.forName(file.getCharset()))))
+            try (ByteArrayInputStream source = new ByteArrayInputStream( formattedContent.getBytes( Charset.forName( file.getCharset() ) ) ))
             {
-                file.setContents(source, IResource.FORCE, null);
+                file.setContents( source, IResource.FORCE, null );
             }
 
-            sync.asyncExec(() -> { refreshEditor(file); revealLineInEditor(file, 1); });
+            String workspaceState = synchronizeAfterEdit( file, 1 );
 
-            String diff = generateCodeDiff(projectName, filePath, formattedContent, 3);
-            return "Success: File '" + filePath + "' formatted.\nChanges:\n```diff\n" + diff + "\n```";
+            String diff = generateCodeDiff( projectName, filePath, formattedContent, 3 );
+            return "Success: File '" + filePath + "' formatted.\nChanges:\n```diff\n" + diff + "\n```" + workspaceState;
         }
-        catch (Exception e)
+        catch ( Exception e )
         {
-            throw new RuntimeException("Error formatting file: " + e.getMessage(), e);
+            throw new RuntimeException( "Error formatting file: " + e.getMessage(), e );
         }
     }
 
-	public String createFileAndOpen(String projectName, String filePath, String content) 
-	{
-		Objects.requireNonNull(projectName);
-		Objects.requireNonNull(filePath);
-		
-		if (projectName.isEmpty()) 
-	    {
-	        throw new IllegalArgumentException("Error: Project name cannot be empty.");
-	    }
-	    if (filePath.isEmpty()) 
-	    {
-	    	throw new IllegalArgumentException( "Error: File path cannot be empty.");
-	    }
-
-	    if (content == null) 
-	    {
-	        content = ""; // Allow empty content
-	    }
-	    
-	    try
-	    {
-	        // Get the project
-	        IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-	        IProject project = root.getProject(projectName);
-	        
-	        if (!project.exists()) 
-	        {
-	            throw new RuntimeException( "Error: Project '" + projectName + "' does not exist.");
-	        }
-	        
-	        if (!project.isOpen()) 
-	        {
-	        	throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
-	        }
-	        
-	        // Fix the path by removing any leading slash
-	        String normalizedPath = filePath;
-	        while (normalizedPath.startsWith("/") || normalizedPath.startsWith("\\")) 
-	        {
-	            normalizedPath = normalizedPath.substring(1);
-	        }
-	        
-	        if (normalizedPath.isEmpty()) 
-	        {
-	        	throw new RuntimeException("Error: Invalid file path. Path cannot be empty after normalization.");
-	        }
-	        
-	        // Create the file path
-	        final IFile file = project.getFile(normalizedPath);
-	        
-	        if (file.exists()) 
-	        {
-	        	throw new RuntimeException("Error: File '" + normalizedPath + "' already exists in project '" + projectName + "'.");
-	        }
-	        
-	        // Create parent folders if they don't exist
-	        IContainer parent = file.getParent();
-	        if (parent instanceof IFolder && !parent.exists()) 
-	        {
-	            ResourceUtilities.createFolderHierarchy((IFolder) parent);
-	        }
-	        // Create the file with content
-	        ByteArrayInputStream source = new ByteArrayInputStream(content.getBytes(Charset.forName( project.getDefaultCharset() )));
-			file.create(source, true, null);
-	        // Add this line to refresh the parent container (or project)
-	        file.getParent().refreshLocal(IResource.DEPTH_ONE, null);
-			
-	        // Try to open the file in the editor, but don't fail if we can't
-	        sync.syncExec(() -> {
-	        	safeOpenEditor(file);
-	        	revealLineInEditor(file, 1);
-	        });
-	        
-	        return "Success: File '" + normalizedPath + "' created in project '" + projectName + "'.";
-	    } 
-	    catch ( CoreException e) 
-	    {
-	        throw new RuntimeException( e );
-	    }
-	}
-	
-	/** 
-	 * Safely opens a file in the editor, handling null cases,
-	 * and brings the editor into focus.
-	 * @param file The file to open 
-	 */
-	private void safeOpenEditor(IFile file) 
-	{
-        Optional.ofNullable( PlatformUI.getWorkbench() )
-                .map( IWorkbench::getActiveWorkbenchWindow )
-                .map(IWorkbenchWindow::getActivePage)
-                .ifPresent( page -> {
-					try 
-					{
-						// Open the editor and get the editor reference
-						var editor = IDE.openEditor(page, file);
-						// Set focus to the editor
-						if (editor != null) 
-						{
-							editor.setFocus();
-						}
-					} 
-					catch (PartInitException e) 
-					{
-				        // Log but don't propagate
-				        logger.error(e.getMessage(), e);
-					}
-				});
-	}
-
-	/**
-	 * Opens a file in the editor and scrolls to the specified line,
-	 * placing the cursor at the beginning of that line.
-	 * 
-	 * @param file The file to open
-	 * @param lineNumber The 1-based line number to reveal
-	 */
-	private void revealLineInEditor(IFile file, int lineNumber)
-	{
-	    Optional.ofNullable(PlatformUI.getWorkbench())
-	            .map(IWorkbench::getActiveWorkbenchWindow)
-	            .map(IWorkbenchWindow::getActivePage)
-	            .ifPresent(page -> {
-	                try
-	                {
-	                    var editor = IDE.openEditor(page, file);
-	                    if (editor instanceof ITextEditor)
-	                    {
-	                        var textEditor = (ITextEditor) editor;
-	                        var provider = textEditor.getDocumentProvider();
-	                        var document = provider.getDocument(textEditor.getEditorInput());
-	                        if (document != null && lineNumber > 0)
-	                        {
-	                            // Convert 1-based line to 0-based for IDocument
-	                            int line = Math.min(lineNumber - 1, document.getNumberOfLines() - 1);
-	                            int offset = document.getLineOffset(line);
-	                            textEditor.selectAndReveal(offset, 0);
-	                        }
-	                        editor.setFocus();
-	                    }
-	                    else if (editor != null)
-	                    {
-	                        editor.setFocus();
-	                    }
-	                }
-	                catch (Exception e)
-	                {
-	                    logger.error("Error revealing line in editor: " + e.getMessage());
-	                }
-	            });
-	}
-
-	
-
-
-	/**
-	 * Replaces specified lines in a file with new content.
-	 * 
-	 * @param projectName The name of the project containing the file
-	 * @param filePath The path to the file relative to the project root
-	 * @param startLine The line number to start replacement from (1-based index)
-	 * @param endLine The line number to end replacement at (inclusive, 1-based index)
-	 * @param replacementContent The new content to insert in place of the deleted lines
-	 * @return A status message indicating success or failure
-	 */
-	public String replaceLines(String projectName, String filePath,  String replacementContent, int startLine, int endLine) 
-	{
-	    Objects.requireNonNull(projectName);
-	    Objects.requireNonNull(filePath);
-	    
-	    if (projectName.isEmpty()) 
-	    {
-	        throw new IllegalArgumentException("Error: Project name cannot be empty.");
-	    }
-	    if (filePath.isEmpty()) 
-	    {
-	        throw new IllegalArgumentException("Error: File path cannot be empty.");
-	    }
-	    
-	    if (replacementContent == null)
-	    {
-	        replacementContent = ""; // Allow empty replacement content
-	    }
-	    
-	    try 
-	    {
-	        // Get the project and file
-	        IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-	        IProject project = root.getProject(projectName);
-	        
-	        if (!project.exists()) 
-	        {
-	            throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
-	        }
-	        if (!project.isOpen()) 
-	        {
-	            project.open(null);
-	        }
-	        
-	        IPath path = IPath.fromPath(Path.of(filePath));
-	        IFile file = project.getFile(path);
-	        
-	        if (!file.exists()) 
-	        {
-	            throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
-	        }
-	        // Try to refresh the editor if the file is open
-	        sync.syncExec(() -> 
-	        {
-	        	safeOpenEditor(file);
-	        	refreshEditor(file);
-	        });
-	        
-	        // Read file content
-	        List<String> lines = ResourceUtilities.readFileLinesWithTerminators(file);
-	        
-	        // Validate line numbers
-	        int totalLines = lines.size();
-	        int startLine0 = startLine -1;
-	        int endLine0   = endLine - 1;
-	        if (startLine0 < 0 || endLine0 < startLine0 ||  startLine0 >= totalLines ) 
-	        {
-	            throw new IllegalArgumentException("Error: Invalid line range specified.");
-	        }
-	        
-	        // Ensure endLine is within bounds
-	        endLine0 = Math.max( Math.min( endLine0, totalLines - 1), 0 );
-	        
-	        StringBuilder modifiedContent = new StringBuilder();
-	        
-	        // Store lines before startLine
-	        for (int i = 0; i < startLine0; i++) 
-	        {
-	            modifiedContent.append( lines.get(i) );
-	        }
-	        // Add the replacement content
-	        modifiedContent.append(replacementContent);
-	        if (!replacementContent.isEmpty() && !replacementContent.endsWith("\n")) 
-	        {
-	            modifiedContent.append("\n");
-	        }
-	        // Add lines after replacement
-	        for (int i = endLine0 + 1; i < totalLines; i++) 
-	        {
-	            modifiedContent.append(lines.get(i));
-	        }
-	        
-	        var modifiedContentString = modifiedContent.toString();
-	        // Generate diff between old and new versions
-	        String diff = generateCodeDiff(projectName, filePath, modifiedContentString, 3);
-
-	        
-			// Write back to the file
-	        try (ByteArrayInputStream source = new ByteArrayInputStream(
-	        		modifiedContentString.getBytes( Charset.forName(file.getCharset())))) 
-	        {
-	            file.setContents(source, IResource.FORCE, null);
-	        }
-	        
-	        // Add this line to refresh the parent container (or project)
-	        file.getParent().refreshLocal(IResource.DEPTH_ONE, null);
-
-	        // Try to open the file in the editor and refresh it
-	        sync.syncExec(() -> {
-	            refreshEditor(file);
-	        });
-	        
-	        
-	        return "Success: file '" + filePath + "' in project '" + projectName + "' was updated.\n" +
-	        	   "Changes:\n```diff\n" + diff + "\n```";
-	    } 
-	    catch (CoreException | IOException e) 
-	    {
-	        throw new RuntimeException(e);
-	    }
-	}
-
-    public String renameFile( String projectName, String filePath, String newFileName )
+    public String createFileAndOpen( String projectName, String filePath, String content )
     {
-        Objects.requireNonNull(projectName);
-        Objects.requireNonNull(filePath);
-        Objects.requireNonNull(newFileName);
-        
-        if (projectName.isEmpty()) 
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+
+        if ( projectName.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
         }
-        if (filePath.isEmpty()) 
+        if ( filePath.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: File path cannot be empty.");
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
         }
-        if (newFileName.isEmpty()) 
+
+        if ( content == null )
         {
-            throw new IllegalArgumentException("Error: New file name cannot be empty.");
+            content = ""; // Allow empty content
         }
-        
-        try 
+
+        try
+        {
+            // Get the project
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
+            }
+
+            if ( !project.isOpen() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
+            }
+
+            // Fix the path by removing any leading slash
+            String normalizedPath = filePath;
+            while ( normalizedPath.startsWith( "/" ) || normalizedPath.startsWith( "\\" ) )
+            {
+                normalizedPath = normalizedPath.substring( 1 );
+            }
+
+            if ( normalizedPath.isEmpty() )
+            {
+                throw new RuntimeException( "Error: Invalid file path. Path cannot be empty after normalization." );
+            }
+
+            // Create the file path
+            final IFile file = project.getFile( normalizedPath );
+
+            if ( file.exists() )
+            {
+                throw new RuntimeException( "Error: File '" + normalizedPath + "' already exists in project '" + projectName + "'." );
+            }
+
+            // Create parent folders if they don't exist
+            IContainer parent = file.getParent();
+            if ( parent instanceof IFolder && !parent.exists() )
+            {
+                ResourceUtilities.createFolderHierarchy( (IFolder) parent );
+            }
+            // Create the file with content
+            ByteArrayInputStream source = new ByteArrayInputStream( content.getBytes( Charset.forName( project.getDefaultCharset() ) ) );
+            file.create( source, true, null );
+            String workspaceState = synchronizeAfterEdit( file, 1 );
+
+            return "Success: File '" + normalizedPath + "' created in project '" + projectName + "'." + workspaceState;
+        }
+        catch ( CoreException e )
+        {
+            throw new RuntimeException( e );
+        }
+    }
+
+    /**
+     * Safely opens a file in the editor, handling null cases, and brings the
+     * editor into focus.
+     * 
+     * @param file
+     *            The file to open
+     */
+    private void safeOpenEditor( IFile file )
+    {
+        Optional.ofNullable( PlatformUI.getWorkbench() ).map( IWorkbench::getActiveWorkbenchWindow ).map( IWorkbenchWindow::getActivePage ).ifPresent( page -> {
+            try
+            {
+                // Open the editor and get the editor reference
+                var editor = IDE.openEditor( page, file );
+                // Set focus to the editor
+                if ( editor != null )
+                {
+                    editor.setFocus();
+                }
+            }
+            catch ( PartInitException e )
+            {
+                // Log but don't propagate
+                logger.error( e.getMessage(), e );
+            }
+        } );
+    }
+
+    /**
+     * Opens a file in the editor and scrolls to the specified line, placing the
+     * cursor at the beginning of that line.
+     * 
+     * @param file
+     *            The file to open
+     * @param lineNumber
+     *            The 1-based line number to reveal
+     */
+    private void revealLineInEditor( IFile file, int lineNumber )
+    {
+        Optional.ofNullable( PlatformUI.getWorkbench() ).map( IWorkbench::getActiveWorkbenchWindow ).map( IWorkbenchWindow::getActivePage ).ifPresent( page -> {
+            try
+            {
+                var editor = IDE.openEditor( page, file );
+                if ( editor instanceof ITextEditor )
+                {
+                    var textEditor = (ITextEditor) editor;
+                    var provider = textEditor.getDocumentProvider();
+                    var document = provider.getDocument( textEditor.getEditorInput() );
+                    if ( document != null && lineNumber > 0 )
+                    {
+                        // Convert 1-based line to 0-based for IDocument
+                        int line = Math.min( lineNumber - 1, document.getNumberOfLines() - 1 );
+                        int offset = document.getLineOffset( line );
+                        textEditor.selectAndReveal( offset, 0 );
+                    }
+                    editor.setFocus();
+                }
+                else if ( editor != null )
+                {
+                    editor.setFocus();
+                }
+            }
+            catch ( Exception e )
+            {
+                logger.error( "Error revealing line in editor: " + e.getMessage() );
+            }
+        } );
+    }
+
+    /**
+     * Replaces specified lines in a file with new content.
+     * 
+     * @param projectName
+     *            The name of the project containing the file
+     * @param filePath
+     *            The path to the file relative to the project root
+     * @param startLine
+     *            The line number to start replacement from (1-based index)
+     * @param endLine
+     *            The line number to end replacement at (inclusive, 1-based
+     *            index)
+     * @param replacementContent
+     *            The new content to insert in place of the deleted lines
+     * @return A status message indicating success or failure
+     */
+    public String replaceLines( String projectName, String filePath, String replacementContent, int startLine, int endLine )
+    {
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
+        }
+        if ( filePath.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
+        }
+
+        if ( replacementContent == null )
+        {
+            replacementContent = ""; // Allow empty replacement content
+        }
+
+        try
         {
             // Get the project and file
             IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-            IProject project = root.getProject(projectName);
-            
-            if (!project.exists()) 
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
             }
-            if (!project.isOpen()) 
+            if ( !project.isOpen() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+                project.open( null );
             }
-            
-            IPath path = IPath.fromPath(Path.of(filePath));
-            IFile file = project.getFile(path);
-            
-            if (!file.exists()) 
+
+            IPath path = IPath.fromPath( Path.of( filePath ) );
+            IFile file = project.getFile( path );
+
+            if ( !file.exists() )
             {
-                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
             }
-            
             // Try to refresh the editor if the file is open
-            sync.syncExec(() -> 
+            sync.syncExec( () -> {
+                safeOpenEditor( file );
+                refreshEditor( file );
+            } );
+
+            // Read file content
+            List<String> lines = ResourceUtilities.readFileLinesWithTerminators( file );
+
+            // Validate line numbers
+            int totalLines = lines.size();
+            int startLine0 = startLine - 1;
+            int endLine0 = endLine - 1;
+            if ( startLine0 < 0 || endLine0 < startLine0 || startLine0 >= totalLines )
             {
-                safeOpenEditor(file);
-                refreshEditor(file);
-            });
-            
+                throw new IllegalArgumentException( "Error: Invalid line range specified." );
+            }
+
+            // Ensure endLine is within bounds
+            endLine0 = Math.max( Math.min( endLine0, totalLines - 1 ), 0 );
+
+            StringBuilder modifiedContent = new StringBuilder();
+
+            // Store lines before startLine
+            for ( int i = 0; i < startLine0; i++ )
+            {
+                modifiedContent.append( lines.get( i ) );
+            }
+            // Add the replacement content
+            modifiedContent.append( replacementContent );
+            if ( !replacementContent.isEmpty() && !replacementContent.endsWith( "\n" ) )
+            {
+                modifiedContent.append( "\n" );
+            }
+            // Add lines after replacement
+            for ( int i = endLine0 + 1; i < totalLines; i++ )
+            {
+                modifiedContent.append( lines.get( i ) );
+            }
+
+            var modifiedContentString = modifiedContent.toString();
+            // Generate diff between old and new versions
+            String diff = generateCodeDiff( projectName, filePath, modifiedContentString, 3 );
+
+            // Write back to the file
+            try (ByteArrayInputStream source = new ByteArrayInputStream( modifiedContentString.getBytes( Charset.forName( file.getCharset() ) ) ))
+            {
+                file.setContents( source, IResource.FORCE, null );
+            }
+
+            String workspaceState = synchronizeAfterEdit( file, startLine );
+
+            return "Success: file '" + filePath + "' in project '" + projectName + "' was updated.\n" + "Changes:\n```diff\n" + diff + "\n```"
+                    + workspaceState;
+        }
+        catch ( CoreException | IOException e )
+        {
+            throw new RuntimeException( e );
+        }
+    }
+
+    public String renameFile( String projectName, String filePath, String newFileName )
+    {
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+        Objects.requireNonNull( newFileName );
+
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
+        }
+        if ( filePath.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
+        }
+        if ( newFileName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: New file name cannot be empty." );
+        }
+
+        try
+        {
+            // Get the project and file
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
+            }
+            if ( !project.isOpen() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
+            }
+
+            IPath path = IPath.fromPath( Path.of( filePath ) );
+            IFile file = project.getFile( path );
+
+            if ( !file.exists() )
+            {
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
+            }
+
+            // Try to refresh the editor if the file is open
+            sync.syncExec( () -> {
+                safeOpenEditor( file );
+                refreshEditor( file );
+            } );
+
             // Get the parent folder and construct the new file path
             IContainer parent = file.getParent();
-            IPath newPath = parent.getFullPath().append(newFileName);
-            
+            IPath newPath = parent.getFullPath().append( newFileName );
+
             // Check if a file with the new name already exists
-            IFile newFile = root.getFile(newPath);
-            if (newFile.exists()) 
+            IFile newFile = root.getFile( newPath );
+            if ( newFile.exists() )
             {
-                throw new RuntimeException("Error: A file named '" + newFileName + "' already exists in the same directory.");
+                throw new RuntimeException( "Error: A file named '" + newFileName + "' already exists in the same directory." );
             }
-            
+
             // Perform the rename operation
-            file.move(newPath, IResource.FORCE, null);
-            
+            file.move( newPath, IResource.FORCE, null );
+
             // Refresh the parent container
-            parent.refreshLocal(IResource.DEPTH_ONE, null);
-            
+            parent.refreshLocal( IResource.DEPTH_ONE, null );
+
             // Try to open the renamed file in the editor
-            sync.asyncExec(() -> {
-                safeOpenEditor(newFile);
-            });
-            
+            sync.asyncExec( () -> {
+                safeOpenEditor( newFile );
+                revealLineInEditor( newFile, 1 );
+            } );
+
             return "Success: File '" + filePath + "' renamed to '" + newFileName + "' in project '" + projectName + "'.";
-        } 
-        catch (CoreException e) 
+        }
+        catch ( CoreException e )
         {
-            throw new RuntimeException(e);
+            throw new RuntimeException( e );
         }
     }
 
     /**
-     * Renames a Java compilation unit (class/interface/enum) using Eclipse's refactoring mechanism.
-     * This updates the class name, file name, and all references throughout the project.
-     * 
-     * @param projectName The name of the project containing the Java file
-     * @param filePath The path to the Java file relative to the project root
-     * @param newTypeName The new name for the type (without .java extension)
+     * Extracts a nested Java type into a new top-level compilation unit using
+     * Eclipse's Move Type to New File refactoring.
+     *
+     * @param projectName
+     *            The name of the project containing the Java file
+     * @param filePath
+     *            The path to the Java file relative to the project root
+     * @param nestedTypeName
+     *            The nested type name relative to the compilation unit (for
+     *            example, "Outer.Inner")
      * @return A status message indicating success or failure
      */
-    public String refactorRenameJavaType(String projectName, String filePath, String newTypeName)
+    public String refactorExtractTypeToNewFile( String projectName, String filePath, String nestedTypeName )
     {
-        Objects.requireNonNull(projectName);
-        Objects.requireNonNull(filePath);
-        Objects.requireNonNull(newTypeName);
-        
-        if (projectName.isEmpty()) 
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+        Objects.requireNonNull( nestedTypeName );
+
+        if ( projectName.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
         }
-        if (filePath.isEmpty()) 
+        if ( filePath.isEmpty() || !filePath.endsWith( ".java" ) )
         {
-            throw new IllegalArgumentException("Error: File path cannot be empty.");
+            throw new IllegalArgumentException( "Error: File path must identify a Java file." );
         }
-        if (newTypeName.isEmpty()) 
+        if ( nestedTypeName.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: New type name cannot be empty.");
+            throw new IllegalArgumentException( "Error: Nested type name cannot be empty." );
         }
-        
+
+        try
+        {
+            IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( projectName );
+            if ( !project.exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
+            }
+            if ( !project.isOpen() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
+            }
+            if ( !JavaCore.create( project ).exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is not a Java project." );
+            }
+
+            IFile file = project.getFile( IPath.fromPath( Path.of( filePath ) ) );
+            if ( !file.exists() )
+            {
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
+            }
+
+            IJavaElement javaElement = JavaCore.create( file );
+            if ( ! ( javaElement instanceof ICompilationUnit compilationUnit ) )
+            {
+                throw new RuntimeException( "Error: Could not resolve Java compilation unit for file '" + filePath + "'." );
+            }
+
+            IType nestedType = findNestedType( compilationUnit, nestedTypeName );
+            if ( nestedType == null )
+            {
+                throw new RuntimeException( "Error: Nested type '" + nestedTypeName + "' was not found in file '" + filePath + "'." );
+            }
+
+            sync.syncExec( () -> {
+                IWorkbenchWindow window = PlatformUI.isWorkbenchRunning() ? PlatformUI.getWorkbench().getActiveWorkbenchWindow() : null;
+                IWorkbenchPage page = window != null ? window.getActivePage() : null;
+                if ( page != null )
+                {
+                    IEditorPart editor = page.findEditor( new FileEditorInput( file ) );
+                    if ( editor != null )
+                    {
+                        page.closeEditor( editor, true );
+                    }
+                }
+            } );
+
+            Refactoring refactoring = createMoveTypeToNewFileRefactoring( nestedType );
+            IProgressMonitor monitor = new NullProgressMonitor();
+            RefactoringStatus status = refactoring.checkInitialConditions( monitor );
+            if ( status.hasFatalError() )
+            {
+                throw new RuntimeException( "Error in initial conditions: " + status.getMessageMatchingSeverity( RefactoringStatus.FATAL ) );
+            }
+
+            status = refactoring.checkFinalConditions( monitor );
+            if ( status.hasFatalError() )
+            {
+                throw new RuntimeException( "Error in final conditions: " + status.getMessageMatchingSeverity( RefactoringStatus.FATAL ) );
+            }
+
+            Change change = refactoring.createChange( monitor );
+            change.perform( monitor );
+            project.refreshLocal( IResource.DEPTH_INFINITE, monitor );
+
+            IFile extractedFile = project.getFile( file.getProjectRelativePath().removeLastSegments( 1 ).append( nestedType.getElementName() + ".java" ) );
+            sync.asyncExec( () -> {
+                if ( extractedFile.exists() )
+                {
+                    safeOpenEditor( extractedFile );
+                    revealLineInEditor( extractedFile, 1 );
+                }
+            } );
+
+            return "Success: Nested Java type '" + nestedTypeName + "' was extracted to '" + extractedFile.getProjectRelativePath()
+                    + "'.\nAll required references have been updated.";
+        }
+        catch ( CoreException | ReflectiveOperationException e )
+        {
+            throw new RuntimeException( "Error during extract type refactoring: " + ExceptionUtils.getRootCauseMessage( e ), e );
+        }
+    }
+
+    private IType findNestedType( ICompilationUnit compilationUnit, String nestedTypeName ) throws JavaModelException
+    {
+        IType match = null;
+        for ( IType type : compilationUnit.getAllTypes() )
+        {
+            if ( type.getDeclaringType() != null
+                    && ( nestedTypeName.equals( type.getTypeQualifiedName( '.' ) ) || nestedTypeName.equals( type.getElementName() ) ) )
+            {
+                if ( match != null )
+                {
+                    throw new IllegalArgumentException(
+                            "Error: Nested type name '" + nestedTypeName + "' is ambiguous. Use its qualified name, for example 'Outer.Inner'." );
+                }
+                match = type;
+            }
+        }
+        return match;
+    }
+
+    private Refactoring createMoveTypeToNewFileRefactoring( IType nestedType ) throws ReflectiveOperationException
+    {
+        var jdtUiBundle = org.eclipse.core.runtime.Platform.getBundle( "org.eclipse.jdt.ui" );
+        if ( jdtUiBundle == null )
+        {
+            throw new IllegalStateException( "Error: The Eclipse JDT UI bundle is not available." );
+        }
+
+        Class<?> preferencesClass = jdtUiBundle.loadClass( "org.eclipse.jdt.internal.ui.preferences.JavaPreferencesSettings" );
+        Method getCodeGenerationSettings = preferencesClass.getDeclaredMethod( "getCodeGenerationSettings", IJavaProject.class );
+        getCodeGenerationSettings.setAccessible( true );
+        Object codeGenerationSettings = getCodeGenerationSettings.invoke( null, nestedType.getJavaProject() );
+
+        Class<?> refactoringClass = jdtUiBundle.loadClass( "org.eclipse.jdt.internal.corext.refactoring.structure.MoveInnerToTopRefactoring" );
+        Constructor<?> constructor = refactoringClass.getDeclaredConstructor( IType.class, codeGenerationSettings.getClass() );
+        constructor.setAccessible( true );
+        Object refactoring = constructor.newInstance( nestedType, codeGenerationSettings );
+        if ( refactoring instanceof Refactoring result )
+        {
+            return result;
+        }
+
+        throw new IllegalStateException( "Error: Eclipse did not create a Move Type to New File refactoring." );
+    }
+
+    /**
+     * Renames a Java compilation unit (class/interface/enum) using Eclipse's
+     * refactoring mechanism. This updates the class name, file name, and all
+     * references throughout the project.
+     * 
+     * @param projectName
+     *            The name of the project containing the Java file
+     * @param filePath
+     *            The path to the Java file relative to the project root
+     * @param newTypeName
+     *            The new name for the type (without .java extension)
+     * @return A status message indicating success or failure
+     */
+    public String refactorRenameJavaType( String projectName, String filePath, String newTypeName )
+    {
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+        Objects.requireNonNull( newTypeName );
+
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
+        }
+        if ( filePath.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
+        }
+        if ( newTypeName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: New type name cannot be empty." );
+        }
+
         // Remove .java extension if provided
-        if (newTypeName.endsWith(".java"))
+        if ( newTypeName.endsWith( ".java" ) )
         {
-            newTypeName = newTypeName.substring(0, newTypeName.length() - 5);
+            newTypeName = newTypeName.substring( 0, newTypeName.length() - 5 );
         }
-        
+
         final String finalNewTypeName = newTypeName;
-        
-        try 
+
+        try
         {
             IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-            IProject project = root.getProject(projectName);
-            
-            if (!project.exists()) 
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
             }
-            if (!project.isOpen()) 
+            if ( !project.isOpen() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
             }
-            
+
             // Get the Java project
-            IJavaProject javaProject = JavaCore.create(project);
-            if (javaProject == null || !javaProject.exists())
+            IJavaProject javaProject = JavaCore.create( project );
+            if ( javaProject == null || !javaProject.exists() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' is not a Java project.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' is not a Java project." );
             }
-            
-            IPath path = IPath.fromPath(Path.of(filePath));
-            IFile file = project.getFile(path);
-            
-            if (!file.exists()) 
+
+            IPath path = IPath.fromPath( Path.of( filePath ) );
+            IFile file = project.getFile( path );
+
+            if ( !file.exists() )
             {
-                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
             }
-            
-            if (!filePath.endsWith(".java"))
+
+            if ( !filePath.endsWith( ".java" ) )
             {
-                throw new RuntimeException("Error: File '" + filePath + "' is not a Java file. Use renameFile for non-Java files.");
+                throw new RuntimeException( "Error: File '" + filePath + "' is not a Java file. Use renameFile for non-Java files." );
             }
-            
+
             // Get the compilation unit
-            IJavaElement javaElement = JavaCore.create(file);
-            if (!(javaElement instanceof ICompilationUnit))
+            IJavaElement javaElement = JavaCore.create( file );
+            if ( ! ( javaElement instanceof ICompilationUnit ) )
             {
-                throw new RuntimeException("Error: Could not resolve Java compilation unit for file '" + filePath + "'.");
+                throw new RuntimeException( "Error: Could not resolve Java compilation unit for file '" + filePath + "'." );
             }
-            
+
             ICompilationUnit compilationUnit = (ICompilationUnit) javaElement;
-            
+
             // Get the primary type
             IType primaryType = compilationUnit.findPrimaryType();
-            if (primaryType == null)
+            if ( primaryType == null )
             {
-                throw new RuntimeException("Error: Could not find primary type in file '" + filePath + "'.");
+                throw new RuntimeException( "Error: Could not find primary type in file '" + filePath + "'." );
             }
-            
+
             String oldTypeName = primaryType.getElementName();
-            
+
             // Close the editor if the file is open (to avoid conflicts)
-            sync.syncExec(() -> 
-            {
+            sync.syncExec( () -> {
                 IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
-                if (page != null) 
+                if ( page != null )
                 {
-                    IEditorPart editor = page.findEditor(new FileEditorInput(file));
-                    if (editor != null) 
+                    IEditorPart editor = page.findEditor( new FileEditorInput( file ) );
+                    if ( editor != null )
                     {
-                        page.closeEditor(editor, true); // save before closing
+                        page.closeEditor( editor, true ); // save before closing
                     }
                 }
-            });
-            
+            } );
+
             // Create the rename refactoring descriptor
-            RefactoringContribution contribution = RefactoringCore.getRefactoringContribution(IJavaRefactorings.RENAME_TYPE);
+            RefactoringContribution contribution = RefactoringCore.getRefactoringContribution( IJavaRefactorings.RENAME_TYPE );
             RenameJavaElementDescriptor descriptor = (RenameJavaElementDescriptor) contribution.createDescriptor();
-            
-            descriptor.setJavaElement(primaryType);
-            descriptor.setNewName(finalNewTypeName);
-            descriptor.setUpdateReferences(true);
-            descriptor.setUpdateSimilarDeclarations(false);
-            descriptor.setUpdateTextualOccurrences(false);
-            
+
+            descriptor.setJavaElement( primaryType );
+            descriptor.setNewName( finalNewTypeName );
+            descriptor.setUpdateReferences( true );
+            descriptor.setUpdateSimilarDeclarations( false );
+            descriptor.setUpdateTextualOccurrences( false );
+
             // Create and validate the refactoring
             RefactoringStatus status = new RefactoringStatus();
-            Refactoring refactoring = descriptor.createRefactoring(status);
-            
-            if (status.hasFatalError())
+            Refactoring refactoring = descriptor.createRefactoring( status );
+
+            if ( status.hasFatalError() )
             {
-                throw new RuntimeException("Error creating refactoring: " + status.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+                throw new RuntimeException( "Error creating refactoring: " + status.getMessageMatchingSeverity( RefactoringStatus.FATAL ) );
             }
-            
+
             // Check initial conditions
             IProgressMonitor monitor = new NullProgressMonitor();
-            RefactoringStatus checkStatus = refactoring.checkInitialConditions(monitor);
-            if (checkStatus.hasFatalError())
+            RefactoringStatus checkStatus = refactoring.checkInitialConditions( monitor );
+            if ( checkStatus.hasFatalError() )
             {
-                throw new RuntimeException("Error in initial conditions: " + checkStatus.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+                throw new RuntimeException( "Error in initial conditions: " + checkStatus.getMessageMatchingSeverity( RefactoringStatus.FATAL ) );
             }
-            
+
             // Check final conditions
-            checkStatus = refactoring.checkFinalConditions(monitor);
-            if (checkStatus.hasFatalError())
+            checkStatus = refactoring.checkFinalConditions( monitor );
+            if ( checkStatus.hasFatalError() )
             {
-                throw new RuntimeException("Error in final conditions: " + checkStatus.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+                throw new RuntimeException( "Error in final conditions: " + checkStatus.getMessageMatchingSeverity( RefactoringStatus.FATAL ) );
             }
-            
+
             // Perform the refactoring
-            Change change = refactoring.createChange(monitor);
-            change.perform(monitor);
-            
+            Change change = refactoring.createChange( monitor );
+            change.perform( monitor );
+
             // Refresh the project
-            project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
-            
+            project.refreshLocal( IResource.DEPTH_INFINITE, monitor );
+
             // Build the new file path to open
-            String newFilePath = filePath.replace(oldTypeName + ".java", finalNewTypeName + ".java");
-            IFile newFile = project.getFile(IPath.fromPath(Path.of(newFilePath)));
-            
+            String newFilePath = filePath.replace( oldTypeName + ".java", finalNewTypeName + ".java" );
+            IFile newFile = project.getFile( IPath.fromPath( Path.of( newFilePath ) ) );
+
             // Open the renamed file in the editor
-            sync.asyncExec(() -> {
-                if (newFile.exists())
+            sync.asyncExec( () -> {
+                if ( newFile.exists() )
                 {
-                    safeOpenEditor(newFile);
+                    safeOpenEditor( newFile );
+                    revealLineInEditor( newFile, 1 );
                 }
-            });
-            
+            } );
+
             StringBuilder result = new StringBuilder();
-            result.append("Success: Java type '").append(oldTypeName).append("' renamed to '").append(finalNewTypeName).append("'.\n");
-            result.append("File renamed from '").append(filePath).append("' to '").append(newFilePath).append("'.\n");
-            result.append("All references have been updated.");
-            
+            result.append( "Success: Java type '" ).append( oldTypeName ).append( "' renamed to '" ).append( finalNewTypeName ).append( "'.\n" );
+            result.append( "File renamed from '" ).append( filePath ).append( "' to '" ).append( newFilePath ).append( "'.\n" );
+            result.append( "All references have been updated." );
+
             return result.toString();
-        } 
-        catch (CoreException e) 
+        }
+        catch ( CoreException e )
         {
-            throw new RuntimeException("Error during refactoring: " + ExceptionUtils.getRootCauseMessage(e), e);
+            throw new RuntimeException( "Error during refactoring: " + ExceptionUtils.getRootCauseMessage( e ), e );
         }
     }
 
     /**
-     * Moves a Java compilation unit to a different package using Eclipse's refactoring mechanism.
-     * This updates the package declaration and all references throughout the workspace.
+     * Moves a Java compilation unit to a different package using Eclipse's
+     * refactoring mechanism. This updates the package declaration and all
+     * references throughout the workspace.
      * 
-     * @param projectName The name of the project containing the Java file
-     * @param filePath The path to the Java file relative to the project root
-     * @param targetPackage The fully qualified name of the target package (e.g., "com.example.newpackage")
+     * @param projectName
+     *            The name of the project containing the Java file
+     * @param filePath
+     *            The path to the Java file relative to the project root
+     * @param targetPackage
+     *            The fully qualified name of the target package (e.g.,
+     *            "com.example.newpackage")
      * @return A status message indicating success or failure
      */
-    public String refactorMoveJavaType(String projectName, String filePath, String targetPackage)
+    public String refactorMoveJavaType( String projectName, String filePath, String targetPackage )
     {
-        Objects.requireNonNull(projectName);
-        Objects.requireNonNull(filePath);
-        Objects.requireNonNull(targetPackage);
-        
-        if (projectName.isEmpty()) 
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+        Objects.requireNonNull( targetPackage );
+
+        if ( projectName.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
         }
-        if (filePath.isEmpty()) 
+        if ( filePath.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: File path cannot be empty.");
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
         }
-        
-        try 
+
+        try
         {
             IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-            IProject project = root.getProject(projectName);
-            
-            if (!project.exists()) 
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
             }
-            if (!project.isOpen()) 
+            if ( !project.isOpen() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
             }
-            
+
             // Get the Java project
-            IJavaProject javaProject = JavaCore.create(project);
-            if (javaProject == null || !javaProject.exists())
+            IJavaProject javaProject = JavaCore.create( project );
+            if ( javaProject == null || !javaProject.exists() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' is not a Java project.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' is not a Java project." );
             }
-            
-            IPath path = IPath.fromPath(Path.of(filePath));
-            IFile file = project.getFile(path);
-            
-            if (!file.exists()) 
+
+            IPath path = IPath.fromPath( Path.of( filePath ) );
+            IFile file = project.getFile( path );
+
+            if ( !file.exists() )
             {
-                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
             }
-            
-            if (!filePath.endsWith(".java"))
+
+            if ( !filePath.endsWith( ".java" ) )
             {
-                throw new RuntimeException("Error: File '" + filePath + "' is not a Java file.");
+                throw new RuntimeException( "Error: File '" + filePath + "' is not a Java file." );
             }
-            
+
             // Get the compilation unit
-            IJavaElement javaElement = JavaCore.create(file);
-            if (!(javaElement instanceof ICompilationUnit))
+            IJavaElement javaElement = JavaCore.create( file );
+            if ( ! ( javaElement instanceof ICompilationUnit ) )
             {
-                throw new RuntimeException("Error: Could not resolve Java compilation unit for file '" + filePath + "'.");
+                throw new RuntimeException( "Error: Could not resolve Java compilation unit for file '" + filePath + "'." );
             }
-            
+
             ICompilationUnit compilationUnit = (ICompilationUnit) javaElement;
             IType primaryType = compilationUnit.findPrimaryType();
-            
-            if (primaryType == null)
+
+            if ( primaryType == null )
             {
-                throw new RuntimeException("Error: Could not find primary type in file '" + filePath + "'.");
+                throw new RuntimeException( "Error: Could not find primary type in file '" + filePath + "'." );
             }
-            
+
             String typeName = primaryType.getElementName();
             String oldPackageName = primaryType.getPackageFragment().getElementName();
-            
+
             // Find or create the target package
-            IPackageFragment targetPackageFragment = findOrCreatePackage(javaProject, targetPackage);
-            
+            IPackageFragment targetPackageFragment = findOrCreatePackage( javaProject, targetPackage );
+
             // Close the editor if the file is open
-            sync.syncExec(() -> 
-            {
+            sync.syncExec( () -> {
                 IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
-                if (page != null) 
+                if ( page != null )
                 {
-                    IEditorPart editor = page.findEditor(new FileEditorInput(file));
-                    if (editor != null) 
+                    IEditorPart editor = page.findEditor( new FileEditorInput( file ) );
+                    if ( editor != null )
                     {
-                        page.closeEditor(editor, true);
+                        page.closeEditor( editor, true );
                     }
                 }
-            });
-            
+            } );
+
             // Create the move refactoring descriptor
-            RefactoringContribution contribution = RefactoringCore.getRefactoringContribution(IJavaRefactorings.MOVE);
+            RefactoringContribution contribution = RefactoringCore.getRefactoringContribution( IJavaRefactorings.MOVE );
             MoveDescriptor descriptor = (MoveDescriptor) contribution.createDescriptor();
-            
-            descriptor.setDestination(targetPackageFragment);
-            descriptor.setMoveResources(new IFile[0], new IFolder[0], new ICompilationUnit[] { compilationUnit });
-            descriptor.setUpdateReferences(true);
-            descriptor.setUpdateQualifiedNames(false);
-            
+
+            descriptor.setDestination( targetPackageFragment );
+            descriptor.setMoveResources( new IFile[0], new IFolder[0], new ICompilationUnit[] { compilationUnit } );
+            descriptor.setUpdateReferences( true );
+            descriptor.setUpdateQualifiedNames( false );
+
             // Create and validate the refactoring
             RefactoringStatus status = new RefactoringStatus();
-            Refactoring refactoring = descriptor.createRefactoring(status);
-            
-            if (status.hasFatalError())
+            Refactoring refactoring = descriptor.createRefactoring( status );
+
+            if ( status.hasFatalError() )
             {
-                throw new RuntimeException("Error creating refactoring: " + status.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+                throw new RuntimeException( "Error creating refactoring: " + status.getMessageMatchingSeverity( RefactoringStatus.FATAL ) );
             }
-            
+
             // Check initial conditions
             IProgressMonitor monitor = new NullProgressMonitor();
-            RefactoringStatus checkStatus = refactoring.checkInitialConditions(monitor);
-            if (checkStatus.hasFatalError())
+            RefactoringStatus checkStatus = refactoring.checkInitialConditions( monitor );
+            if ( checkStatus.hasFatalError() )
             {
-                throw new RuntimeException("Error in initial conditions: " + checkStatus.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+                throw new RuntimeException( "Error in initial conditions: " + checkStatus.getMessageMatchingSeverity( RefactoringStatus.FATAL ) );
             }
-            
+
             // Check final conditions
-            checkStatus = refactoring.checkFinalConditions(monitor);
-            if (checkStatus.hasFatalError())
+            checkStatus = refactoring.checkFinalConditions( monitor );
+            if ( checkStatus.hasFatalError() )
             {
-                throw new RuntimeException("Error in final conditions: " + checkStatus.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+                throw new RuntimeException( "Error in final conditions: " + checkStatus.getMessageMatchingSeverity( RefactoringStatus.FATAL ) );
             }
-            
+
             // Perform the refactoring
-            Change change = refactoring.createChange(monitor);
-            change.perform(monitor);
-            
+            Change change = refactoring.createChange( monitor );
+            change.perform( monitor );
+
             // Refresh the project
-            project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
-            
+            project.refreshLocal( IResource.DEPTH_INFINITE, monitor );
+
             // Build the new file path
-            String packagePath = targetPackage.replace('.', '/');
+            String packagePath = targetPackage.replace( '.', '/' );
             IPackageFragmentRoot sourceRoot = (IPackageFragmentRoot) compilationUnit.getParent().getParent();
             String sourceRootPath = sourceRoot.getResource().getProjectRelativePath().toString();
             String newFilePath = sourceRootPath + "/" + packagePath + "/" + typeName + ".java";
-            
-            IFile newFile = project.getFile(IPath.fromPath(Path.of(newFilePath)));
-            
+
+            IFile newFile = project.getFile( IPath.fromPath( Path.of( newFilePath ) ) );
+
             // Open the moved file in the editor
-            sync.asyncExec(() -> {
-                if (newFile.exists())
+            sync.asyncExec( () -> {
+                if ( newFile.exists() )
                 {
-                    safeOpenEditor(newFile);
+                    safeOpenEditor( newFile );
+                    revealLineInEditor( newFile, 1 );
                 }
-            });
-            
+            } );
+
             StringBuilder result = new StringBuilder();
-            result.append("Success: Java type '").append(typeName).append("' moved from package '").append(oldPackageName);
-            result.append("' to '").append(targetPackage).append("'.\n");
-            result.append("New file location: '").append(newFilePath).append("'.\n");
-            result.append("All references have been updated.");
-            
+            result.append( "Success: Java type '" ).append( typeName ).append( "' moved from package '" ).append( oldPackageName );
+            result.append( "' to '" ).append( targetPackage ).append( "'.\n" );
+            result.append( "New file location: '" ).append( newFilePath ).append( "'.\n" );
+            result.append( "All references have been updated." );
+
             return result.toString();
-        } 
-        catch (CoreException e) 
+        }
+        catch ( CoreException e )
         {
-            throw new RuntimeException("Error during refactoring: " + ExceptionUtils.getRootCauseMessage(e), e);
+            throw new RuntimeException( "Error during refactoring: " + ExceptionUtils.getRootCauseMessage( e ), e );
         }
     }
 
     /**
-     * Renames a Java package using Eclipse's refactoring mechanism.
-     * This renames the package directory, updates all package declarations in contained files,
-     * and updates all references throughout the workspace.
+     * Renames a Java package using Eclipse's refactoring mechanism. This
+     * renames the package directory, updates all package declarations in
+     * contained files, and updates all references throughout the workspace.
      * 
-     * @param projectName The name of the project containing the package
-     * @param packageName The current fully qualified package name (e.g., "com.example.oldpackage")
-     * @param newPackageName The new package name (can be just the last segment or full path)
+     * @param projectName
+     *            The name of the project containing the package
+     * @param packageName
+     *            The current fully qualified package name (e.g.,
+     *            "com.example.oldpackage")
+     * @param newPackageName
+     *            The new package name (can be just the last segment or full
+     *            path)
      * @return A status message indicating success or failure
      */
-    public String refactorRenamePackage(String projectName, String packageName, String newPackageName)
+    public String refactorRenamePackage( String projectName, String packageName, String newPackageName )
     {
-        Objects.requireNonNull(projectName);
-        Objects.requireNonNull(packageName);
-        Objects.requireNonNull(newPackageName);
-        
-        if (projectName.isEmpty()) 
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( packageName );
+        Objects.requireNonNull( newPackageName );
+
+        if ( projectName.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
         }
-        if (packageName.isEmpty()) 
+        if ( packageName.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: Package name cannot be empty.");
+            throw new IllegalArgumentException( "Error: Package name cannot be empty." );
         }
-        if (newPackageName.isEmpty()) 
+        if ( newPackageName.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: New package name cannot be empty.");
+            throw new IllegalArgumentException( "Error: New package name cannot be empty." );
         }
-        
-        try 
+
+        try
         {
             IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-            IProject project = root.getProject(projectName);
-            
-            if (!project.exists()) 
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
             }
-            if (!project.isOpen()) 
+            if ( !project.isOpen() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
             }
-            
+
             // Get the Java project
-            IJavaProject javaProject = JavaCore.create(project);
-            if (javaProject == null || !javaProject.exists())
+            IJavaProject javaProject = JavaCore.create( project );
+            if ( javaProject == null || !javaProject.exists() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' is not a Java project.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' is not a Java project." );
             }
-            
+
             // Find the package
-            IPackageFragment packageFragment = findPackage(javaProject, packageName);
-            if (packageFragment == null)
+            IPackageFragment packageFragment = findPackage( javaProject, packageName );
+            if ( packageFragment == null )
             {
-                throw new RuntimeException("Error: Package '" + packageName + "' not found in project '" + projectName + "'.");
+                throw new RuntimeException( "Error: Package '" + packageName + "' not found in project '" + projectName + "'." );
             }
-            
+
             // Close all editors for files in this package
-            sync.syncExec(() -> 
-            {
-                try 
+            sync.syncExec( () -> {
+                try
                 {
                     IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
-                    if (page != null) 
+                    if ( page != null )
                     {
-                        for (ICompilationUnit cu : packageFragment.getCompilationUnits())
+                        for ( ICompilationUnit cu : packageFragment.getCompilationUnits() )
                         {
                             IFile file = (IFile) cu.getResource();
-                            IEditorPart editor = page.findEditor(new FileEditorInput(file));
-                            if (editor != null) 
+                            IEditorPart editor = page.findEditor( new FileEditorInput( file ) );
+                            if ( editor != null )
                             {
-                                page.closeEditor(editor, true);
+                                page.closeEditor( editor, true );
                             }
                         }
                     }
                 }
-                catch (JavaModelException e)
+                catch ( JavaModelException e )
                 {
-                    logger.error("Error closing editors: " + e.getMessage());
+                    logger.error( "Error closing editors: " + e.getMessage() );
                 }
-            });
-            
+            } );
+
             // Create the rename refactoring descriptor
-            RefactoringContribution contribution = RefactoringCore.getRefactoringContribution(IJavaRefactorings.RENAME_PACKAGE);
+            RefactoringContribution contribution = RefactoringCore.getRefactoringContribution( IJavaRefactorings.RENAME_PACKAGE );
             RenameJavaElementDescriptor descriptor = (RenameJavaElementDescriptor) contribution.createDescriptor();
-            
-            descriptor.setJavaElement(packageFragment);
-            descriptor.setNewName(newPackageName);
-            descriptor.setUpdateReferences(true);
-            descriptor.setUpdateTextualOccurrences(false);
-            descriptor.setUpdateHierarchy(true);
-            
+
+            descriptor.setJavaElement( packageFragment );
+            descriptor.setNewName( newPackageName );
+            descriptor.setUpdateReferences( true );
+            descriptor.setUpdateTextualOccurrences( false );
+            descriptor.setUpdateHierarchy( true );
+
             // Create and validate the refactoring
             RefactoringStatus status = new RefactoringStatus();
-            Refactoring refactoring = descriptor.createRefactoring(status);
-            
-            if (status.hasFatalError())
+            Refactoring refactoring = descriptor.createRefactoring( status );
+
+            if ( status.hasFatalError() )
             {
-                throw new RuntimeException("Error creating refactoring: " + status.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+                throw new RuntimeException( "Error creating refactoring: " + status.getMessageMatchingSeverity( RefactoringStatus.FATAL ) );
             }
-            
+
             // Check initial conditions
             IProgressMonitor monitor = new NullProgressMonitor();
-            RefactoringStatus checkStatus = refactoring.checkInitialConditions(monitor);
-            if (checkStatus.hasFatalError())
+            RefactoringStatus checkStatus = refactoring.checkInitialConditions( monitor );
+            if ( checkStatus.hasFatalError() )
             {
-                throw new RuntimeException("Error in initial conditions: " + checkStatus.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+                throw new RuntimeException( "Error in initial conditions: " + checkStatus.getMessageMatchingSeverity( RefactoringStatus.FATAL ) );
             }
-            
+
             // Check final conditions
-            checkStatus = refactoring.checkFinalConditions(monitor);
-            if (checkStatus.hasFatalError())
+            checkStatus = refactoring.checkFinalConditions( monitor );
+            if ( checkStatus.hasFatalError() )
             {
-                throw new RuntimeException("Error in final conditions: " + checkStatus.getMessageMatchingSeverity(RefactoringStatus.FATAL));
+                throw new RuntimeException( "Error in final conditions: " + checkStatus.getMessageMatchingSeverity( RefactoringStatus.FATAL ) );
             }
-            
+
             // Perform the refactoring
-            Change change = refactoring.createChange(monitor);
-            change.perform(monitor);
-            
+            Change change = refactoring.createChange( monitor );
+            change.perform( monitor );
+
             // Refresh the project
-            project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
-            
+            project.refreshLocal( IResource.DEPTH_INFINITE, monitor );
+
+            IPackageFragment renamedPackage = findPackage( javaProject, newPackageName );
+            if ( renamedPackage != null && renamedPackage.getCompilationUnits().length > 0
+                    && renamedPackage.getCompilationUnits()[0].getResource() instanceof IFile renamedFile )
+            {
+                sync.asyncExec( () -> {
+                    safeOpenEditor( renamedFile );
+                    revealLineInEditor( renamedFile, 1 );
+                } );
+            }
+
             StringBuilder result = new StringBuilder();
-            result.append("Success: Package '").append(packageName).append("' renamed to '").append(newPackageName).append("'.\n");
-            result.append("All package declarations and references have been updated.");
-            
+            result.append( "Success: Package '" ).append( packageName ).append( "' renamed to '" ).append( newPackageName ).append( "'.\n" );
+            result.append( "All package declarations and references have been updated." );
+
             return result.toString();
-        } 
-        catch (CoreException e) 
+        }
+        catch ( CoreException e )
         {
-            throw new RuntimeException("Error during refactoring: " + ExceptionUtils.getRootCauseMessage(e), e);
+            throw new RuntimeException( "Error during refactoring: " + ExceptionUtils.getRootCauseMessage( e ), e );
         }
     }
 
     /**
-     * Organizes imports in a Java file using Eclipse's organize imports mechanism.
-     * This removes unused imports, adds missing imports, and sorts them according to project settings.
+     * Organizes imports in a Java file using Eclipse's organize imports
+     * mechanism. This removes unused imports and sorts existing imports
+     * according to project settings. It does not add missing imports.
      * 
-     * @param projectName The name of the project containing the Java file
-     * @param filePath The path to the Java file relative to the project root
-     * @return A status message indicating success or failure with details of changes made
+     * @param projectName
+     *            The name of the project containing the Java file
+     * @param filePath
+     *            The path to the Java file relative to the project root
+     * @return A status message indicating success or failure with details of
+     *         changes made
      */
-    public String organizeImports(String projectName, String filePath)
+    public String organizeImports( String projectName, String filePath )
     {
-        Objects.requireNonNull(projectName);
-        Objects.requireNonNull(filePath);
-        
-        if (projectName.isEmpty()) 
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+
+        if ( projectName.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
         }
-        if (filePath.isEmpty()) 
+        if ( filePath.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: File path cannot be empty.");
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
         }
-        
-        try 
+
+        try
         {
             IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-            IProject project = root.getProject(projectName);
-            
-            if (!project.exists()) 
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
             }
-            if (!project.isOpen()) 
+            if ( !project.isOpen() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
             }
-            
+
             // Get the Java project
-            IJavaProject javaProject = JavaCore.create(project);
-            if (javaProject == null || !javaProject.exists())
+            IJavaProject javaProject = JavaCore.create( project );
+            if ( javaProject == null || !javaProject.exists() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' is not a Java project.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' is not a Java project." );
             }
-            
-            IPath path = IPath.fromPath(Path.of(filePath));
-            IFile file = project.getFile(path);
-            
-            if (!file.exists()) 
+
+            IPath path = IPath.fromPath( Path.of( filePath ) );
+            IFile file = project.getFile( path );
+
+            if ( !file.exists() )
             {
-                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
             }
-            
-            if (!filePath.endsWith(".java"))
+
+            if ( !filePath.endsWith( ".java" ) )
             {
-                throw new RuntimeException("Error: File '" + filePath + "' is not a Java file.");
+                throw new RuntimeException( "Error: File '" + filePath + "' is not a Java file." );
             }
-            
+
             // Get the compilation unit
-            IJavaElement javaElement = JavaCore.create(file);
-            if (!(javaElement instanceof ICompilationUnit))
+            IJavaElement javaElement = JavaCore.create( file );
+            if ( ! ( javaElement instanceof ICompilationUnit ) )
             {
-                throw new RuntimeException("Error: Could not resolve Java compilation unit for file '" + filePath + "'.");
+                throw new RuntimeException( "Error: Could not resolve Java compilation unit for file '" + filePath + "'." );
             }
-            
+
             ICompilationUnit compilationUnit = (ICompilationUnit) javaElement;
-            
+
             // Refresh the editor if the file is open
-            sync.syncExec(() -> 
-            {
-                safeOpenEditor(file);
-                refreshEditor(file);
-            });
-            
+            sync.syncExec( () -> {
+                safeOpenEditor( file );
+                refreshEditor( file );
+            } );
+
             // Get the original imports for comparison
             String originalSource = compilationUnit.getSource();
-            String originalImports = extractImportSection(originalSource);
-            
-            // Create a choose import query that automatically selects the first option
-            // This handles cases where there are multiple types with the same simple name
-            IChooseImportQuery chooseImportQuery = new IChooseImportQuery() {
+            String originalImports = extractImportSection( originalSource );
+
+            // Create a choose import query that automatically selects the first
+            // option
+            // This handles cases where there are multiple types with the same
+            // simple name
+            IChooseImportQuery chooseImportQuery = new IChooseImportQuery()
+            {
                 @Override
-                public TypeNameMatch[] chooseImports(TypeNameMatch[][] openChoices, ISourceRange[] ranges) {
-                    // Automatically choose the first option for each ambiguous import
+                public TypeNameMatch[] chooseImports( TypeNameMatch[][] openChoices, ISourceRange[] ranges )
+                {
+                    // Automatically choose the first option for each ambiguous
+                    // import
                     TypeNameMatch[] result = new TypeNameMatch[openChoices.length];
-                    for (int i = 0; i < openChoices.length; i++) {
-                        if (openChoices[i].length > 0) {
+                    for ( int i = 0; i < openChoices.length; i++ )
+                    {
+                        if ( openChoices[i].length > 0 )
+                        {
                             result[i] = openChoices[i][0];
                         }
                     }
                     return result;
                 }
             };
-            
+
             // Create and run the organize imports operation
             IProgressMonitor monitor = new NullProgressMonitor();
-            OrganizeImportsOperation operation = new OrganizeImportsOperation(
-                compilationUnit,
-                null, // astRoot - will be created automatically
-                true, // ignoreLowerCaseNames
-                true, // save
-                true, // allowSyntaxErrors
-                chooseImportQuery
-            );
-            
+            OrganizeImportsOperation operation = new OrganizeImportsOperation( compilationUnit, null, // astRoot
+                                                                                                      // -
+                                                                                                      // will
+                                                                                                      // be
+                                                                                                      // created
+                                                                                                      // automatically
+                    true, // ignoreLowerCaseNames
+                    true, // save
+                    true, // allowSyntaxErrors
+                    chooseImportQuery );
+
             // Execute the operation
-            operation.run(monitor);
-            
+            operation.run( monitor );
+
             // Refresh the compilation unit to get the updated source
-            compilationUnit.getResource().refreshLocal(IResource.DEPTH_ZERO, monitor);
-            
+            compilationUnit.getResource().refreshLocal( IResource.DEPTH_ZERO, monitor );
+
             // Get the new imports for comparison
             String newSource = compilationUnit.getSource();
-            String newImports = extractImportSection(newSource);
-            
-            // Refresh the editor
-            sync.asyncExec(() -> {
-                refreshEditor(file);
-            });
-            
+            String newImports = extractImportSection( newSource );
+
+            String workspaceState = synchronizeAfterEdit( file, 1 );
+
             // Build the result message
             StringBuilder result = new StringBuilder();
-            result.append("Success: Imports organized in file '").append(filePath).append("'.\n");
-            
-            if (originalImports.equals(newImports)) {
-                result.append("No changes were necessary - imports were already organized.");
-            } else {
-                result.append("\nUpdated imports:\n```java\n").append(newImports).append("\n```");
+            result.append( "Success: Existing imports cleaned up in file '" ).append( filePath ).append( "'.\n" );
+            result.append( "This operation does not add missing imports.\n" );
+
+            if ( originalImports.equals( newImports ) )
+            {
+                result.append( "No existing import changes were necessary." );
             }
-            
-            return result.toString();
-        } 
-        catch (CoreException e) 
+            else
+            {
+                result.append( "\nUpdated imports:\n```java\n" ).append( newImports ).append( "\n```" );
+            }
+
+            return result.append( workspaceState ).toString();
+        }
+        catch ( CoreException e )
         {
-            throw new RuntimeException("Error during organize imports: " + ExceptionUtils.getRootCauseMessage(e), e);
+            throw new RuntimeException( "Error during organize imports: " + ExceptionUtils.getRootCauseMessage( e ), e );
         }
     }
 
     /**
      * Organizes imports in all Java files within a package.
      * 
-     * @param projectName The name of the project containing the package
-     * @param packageName The fully qualified package name (e.g., "com.example.mypackage")
+     * @param projectName
+     *            The name of the project containing the package
+     * @param packageName
+     *            The fully qualified package name (e.g.,
+     *            "com.example.mypackage")
      * @return A status message indicating success or failure
      */
-    public String organizeImportsInPackage(String projectName, String packageName)
+    public String organizeImportsInPackage( String projectName, String packageName )
     {
-        Objects.requireNonNull(projectName);
-        Objects.requireNonNull(packageName);
-        
-        if (projectName.isEmpty()) 
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( packageName );
+
+        if ( projectName.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
         }
-        if (packageName.isEmpty()) 
+        if ( packageName.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: Package name cannot be empty.");
+            throw new IllegalArgumentException( "Error: Package name cannot be empty." );
         }
-        
-        try 
+
+        try
         {
             IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-            IProject project = root.getProject(projectName);
-            
-            if (!project.exists()) 
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
             }
-            if (!project.isOpen()) 
+            if ( !project.isOpen() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
             }
-            
+
             // Get the Java project
-            IJavaProject javaProject = JavaCore.create(project);
-            if (javaProject == null || !javaProject.exists())
+            IJavaProject javaProject = JavaCore.create( project );
+            if ( javaProject == null || !javaProject.exists() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' is not a Java project.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' is not a Java project." );
             }
-            
+
             // Find the package
-            IPackageFragment packageFragment = findPackage(javaProject, packageName);
-            if (packageFragment == null)
+            IPackageFragment packageFragment = findPackage( javaProject, packageName );
+            if ( packageFragment == null )
             {
-                throw new RuntimeException("Error: Package '" + packageName + "' not found in project '" + projectName + "'.");
+                throw new RuntimeException( "Error: Package '" + packageName + "' not found in project '" + projectName + "'." );
             }
-            
+
             // Get all compilation units in the package
             ICompilationUnit[] compilationUnits = packageFragment.getCompilationUnits();
-            
-            if (compilationUnits.length == 0)
+
+            if ( compilationUnits.length == 0 )
             {
                 return "No Java files found in package '" + packageName + "'.";
             }
-            
+
             IProgressMonitor monitor = new NullProgressMonitor();
             int processedCount = 0;
             int changedCount = 0;
-            
+            IFile firstChangedFile = null;
+
             // Create a choose import query
-            IChooseImportQuery chooseImportQuery = new IChooseImportQuery() {
+            IChooseImportQuery chooseImportQuery = new IChooseImportQuery()
+            {
                 @Override
-                public TypeNameMatch[] chooseImports(TypeNameMatch[][] openChoices, ISourceRange[] ranges) {
+                public TypeNameMatch[] chooseImports( TypeNameMatch[][] openChoices, ISourceRange[] ranges )
+                {
                     TypeNameMatch[] result = new TypeNameMatch[openChoices.length];
-                    for (int i = 0; i < openChoices.length; i++) {
-                        if (openChoices[i].length > 0) {
+                    for ( int i = 0; i < openChoices.length; i++ )
+                    {
+                        if ( openChoices[i].length > 0 )
+                        {
                             result[i] = openChoices[i][0];
                         }
                     }
                     return result;
                 }
             };
-            
-            for (ICompilationUnit cu : compilationUnits)
+
+            for ( ICompilationUnit cu : compilationUnits )
             {
                 try
                 {
                     String originalSource = cu.getSource();
-                    
-                    OrganizeImportsOperation operation = new OrganizeImportsOperation(
-                        cu,
-                        null,
-                        true,
-                        true,
-                        true,
-                        chooseImportQuery
-                    );
-                    
-                    operation.run(monitor);
-                    cu.getResource().refreshLocal(IResource.DEPTH_ZERO, monitor);
-                    
+
+                    OrganizeImportsOperation operation = new OrganizeImportsOperation( cu, null, true, true, true, chooseImportQuery );
+
+                    operation.run( monitor );
+                    cu.getResource().refreshLocal( IResource.DEPTH_ZERO, monitor );
+
                     String newSource = cu.getSource();
-                    if (!originalSource.equals(newSource))
+                    if ( !originalSource.equals( newSource ) )
                     {
                         changedCount++;
+                        if ( firstChangedFile == null && cu.getResource() instanceof IFile changedFile )
+                        {
+                            firstChangedFile = changedFile;
+                        }
                     }
                     processedCount++;
                 }
-                catch (Exception e)
+                catch ( Exception e )
                 {
-                    logger.warn("Failed to organize imports in " + cu.getElementName() + ": " + e.getMessage());
+                    logger.warn( "Failed to organize imports in " + cu.getElementName() + ": " + e.getMessage() );
                 }
             }
-            
+
+            IFile fileToReveal = firstChangedFile;
+            if ( fileToReveal != null )
+            {
+                sync.asyncExec( () -> {
+                    safeOpenEditor( fileToReveal );
+                    revealLineInEditor( fileToReveal, 1 );
+                } );
+            }
+
             StringBuilder result = new StringBuilder();
-            result.append("Success: Organized imports in package '").append(packageName).append("'.\n");
-            result.append("Processed ").append(processedCount).append(" file(s), ");
-            result.append(changedCount).append(" file(s) were modified.");
-            
+            result.append( "Success: Cleaned up existing imports in package '" ).append( packageName ).append( "'.\n" );
+            result.append( "This operation does not add missing imports.\n" );
+            result.append( "Processed " ).append( processedCount ).append( " file(s), " );
+            result.append( changedCount ).append( " file(s) were modified." );
+
             return result.toString();
-        } 
-        catch (CoreException e) 
+        }
+        catch ( CoreException e )
         {
-            throw new RuntimeException("Error during organize imports: " + ExceptionUtils.getRootCauseMessage(e), e);
+            throw new RuntimeException( "Error during organize imports: " + ExceptionUtils.getRootCauseMessage( e ), e );
         }
     }
 
     /**
      * Extracts the import section from Java source code.
      */
-    private String extractImportSection(String source)
+    private String extractImportSection( String source )
     {
         StringBuilder imports = new StringBuilder();
-        String[] lines = source.split("\n");
+        String[] lines = source.split( "\n" );
         boolean inImports = false;
-        
-        for (String line : lines)
+
+        for ( String line : lines )
         {
             String trimmed = line.trim();
-            if (trimmed.startsWith("import "))
+            if ( trimmed.startsWith( "import " ) )
             {
                 inImports = true;
-                imports.append(line).append("\n");
+                imports.append( line ).append( "\n" );
             }
-            else if (inImports && !trimmed.isEmpty() && !trimmed.startsWith("import "))
+            else if ( inImports && !trimmed.isEmpty() && !trimmed.startsWith( "import " ) )
             {
                 // End of imports section
                 break;
             }
         }
-        
+
         return imports.toString().trim();
     }
 
     /**
-     * Moves a resource (file or folder) to a different location within the project.
-     * For Java files, use refactorMoveJavaType instead for proper reference updating.
+     * Moves a resource (file or folder) to a different location within the
+     * project. For Java files, use refactorMoveJavaType instead for proper
+     * reference updating.
      * 
-     * @param projectName The name of the project containing the resource
-     * @param sourcePath The path to the resource relative to the project root
-     * @param targetPath The target directory path relative to the project root
+     * @param projectName
+     *            The name of the project containing the resource
+     * @param sourcePath
+     *            The path to the resource relative to the project root
+     * @param targetPath
+     *            The target directory path relative to the project root
      * @return A status message indicating success or failure
      */
-    public String moveResource(String projectName, String sourcePath, String targetPath)
+    public String moveResource( String projectName, String sourcePath, String targetPath )
     {
-        Objects.requireNonNull(projectName);
-        Objects.requireNonNull(sourcePath);
-        Objects.requireNonNull(targetPath);
-        
-        if (projectName.isEmpty()) 
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( sourcePath );
+        Objects.requireNonNull( targetPath );
+
+        if ( projectName.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
         }
-        if (sourcePath.isEmpty()) 
+        if ( sourcePath.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: Source path cannot be empty.");
+            throw new IllegalArgumentException( "Error: Source path cannot be empty." );
         }
-        if (targetPath.isEmpty()) 
+        if ( targetPath.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: Target path cannot be empty.");
+            throw new IllegalArgumentException( "Error: Target path cannot be empty." );
         }
-        
-        try 
+
+        try
         {
             IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-            IProject project = root.getProject(projectName);
-            
-            if (!project.exists()) 
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
             }
-            if (!project.isOpen()) 
+            if ( !project.isOpen() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
             }
-            
+
             // Normalize paths
             String normalizedSource = sourcePath;
-            while (normalizedSource.startsWith("/") || normalizedSource.startsWith("\\")) 
+            while ( normalizedSource.startsWith( "/" ) || normalizedSource.startsWith( "\\" ) )
             {
-                normalizedSource = normalizedSource.substring(1);
+                normalizedSource = normalizedSource.substring( 1 );
             }
-            
+
             String normalizedTarget = targetPath;
-            while (normalizedTarget.startsWith("/") || normalizedTarget.startsWith("\\")) 
+            while ( normalizedTarget.startsWith( "/" ) || normalizedTarget.startsWith( "\\" ) )
             {
-                normalizedTarget = normalizedTarget.substring(1);
+                normalizedTarget = normalizedTarget.substring( 1 );
             }
-            
+
             // Get the source resource
-            IResource sourceResource = project.findMember(normalizedSource);
-            if (sourceResource == null || !sourceResource.exists())
+            IResource sourceResource = project.findMember( normalizedSource );
+            if ( sourceResource == null || !sourceResource.exists() )
             {
-                throw new RuntimeException("Error: Resource '" + sourcePath + "' does not exist in project '" + projectName + "'.");
+                throw new RuntimeException( "Error: Resource '" + sourcePath + "' does not exist in project '" + projectName + "'." );
             }
-            
+
             // Warn about Java files
-            if (sourceResource instanceof IFile && sourcePath.endsWith(".java"))
+            if ( sourceResource instanceof IFile && sourcePath.endsWith( ".java" ) )
             {
-                logger.warn("Moving Java file without refactoring - references will not be updated. Consider using refactorMoveJavaType instead.");
+                logger.warn( "Moving Java file without refactoring - references will not be updated. Consider using refactorMoveJavaType instead." );
             }
-            
+
             // Get or create the target folder
-            IFolder targetFolder = project.getFolder(normalizedTarget);
-            if (!targetFolder.exists())
+            IFolder targetFolder = project.getFolder( normalizedTarget );
+            if ( !targetFolder.exists() )
             {
-                ResourceUtilities.createFolderHierarchy(targetFolder);
+                ResourceUtilities.createFolderHierarchy( targetFolder );
             }
-            
+
             // Close the editor if moving a file that is open
-            if (sourceResource instanceof IFile)
+            if ( sourceResource instanceof IFile )
             {
                 IFile sourceFile = (IFile) sourceResource;
-                sync.syncExec(() -> 
-                {
+                sync.syncExec( () -> {
                     IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
-                    if (page != null) 
+                    if ( page != null )
                     {
-                        IEditorPart editor = page.findEditor(new FileEditorInput(sourceFile));
-                        if (editor != null) 
+                        IEditorPart editor = page.findEditor( new FileEditorInput( sourceFile ) );
+                        if ( editor != null )
                         {
-                            page.closeEditor(editor, true);
+                            page.closeEditor( editor, true );
                         }
                     }
-                });
+                } );
             }
-            
+
             // Build the destination path
             String resourceName = sourceResource.getName();
-            IPath destinationPath = targetFolder.getFullPath().append(resourceName);
-            
+            IPath destinationPath = targetFolder.getFullPath().append( resourceName );
+
             // Check if destination already exists
-            IResource existingResource = root.findMember(destinationPath);
-            if (existingResource != null && existingResource.exists())
+            IResource existingResource = root.findMember( destinationPath );
+            if ( existingResource != null && existingResource.exists() )
             {
-                throw new RuntimeException("Error: A resource named '" + resourceName + "' already exists at the destination.");
+                throw new RuntimeException( "Error: A resource named '" + resourceName + "' already exists at the destination." );
             }
-            
+
             // Perform the move
-            sourceResource.move(destinationPath, IResource.FORCE, new NullProgressMonitor());
-            
+            sourceResource.move( destinationPath, IResource.FORCE, new NullProgressMonitor() );
+
             // Refresh the affected containers
-            sourceResource.getParent().refreshLocal(IResource.DEPTH_ONE, null);
-            targetFolder.refreshLocal(IResource.DEPTH_ONE, null);
-            
+            sourceResource.getParent().refreshLocal( IResource.DEPTH_ONE, null );
+            targetFolder.refreshLocal( IResource.DEPTH_ONE, null );
+
             // If moved a file, open it in the editor
-            if (sourceResource instanceof IFile)
+            if ( sourceResource instanceof IFile )
             {
-                IFile newFile = root.getFile(destinationPath);
-                sync.asyncExec(() -> {
-                    if (newFile.exists())
+                IFile newFile = root.getFile( destinationPath );
+                sync.asyncExec( () -> {
+                    if ( newFile.exists() )
                     {
-                        safeOpenEditor(newFile);
+                        safeOpenEditor( newFile );
+                        revealLineInEditor( newFile, 1 );
                     }
-                });
+                } );
             }
-            
+
             String newPath = normalizedTarget + "/" + resourceName;
             return "Success: Resource '" + sourcePath + "' moved to '" + newPath + "' in project '" + projectName + "'.";
-        } 
-        catch (CoreException e) 
+        }
+        catch ( CoreException e )
         {
-            throw new RuntimeException("Error during move: " + ExceptionUtils.getRootCauseMessage(e), e);
+            throw new RuntimeException( "Error during move: " + ExceptionUtils.getRootCauseMessage( e ), e );
         }
     }
 
     /**
      * Finds a package fragment in the Java project.
      */
-    private IPackageFragment findPackage(IJavaProject javaProject, String packageName) throws JavaModelException
+    private IPackageFragment findPackage( IJavaProject javaProject, String packageName ) throws JavaModelException
     {
-        for (IPackageFragmentRoot root : javaProject.getPackageFragmentRoots())
+        for ( IPackageFragmentRoot root : javaProject.getPackageFragmentRoots() )
         {
-            if (root.getKind() == IPackageFragmentRoot.K_SOURCE)
+            if ( root.getKind() == IPackageFragmentRoot.K_SOURCE )
             {
-                IPackageFragment fragment = root.getPackageFragment(packageName);
-                if (fragment != null && fragment.exists())
+                IPackageFragment fragment = root.getPackageFragment( packageName );
+                if ( fragment != null && fragment.exists() )
                 {
                     return fragment;
                 }
@@ -2076,450 +2311,442 @@ public class CodeEditingService
     /**
      * Finds or creates a package fragment in the Java project.
      */
-    private IPackageFragment findOrCreatePackage(IJavaProject javaProject, String packageName) throws CoreException
+    private IPackageFragment findOrCreatePackage( IJavaProject javaProject, String packageName ) throws CoreException
     {
         // First try to find existing package
-        IPackageFragment existing = findPackage(javaProject, packageName);
-        if (existing != null)
+        IPackageFragment existing = findPackage( javaProject, packageName );
+        if ( existing != null )
         {
             return existing;
         }
-        
+
         // Find the first source folder and create the package there
-        for (IPackageFragmentRoot root : javaProject.getPackageFragmentRoots())
+        for ( IPackageFragmentRoot root : javaProject.getPackageFragmentRoots() )
         {
-            if (root.getKind() == IPackageFragmentRoot.K_SOURCE)
+            if ( root.getKind() == IPackageFragmentRoot.K_SOURCE )
             {
-                return root.createPackageFragment(packageName, true, new NullProgressMonitor());
+                return root.createPackageFragment( packageName, true, new NullProgressMonitor() );
             }
         }
-        
-        throw new RuntimeException("Error: No source folder found in project to create package '" + packageName + "'.");
+
+        throw new RuntimeException( "Error: No source folder found in project to create package '" + packageName + "'." );
     }
 
-    public String deleteFile(String projectName, String filePath)
+    public String deleteFile( String projectName, String filePath )
     {
-        Objects.requireNonNull(projectName);
-        Objects.requireNonNull(filePath);
-        
-        if (projectName.isEmpty()) 
-        {
-            throw new IllegalArgumentException("Error: Project name cannot be empty.");
-        }
-        if (filePath.isEmpty()) 
-        {
-            throw new IllegalArgumentException("Error: File path cannot be empty.");
-        }
-        
-        try 
-        {
-            // Get the project and file
-            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-            IProject project = root.getProject(projectName);
-            
-            if (!project.exists()) 
-            {
-                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
-            }
-            if (!project.isOpen()) 
-            {
-                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
-            }
-            
-            IPath path = IPath.fromPath(Path.of(filePath));
-            IFile file = project.getFile(path);
-            
-            if (!file.exists()) 
-            {
-                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
-            }
-            aiIgnoreService.assertAccessAllowed(file);
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
 
-            
-            // Close the editor if the file is open
-            sync.syncExec(() -> 
-            {
-                IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
-                if (page != null) 
-                {
-                    IEditorPart editor = page.findEditor(new FileEditorInput(file));
-                    if (editor != null) 
-                    {
-                        page.closeEditor(editor, false);
-                    }
-                }
-            });
-            
-            // Delete the file
-            file.delete(true, null);
-            
-            // Refresh the parent container
-            IContainer parent = file.getParent();
-            parent.refreshLocal(IResource.DEPTH_ONE, null);
-            
-            return "Success: File '" + filePath + "' deleted from project '" + projectName + "'.";
-        } 
-        catch (CoreException e) 
+        if ( projectName.isEmpty() )
         {
-            throw new RuntimeException(e);
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
         }
-    }
-
-    public String replaceFileContent(String projectName, String filePath, String content)
-    {
-        Objects.requireNonNull(projectName);
-        Objects.requireNonNull(filePath);
-        Objects.requireNonNull(content);
-        
-        if (projectName.isEmpty()) 
+        if ( filePath.isEmpty() )
         {
-            throw new IllegalArgumentException("Error: Project name cannot be empty.");
-        }
-        if (filePath.isEmpty()) 
-        {
-            throw new IllegalArgumentException("Error: File path cannot be empty.");
-        }
-        
-        try 
-        {
-            // Get the project and file
-            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-            IProject project = root.getProject(projectName);
-            
-            if (!project.exists()) 
-            {
-                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
-            }
-            if (!project.isOpen()) 
-            {
-                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
-            }
-            
-            IPath path = IPath.fromPath(Path.of(filePath));
-            IFile file = project.getFile(path);
-            
-            if (!file.exists()) 
-            {
-                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
-            }
-
-            aiIgnoreService.assertAccessAllowed(file);
-            
-            // Backup the file before modification
-            backupFile(file);
-            
-            // Replace the file content
-            byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
-            file.setContents(inputStream, IResource.FORCE, null);
-            
-            // Refresh the file
-            file.refreshLocal(IResource.DEPTH_ZERO, null);
-            
-            // Refresh the editor if the file is open
-            sync.asyncExec(() -> 
-            {
-                safeOpenEditor(file);
-                revealLineInEditor(file, 1);
-            });
-            
-            return "Success: Content of file '" + filePath + "' replaced in project '" + projectName + "'.";
-        } 
-        catch (CoreException e) 
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public String deleteLinesInFile(String projectName, String filePath, int startLine, int endLine)
-    {
-        Objects.requireNonNull(projectName);
-        Objects.requireNonNull(filePath);
-        
-        if (projectName.isEmpty()) 
-        {
-            throw new IllegalArgumentException("Error: Project name cannot be empty.");
-        }
-        if (filePath.isEmpty()) 
-        {
-            throw new IllegalArgumentException("Error: File path cannot be empty.");
-        }
-        if (startLine < 1) 
-        {
-            throw new IllegalArgumentException("Error: Start line must be at least 1.");
-        }
-        if (endLine < startLine) 
-        {
-            throw new IllegalArgumentException("Error: End line must be greater than or equal to start line.");
-        }
-        
-        try 
-        {
-            // Get the project and file
-            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-            IProject project = root.getProject(projectName);
-            
-            if (!project.exists()) 
-            {
-                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
-            }
-            if (!project.isOpen()) 
-            {
-                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
-            }
-            
-            IPath path = IPath.fromPath(Path.of(filePath));
-            IFile file = project.getFile(path);
-            
-            if (!file.exists()) 
-            {
-                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
-            }
-
-            aiIgnoreService.assertAccessAllowed(file);
-            
-            // Backup the file before modification
-            backupFile(file);
-            
-            // Read the file content
-            String fileContent = new String(file.getContents().readAllBytes(), StandardCharsets.UTF_8);
-            String[] lines = fileContent.split("\r?\n", -1);
-            
-            // Validate line numbers
-            if (startLine > lines.length) 
-            {
-                throw new IllegalArgumentException("Error: Start line " + startLine + " is beyond the file length (" + lines.length + " lines).");
-            }
-            if (endLine > lines.length) 
-            {
-                throw new IllegalArgumentException("Error: End line " + endLine + " is beyond the file length (" + lines.length + " lines).");
-            }
-            
-            // Build new content without the deleted lines
-            StringBuilder newContent = new StringBuilder();
-            for (int i = 0; i < lines.length; i++) 
-            {
-                int lineNum = i + 1; // Convert to 1-based
-                if (lineNum < startLine || lineNum > endLine) 
-                {
-                    newContent.append(lines[i]);
-                    if (i < lines.length - 1) 
-                    {
-                        newContent.append("\n");
-                    }
-                }
-            }
-            
-            // Write the new content back to the file
-            byte[] bytes = newContent.toString().getBytes(StandardCharsets.UTF_8);
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
-            file.setContents(inputStream, IResource.FORCE, null);
-            
-            // Refresh the file
-            file.refreshLocal(IResource.DEPTH_ZERO, null);
-            
-            // Refresh the editor if the file is open
-            sync.asyncExec(() -> 
-            {
-                safeOpenEditor(file);
-                refreshEditor(file);
-                revealLineInEditor(file, startLine);
-            });
-            
-            int deletedCount = endLine - startLine + 1;
-            return "Success: Deleted " + deletedCount + " line(s) (lines " + startLine + " to " + endLine + ") from file '" + filePath + "' in project '" + projectName + "'.";
-        } 
-        catch (CoreException | IOException e) 
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Applies a unified diff patch to a file in the specified project.
-     * Parses the diff hunks and applies them to produce the modified file content.
-     * Optionally shows Eclipse's Apply Patch wizard dialog for user review.
-     *
-     * @param projectName The name of the project containing the file
-     * @param filePath The path to the file relative to the project root
-     * @param patch The unified diff content to apply
-     * @param showDialog Whether to show Eclipse's Apply Patch wizard dialog
-     * @return A status message indicating success or failure
-     */
-    public String applyPatch(String projectName, String filePath, String patch, boolean showDialog)
-    {
-        Objects.requireNonNull(projectName, "Project name cannot be null");
-        Objects.requireNonNull(filePath, "File path cannot be null");
-        Objects.requireNonNull(patch, "Patch content cannot be null");
-
-        if (projectName.isEmpty())
-        {
-            throw new IllegalArgumentException("Error: Project name cannot be empty.");
-        }
-        if (filePath.isEmpty())
-        {
-            throw new IllegalArgumentException("Error: File path cannot be empty.");
-        }
-        if (patch.isBlank())
-        {
-            throw new IllegalArgumentException("Error: Patch content cannot be empty.");
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
         }
 
         try
         {
             // Get the project and file
             IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
-            IProject project = root.getProject(projectName);
+            IProject project = root.getProject( projectName );
 
-            if (!project.exists())
+            if ( !project.exists() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
             }
-            if (!project.isOpen())
+            if ( !project.isOpen() )
             {
-                throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
-            }
-
-            IPath path = IPath.fromPath(Path.of(filePath));
-            IFile file = project.getFile(path);
-
-            if (!file.exists())
-            {
-                throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
             }
 
-            aiIgnoreService.assertAccessAllowed(file);
+            IPath path = IPath.fromPath( Path.of( filePath ) );
+            IFile file = project.getFile( path );
 
-
-            // Refresh the editor if the file is open
-            sync.syncExec(() ->
+            if ( !file.exists() )
             {
-                safeOpenEditor(file);
-                refreshEditor(file);
-            });
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
+            }
+            aiIgnoreService.assertAccessAllowed( file );
 
-            // Read the original file content
-            List<String> originalLines = ResourceUtilities.readFileLinesWithTerminators(file);
-
-            // Parse and apply the unified diff
-            List<String> patchedLines = applyUnifiedDiff(originalLines, patch);
-
-            // Build the patched content
-            StringBuilder patchedContent = new StringBuilder();
-            for (int i = 0; i < patchedLines.size(); i++)
-            {
-                patchedContent.append(patchedLines.get(i));
-                if (i < patchedLines.size() - 1)
+            // Close the editor if the file is open
+            sync.syncExec( () -> {
+                IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+                if ( page != null )
                 {
-                    patchedContent.append("\n");
+                    IEditorPart editor = page.findEditor( new FileEditorInput( file ) );
+                    if ( editor != null )
+                    {
+                        page.closeEditor( editor, false );
+                    }
+                }
+            } );
+
+            // Delete the file
+            file.delete( true, null );
+
+            // Refresh the parent container
+            IContainer parent = file.getParent();
+            parent.refreshLocal( IResource.DEPTH_ONE, null );
+
+            return "Success: File '" + filePath + "' deleted from project '" + projectName + "'.";
+        }
+        catch ( CoreException e )
+        {
+            throw new RuntimeException( e );
+        }
+    }
+
+    public String replaceFileContent( String projectName, String filePath, String content )
+    {
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+        Objects.requireNonNull( content );
+
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
+        }
+        if ( filePath.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
+        }
+
+        try
+        {
+            // Get the project and file
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
+            }
+            if ( !project.isOpen() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
+            }
+
+            IPath path = IPath.fromPath( Path.of( filePath ) );
+            IFile file = project.getFile( path );
+
+            if ( !file.exists() )
+            {
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
+            }
+
+            aiIgnoreService.assertAccessAllowed( file );
+
+            // Backup the file before modification
+            backupFile( file );
+
+            // Replace the file content
+            file.setContents( ResourceUtilities.toFileContent( file, content ), IResource.FORCE, null );
+
+            String workspaceState = synchronizeAfterEdit( file, 1 );
+
+            return "Success: Content of file '" + filePath + "' replaced in project '" + projectName + "'." + workspaceState;
+        }
+        catch ( CoreException | IOException e )
+        {
+            throw new RuntimeException( e );
+        }
+    }
+
+    public String deleteLinesInFile( String projectName, String filePath, int startLine, int endLine )
+    {
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
+        }
+        if ( filePath.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
+        }
+        if ( startLine < 1 )
+        {
+            throw new IllegalArgumentException( "Error: Start line must be at least 1." );
+        }
+        if ( endLine < startLine )
+        {
+            throw new IllegalArgumentException( "Error: End line must be greater than or equal to start line." );
+        }
+
+        try
+        {
+            // Get the project and file
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
+            }
+            if ( !project.isOpen() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
+            }
+
+            IPath path = IPath.fromPath( Path.of( filePath ) );
+            IFile file = project.getFile( path );
+
+            if ( !file.exists() )
+            {
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
+            }
+
+            aiIgnoreService.assertAccessAllowed( file );
+
+            // Backup the file before modification
+            backupFile( file );
+
+            // Read the file content
+            var lines = ResourceUtilities.readFileLinesWithTerminators( file );
+
+            // Validate line numbers
+            if ( startLine > lines.size() )
+            {
+                throw new IllegalArgumentException( "Error: Start line " + startLine + " is beyond the file length (" + lines.size() + " lines)." );
+            }
+            if ( endLine > lines.size() )
+            {
+                throw new IllegalArgumentException( "Error: End line " + endLine + " is beyond the file length (" + lines.size() + " lines)." );
+            }
+
+            // Build new content without the deleted lines
+            StringBuilder newContent = new StringBuilder();
+            for ( int i = 0; i < lines.size(); i++ )
+            {
+                int lineNum = i + 1; // Convert to 1-based
+                if ( lineNum < startLine || lineNum > endLine )
+                {
+                    newContent.append( lines.get( i ) );
                 }
             }
-            // Ensure trailing newline
-            if (!patchedContent.toString().endsWith("\n"))
-            {
-                patchedContent.append("\n");
-            }
 
-            var patchedContentString = patchedContent.toString();
+            // Write the new content back to the file
+            file.setContents( ResourceUtilities.toFileContent( file, newContent.toString() ), IResource.FORCE, null );
 
-            if (showDialog)
-            {
-                // Show the Apply Patch wizard dialog on the UI thread asynchronously
-                // so the MCP tool call returns immediately without waiting for user interaction
-                var fullPatch = buildFullUnifiedDiff(filePath, patch);
-                sync.asyncExec(() ->
-                {
-                    var patchHelper = new com.github.gradusnikov.eclipse.assistai.view.ApplyPatchWizardHelper();
-                    patchHelper.showApplyPatchWizardDialog(fullPatch, filePath, projectName);
-                });
-                return "Success: Apply Patch dialog shown for file '" + filePath + "' in project '" + projectName + "'. The user will review and apply the patch via the dialog.";
-            }
+            String workspaceState = synchronizeAfterEdit( file, startLine );
 
-            // Generate a diff for the response (comparing original to patched)
-            String diff = generateCodeDiff(projectName, filePath, patchedContentString, 3);
-
-            // Write back to the file
-            try (ByteArrayInputStream source = new ByteArrayInputStream(
-                    patchedContentString.getBytes(Charset.forName(file.getCharset()))))
-            {
-                file.setContents(source, IResource.FORCE, null);
-            }
-
-            // Refresh the editor
-            var hunks = parseHunks(patch);
-            final int firstHunkLine = hunks.isEmpty() ? 1 : hunks.get(0).originalStart;
-            sync.asyncExec(() ->
-            {
-                refreshEditor(file);
-                revealLineInEditor(file, firstHunkLine);
-            });
-
-            // Compute affected line range from hunks for the response
-            int firstLine = hunks.stream().mapToInt(h -> h.originalStart).min().orElse(1);
-            int lastLine = hunks.stream().mapToInt(h -> h.originalStart + h.originalCount).max().orElse(firstLine);
-
-            return "Success: Patch applied to file '" + filePath + "' in project '" + projectName + "'.\n" +
-                   "Affected lines: " + firstLine + "-" + lastLine + "\n" +
-                   "Changes:\n```diff\n" + diff + "\n```";
+            int deletedCount = endLine - startLine + 1;
+            return "Success: Deleted " + deletedCount + " line(s) (lines " + startLine + " to " + endLine + ") from file '" + filePath + "' in project '"
+                    + projectName + "'." + workspaceState;
         }
-        catch (CoreException | IOException e)
+        catch ( CoreException | IOException e )
         {
-            throw new RuntimeException(e);
+            throw new RuntimeException( e );
         }
     }
 
     /**
-     * Builds a full unified diff string with proper file headers,
-     * ensuring the patch content has --- and +++ headers.
+     * Applies a unified diff patch to a file in the specified project. Parses
+     * the diff hunks and applies them to produce the modified file content.
+     * Optionally shows Eclipse's Apply Patch wizard dialog for user review.
+     *
+     * @param projectName
+     *            The name of the project containing the file
+     * @param filePath
+     *            The path to the file relative to the project root
+     * @param patch
+     *            The unified diff content to apply
+     * @param showDialog
+     *            Whether to show Eclipse's Apply Patch wizard dialog
+     * @return A status message indicating success or failure
      */
-    private String buildFullUnifiedDiff(String filePath, String patch)
+    public String applyPatch( String projectName, String filePath, String patch, boolean showDialog )
+    {
+        Objects.requireNonNull( projectName, "Project name cannot be null" );
+        Objects.requireNonNull( filePath, "File path cannot be null" );
+        Objects.requireNonNull( patch, "Patch content cannot be null" );
+
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
+        }
+        if ( filePath.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: File path cannot be empty." );
+        }
+        if ( patch.isBlank() )
+        {
+            throw new IllegalArgumentException( "Error: Patch content cannot be empty." );
+        }
+
+        try
+        {
+            // Get the project and file
+            IWorkspaceRoot root = ResourcesPlugin.getWorkspace().getRoot();
+            IProject project = root.getProject( projectName );
+
+            if ( !project.exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
+            }
+            if ( !project.isOpen() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
+            }
+
+            IPath path = IPath.fromPath( Path.of( filePath ) );
+            IFile file = project.getFile( path );
+
+            if ( !file.exists() )
+            {
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
+            }
+
+            aiIgnoreService.assertAccessAllowed( file );
+
+            // Refresh the editor if the file is open
+            sync.syncExec( () -> {
+                safeOpenEditor( file );
+                refreshEditor( file );
+            } );
+
+            String originalContent = ResourceUtilities.readFileContent( file );
+            String lineDelimiter = detectLineDelimiter( originalContent );
+            boolean hasTrailingDelimiter = endsWithLineDelimiter( originalContent );
+            List<String> originalLines = splitLines( originalContent );
+
+            // All hunks are validated and applied in memory before the file is touched.
+            List<String> patchedLines = applyUnifiedDiff( originalLines, patch );
+            String patchedContentString = String.join( lineDelimiter, patchedLines );
+            if ( hasTrailingDelimiter && !patchedLines.isEmpty() )
+            {
+                patchedContentString += lineDelimiter;
+            }
+
+
+            if ( showDialog )
+            {
+                // Show the Apply Patch wizard dialog on the UI thread
+                // asynchronously
+                // so the MCP tool call returns immediately without waiting for
+                // user interaction
+                var fullPatch = buildFullUnifiedDiff( filePath, patch );
+                sync.asyncExec( () -> {
+                    var patchHelper = new com.github.gradusnikov.eclipse.assistai.view.ApplyPatchWizardHelper();
+                    patchHelper.showApplyPatchWizardDialog( fullPatch, filePath, projectName );
+                } );
+                return "Success: Apply Patch dialog shown for file '" + filePath + "' in project '" + projectName
+                        + "'. The user will review and apply the patch via the dialog.";
+            }
+
+            // Generate a diff for the response (comparing original to patched)
+            String diff = generateCodeDiff( projectName, filePath, patchedContentString, 3 );
+
+            backupFile( file );
+            // Write back to the file
+            try (ByteArrayInputStream source = new ByteArrayInputStream( patchedContentString.getBytes( Charset.forName( file.getCharset() ) ) ))
+            {
+                file.setContents( source, IResource.FORCE, null );
+            }
+
+            var hunks = parseHunks( patch );
+            final int firstHunkLine = hunks.isEmpty() ? 1 : hunks.get( 0 ).originalStart;
+            String workspaceState = synchronizeAfterEdit( file, firstHunkLine );
+
+            // Compute affected line range from hunks for the response
+            int firstLine = hunks.stream().mapToInt( h -> h.originalStart ).min().orElse( 1 );
+            int lastLine = hunks.stream().mapToInt( h -> h.originalStart + h.originalCount ).max().orElse( firstLine );
+
+            return "Success: Patch applied to file '" + filePath + "' in project '" + projectName + "'.\n" + "Affected lines: " + firstLine + "-" + lastLine
+                    + "\n" + "Changes:\n```diff\n" + diff + "\n```" + workspaceState;
+        }
+        catch ( CoreException | IOException e )
+        {
+            throw new RuntimeException( e );
+        }
+    }
+
+    private List<String> splitLines( String content )
+    {
+        if ( content.isEmpty() )
+        {
+            return new java.util.ArrayList<>();
+        }
+        List<String> lines = new java.util.ArrayList<>( java.util.Arrays.asList( content.split( "\\R", -1 ) ) );
+        if ( endsWithLineDelimiter( content ) )
+        {
+            lines.remove( lines.size() - 1 );
+        }
+        return lines;
+    }
+
+    private String detectLineDelimiter( String content )
+    {
+        int newline = content.indexOf( '\n' );
+        if ( newline >= 0 )
+        {
+            return newline > 0 && content.charAt( newline - 1 ) == '\r' ? "\r\n" : "\n";
+        }
+        return content.indexOf( '\r' ) >= 0 ? "\r" : System.lineSeparator();
+    }
+
+    private boolean endsWithLineDelimiter( String content )
+    {
+        return content.endsWith( "\n" ) || content.endsWith( "\r" );
+    }
+
+    /**
+     * Builds a full unified diff string with proper file headers, ensuring the
+     * patch content has --- and +++ headers.
+     */
+    private String buildFullUnifiedDiff( String filePath, String patch )
     {
         StringBuilder fullPatch = new StringBuilder();
         // Check if the patch already has file headers
         boolean hasHeaders = false;
-        for (String line : patch.split("\n"))
+        for ( String line : patch.split( "\n" ) )
         {
-            if (line.startsWith("---") || line.startsWith("+++"))
+            if ( line.startsWith( "---" ) || line.startsWith( "+++" ) )
             {
                 hasHeaders = true;
                 break;
             }
-            if (line.startsWith("@@"))
+            if ( line.startsWith( "@@" ) )
             {
                 break; // reached hunks without finding headers
             }
         }
-        if (!hasHeaders)
+        if ( !hasHeaders )
         {
             // Use paths without a/ b/ prefix so Eclipse's patch dialog
             // can match them relative to the project root
-            fullPatch.append("--- ").append(filePath).append("\n");
-            fullPatch.append("+++ ").append(filePath).append("\n");
+            fullPatch.append( "--- " ).append( filePath ).append( "\n" );
+            fullPatch.append( "+++ " ).append( filePath ).append( "\n" );
         }
-        fullPatch.append(patch);
+        fullPatch.append( patch );
         return fullPatch.toString();
     }
 
     /**
      * Parses a unified diff and applies it to the given list of original lines.
-     * Supports multiple hunks. Uses context lines for fuzzy matching when
-     * line numbers don't match exactly (e.g., due to prior edits shifting lines).
+     * Supports multiple hunks. Uses context lines for fuzzy matching when line
+     * numbers don't match exactly (e.g., due to prior edits shifting lines).
      *
-     * @param originalLines The original file content as a list of lines
-     * @param patch The unified diff content
+     * @param originalLines
+     *            The original file content as a list of lines
+     * @param patch
+     *            The unified diff content
      * @return The patched file content as a list of lines
      */
-    private List<String> applyUnifiedDiff(List<String> originalLines, String patch)
+    private List<String> applyUnifiedDiff( List<String> originalLines, String patch )
     {
-        List<String> result = new java.util.ArrayList<>(originalLines);
-        var hunks = parseHunks(patch);
+        List<String> result = new java.util.ArrayList<>( originalLines );
+        var hunks = parseHunks( patch );
 
         // Apply hunks in reverse order so line number offsets don't shift
-        java.util.Collections.reverse(hunks);
+        java.util.Collections.reverse( hunks );
 
-        for (var hunk : hunks)
+        for ( var hunk : hunks )
         {
-            result = applyHunk(result, hunk);
+            result = applyHunk( result, hunk );
         }
 
         return result;
@@ -2530,102 +2757,118 @@ public class CodeEditingService
      */
     private static class DiffHunk
     {
-        int originalStart; // 1-based line number in original file
-        int originalCount; // number of lines from original
-        List<String> hunkLines = new java.util.ArrayList<>(); // all lines in the hunk with their prefixes
+        int          originalStart;                           // 1-based line
+                                                              // number in
+                                                              // original file
+
+        int          originalCount;                           // number of lines
+                                                              // from original
+
+        List<String> hunkLines = new java.util.ArrayList<>(); // all lines in
+                                                              // the hunk with
+                                                              // their prefixes
     }
 
     /**
      * Parses unified diff content into a list of DiffHunk objects.
      */
-    private List<DiffHunk> parseHunks(String patch)
+    private List<DiffHunk> parseHunks( String patch )
     {
         var hunks = new java.util.ArrayList<DiffHunk>();
-        var lines = patch.split("\n");
+        var lines = patch.split( "\\R" );
         DiffHunk currentHunk = null;
 
-        for (String line : lines)
+        for ( String line : lines )
         {
             // Skip file headers
-            if (line.startsWith("---") || line.startsWith("+++"))
+            if ( line.startsWith( "---" ) || line.startsWith( "+++" ) )
             {
                 continue;
             }
 
             // Parse hunk header: @@ -start,count +start,count @@
-            if (line.startsWith("@@"))
+            if ( line.startsWith( "@@" ) )
             {
                 currentHunk = new DiffHunk();
-                hunks.add(currentHunk);
+                hunks.add( currentHunk );
 
-                // Parse the original file range: @@ -start,count +start,count @@
-                var matcher = java.util.regex.Pattern.compile(
-                        "@@ -(\\d+)(?:,(\\d+))? \\+(\\d+)(?:,(\\d+))? @@.*")
-                        .matcher(line);
-                if (matcher.matches())
+                // Parse the original file range: @@ -start,count +start,count
+                // @@
+                var matcher = java.util.regex.Pattern.compile( "@@ -(\\d+)(?:,(\\d+))? \\+(\\d+)(?:,(\\d+))? @@.*" ).matcher( line );
+                if ( !matcher.matches() )
                 {
-                    currentHunk.originalStart = Integer.parseInt(matcher.group(1));
-                    currentHunk.originalCount = matcher.group(2) != null
-                            ? Integer.parseInt(matcher.group(2))
-                            : 1;
+                    throw new IllegalArgumentException( "Error: Invalid unified diff hunk header: " + line );
                 }
+                currentHunk.originalStart = Integer.parseInt( matcher.group( 1 ) );
+                currentHunk.originalCount = matcher.group( 2 ) != null ? Integer.parseInt( matcher.group( 2 ) ) : 1;
                 continue;
             }
 
-            if (currentHunk != null)
+            if ( currentHunk != null )
             {
-                if (line.startsWith(" ") || line.startsWith("-") || line.startsWith("+"))
+                if ( line.startsWith( " " ) || line.startsWith( "-" ) || line.startsWith( "+" ) )
                 {
-                    currentHunk.hunkLines.add(line);
+                    currentHunk.hunkLines.add( line );
                 }
-                // Handle lines that are just empty (context lines with no trailing space)
-                else if (line.isEmpty())
+                // Handle lines that are just empty (context lines with no
+                // trailing space)
+                else if ( line.isEmpty() )
                 {
-                    currentHunk.hunkLines.add(" ");
+                    currentHunk.hunkLines.add( " " );
                 }
             }
+        }
+
+        if ( hunks.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Patch contains no unified diff hunks." );
         }
 
         return hunks;
     }
 
     /**
-     * Applies a single hunk to the file content.
-     * Uses context lines for fuzzy matching to find the correct position.
+     * Applies a single hunk to the file content. Uses context lines for fuzzy
+     * matching to find the correct position.
      */
-    private List<String> applyHunk(List<String> lines, DiffHunk hunk)
+    private List<String> applyHunk( List<String> lines, DiffHunk hunk )
     {
         // Build the expected original block (context + removed lines)
         var expectedLines = new java.util.ArrayList<String>();
-        for (String hunkLine : hunk.hunkLines)
+        for ( String hunkLine : hunk.hunkLines )
         {
-            if (hunkLine.startsWith(" ") || hunkLine.startsWith("-"))
+            if ( hunkLine.startsWith( " " ) || hunkLine.startsWith( "-" ) )
             {
-                expectedLines.add(hunkLine.substring(1));
+                expectedLines.add( hunkLine.substring( 1 ) );
             }
         }
+        if ( expectedLines.size() != hunk.originalCount )
+        {
+            throw new IllegalArgumentException( "Error: Hunk at line " + hunk.originalStart + " declares " + hunk.originalCount
+                    + " original line(s), but contains " + expectedLines.size() + "." );
+        }
+
 
         // Try to find the matching position
-        int matchPos = findMatchPosition(lines, expectedLines, hunk.originalStart - 1);
+        int matchPos = findMatchPosition( lines, expectedLines, hunk.originalStart - 1 );
 
-        if (matchPos < 0)
+        if ( matchPos < 0 )
         {
-            throw new RuntimeException(
-                    "Error: Could not find matching context for hunk at line " + hunk.originalStart +
-                    ". The file may have been modified since the diff was generated.");
+            throw new RuntimeException( "Error: Could not find matching context for hunk at line " + hunk.originalStart
+                    + ". The file may have been modified since the diff was generated." );
         }
 
         // Build the replacement block (context + added lines)
         var replacementLines = new java.util.ArrayList<String>();
-        for (String hunkLine : hunk.hunkLines)
+        for ( String hunkLine : hunk.hunkLines )
         {
-            if (hunkLine.startsWith(" "))
+            if ( hunkLine.startsWith( " " ) )
             {
-                replacementLines.add(hunkLine.substring(1));
+                replacementLines.add( hunkLine.substring( 1 ) );
             }
-            else if (hunkLine.startsWith("+"))
+            else if ( hunkLine.startsWith( "+" ) )
             {
-                replacementLines.add(hunkLine.substring(1));
+                replacementLines.add( hunkLine.substring( 1 ) );
             }
             // '-' lines are skipped (they are removed)
         }
@@ -2633,56 +2876,60 @@ public class CodeEditingService
         // Replace the matched range with the new content
         var result = new java.util.ArrayList<String>();
         // Add lines before the match
-        for (int i = 0; i < matchPos; i++)
+        for ( int i = 0; i < matchPos; i++ )
         {
-            result.add(lines.get(i));
+            result.add( lines.get( i ) );
         }
         // Add replacement lines
-        result.addAll(replacementLines);
+        result.addAll( replacementLines );
         // Add lines after the matched block
-        for (int i = matchPos + expectedLines.size(); i < lines.size(); i++)
+        for ( int i = matchPos + expectedLines.size(); i < lines.size(); i++ )
         {
-            result.add(lines.get(i));
+            result.add( lines.get( i ) );
         }
 
         return result;
     }
 
     /**
-     * Finds the position in the file where the expected lines match.
-     * First tries the exact position from the hunk header, then searches
-     * nearby positions (fuzzy matching) in case the file has shifted.
+     * Finds the position in the file where the expected lines match. First
+     * tries the exact position from the hunk header, then searches nearby
+     * positions (fuzzy matching) in case the file has shifted.
      *
-     * @param lines The current file lines
-     * @param expectedLines The lines expected at the match position (context + removed)
-     * @param hintPosition The position suggested by the hunk header (0-based)
-     * @return The 0-based position where the match was found, or -1 if not found
+     * @param lines
+     *            The current file lines
+     * @param expectedLines
+     *            The lines expected at the match position (context + removed)
+     * @param hintPosition
+     *            The position suggested by the hunk header (0-based)
+     * @return The 0-based position where the match was found, or -1 if not
+     *         found
      */
-    private int findMatchPosition(List<String> lines, List<String> expectedLines, int hintPosition)
+    private int findMatchPosition( List<String> lines, List<String> expectedLines, int hintPosition )
     {
-        if (expectedLines.isEmpty())
+        if ( expectedLines.isEmpty() )
         {
-            // Pure insertion hunk - use the hint position directly
-            return Math.min(hintPosition, lines.size());
+            // Pure insertion hunk â use the hint position directly
+            return Math.max( 0, Math.min( hintPosition, lines.size() ) );
         }
 
         // Try exact position first
-        if (matchesAt(lines, expectedLines, hintPosition))
+        if ( matchesAt( lines, expectedLines, hintPosition ) )
         {
             return hintPosition;
         }
 
         // Search nearby (within 50 lines in each direction)
         int maxSearchDistance = 50;
-        for (int offset = 1; offset <= maxSearchDistance; offset++)
+        for ( int offset = 1; offset <= maxSearchDistance; offset++ )
         {
             // Try below
-            if (matchesAt(lines, expectedLines, hintPosition + offset))
+            if ( matchesAt( lines, expectedLines, hintPosition + offset ) )
             {
                 return hintPosition + offset;
             }
             // Try above
-            if (matchesAt(lines, expectedLines, hintPosition - offset))
+            if ( matchesAt( lines, expectedLines, hintPosition - offset ) )
             {
                 return hintPosition - offset;
             }
@@ -2692,17 +2939,18 @@ public class CodeEditingService
     }
 
     /**
-     * Checks if the expected lines match the file content at the given position.
+     * Checks if the expected lines match the file content at the given
+     * position.
      */
-    private boolean matchesAt(List<String> lines, List<String> expectedLines, int position)
+    private boolean matchesAt( List<String> lines, List<String> expectedLines, int position )
     {
-        if (position < 0 || position + expectedLines.size() > lines.size())
+        if ( position < 0 || position + expectedLines.size() > lines.size() )
         {
             return false;
         }
-        for (int i = 0; i < expectedLines.size(); i++)
+        for ( int i = 0; i < expectedLines.size(); i++ )
         {
-            if (!lines.get(position + i).equals(expectedLines.get(i)))
+            if ( !lines.get( position + i ).equals( expectedLines.get( i ) ) )
             {
                 return false;
             }
@@ -2710,159 +2958,208 @@ public class CodeEditingService
         return true;
     }
 
-
     /**
-     * Formats a code completion snippet using Eclipse's code formatter.
-     * The completion is formatted in context by combining it with the code before the cursor,
-     * formatting the combined code, and then extracting the formatted completion.
+     * Formats a code completion snippet using Eclipse's code formatter. The
+     * completion is formatted in context by combining it with the code before
+     * the cursor, formatting the combined code, and then extracting the
+     * formatted completion.
      * 
-     * @param completion The raw completion text from the LLM
-     * @param ctx The completion context containing code before/after cursor
-     * @param editor The text editor (used to get project-specific formatter settings)
+     * @param completion
+     *            The raw completion text from the LLM
+     * @param ctx
+     *            The completion context containing code before/after cursor
+     * @param editor
+     *            The text editor (used to get project-specific formatter
+     *            settings)
      * @return The formatted completion, or the original if formatting fails
      */
-    public String formatCompletion(String completion, CompletionContext ctx, ITextEditor editor) {
-        if (completion == null || completion.isEmpty()) {
+    public String formatCompletion( String completion, CompletionContext ctx, ITextEditor editor )
+    {
+        if ( completion == null || completion.isEmpty() )
+        {
             return completion;
         }
-        
+
         // Only format Java files
-        if (!"java".equalsIgnoreCase(ctx.fileExtension())) {
+        if ( !"java".equalsIgnoreCase( ctx.fileExtension() ) )
+        {
             return completion;
         }
-        
-        try {
+
+        try
+        {
             // Get the project for formatter settings
-            Map<String, String> options = getFormatterOptionsForEditor(editor);
-            
-            if (options == null) {
+            Map<String, String> options = getFormatterOptionsForEditor( editor );
+
+            if ( options == null )
+            {
                 return completion;
             }
-            
+
             // Create the formatter
-            CodeFormatter formatter = ToolFactory.createCodeFormatter(options);
-            
-            // Combine code before cursor with the completion to format in context
+            CodeFormatter formatter = ToolFactory.createCodeFormatter( options );
+
+            // Combine code before cursor with the completion to format in
+            // context
             String codeBefore = ctx.codeBeforeCursor();
             String combinedCode = codeBefore + completion;
-            
-            // Format just the completion part (from offset = codeBefore.length())
+
+            // Format just the completion part (from offset =
+            // codeBefore.length())
             int completionOffset = codeBefore.length();
             int completionLength = completion.length();
-            
-            // Format as statements (K_STATEMENTS works better for code fragments)
-            TextEdit textEdit = formatter.format(
-                CodeFormatter.K_STATEMENTS | CodeFormatter.F_INCLUDE_COMMENTS,
-                combinedCode,
-                completionOffset,
-                completionLength,
-                getIndentationLevel(codeBefore),
-                null
-            );
-            
-            if (textEdit == null) {
+
+            // Format as statements (K_STATEMENTS works better for code
+            // fragments)
+            TextEdit textEdit = formatter.format( CodeFormatter.K_STATEMENTS | CodeFormatter.F_INCLUDE_COMMENTS, combinedCode, completionOffset,
+                    completionLength, getIndentationLevel( codeBefore ), null );
+
+            if ( textEdit == null )
+            {
                 // Try formatting as unknown kind
-                textEdit = formatter.format(
-                    CodeFormatter.K_UNKNOWN,
-                    combinedCode,
-                    completionOffset,
-                    completionLength,
-                    getIndentationLevel(codeBefore),
-                    null
-                );
+                textEdit = formatter.format( CodeFormatter.K_UNKNOWN, combinedCode, completionOffset, completionLength, getIndentationLevel( codeBefore ),
+                        null );
             }
-            
-            if (textEdit == null) {
+
+            if ( textEdit == null )
+            {
                 // Formatting failed, return original
                 return completion;
             }
-            
+
             // Apply the formatting to get the result
-            IDocument document = new Document(combinedCode);
-            textEdit.apply(document);
-            
-            // Extract the formatted completion (everything after the original code before cursor)
+            IDocument document = new Document( combinedCode );
+            textEdit.apply( document );
+
+            // Extract the formatted completion (everything after the original
+            // code before cursor)
             String formattedCombined = document.get();
-            
-            // The formatted code might have different length, so we need to extract the completion part
+
+            // The formatted code might have different length, so we need to
+            // extract the completion part
             // by removing the (possibly reformatted) prefix
-            if (formattedCombined.length() > codeBefore.length()) {
-                // Find where the completion starts - look for the completion in the formatted result
-                String formattedCompletion = formattedCombined.substring(codeBefore.length());
+            if ( formattedCombined.length() > codeBefore.length() )
+            {
+                // Find where the completion starts - look for the completion in
+                // the formatted result
+                String formattedCompletion = formattedCombined.substring( codeBefore.length() );
                 return formattedCompletion;
             }
-            
+
             return completion;
-            
-        } catch (Exception e) {
-            logger.warn("Failed to format completion: " + e.getMessage());
+
+        }
+        catch ( Exception e )
+        {
+            logger.warn( "Failed to format completion: " + e.getMessage() );
             return completion;
         }
     }
-    
+
     /**
      * Gets the formatter options for the given editor's project.
      */
-    private Map<String, String> getFormatterOptionsForEditor(ITextEditor editor) {
-        try {
+    private Map<String, String> getFormatterOptionsForEditor( ITextEditor editor )
+    {
+        try
+        {
             // Try to get project from editor
-            if (editor.getEditorInput() instanceof IFileEditorInput) {
-                IFile file = ((IFileEditorInput) editor.getEditorInput()).getFile();
-                if (file != null && file.getProject() != null) {
-                    IJavaProject javaProject = JavaCore.create(file.getProject());
-                    if (javaProject != null && javaProject.exists()) {
-                        return javaProject.getOptions(true);
+            if ( editor.getEditorInput() instanceof IFileEditorInput )
+            {
+                IFile file = ( (IFileEditorInput) editor.getEditorInput() ).getFile();
+                if ( file != null && file.getProject() != null )
+                {
+                    IJavaProject javaProject = JavaCore.create( file.getProject() );
+                    if ( javaProject != null && javaProject.exists() )
+                    {
+                        return javaProject.getOptions( true );
                     }
                 }
             }
-            
+
             // Fall back to workspace defaults
             return JavaCore.getOptions();
-        } catch (Exception e) {
+        }
+        catch ( Exception e )
+        {
             return JavaCore.getOptions();
         }
     }
-    
+
     /**
      * Calculates the indentation level based on the code before cursor.
      */
-    private int getIndentationLevel(String codeBefore) {
-        if (codeBefore == null || codeBefore.isEmpty()) {
+    private int getIndentationLevel( String codeBefore )
+    {
+        if ( codeBefore == null || codeBefore.isEmpty() )
+        {
             return 0;
         }
-        
+
         // Find the last line
-        int lastNewline = codeBefore.lastIndexOf('\n');
-        String lastLine = (lastNewline >= 0) ? codeBefore.substring(lastNewline + 1) : codeBefore;
-        
+        int lastNewline = codeBefore.lastIndexOf( '\n' );
+        String lastLine = ( lastNewline >= 0 ) ? codeBefore.substring( lastNewline + 1 ) : codeBefore;
+
         // Count leading tabs/spaces
         int indent = 0;
-        for (char c : lastLine.toCharArray()) {
-            if (c == '\t') {
+        for ( char c : lastLine.toCharArray() )
+        {
+            if ( c == '\t' )
+            {
                 indent++;
-            } else if (c == ' ') {
+            }
+            else if ( c == ' ' )
+            {
                 // Assuming 4 spaces = 1 indent level (common default)
                 // This will be adjusted by the formatter anyway
-            } else {
+            }
+            else
+            {
                 break;
             }
         }
-        
+
         return indent;
     }
-    
-    /**
-     * Creates a backup of the file by triggering Eclipse's local history mechanism.
-     * Eclipse automatically maintains file history when content changes occur.
-     * 
-     * @param file The file to backup
-     * @throws CoreException if backup operation fails
-     */
-    private void backupFile(IFile file) throws CoreException 
+
+    private void backupFile( IFile file ) throws CoreException, IOException
     {
-        // Eclipse automatically maintains local history when file.setContents() is called
-        // We just need to ensure the file is synchronized
-        file.refreshLocal(IResource.DEPTH_ZERO, null);
+        file.refreshLocal( IResource.DEPTH_ZERO, null );
+        byte[] content;
+        try ( var input = file.getContents() )
+        {
+            content = input.readAllBytes();
+        }
+
+        Deque<byte[]> backups = editBackups.computeIfAbsent( file.getFullPath(), ignored -> new ArrayDeque<>() );
+        synchronized ( backups )
+        {
+            backups.addFirst( content );
+            while ( backups.size() > MAX_EDIT_BACKUPS )
+            {
+                backups.removeLast();
+            }
+        }
     }
-    
+
+    private byte[] takeEditBackup( IFile file )
+    {
+        Deque<byte[]> backups = editBackups.get( file.getFullPath() );
+        if ( backups == null )
+        {
+            return null;
+        }
+
+        synchronized ( backups )
+        {
+            byte[] content = backups.pollFirst();
+            if ( backups.isEmpty() )
+            {
+                editBackups.remove( file.getFullPath(), backups );
+            }
+            return content;
+        }
+    }
+
+
 }

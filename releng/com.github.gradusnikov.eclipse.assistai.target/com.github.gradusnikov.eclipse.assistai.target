@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <?pde version="3.8"?>
-<target name="AssistAI Target Platform" sequenceNumber="11">
+<target name="AssistAI Target Platform" sequenceNumber="12">
 	<locations>
 
 		<!-- Eclipse 2026-03 (4.39) release train — single planner location.
@@ -56,7 +56,7 @@
 				<dependency>
 					<groupId>io.modelcontextprotocol.sdk</groupId>
 					<artifactId>mcp-core</artifactId>
-					<version>1.1.2</version>
+					<version>2.0.0</version>
 					<type>jar</type>
 				</dependency>
 				<dependency>
@@ -69,18 +69,6 @@
 					<groupId>org.apache.pdfbox</groupId>
 					<artifactId>fontbox</artifactId>
 					<version>2.0.36</version>
-					<type>jar</type>
-				</dependency>
-				<dependency>
-					<groupId>org.apache.tika</groupId>
-					<artifactId>tika-core</artifactId>
-					<version>3.3.0</version>
-					<type>jar</type>
-				</dependency>
-				<dependency>
-					<groupId>org.apache.tika</groupId>
-					<artifactId>tika-parser-text-module</artifactId>
-					<version>3.3.0</version>
 					<type>jar</type>
 				</dependency>
 				<dependency>
@@ -147,6 +135,12 @@
 					<groupId>org.apache.tomcat</groupId>
 					<artifactId>tomcat-annotations-api</artifactId>
 					<version>11.0.21</version>
+					<type>jar</type>
+				</dependency>
+				<dependency>
+					<groupId>org.vineflower</groupId>
+					<artifactId>vineflower</artifactId>
+					<version>1.12.0</version>
 					<type>jar</type>
 				</dependency>
 			</dependencies>

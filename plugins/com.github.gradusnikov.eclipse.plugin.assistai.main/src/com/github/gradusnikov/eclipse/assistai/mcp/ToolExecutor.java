@@ -4,11 +4,23 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
+
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.Operation;
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationContext;
 import java.util.function.Predicate;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
@@ -16,6 +28,17 @@ import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
 
 public class ToolExecutor
 {
+    /**
+     * Tool bodies run here rather than on {@link java.util.concurrent.ForkJoinPool}'s
+     * common pool, which they used to occupy: a long execution tool parks its worker
+     * for as long as the underlying build, search or test run takes, and the common
+     * pool is shared with the rest of the JVM.
+     * <p>
+     * The pool grows on demand on purpose. A bounded one would let a handful of slow
+     * tools fill every slot and queue up the very calls needed to poll or cancel them.
+     */
+    private static final ExecutorService TOOL_EXECUTOR = Executors.newCachedThreadPool( new ToolThreadFactory() );
+
     Object functions;
     
     public ToolExecutor( Object functions )
@@ -40,12 +63,94 @@ public class ToolExecutor
 
     public CompletableFuture<Object> call( String name, Map<String, Object> args )
     {
-        Method method = getFunctionCallbackByName( name ).orElseThrow( () -> new RuntimeException("Tool " + name + " not found!" ) ); 
-        method.getAnnotationsByType( com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam.class );
-        Object[] argValues = mapArguments( method, args );
-        CompletableFuture<Object> future = CompletableFuture.supplyAsync( () -> invokeMethod( method, argValues ) );
+        return call( name, args, null );
+    }
+
+    /**
+     * Invokes a tool, optionally as an {@link Operation}.
+     * <p>
+     * When an operation is given it is bound to the worker thread for the duration of
+     * the call, so the tool - or any service beneath it - can reach it through
+     * {@link OperationContext} to publish progress, attach output or register a cancel
+     * hook, without any of them having to take it as a parameter.
+     */
+    public CompletableFuture<Object> call( String name, Map<String, Object> args, Operation operation )
+    {
+        Method method = getFunctionCallbackByName( name ).orElseThrow( () -> new RuntimeException("Tool " + name + " not found!" ) );
+        Map<String, Object> safeArgs = Optional.ofNullable( args ).orElseGet( Map::of );
+        validateArguments( name, method, safeArgs );
+        Object[] argValues = mapArguments( method, safeArgs );
+        Supplier<Object> body = () -> invokeMethod( method, argValues );
+        Supplier<Object> task = operation == null ? body : () -> {
+            // The worker has to be reachable for cancellation to interrupt it.
+            operation.attachWorkerThread( Thread.currentThread() );
+            try
+            {
+                return OperationContext.callWith( operation, body );
+            }
+            finally
+            {
+                operation.attachWorkerThread( null );
+                // Do not leave a pending interrupt on a pooled thread.
+                Thread.interrupted();
+            }
+        };
+        CompletableFuture<Object> future = CompletableFuture.supplyAsync( task, TOOL_EXECUTOR );
         return future;
     }
+    /**
+     * Validates a tool call against its annotated Java method before any tool code
+     * is scheduled. An empty string is a supplied value; a missing key or null value
+     * is not.
+     */
+    public void validateArguments( String name, Map<String, Object> args )
+    {
+        Method method = getFunctionCallbackByName( name )
+                .orElseThrow( () -> new RuntimeException( "Tool " + name + " not found!" ) );
+        validateArguments( name, method, Optional.ofNullable( args ).orElseGet( Map::of ) );
+    }
+
+    private void validateArguments( String name, Method method, Map<String, Object> args )
+    {
+        Set<String> expected = new LinkedHashSet<>();
+        Set<String> missing = new LinkedHashSet<>();
+
+        for ( Parameter parameter : method.getParameters() )
+        {
+            String parameterName = toParamName( parameter );
+            expected.add( parameterName );
+
+            ToolParam annotation = parameter.getAnnotation( ToolParam.class );
+            boolean required = annotation == null || annotation.required();
+            if ( required && (!args.containsKey( parameterName ) || args.get( parameterName ) == null) )
+            {
+                missing.add( parameterName );
+            }
+        }
+
+        Set<String> unexpected = new LinkedHashSet<>( args.keySet() );
+        unexpected.removeAll( expected );
+
+        if ( missing.isEmpty() && unexpected.isEmpty() )
+        {
+            return;
+        }
+
+        List<String> problems = new ArrayList<>();
+        if ( !missing.isEmpty() )
+        {
+            problems.add( "missing required parameters " + missing );
+        }
+        if ( !unexpected.isEmpty() )
+        {
+            problems.add( "unknown parameters " + unexpected );
+        }
+
+        throw new IllegalArgumentException(
+                "Invalid arguments for tool '" + name + "': " + String.join( "; ", problems )
+                        + ". Expected parameters: " + expected );
+    }
+
     private Object invokeMethod( Method method, Object[] args )
     {
         try
@@ -126,6 +231,30 @@ public class ToolExecutor
                     .filter( Predicate.not( String::isBlank ) )
                     .orElse( parameter.getName() );
     }
+    /**
+     * The {@link Tool} annotation of a tool, which carries whether it may run long and
+     * how long to wait for it inline before handing the caller an operation id.
+     */
+    public Optional<Tool> getToolAnnotation( String name )
+    {
+        return getFunctionCallbackByName( name )
+                .map( method -> method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool.class ) );
+    }
+
+    /** Names the tool threads, so a stuck tool is identifiable in a thread dump. */
+    private static final class ToolThreadFactory implements ThreadFactory
+    {
+        private final AtomicLong counter = new AtomicLong();
+
+        @Override
+        public Thread newThread( Runnable runnable )
+        {
+            Thread thread = new Thread( runnable, "assistai-mcp-tool-" + counter.incrementAndGet() );
+            thread.setDaemon( true );
+            return thread;
+        }
+    }
+
     /**
      * Retrieves the name of the function based on the provided Method object.
      *

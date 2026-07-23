@@ -13,6 +13,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 import org.apache.catalina.Context;
 import org.apache.catalina.LifecycleException;
@@ -21,6 +22,7 @@ import org.apache.tomcat.util.net.SSLHostConfig;
 import org.apache.tomcat.util.net.SSLHostConfigCertificate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.slf4j.Logger;
@@ -86,7 +88,7 @@ public class SdkHttpStreamingTest
         var schema = """
                     {
                       "type" : "object",
-                      "id" : "urn:jsonschema:Operation",
+                      "$id" : "urn:jsonschema:Operation",
                       "properties" : {
                         "operation" : {
                           "type" : "string"
@@ -102,10 +104,8 @@ public class SdkHttpStreamingTest
                     """;
         
         var jsonMapperSupplier = new JacksonMcpJsonMapperSupplier();
-        var tool = McpSchema.Tool.builder()
-                .name("calculator")
+        var tool = McpSchema.Tool.builder("calculator", jsonMapperSupplier.get(), schema)
                 .description("Basic calculator")
-                .inputSchema(jsonMapperSupplier.get(), schema)
                 .build();
         
         var syncToolSpecification = McpServerFeatures.SyncToolSpecification.builder()
@@ -151,19 +151,21 @@ public class SdkHttpStreamingTest
                 .logging()
                 .build();
         
-        var transportProvider = HttpServletStreamableServerTransportProvider.builder()
+        transportProvider = HttpServletStreamableServerTransportProvider.builder()
                 .jsonMapper(jsonMapperSupplier.get())
                 .keepAliveInterval(Duration.ofSeconds(10))
                 .mcpEndpoint(MCP_ENDPOINT)
                 .build();
+        var jsonSchemaValidator = createJsonSchemaValidator();
         
         // Create MCP server
         mcpServer = McpServer.sync(transportProvider)
-                .serverInfo("calculator-server", "1.0.0")
-                .capabilities(capabilities)
-                .jsonMapper(jsonMapperSupplier.get())
-                .tools(syncToolSpecification)
-                .build();
+            .serverInfo("calculator-server", "1.0.0")
+            .capabilities(capabilities)
+            .jsonMapper(jsonMapperSupplier.get())
+            .jsonSchemaValidator(jsonSchemaValidator)
+            .tools(syncToolSpecification)
+            .build();
         
         // Disable Tomcat's URLStreamHandlerFactory registration - inside OSGi (Eclipse/Equinox)
         // the JVM URL stream handler factory is already set by Equinox at startup.
@@ -208,7 +210,7 @@ public class SdkHttpStreamingTest
         
         var client = McpClient.sync(clientTransport)
                 .requestTimeout(Duration.ofSeconds(10))
-                .jsonSchemaValidator(new JacksonJsonSchemaValidatorSupplier().get())
+                .jsonSchemaValidator(createJsonSchemaValidator())
                 .build();
         
         // Initialize the client
@@ -223,10 +225,11 @@ public class SdkHttpStreamingTest
         assertFalse(toolsList.tools().isEmpty());
         assertEquals(1, toolsList.tools().size());
         assertEquals("calculator", toolsList.tools().get(0).name());
+        assertTrue(toolsList.tools().get(0).outputSchema() == null || toolsList.tools().get(0).outputSchema().isEmpty(),
+                () -> "Calculator unexpectedly declares outputSchema: " + toolsList.tools().get(0));
         
         // Call the calculator tool
-        var toolCallRequest = McpSchema.CallToolRequest.builder()
-                .name("calculator")
+        var toolCallRequest = McpSchema.CallToolRequest.builder("calculator")
                 .arguments(Map.of(
                     "operation", "add",
                     "a", 10,
@@ -235,15 +238,16 @@ public class SdkHttpStreamingTest
                 .build();
         
         var toolResult = client.callTool(toolCallRequest);
+        logger.info( "Calculator tool result: {}", toolResult );
         
         // Verify the result
         assertNotNull(toolResult);
-        assertFalse(toolResult.isError());
         assertNotNull(toolResult.content());
         assertFalse(toolResult.content().isEmpty());
         assertTrue(toolResult.content().get(0) instanceof McpSchema.TextContent);
         
         var textContent = (McpSchema.TextContent) toolResult.content().get(0);
+        assertFalse(toolResult.isError(), () -> "Tool call failed: " + textContent.text());
         assertTrue(textContent.text().contains("Result:"));
         assertTrue(textContent.text().contains("10"));
         assertTrue(textContent.text().contains("5"));
@@ -263,7 +267,7 @@ public class SdkHttpStreamingTest
         
         var client = McpClient.sync(clientTransport)
                 .requestTimeout(Duration.ofSeconds(10))
-                .jsonSchemaValidator(new JacksonJsonSchemaValidatorSupplier().get())
+                .jsonSchemaValidator(createJsonSchemaValidator())
                 .build();
         
         // This should fail with 401 Unauthorized
@@ -293,7 +297,7 @@ public class SdkHttpStreamingTest
         
         var client = McpClient.sync(clientTransport)
                 .requestTimeout(Duration.ofSeconds(10))
-                .jsonSchemaValidator(new JacksonJsonSchemaValidatorSupplier().get())
+                .jsonSchemaValidator(createJsonSchemaValidator())
                 .build();
         
         // This should fail with 401 Unauthorized
@@ -316,6 +320,24 @@ public class SdkHttpStreamingTest
     {
         String protocol = USE_HTTPS ? "https" : "http";
         return protocol + "://" + HOST + ":" + PORT;
+    }
+
+    private static io.modelcontextprotocol.json.schema.JsonSchemaValidator createJsonSchemaValidator() throws Exception
+    {
+        return withJsonSchemaValidatorClassLoader( () -> new JacksonJsonSchemaValidatorSupplier().get() );
+    }
+
+    private static <T> T withJsonSchemaValidatorClassLoader( Callable<T> action ) throws Exception
+    {
+        var thread = Thread.currentThread();
+        var originalClassLoader = thread.getContextClassLoader();
+        thread.setContextClassLoader( com.networknt.schema.SchemaRegistry.class.getClassLoader() );
+        try {
+            return action.call();
+        }
+        finally {
+            thread.setContextClassLoader( originalClassLoader );
+        }
     }
     
     /**

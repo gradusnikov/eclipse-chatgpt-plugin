@@ -12,6 +12,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import java.nio.file.Path;
+
+import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.treewalk.TreeWalk;
+
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
@@ -32,6 +37,8 @@ import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.dircache.DirCacheEditor;
 import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.treewalk.FileTreeIterator;
+import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -350,10 +357,99 @@ public class GitService
         }
     }
 
+    public String readFileAtRevision(String projectName, String filePath, String revision)
+    {
+        Objects.requireNonNull(projectName, "projectName");
+        Objects.requireNonNull(filePath, "filePath");
+        Objects.requireNonNull(revision, "revision");
+
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+        if (!project.exists())
+        {
+            throw new RuntimeException("Project not found: " + projectName);
+        }
+
+        RepositoryMapping mapping = RepositoryMapping.getMapping(project);
+        if (mapping == null)
+        {
+            throw new RuntimeException("Project is not mapped to a Git repository: " + projectName);
+        }
+
+        String inputPath = filePath.replace('\\', '/');
+        Path normalizedPath = Path.of(inputPath).normalize();
+        String normalized = normalizedPath.toString().replace('\\', '/');
+        if (inputPath.isBlank() || normalizedPath.isAbsolute() || normalized.equals("..") || normalized.startsWith("../")
+                || inputPath.matches("^[A-Za-z]:.*"))
+        {
+            throw new IllegalArgumentException("File path must be relative to the Eclipse project: " + filePath);
+        }
+
+        String projectPrefix = mapping.getRepoRelativePath(project);
+        String repositoryPath = projectPrefix == null || projectPrefix.isBlank() ? normalized : projectPrefix + "/" + normalized;
+        Repository repository = mapping.getRepository();
+
+        try
+        {
+            ObjectLoader loader;
+            if ("INDEX".equalsIgnoreCase(revision))
+            {
+                DirCacheEntry entry = repository.readDirCache().getEntry(repositoryPath);
+                if (entry == null)
+                {
+                    throw new IllegalArgumentException("File '" + filePath + "' was not found in the Git index.");
+                }
+                loader = repository.open(entry.getObjectId());
+            }
+            else
+            {
+                ObjectId treeId = repository.resolve(revision + "^{tree}");
+                if (treeId == null)
+                {
+                    throw new IllegalArgumentException("Git revision could not be resolved: " + revision);
+                }
+                try (TreeWalk treeWalk = TreeWalk.forPath(repository, repositoryPath, treeId))
+                {
+                    if (treeWalk == null)
+                    {
+                        throw new IllegalArgumentException("File '" + filePath + "' was not found at revision '" + revision + "'.");
+                    }
+                    loader = repository.open(treeWalk.getObjectId(0));
+                }
+            }
+
+            if (loader.getSize() > 5 * 1024 * 1024)
+            {
+                throw new IllegalArgumentException("Git file is larger than the 5 MiB read limit: " + filePath);
+            }
+
+            byte[] content = loader.getBytes();
+            for (byte value : content)
+            {
+                if (value == 0)
+                {
+                    throw new IllegalArgumentException("Git file appears to be binary: " + filePath);
+                }
+            }
+            return new String(content, StandardCharsets.UTF_8);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Failed to read Git file: " + e.getMessage(), e);
+        }
+    }
+
     public String getDiff(String projectName, boolean staged)
     {
+        return getDiff(projectName, staged, null, false);
+    }
+
+    public String getDiff(String projectName, boolean staged, String pathFilter, boolean ignoreWhitespace)
+    {
         Repository repository = getRepository(projectName);
-        try (Git git = new Git(repository))
+        List<String> repositoryPaths = resolveDiffPaths(projectName, pathFilter);
+
+        try (var out = new ByteArrayOutputStream();
+             var formatter = new DiffFormatter(out))
         {
             ObjectId head = repository.resolve("HEAD");
             if (head == null)
@@ -361,21 +457,65 @@ public class GitService
                 return "No commits yet.";
             }
 
-            var diffCommand = git.diff();
-            if (staged)
+            RawTextComparator comparator = ignoreWhitespace ? RawTextComparator.WS_IGNORE_ALL : RawTextComparator.DEFAULT;
+            formatter.setRepository(repository);
+            formatter.setDiffComparator(comparator);
+            formatter.setDetectRenames(true);
+            if (!repositoryPaths.isEmpty())
             {
-                diffCommand.setCached(true);
-                var headTree = prepareTreeParser(repository, head);
-                diffCommand.setOldTree(headTree);
+                formatter.setPathFilter(PathFilterGroup.createFromStrings(repositoryPaths));
             }
 
-            List<DiffEntry> diffs = diffCommand.call();
-            return formatDiffEntries(repository, diffs);
+            AbstractTreeIterator oldTree = staged
+                    ? prepareTreeParser(repository, head)
+                    : prepareIndexTreeParser(repository);
+            AbstractTreeIterator newTree = staged
+                    ? prepareIndexTreeParser(repository)
+                    : new FileTreeIterator(repository);
+
+            List<DiffEntry> diffs = formatter.scan(oldTree, newTree);
+            for (DiffEntry diff : diffs)
+            {
+                formatter.format(diff);
+            }
+            return out.toString(StandardCharsets.UTF_8);
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw e;
         }
         catch (Exception e)
         {
             throw new RuntimeException("Failed to get diff: " + e.getMessage(), e);
         }
+    }
+
+    private List<String> resolveDiffPaths(String projectName, String pathFilter)
+    {
+        if (pathFilter == null || pathFilter.isBlank())
+        {
+            return List.of();
+        }
+
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+        RepositoryMapping mapping = RepositoryMapping.getMapping(project);
+        String projectPrefix = mapping == null ? "" : mapping.getRepoRelativePath(project);
+
+        return java.util.Arrays.stream(pathFilter.split(","))
+                .map(String::trim)
+                .filter(path -> !path.isEmpty())
+                .map(path -> {
+                    String input = path.replace('\\', '/');
+                    Path normalizedPath = Path.of(input).normalize();
+                    String normalized = normalizedPath.toString().replace('\\', '/');
+                    if (normalizedPath.isAbsolute() || normalized.equals("..") || normalized.startsWith("../")
+                            || input.matches("^[A-Za-z]:.*"))
+                    {
+                        throw new IllegalArgumentException("Diff path must be relative to the Eclipse project: " + path);
+                    }
+                    return projectPrefix == null || projectPrefix.isBlank() ? normalized : projectPrefix + "/" + normalized;
+                })
+                .toList();
     }
 
     public String listBranches(String projectName, boolean includeRemote)
@@ -623,11 +763,16 @@ public class GitService
 
     private String formatDiffEntries(Repository repository, List<DiffEntry> diffs) throws IOException
     {
+        return formatDiffEntries(repository, diffs, RawTextComparator.DEFAULT);
+    }
+
+    private String formatDiffEntries(Repository repository, List<DiffEntry> diffs, RawTextComparator comparator) throws IOException
+    {
         try (var out = new ByteArrayOutputStream();
              var formatter = new DiffFormatter(out))
         {
             formatter.setRepository(repository);
-            formatter.setDiffComparator(RawTextComparator.DEFAULT);
+            formatter.setDiffComparator(comparator);
             formatter.setDetectRenames(true);
             for (DiffEntry diff : diffs)
             {

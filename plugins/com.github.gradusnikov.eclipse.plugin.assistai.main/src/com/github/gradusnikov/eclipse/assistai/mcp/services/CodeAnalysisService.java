@@ -17,7 +17,11 @@ import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
+
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.Operation;
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationContext;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IJavaElement;
@@ -1000,8 +1004,15 @@ public class CodeAnalysisService
     {
         try
         {
+            // Joining with the operation's monitor rather than a NullProgressMonitor is what
+            // makes this interruptible: a NullProgressMonitor can never be cancelled, so a
+            // stuck or looping auto-build would park this thread with no way to reach it.
+            IProgressMonitor monitor = OperationContext.current()
+                    .map( Operation::monitor )
+                    .map( IProgressMonitor.class::cast )
+                    .orElseGet( NullProgressMonitor::new );
             org.eclipse.core.runtime.jobs.Job.getJobManager()
-                .join(ResourcesPlugin.FAMILY_AUTO_BUILD, new NullProgressMonitor());
+                .join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
         }
         catch (InterruptedException e)
         {

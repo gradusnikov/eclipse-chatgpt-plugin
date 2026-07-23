@@ -2,9 +2,11 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -29,16 +31,21 @@ import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 /**
- * Service interface for resource-related operations including
- * reading project resources.
+ * Service interface for resource-related operations including reading project
+ * resources.
  */
 @Creatable
 @Singleton
 public class ResourceService
 {
+    public static final int MAX_IMAGE_RESOURCE_BYTES = 20 * 1024 * 1024;
+
+    public record ImageResource( byte[] data, String mimeType )
+    {
+    }
 
     @Inject
-    ILog logger;
+    ILog            logger;
 
     @Inject
     AiIgnoreService aiIgnoreService;
@@ -46,23 +53,26 @@ public class ResourceService
     /**
      * Finds workspace files matching the given glob patterns.
      *
-     * @param fileNamePatterns Glob patterns (e.g. "*.java", "pom.xml"). If omitted, defaults to "*".
-     * @param maxResults Maximum number of results to return (<=0 means default 200)
+     * @param fileNamePatterns
+     *            Glob patterns (e.g. "*.java", "pom.xml"). If omitted, defaults
+     *            to "*".
+     * @param maxResults
+     *            Maximum number of results to return (<=0 means default 200)
      * @return List of workspace-relative file paths
      */
-    public List<String> findFiles(String[] fileNamePatterns, Integer maxResults)
+    public List<String> findFiles( String[] fileNamePatterns, Integer maxResults )
     {
-        Pattern fileNamePattern = ResourceUtilities.globPatternsToRegex(fileNamePatterns);
+        Pattern fileNamePattern = ResourceUtilities.globPatternsToRegex( fileNamePatterns );
 
-        int limit = (maxResults == null || maxResults <= 0) ? 200 : maxResults.intValue();
+        int limit = ( maxResults == null || maxResults <= 0 ) ? 200 : maxResults.intValue();
 
         IResource[] roots = getOpenProjectsAsRoots();
-        if (roots.length == 0)
+        if ( roots.length == 0 )
         {
             return List.of();
         }
 
-        TextSearchScope scope = TextSearchScope.newSearchScope(roots, fileNamePattern, true);
+        TextSearchScope scope = TextSearchScope.newSearchScope( roots, fileNamePattern, true );
         TextSearchEngine engine = TextSearchEngine.createDefault();
 
         List<String> matches = new ArrayList<>();
@@ -70,27 +80,27 @@ public class ResourceService
         TextSearchRequestor requestor = new TextSearchRequestor()
         {
             @Override
-            public boolean acceptFile(IFile file) throws CoreException
+            public boolean acceptFile( IFile file ) throws CoreException
             {
-                if (matches.size() >= limit)
+                if ( matches.size() >= limit )
                 {
                     return false;
                 }
 
-                return file != null && file.isAccessible() && !aiIgnoreService.isExcluded(file);
+                return file != null && file.isAccessible() && !aiIgnoreService.isExcluded( file );
             }
 
             @Override
-            public boolean acceptPatternMatch(TextSearchMatchAccess matchAccess) throws CoreException
+            public boolean acceptPatternMatch( TextSearchMatchAccess matchAccess ) throws CoreException
             {
                 // We only need the file, not match positions.
                 IFile file = matchAccess.getFile();
-                if (file != null)
+                if ( file != null )
                 {
                     String path = file.getFullPath().toString();
-                    if (!matches.contains(path))
+                    if ( !matches.contains( path ) )
                     {
-                        matches.add(path);
+                        matches.add( path );
                     }
                 }
 
@@ -100,15 +110,17 @@ public class ResourceService
 
         try
         {
-            // Search for a pattern that matches at least one char, to force the engine to scan.
-            // (We only care about file enumeration, the fileNamePattern already limits the scope.)
-            engine.search(scope, requestor, Pattern.compile("."), null);
+            // Search for a pattern that matches at least one char, to force the
+            // engine to scan.
+            // (We only care about file enumeration, the fileNamePattern already
+            // limits the scope.)
+            engine.search( scope, requestor, Pattern.compile( "." ), null );
             return matches;
         }
-        catch (Exception e)
+        catch ( Exception e )
         {
-            logger.error("Error finding files: " + e.getMessage(), e);
-            throw new RuntimeException("Error finding files: " + ExceptionUtils.getRootCauseMessage(e), e);
+            logger.error( "Error finding files: " + e.getMessage(), e );
+            throw new RuntimeException( "Error finding files: " + ExceptionUtils.getRootCauseMessage( e ), e );
         }
     }
 
@@ -116,210 +128,277 @@ public class ResourceService
     {
         IProject[] projects = ResourcesPlugin.getWorkspace().getRoot().getProjects();
         List<IResource> roots = new ArrayList<>();
-        for (IProject project : projects)
+        for ( IProject project : projects )
         {
-            if (project != null && project.exists() && project.isOpen())
+            if ( project != null && project.exists() && project.isOpen() )
             {
-                roots.add(project);
+                roots.add( project );
             }
         }
-        return roots.toArray(IResource[]::new);
+        return roots.toArray( IResource[]::new );
     }
 
     /**
      * Reads the content of a text resource from a specified project.
      * 
-     * @param projectName The name of the project containing the resource
-     * @param filePath The path to the resource file relative to the project root
-     * @param showLineNumbers Whether to prepend line numbers to each line
+     * @param projectName
+     *            The name of the project containing the resource
+     * @param filePath
+     *            The path to the resource file relative to the project root
+     * @param showLineNumbers
+     *            Whether to prepend line numbers to each line
      * @return The content of the resource as a formatted string
      */
-    public String readProjectResource(String projectName, String filePath) {
-        return readProjectResource(projectName, filePath, false, 0, 0);
+    public String readProjectResource( String projectName, String filePath )
+    {
+        return readProjectResource( projectName, filePath, false, 0, 0 );
     }
 
-    public String readProjectResource(String projectName, String filePath, boolean showLineNumbers, int startLine, int endLine)
+    public String readProjectResource( String projectName, String filePath, boolean showLineNumbers, int startLine, int endLine )
     {
         // Get the project
-        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
-        if (project == null || !project.exists())
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( projectName );
+        if ( project == null || !project.exists() )
         {
-            throw new RuntimeException("Error: Project '" + projectName + "' not found.");
+            throw new RuntimeException( "Error: Project '" + projectName + "' not found." );
         }
 
-        if (!project.isOpen())
+        if ( !project.isOpen() )
         {
-            throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+            throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
         }
 
         // Get the resource
-        IPath path = IPath.fromPath(Path.of(filePath));
-        IFile file = project.getFile(path);
+        IPath path = IPath.fromPath( Path.of( filePath ) );
+        IFile file = project.getFile( path );
 
-        if (!file.exists())
+        if ( !file.exists() )
         {
-            throw new RuntimeException("Error: File '" + filePath + "' does not exist in project '" + projectName + "'.");
+            throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
         }
 
-        aiIgnoreService.assertAccessAllowed(file);
+        aiIgnoreService.assertAccessAllowed( file );
 
         try
         {
-            String lang = ResourceUtilities.getResourceFileType(file);
+            String lang = ResourceUtilities.getResourceFileType( file );
             // Prepare the response
             StringBuilder response = new StringBuilder();
-            var lines = ResourceUtilities.readFileLines(file);
+            var lines = ResourceUtilities.readFileLines( file );
             int totalLines = lines.size();
-            int effectiveStart = (startLine > 0) ? Math.min(startLine, totalLines) : 1;
-            int effectiveEnd = (endLine > 0) ? Math.min(endLine, totalLines) : totalLines;
+            int effectiveStart = ( startLine > 0 ) ? Math.min( startLine, totalLines ) : 1;
+            int effectiveEnd = ( endLine > 0 ) ? Math.min( endLine, totalLines ) : totalLines;
 
-            response.append("# Content of ").append(filePath).append(" in project ").append(projectName);
-            if (startLine > 0 || endLine > 0) {
-                response.append(" (lines ").append(effectiveStart).append("-").append(effectiveEnd).append(" of ").append(totalLines).append(")");
-            }
-            response.append("\n\n");
-            response.append("```");
-            response.append(lang).append("\n");
-            int width = String.valueOf(totalLines).length();
-            for (int i = effectiveStart - 1; i < effectiveEnd; i++)
+            response.append( "# Content of " ).append( filePath ).append( " in project " ).append( projectName );
+            if ( startLine > 0 || endLine > 0 )
             {
-                if (showLineNumbers) {
-                    response.append(String.format("%" + width + "d\t%s\n", i + 1, lines.get(i)));
-                } else {
-                    response.append(lines.get(i)).append("\n");
+                response.append( " (lines " ).append( effectiveStart ).append( "-" ).append( effectiveEnd ).append( " of " ).append( totalLines ).append( ")" );
+            }
+            response.append( "\n\n" );
+            response.append( "```" );
+            response.append( lang ).append( "\n" );
+            int width = String.valueOf( totalLines ).length();
+            for ( int i = effectiveStart - 1; i < effectiveEnd; i++ )
+            {
+                if ( showLineNumbers )
+                {
+                    response.append( String.format( "%" + width + "d\t%s\n", i + 1, lines.get( i ) ) );
+                }
+                else
+                {
+                    response.append( lines.get( i ) ).append( "\n" );
                 }
             }
-            response.append("\n```\n");
+            response.append( "\n```\n" );
             return response.toString();
 
         }
-        catch (IOException | CoreException e)
+        catch ( IOException | CoreException e )
         {
-            throw new RuntimeException(e);
+            throw new RuntimeException( e );
         }
 
+    }
+
+    /** Reads a supported raster image from an accessible workspace project. */
+    public ImageResource readImageResource( String projectName, String filePath )
+    {
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( projectName );
+        if ( project == null || !project.exists() )
+        {
+            throw new IllegalArgumentException( "Project '" + projectName + "' not found." );
+        }
+        if ( !project.isOpen() )
+        {
+            throw new IllegalArgumentException( "Project '" + projectName + "' is closed." );
+        }
+
+        IPath path = IPath.fromPath( Path.of( filePath ) );
+        IFile file = project.getFile( path );
+        if ( !file.exists() )
+        {
+            throw new IllegalArgumentException( "File '" + filePath + "' does not exist in project '" + projectName + "'." );
+        }
+
+        aiIgnoreService.assertAccessAllowed( file );
+        String mimeType = imageMimeType( file );
+        try (InputStream input = file.getContents())
+        {
+            byte[] data = input.readNBytes( MAX_IMAGE_RESOURCE_BYTES + 1 );
+            if ( data.length > MAX_IMAGE_RESOURCE_BYTES )
+            {
+                throw new IllegalArgumentException( "Image resource exceeds the 20 MiB limit" );
+            }
+            return new ImageResource( data, mimeType );
+        }
+        catch ( IOException | CoreException e )
+        {
+            throw new RuntimeException( "Unable to read image resource '" + filePath + "'.", e );
+        }
+    }
+
+    private String imageMimeType( IFile file )
+    {
+        String extension = file.getFileExtension();
+        extension = extension == null ? "" : extension.toLowerCase( Locale.ROOT );
+        return switch ( extension )
+        {
+            case "png" -> "image/png";
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "gif" -> "image/gif";
+            case "bmp" -> "image/bmp";
+            case "tif", "tiff" -> "image/tiff";
+            case "ico" -> "image/vnd.microsoft.icon";
+            default -> throw new IllegalArgumentException(
+                    "Unsupported image resource extension: '" + extension + "'. Supported: png, jpg, jpeg, gif, bmp, tif, tiff, ico." );
+        };
     }
 
     /**
      * Reads the content of a text resource with resource metadata for caching.
      * 
-     * @param projectName The name of the project containing the resource
-     * @param filePath The path to the resource file relative to the project root
-     * @return ResourceToolResult with content and cacheable descriptor,
-     *         or a transient result if there was an error
+     * @param projectName
+     *            The name of the project containing the resource
+     * @param filePath
+     *            The path to the resource file relative to the project root
+     * @return ResourceToolResult with content and cacheable descriptor, or a
+     *         transient result if there was an error
      */
-    public ResourceToolResult readProjectResourceWithResource(String projectName, String filePath) {
-        return readProjectResourceWithResource(projectName, filePath, false, 0, 0, false);
-    }
-
-    public ResourceToolResult readProjectResourceWithResource(String projectName, String filePath, boolean showLineNumbers, int startLine, int endLine)
+    public ResourceToolResult readProjectResourceWithResource( String projectName, String filePath )
     {
-        return readProjectResourceWithResource(projectName, filePath, showLineNumbers, startLine, endLine, false);
+        return readProjectResourceWithResource( projectName, filePath, false, 0, 0, false );
     }
 
-    public ResourceToolResult readProjectResourceWithResource(String projectName, String filePath, boolean showLineNumbers, int startLine, int endLine, boolean excludeImports)
+    public ResourceToolResult readProjectResourceWithResource( String projectName, String filePath, boolean showLineNumbers, int startLine, int endLine )
+    {
+        return readProjectResourceWithResource( projectName, filePath, showLineNumbers, startLine, endLine, false );
+    }
+
+    public ResourceToolResult readProjectResourceWithResource( String projectName, String filePath, boolean showLineNumbers, int startLine, int endLine,
+            boolean excludeImports )
     {
         final String toolName = "readProjectResource";
 
         // Get the project
-        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
-        if (project == null || !project.exists())
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( projectName );
+        if ( project == null || !project.exists() )
         {
-            return ResourceToolResult.transientResult("Error: Project '" + projectName + "' not found.", toolName);
+            return ResourceToolResult.transientResult( "Error: Project '" + projectName + "' not found.", toolName );
         }
 
-        if (!project.isOpen())
+        if ( !project.isOpen() )
         {
-            return ResourceToolResult.transientResult("Error: Project '" + projectName + "' is closed.", toolName);
+            return ResourceToolResult.transientResult( "Error: Project '" + projectName + "' is closed.", toolName );
         }
 
         // Get the resource
-        IPath path = IPath.fromPath(Path.of(filePath));
-        IFile file = project.getFile(path);
+        IPath path = IPath.fromPath( Path.of( filePath ) );
+        IFile file = project.getFile( path );
 
-        if (!file.exists())
+        if ( !file.exists() )
         {
-            return ResourceToolResult.transientResult(
-                    "Error: File '" + filePath + "' does not exist in project '" + projectName + "'.", toolName);
+            return ResourceToolResult.transientResult( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'.", toolName );
         }
 
-        if (aiIgnoreService.isExcluded(file))
+        if ( aiIgnoreService.isExcluded( file ) )
         {
-            return ResourceToolResult.transientResult(
-                    "Access denied: '" + filePath + "' is excluded from AI processing by .aiignore.", toolName);
+            return ResourceToolResult.transientResult( "Access denied: '" + filePath + "' is excluded from AI processing by .aiignore.", toolName );
         }
 
         try
         {
-            String lang = ResourceUtilities.getResourceFileType(file);
+            String lang = ResourceUtilities.getResourceFileType( file );
 
             // Prepare the response
             StringBuilder content = new StringBuilder();
-            var lines = ResourceUtilities.readFileLines(file);
+            var lines = ResourceUtilities.readFileLines( file );
             int totalLines = lines.size();
-            int effectiveStart = (startLine > 0) ? Math.min(startLine, totalLines) : 1;
-            int effectiveEnd = (endLine > 0) ? Math.min(endLine, totalLines) : totalLines;
+            int effectiveStart = ( startLine > 0 ) ? Math.min( startLine, totalLines ) : 1;
+            int effectiveEnd = ( endLine > 0 ) ? Math.min( endLine, totalLines ) : totalLines;
 
-            content.append("# Content of ").append(filePath).append(" in project ").append(projectName);
-            if (startLine > 0 || endLine > 0) {
-                content.append(" (lines ").append(effectiveStart).append("-").append(effectiveEnd).append(" of ").append(totalLines).append(")");
+            content.append( "# Content of " ).append( filePath ).append( " in project " ).append( projectName );
+            if ( startLine > 0 || endLine > 0 )
+            {
+                content.append( " (lines " ).append( effectiveStart ).append( "-" ).append( effectiveEnd ).append( " of " ).append( totalLines ).append( ")" );
             }
-            content.append("\n\n");
-            content.append("```").append(lang).append("\n");
-            int width = String.valueOf(totalLines).length();
+            content.append( "\n\n" );
+            content.append( "```" ).append( lang ).append( "\n" );
+            int width = String.valueOf( totalLines ).length();
 
             // Detect import block for collapsing
             int importStart = -1;
             int importEnd = -1;
-            if (excludeImports && "java".equals(lang))
+            if ( excludeImports && "java".equals( lang ) )
             {
-                for (int idx = 0; idx < lines.size(); idx++)
+                for ( int idx = 0; idx < lines.size(); idx++ )
                 {
-                    String trimmed = lines.get(idx).trim();
-                    if (trimmed.startsWith("import "))
+                    String trimmed = lines.get( idx ).trim();
+                    if ( trimmed.startsWith( "import " ) )
                     {
-                        if (importStart == -1) importStart = idx;
+                        if ( importStart == -1 )
+                            importStart = idx;
                         importEnd = idx;
                     }
                 }
             }
 
-            for (int i = effectiveStart - 1; i < effectiveEnd; i++)
+            for ( int i = effectiveStart - 1; i < effectiveEnd; i++ )
             {
-                if (importStart >= 0 && i >= importStart && i <= importEnd)
+                if ( importStart >= 0 && i >= importStart && i <= importEnd )
                 {
-                    if (i == importStart)
+                    if ( i == importStart )
                     {
-                        if (showLineNumbers)
+                        if ( showLineNumbers )
                         {
-                            content.append(String.format("%" + width + "s\t// ... imports omitted (lines %d-%d)\n",
-                                    "", importStart + 1, importEnd + 1));
+                            content.append( String.format( "%" + width + "s\t// ... imports omitted (lines %d-%d)\n", "", importStart + 1, importEnd + 1 ) );
                         }
                         else
                         {
-                            content.append("// ... imports omitted (lines ")
-                                   .append(importStart + 1).append("-").append(importEnd + 1).append(")\n");
+                            content.append( "// ... imports omitted (lines " ).append( importStart + 1 ).append( "-" ).append( importEnd + 1 ).append( ")\n" );
                         }
                     }
                     continue;
                 }
 
-                if (showLineNumbers) {
-                    content.append(String.format("%" + width + "d\t%s\n", i + 1, lines.get(i)));
-                } else {
-                    content.append(lines.get(i)).append("\n");
+                if ( showLineNumbers )
+                {
+                    content.append( String.format( "%" + width + "d\t%s\n", i + 1, lines.get( i ) ) );
+                }
+                else
+                {
+                    content.append( lines.get( i ) ).append( "\n" );
                 }
             }
-            content.append("\n```\n");
+            content.append( "\n```\n" );
 
             // Return cacheable result with IFile reference
-            return ResourceToolResult.fromFile(file, content.toString(), toolName);
+            return ResourceToolResult.fromFile( file, content.toString(), toolName );
 
         }
-        catch (IOException | CoreException e)
+        catch ( IOException | CoreException e )
         {
-            logger.error("Error reading resource: " + e.getMessage(), e);
-            return ResourceToolResult.transientResult("Error reading file: " + e.getMessage(), toolName);
+            logger.error( "Error reading resource: " + e.getMessage(), e );
+            return ResourceToolResult.transientResult( "Error reading file: " + e.getMessage(), toolName );
         }
     }
 }

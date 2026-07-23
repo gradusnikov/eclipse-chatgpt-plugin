@@ -1,6 +1,5 @@
 package com.github.gradusnikov.eclipse.plugin.assistai.mcp.services;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -44,23 +43,20 @@ import org.osgi.framework.FrameworkUtil;
 import org.osgi.util.tracker.ServiceTracker;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.services.PDEService;
-import com.github.gradusnikov.eclipse.assistai.mcp.services.TestRunManager;
-import com.github.gradusnikov.eclipse.assistai.mcp.services.TestRunSession;
 
 @TestInstance( TestInstance.Lifecycle.PER_CLASS )
 @TestMethodOrder( MethodOrderer.OrderAnnotation.class )
-public class PDEServicePluginTest
+public class ServicePluginPDETest
 {
     private static final String TEST_PLUGIN_PROJECT = "PDEServiceTest_PluginProject";
 
     private PDEService service;
-    private TestRunManager testRunManager;
     private BundleContext bundleContext;
 
     @BeforeAll
     public void setUp() throws Exception
     {
-        bundleContext = FrameworkUtil.getBundle( PDEServicePluginTest.class ).getBundleContext();
+        bundleContext = FrameworkUtil.getBundle( ServicePluginPDETest.class ).getBundleContext();
 
         ServiceTracker<ILog, ILog> logTracker = new ServiceTracker<>( bundleContext, ILog.class, null );
         logTracker.open();
@@ -92,7 +88,6 @@ public class PDEServicePluginTest
         }
 
         service = ContextInjectionFactory.make( PDEService.class, context );
-        testRunManager = ContextInjectionFactory.make( TestRunManager.class, context );
 
         createPluginTestProject();
     }
@@ -192,6 +187,18 @@ public class PDEServicePluginTest
             "}\n";
         pkg.createCompilationUnit( "SimplePluginTest.java", testSource, true, monitor );
 
+        String secondTestSource =
+            "package com.example.pdetest;\n" +
+            "import org.junit.Test;\n" +
+            "import static org.junit.Assert.assertEquals;\n" +
+            "public class SecondPluginTest {\n" +
+            "    @Test\n" +
+            "    public void testSecond() {\n" +
+            "        assertEquals(4, 2 + 2);\n" +
+            "    }\n" +
+            "}\n";
+        pkg.createCompilationUnit( "SecondPluginTest.java", secondTestSource, true, monitor );
+
         project.build( org.eclipse.core.resources.IncrementalProjectBuilder.FULL_BUILD, monitor );
     }
 
@@ -206,25 +213,6 @@ public class PDEServicePluginTest
     }
 
     // -------------------------------------------------------------------------
-    // Helper: wait for a run to complete
-    // -------------------------------------------------------------------------
-
-    private String waitForRun( String runId, int timeoutSeconds ) throws InterruptedException
-    {
-        long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
-        while ( System.currentTimeMillis() < deadline )
-        {
-            TestRunSession session = testRunManager.getSession( runId );
-            if ( session != null && session.getState() != TestRunSession.State.RUNNING )
-            {
-                return testRunManager.formatResults( session );
-            }
-            Thread.sleep( 500 );
-        }
-        return "Error: Timed out waiting for test run " + runId;
-    }
-
-    // -------------------------------------------------------------------------
     // getActiveTarget
     // -------------------------------------------------------------------------
 
@@ -234,7 +222,7 @@ public class PDEServicePluginTest
     {
         String result = service.getActiveTarget();
         assertNotNull( result, "getActiveTarget must not return null" );
-        assertFalse( result.isEmpty(), "getActiveTarget must not return an empty string" );
+        assertTrue( !result.isEmpty(), "getActiveTarget must not return an empty string" );
     }
 
     @Test
@@ -248,7 +236,7 @@ public class PDEServicePluginTest
     }
 
     // -------------------------------------------------------------------------
-    // setActiveTarget - input validation
+    // setActiveTarget â input validation
     // -------------------------------------------------------------------------
 
     @Test
@@ -279,7 +267,7 @@ public class PDEServicePluginTest
     {
         String result = service.reloadTarget();
         assertNotNull( result );
-        assertFalse( result.isEmpty(), "reloadTarget must not return an empty string" );
+        assertTrue( !result.isEmpty(), "reloadTarget must not return an empty string" );
     }
 
     @Test
@@ -296,60 +284,87 @@ public class PDEServicePluginTest
     }
 
     // -------------------------------------------------------------------------
-    // startJUnitPluginTests - input validation
+    // runJUnitPluginTests â input validation
     // -------------------------------------------------------------------------
 
     @Test
     @Order( 7 )
-    public void testStartJUnitPluginTests_nullProjectName_throwsNPE()
+    public void testRunJUnitPluginTests_nullProjectName_throwsNPE()
     {
         assertThrows( NullPointerException.class,
-            () -> service.startJUnitPluginTests( null, false, false, List.of() ) );
+            () -> service.runJUnitPluginTests( null, 60 ) );
     }
 
     @Test
     @Order( 8 )
-    public void testStartJUnitPluginTests_emptyProjectName_throwsIllegalArgument()
+    public void testRunJUnitPluginTests_emptyProjectName_throwsIllegalArgument()
     {
         assertThrows( IllegalArgumentException.class,
-            () -> service.startJUnitPluginTests( "", false, false, List.of() ) );
+            () -> service.runJUnitPluginTests( "", 60 ) );
     }
 
     @Test
     @Order( 9 )
-    public void testStartJUnitPluginTests_nonExistentProject_throwsRuntimeException()
+    public void testRunJUnitPluginTests_nonExistentProject_returnsErrorString()
     {
-        assertThrows( RuntimeException.class,
-            () -> service.startJUnitPluginTests( "NonExistentProject_PDEPlugin", false, false, List.of() ) );
+        String result = service.runJUnitPluginTests( "NonExistentProject_PDEPlugin", 10 );
+        assertNotNull( result );
+        assertTrue( result.startsWith( "Error" ),
+            "Expected error for non-existent project, got: " + result );
     }
 
     // -------------------------------------------------------------------------
-    // startJUnitPluginTestClass - input validation
+    // runJUnitPluginTestClass â input validation
     // -------------------------------------------------------------------------
 
     @Test
     @Order( 10 )
-    public void testStartJUnitPluginTestClass_nullProjectName_throwsNPE()
+    public void testRunJUnitPluginTestClass_nullProjectName_throwsNPE()
     {
         assertThrows( NullPointerException.class,
-            () -> service.startJUnitPluginTestClass( null, "com.example.MyTest", false, false, List.of() ) );
+            () -> service.runJUnitPluginTestClass( null, "com.example.MyTest", 60 ) );
     }
 
     @Test
     @Order( 11 )
-    public void testStartJUnitPluginTestClass_nullClassName_throwsNPE()
+    public void testRunJUnitPluginTestClass_nullClassName_throwsNPE()
     {
         assertThrows( NullPointerException.class,
-            () -> service.startJUnitPluginTestClass( "SomeProject", null, false, false, List.of() ) );
+            () -> service.runJUnitPluginTestClass( "SomeProject", null, 60 ) );
     }
 
     @Test
     @Order( 12 )
-    public void testStartJUnitPluginTestClass_nonExistentProject_throwsRuntimeException()
+    public void testRunJUnitPluginTestClass_nonExistentProject_returnsErrorString()
     {
-        assertThrows( RuntimeException.class,
-            () -> service.startJUnitPluginTestClass(
-                "NonExistentProject_PDEPlugin", "com.example.MyTest", false, false, List.of() ) );
+        String result = service.runJUnitPluginTestClass(
+            "NonExistentProject_PDEPlugin", "com.example.MyTest", 10 );
+        assertNotNull( result );
+        assertTrue( result.startsWith( "Error" ),
+            "Expected error for non-existent project, got: " + result );
+    }
+
+    // -------------------------------------------------------------------------
+    // runJUnitPluginTestClasses - input validation
+    // -------------------------------------------------------------------------
+
+    @Test
+    @Order( 12 )
+    public void testRunJUnitPluginTestClasses_emptyClassNames_throwsIllegalArgument()
+    {
+        assertThrows( IllegalArgumentException.class,
+            () -> service.runJUnitPluginTestClasses( "SomeProject", List.of(), 60 ) );
+    }
+
+    @Test
+    @Order( 12 )
+    public void testRunJUnitPluginTestClasses_missingClasses_reportsAllNames()
+    {
+        String result = service.runJUnitPluginTestClasses(
+            TEST_PLUGIN_PROJECT, List.of( "missing.FirstPDETest", "missing.SecondPDETest" ), 60 );
+
+        assertTrue( result.contains( "missing.FirstPDETest" ), result );
+        assertTrue( result.contains( "missing.SecondPDETest" ), result );
     }
 
     // -------------------------------------------------------------------------
@@ -393,17 +408,14 @@ public class PDEServicePluginTest
 
     @Test
     @Order( 20 )
-    public void testStartJUnitPluginTestClass_realProject_passes() throws InterruptedException
+    public void testRunJUnitPluginTestClass_realProject_passes()
     {
-        String runId = service.startJUnitPluginTestClass(
+        String result = service.runJUnitPluginTestClass(
             TEST_PLUGIN_PROJECT,
             "com.example.pdetest.SimplePluginTest",
-            false, false, List.of() );
-        assertNotNull( runId );
-
-        String result = waitForRun( runId, 120 );
-        System.out.println( "startJUnitPluginTestClass result: " + result );
-        assumeTrue( !result.contains( "Error:" ),
+            120 );
+        System.out.println( "runJUnitPluginTestClass result: " + result );
+        assumeTrue( !result.contains( "Error" ),
             "Skipping: PDE launcher not available or project has errors (" + result + ")" );
         assertTrue( result.contains( "Passed" ) || result.contains( "passed" ),
             "Expected passing tests in result, got: " + result );
@@ -411,21 +423,36 @@ public class PDEServicePluginTest
 
     @Test
     @Order( 21 )
-    public void testStartJUnitPluginTests_realProject_launches() throws InterruptedException
+    public void testRunJUnitPluginTests_realProject_launches()
     {
-        String runId = service.startJUnitPluginTests(
-            TEST_PLUGIN_PROJECT, false, false, List.of() );
-        assertNotNull( runId );
-
-        String result = waitForRun( runId, 120 );
-        System.out.println( "startJUnitPluginTests result: " + result );
-        assumeTrue( !result.contains( "Error:" ),
+        String result = service.runJUnitPluginTests(
+            TEST_PLUGIN_PROJECT,
+            120 );
+        System.out.println( "runJUnitPluginTests result: " + result );
+        assumeTrue( !result.contains( "Error" ),
             "Skipping: PDE launcher not available or project has errors (" + result + ")" );
-        assertFalse( result.contains( "does not exist" ),
+        assertTrue( !result.contains( "does not exist" ),
             "Got 'does not exist' error - container format is wrong: " + result );
         assertTrue( result.contains( "Passed" ) || result.contains( "passed" )
-            || result.contains( "timed out" ),
+            || result.contains( "did not report results" ),
             "Expected test results or timeout, got: " + result );
+    }
+
+    @Test
+    @Order( 22 )
+    public void testRunJUnitPluginTestClasses_realProject_runsSelectedClassesOnce()
+    {
+        String result = service.runJUnitPluginTestClasses(
+            TEST_PLUGIN_PROJECT,
+            List.of( "com.example.pdetest.SimplePluginTest",
+                     "com.example.pdetest.SecondPluginTest",
+                     "com.example.pdetest.SimplePluginTest" ),
+            120 );
+        System.out.println( "runJUnitPluginTestClasses result: " + result );
+        assumeTrue( !result.contains( "Error" ),
+            "Skipping: PDE launcher not available or project has errors (" + result + ")" );
+        assertTrue( result.contains( "Total: 2" ), result );
+        assertTrue( result.contains( "Passed: 2" ), result );
     }
 
     // -------------------------------------------------------------------------
@@ -434,47 +461,57 @@ public class PDEServicePluginTest
 
     @Test
     @Order( 22 )
-    public void testStartJUnitPluginTests_includeAllPlugins_nonExistentProject()
+    public void testRunJUnitPluginTests_includeAllPlugins_nonExistentProject()
     {
-        assertThrows( RuntimeException.class,
-            () -> service.startJUnitPluginTests( "NonExistentProject_PDEPlugin", false, true, List.of() ) );
+        String result = service.runJUnitPluginTests( "NonExistentProject_PDEPlugin", 10, false, true, List.of() );
+        assertNotNull( result );
+        assertTrue( result.startsWith( "Error" ),
+            "Expected error for non-existent project, got: " + result );
     }
 
     @Test
     @Order( 23 )
-    public void testStartJUnitPluginTests_selectedPlugins_nonExistentProject()
+    public void testRunJUnitPluginTests_selectedPlugins_nonExistentProject()
     {
-        assertThrows( RuntimeException.class,
-            () -> service.startJUnitPluginTests( "NonExistentProject_PDEPlugin", false, false, List.of() ) );
+        String result = service.runJUnitPluginTests( "NonExistentProject_PDEPlugin", 10, false, false, List.of() );
+        assertNotNull( result );
+        assertTrue( result.startsWith( "Error" ),
+            "Expected error for non-existent project, got: " + result );
     }
 
     @Test
     @Order( 24 )
-    public void testStartJUnitPluginTests_withAdditionalBundles_nonExistentProject()
+    public void testRunJUnitPluginTests_withAdditionalBundles_nonExistentProject()
     {
-        assertThrows( RuntimeException.class,
-            () -> service.startJUnitPluginTests(
-                "NonExistentProject_PDEPlugin", false, false,
-                List.of( "org.eclipse.core.runtime", "org.eclipse.ui" ) ) );
+        String result = service.runJUnitPluginTests(
+            "NonExistentProject_PDEPlugin", 10, false, false,
+            List.of( "org.eclipse.core.runtime", "org.eclipse.ui" ) );
+        assertNotNull( result );
+        assertTrue( result.startsWith( "Error" ),
+            "Expected error for non-existent project, got: " + result );
     }
 
     @Test
     @Order( 25 )
-    public void testStartJUnitPluginTestClass_includeAllPlugins_nonExistentProject()
+    public void testRunJUnitPluginTestClass_includeAllPlugins_nonExistentProject()
     {
-        assertThrows( RuntimeException.class,
-            () -> service.startJUnitPluginTestClass(
-                "NonExistentProject_PDEPlugin", "com.example.MyTest", false, true, List.of() ) );
+        String result = service.runJUnitPluginTestClass(
+            "NonExistentProject_PDEPlugin", "com.example.MyTest", 10, false, true, List.of() );
+        assertNotNull( result );
+        assertTrue( result.startsWith( "Error" ),
+            "Expected error for non-existent project, got: " + result );
     }
 
     @Test
     @Order( 26 )
-    public void testStartJUnitPluginTestClass_withAdditionalBundles_nonExistentProject()
+    public void testRunJUnitPluginTestClass_withAdditionalBundles_nonExistentProject()
     {
-        assertThrows( RuntimeException.class,
-            () -> service.startJUnitPluginTestClass(
-                "NonExistentProject_PDEPlugin", "com.example.MyTest", false, false,
-                List.of( "org.eclipse.core.runtime" ) ) );
+        String result = service.runJUnitPluginTestClass(
+            "NonExistentProject_PDEPlugin", "com.example.MyTest", 10, false, false,
+            List.of( "org.eclipse.core.runtime" ) );
+        assertNotNull( result );
+        assertTrue( result.startsWith( "Error" ),
+            "Expected error for non-existent project, got: " + result );
     }
 
     // -------------------------------------------------------------------------
@@ -483,17 +520,14 @@ public class PDEServicePluginTest
 
     @Test
     @Order( 30 )
-    public void testStartJUnitPluginTestClass_selectedPluginsMode_realProject() throws InterruptedException
+    public void testRunJUnitPluginTestClass_selectedPluginsMode_realProject()
     {
-        String runId = service.startJUnitPluginTestClass(
+        String result = service.runJUnitPluginTestClass(
             TEST_PLUGIN_PROJECT,
             "com.example.pdetest.SimplePluginTest",
-            false, false, List.of() );
-        assertNotNull( runId );
-
-        String result = waitForRun( runId, 120 );
-        System.out.println( "startJUnitPluginTestClass (selected) result: " + result );
-        assumeTrue( !result.contains( "Error:" ),
+            120, false, false, List.of() );
+        System.out.println( "runJUnitPluginTestClass (selected) result: " + result );
+        assumeTrue( !result.contains( "Error" ),
             "Skipping: PDE launcher not available or project has errors (" + result + ")" );
         assertTrue( result.contains( "Passed" ) || result.contains( "passed" ),
             "Expected passing tests in result, got: " + result );
@@ -501,17 +535,14 @@ public class PDEServicePluginTest
 
     @Test
     @Order( 31 )
-    public void testStartJUnitPluginTestClass_allPluginsMode_realProject() throws InterruptedException
+    public void testRunJUnitPluginTestClass_allPluginsMode_realProject()
     {
-        String runId = service.startJUnitPluginTestClass(
+        String result = service.runJUnitPluginTestClass(
             TEST_PLUGIN_PROJECT,
             "com.example.pdetest.SimplePluginTest",
-            false, true, List.of() );
-        assertNotNull( runId );
-
-        String result = waitForRun( runId, 120 );
-        System.out.println( "startJUnitPluginTestClass (all) result: " + result );
-        assumeTrue( !result.contains( "Error:" ),
+            120, false, true, List.of() );
+        System.out.println( "runJUnitPluginTestClass (all) result: " + result );
+        assumeTrue( !result.contains( "Error" ),
             "Skipping: PDE launcher not available or project has errors (" + result + ")" );
         assertTrue( result.contains( "Passed" ) || result.contains( "passed" ),
             "Expected passing tests in result, got: " + result );
@@ -519,124 +550,15 @@ public class PDEServicePluginTest
 
     @Test
     @Order( 32 )
-    public void testStartJUnitPluginTests_selectedPluginsMode_realProject() throws InterruptedException
+    public void testRunJUnitPluginTests_selectedPluginsMode_realProject()
     {
-        String runId = service.startJUnitPluginTests(
-            TEST_PLUGIN_PROJECT, false, false, List.of() );
-        assertNotNull( runId );
-
-        String result = waitForRun( runId, 120 );
-        System.out.println( "startJUnitPluginTests (selected) result: " + result );
-        assumeTrue( !result.contains( "Error:" ),
+        String result = service.runJUnitPluginTests(
+            TEST_PLUGIN_PROJECT, 120, false, false, List.of() );
+        System.out.println( "runJUnitPluginTests (selected) result: " + result );
+        assumeTrue( !result.contains( "Error" ),
             "Skipping: PDE launcher not available or project has errors (" + result + ")" );
         assertTrue( result.contains( "Passed" ) || result.contains( "passed" )
-            || result.contains( "timed out" ),
+            || result.contains( "did not report results" ),
             "Expected test results or timeout, got: " + result );
-    }
-
-    // -------------------------------------------------------------------------
-    // startJUnitPluginTestPackage - input validation
-    // -------------------------------------------------------------------------
-
-    @Test
-    @Order( 40 )
-    public void testStartJUnitPluginTestPackage_nullProjectName_throwsNPE()
-    {
-        assertThrows( NullPointerException.class,
-            () -> service.startJUnitPluginTestPackage( null, "com.example.pdetest", false, false, List.of() ) );
-    }
-
-    @Test
-    @Order( 41 )
-    public void testStartJUnitPluginTestPackage_nullPackageName_throwsNPE()
-    {
-        assertThrows( NullPointerException.class,
-            () -> service.startJUnitPluginTestPackage( "SomeProject", null, false, false, List.of() ) );
-    }
-
-    @Test
-    @Order( 42 )
-    public void testStartJUnitPluginTestPackage_emptyProjectName_throwsIllegalArgument()
-    {
-        assertThrows( IllegalArgumentException.class,
-            () -> service.startJUnitPluginTestPackage( "", "com.example.pdetest", false, false, List.of() ) );
-    }
-
-    @Test
-    @Order( 43 )
-    public void testStartJUnitPluginTestPackage_emptyPackageName_throwsIllegalArgument()
-    {
-        assertThrows( IllegalArgumentException.class,
-            () -> service.startJUnitPluginTestPackage( TEST_PLUGIN_PROJECT, "", false, false, List.of() ) );
-    }
-
-    @Test
-    @Order( 44 )
-    public void testStartJUnitPluginTestPackage_nonExistentProject_throwsRuntimeException()
-    {
-        assertThrows( RuntimeException.class,
-            () -> service.startJUnitPluginTestPackage(
-                "NonExistentProject_PDEPlugin", "com.example.pdetest", false, false, List.of() ) );
-    }
-
-    @Test
-    @Order( 45 )
-    public void testStartJUnitPluginTestPackage_nonExistentPackage_throwsRuntimeException()
-    {
-        assertThrows( RuntimeException.class,
-            () -> service.startJUnitPluginTestPackage(
-                TEST_PLUGIN_PROJECT, "com.example.doesnotexist", false, false, List.of() ) );
-    }
-
-    // -------------------------------------------------------------------------
-    // Integration: run package tests on the created project
-    // -------------------------------------------------------------------------
-
-    @Test
-    @Order( 50 )
-    public void testStartJUnitPluginTestPackage_realProject_passes() throws InterruptedException
-    {
-        String runId = service.startJUnitPluginTestPackage(
-            TEST_PLUGIN_PROJECT, "com.example.pdetest", false, false, List.of() );
-        assertNotNull( runId );
-
-        String result = waitForRun( runId, 120 );
-        System.out.println( "startJUnitPluginTestPackage result: " + result );
-        assumeTrue( !result.contains( "Error:" ),
-            "Skipping: PDE launcher not available or project has errors (" + result + ")" );
-        assertTrue( result.contains( "Passed" ) || result.contains( "passed" ),
-            "Expected passing tests in result, got: " + result );
-    }
-
-    @Test
-    @Order( 51 )
-    public void testStartJUnitPluginTestPackage_selectedPluginsMode_realProject() throws InterruptedException
-    {
-        String runId = service.startJUnitPluginTestPackage(
-            TEST_PLUGIN_PROJECT, "com.example.pdetest", false, false, List.of() );
-        assertNotNull( runId );
-
-        String result = waitForRun( runId, 120 );
-        System.out.println( "startJUnitPluginTestPackage (selected) result: " + result );
-        assumeTrue( !result.contains( "Error:" ),
-            "Skipping: PDE launcher not available or project has errors (" + result + ")" );
-        assertTrue( result.contains( "Passed" ) || result.contains( "passed" ),
-            "Expected passing tests in result, got: " + result );
-    }
-
-    @Test
-    @Order( 52 )
-    public void testStartJUnitPluginTestPackage_allPluginsMode_realProject() throws InterruptedException
-    {
-        String runId = service.startJUnitPluginTestPackage(
-            TEST_PLUGIN_PROJECT, "com.example.pdetest", false, true, List.of() );
-        assertNotNull( runId );
-
-        String result = waitForRun( runId, 120 );
-        System.out.println( "startJUnitPluginTestPackage (all plugins) result: " + result );
-        assumeTrue( !result.contains( "Error:" ),
-            "Skipping: PDE launcher not available or project has errors (" + result + ")" );
-        assertTrue( result.contains( "Passed" ) || result.contains( "passed" ),
-            "Expected passing tests in result, got: " + result );
     }
 }

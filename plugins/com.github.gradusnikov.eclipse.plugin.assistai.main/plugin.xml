@@ -96,4 +96,14 @@
       </key>
    </extension>
 
+   <extension point="org.eclipse.debug.core.launchConfigurationTypes">
+      <launchConfigurationType
+            delegate="com.github.gradusnikov.eclipse.assistai.mcp.services.SelectedJUnitPluginLaunchDelegate"
+            id="com.github.gradusnikov.eclipse.assistai.selectedJUnitPluginTests"
+            modes="run,debug"
+            name="AssistAI Selected JUnit Plug-in Tests"
+            public="false">
+      </launchConfigurationType>
+   </extension>
+
 </plugin>

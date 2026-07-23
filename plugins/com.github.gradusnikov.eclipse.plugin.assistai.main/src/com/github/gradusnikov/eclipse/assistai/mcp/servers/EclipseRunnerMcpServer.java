@@ -18,7 +18,7 @@ public class EclipseRunnerMcpServer
     @Inject
     private JavaLaunchService javaLaunchService;
 
-    @Tool(name = "runJavaApplication",
+    @Tool(name = "runJavaApplication", longExecution = true,
           description = "Launches a Java application in run mode. Specify the project and fully qualified main class. If timeout > 0, waits for the process to finish and returns stdout/stderr. If timeout = 0, launches in background and returns immediately.",
           type = "object")
     public String runJavaApplication(
@@ -66,7 +66,7 @@ public class EclipseRunnerMcpServer
     @Tool(name = "listLaunchConfigurations",
           description = "Lists all saved launch configurations in the workspace (name, type, and for Java applications the project and main class). "
               + "Returns a JSON array where each entry has: name, typeId, typeName, projectName, mainClass. "
-              + "Use this to discover the exact name to pass to launchConfiguration, (eclipse-ide MCP server).startJUnitTestRun (launcherName), or (eclipse-pde MCP server).startJUnitPluginTestRun (launcherName). "
+              + "Use this to discover the exact name to pass to launchConfiguration, (eclipse-ide MCP server).runJUnitTests (launcherName), or (eclipse-pde MCP server).runJUnitPluginTests (launcherName). "
               + "Use typeFilter to narrow results: 'junit' for plain JUnit runs, 'junit-plugin' for PDE plug-in tests, "
               + "or any substring of the type ID for other types.",
           type = "object")
@@ -81,7 +81,7 @@ public class EclipseRunnerMcpServer
     }
 
     @Tool(name = "launchConfiguration",
-          description = "Launches an existing saved launch configuration by name, exactly as it would run from Eclipse's Run/Debug Configurations dialog (reusing its classpath, program/VM arguments, environment variables, working directory, and agent settings such as JRebel). Use listLaunchConfigurations to find the name. Unlike runJavaApplication/debugJavaApplication, this does NOT create a throwaway configuration. If timeout > 0, waits for the process to finish and returns stdout/stderr; if timeout = 0, launches in background and returns immediately. For JUnit test launches (plain tests or plug-in tests), use the dedicated startJUnitTestRun (eclipse-ide) or startJUnitPluginTestRun (eclipse-pde) tools instead — they provide structured test results, per-test status, and polling support that this generic launcher does not.",
+          description = "Launches an existing saved launch configuration by name, exactly as it would run from Eclipse's Run/Debug Configurations dialog (reusing its classpath, program/VM arguments, environment variables, working directory, and agent settings such as JRebel). Use listLaunchConfigurations to find the name. Unlike runJavaApplication/debugJavaApplication, this does NOT create a throwaway configuration. If timeout > 0, waits for the process to finish and returns stdout/stderr; if timeout = 0, launches in background and returns immediately. For JUnit test launches (plain tests or plug-in tests), use the dedicated runJUnitTests (eclipse-ide) or runJUnitPluginTests (eclipse-pde) tools instead — they provide structured test results, per-test status, and polling support that this generic launcher does not.",
           type = "object")
     public String launchConfiguration(
             @ToolParam(name = "configurationName", description = "The exact name of the launch configuration to launch (e.g., 'Run Snapshot App No Data Compass Local')") String configurationName,
@@ -190,7 +190,7 @@ public class EclipseRunnerMcpServer
                 Integer.parseInt(lineNumber), condition, hitCountInt);
     }
 
-    @Tool(name = "hotCodeReplace",
+    @Tool(name = "hotCodeReplace", longExecution = true,
           description = "Triggers hot code replace (HCR) in an active debug session. Compiles the latest code changes and pushes them into the running JVM without restarting the application. The JVM must support HCR (most standard JVMs do).",
           type = "object")
     public String hotCodeReplace(

@@ -107,7 +107,10 @@ public class ResourceCacheHelper
         try
         {
             String content = formatDirectoryListing(container);
-            URI uri = URI.create("workspace://" + container.getFullPath().toString() + "/listing");
+            // Encoded for the same reason as ResourceDescriptor.createWorkspaceUri: a folder
+            // whose name contains a space would otherwise throw out of URI.create.
+            URI uri = URI.create("workspace://"
+                    + ResourceDescriptor.encodePath(container.getFullPath().toString()) + "/listing");
             ResourceDescriptor descriptor = new ResourceDescriptor(
                 uri,
                 ResourceType.WORKSPACE_FILE,

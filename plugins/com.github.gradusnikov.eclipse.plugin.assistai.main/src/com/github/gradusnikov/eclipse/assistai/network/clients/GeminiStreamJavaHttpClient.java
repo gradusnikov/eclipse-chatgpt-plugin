@@ -36,6 +36,7 @@ import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.tools.ImageUtilities;
 
 import io.modelcontextprotocol.spec.McpSchema.Tool;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpToolSchemas;
 import jakarta.inject.Inject;
 
 /**
@@ -89,15 +90,15 @@ public class GeminiStreamJavaHttpClient extends AbstractLanguageModelClient
             
             // Handle properties
             Map<String, Object> properties = new LinkedHashMap<>();
-            if (tool.inputSchema().properties() != null && !tool.inputSchema().properties().isEmpty()) {
+            if (!McpToolSchemas.properties(tool).isEmpty()) {
                 // Copy existing properties
-                properties.putAll(tool.inputSchema().properties());
+                properties.putAll(McpToolSchemas.properties(tool));
             }
             
             // Ensure required properties exist in properties map
             List<String> validRequiredProps = new ArrayList<>();
-            if (tool.inputSchema().required() != null) {
-                for (String reqProp : tool.inputSchema().required()) {
+            if (!McpToolSchemas.required(tool).isEmpty()) {
+                for (String reqProp : McpToolSchemas.required(tool)) {
                     // If a required property doesn't exist in properties, add it with a dummy definition
                     if (!properties.containsKey(reqProp)) {
                         properties.put(reqProp, Map.of(

@@ -84,21 +84,19 @@
     <category name="assistai-deps"/>
   </bundle>
 
-  <!-- Apache Tika -->
-  <bundle id="org.apache.tika.core" version="0.0.0">
-    <category name="assistai-deps"/>
-  </bundle>
-  <bundle id="org.apache.tika.parser-text-module" version="0.0.0">
-    <category name="assistai-deps"/>
-  </bundle>
-
   <!-- Apache PDFBox FontBox -->
   <bundle id="org.apache.pdfbox.fontbox" version="0.0.0">
     <category name="assistai-deps"/>
   </bundle>
 
-  <!-- Miscellaneous transitive dependencies -->
+  <!-- JSON Schema Validator and its mandatory dependencies -->
   <bundle id="com.networknt.json-schema-validator" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="com.ethlo.time.itu" version="0.0.0">
+    <category name="assistai-deps"/>
+  </bundle>
+  <bundle id="com.fasterxml.jackson.dataformat.jackson-dataformat-yaml" version="0.0.0">
     <category name="assistai-deps"/>
   </bundle>
   <bundle id="org.yaml.snakeyaml" version="0.0.0">
@@ -108,9 +106,6 @@
     <category name="assistai-deps"/>
   </bundle>
   <bundle id="wrapped.org.jetbrains.annotations" version="0.0.0">
-    <category name="assistai-deps"/>
-  </bundle>
-  <bundle id="wrapped.com.github.albfernandez.juniversalchardet" version="0.0.0">
     <category name="assistai-deps"/>
   </bundle>
   <bundle id="org.apache.tomcat-annotations-api" version="0.0.0">

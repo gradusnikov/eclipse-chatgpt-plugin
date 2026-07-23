@@ -3,6 +3,16 @@ package com.github.gradusnikov.eclipse.assistai.mcp.services;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.eclipse.debug.core.ILaunch;
+
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.Operation;
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationContext;
+import com.github.gradusnikov.eclipse.assistai.mcp.operations.ProcessOutputSource;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
@@ -36,50 +46,41 @@ import org.eclipse.jdt.launching.IJavaLaunchConfigurationConstants;
 import jakarta.inject.Inject;
 
 @Creatable
-public class UnitTestService
-{
+public class UnitTestService {
+    
     @Inject
     ILog logger;
-
+    
     @Inject
     UISynchronize sync;
-
+    
     @Inject
     CoverageService coverageService;
-
-    @Inject
-    TestRunManager testRunManager;
-
-    // -------------------------------------------------------------------------
-    // Inner types
-    // -------------------------------------------------------------------------
-
+    
     /**
-     * Represents a test result with details about the test execution.
+     * Represents a test result with details about the test execution
      */
-    public record TestResult( String className, String testName, String status, String message,
-                              double executionTime )
-    {
+    public record TestResult (String className, String testName, String status, String message, double executionTime) {
+        
         @Override
-        public String toString()
-        {
+        public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append( className ).append( "#" ).append( testName )
-              .append( " [" ).append( status ).append( "] - " )
-              .append( executionTime ).append( "s" );
-            if ( message != null && !message.isEmpty() )
-            {
-                sb.append( "\n  Message: " ).append( message );
+            sb.append(className).append("#").append(testName)
+              .append(" [").append(status).append("] - ")
+              .append(executionTime).append("s");
+            
+            if (message != null && !message.isEmpty()) {
+                sb.append("\n  Message: ").append(message);
             }
+            
             return sb.toString();
         }
     }
-
+    
     /**
-     * Represents the results of a test run with summary information.
+     * Represents the results of a test run with summary information
      */
-    public static class TestRunResult
-    {
+    public static class TestRunResult {
         private String testRunName;
         private int totalCount;
         private int passedCount;
@@ -88,449 +89,783 @@ public class UnitTestService
         private int skippedCount;
         private double totalTime;
         private List<TestResult> testResults;
-
-        public TestRunResult( String testRunName )
-        {
+        
+        public TestRunResult(String testRunName) {
             this.testRunName = testRunName;
             this.testResults = new ArrayList<>();
+            this.totalCount = 0;
+            this.passedCount = 0;
+            this.failedCount = 0;
+            this.errorCount = 0;
+            this.skippedCount = 0;
+            this.totalTime = 0.0;
         }
-
-        public synchronized void addTestResult( TestResult result )
-        {
-            testResults.add( result );
+        
+        public void addTestResult(TestResult result) {
+            testResults.add(result);
             totalCount++;
-            switch ( result.status() )
-            {
-                case String s when s.equals( Result.OK.toString() ) -> passedCount++;
-                case String s when s.equals( Result.FAILURE.toString() ) -> failedCount++;
-                case String s when s.equals( Result.ERROR.toString() ) -> errorCount++;
-                case String s when s.equals( Result.IGNORED.toString() ) -> skippedCount++;
-                case String s when s.equals( Result.UNDEFINED.toString() ) -> skippedCount++;
-                default -> throw new IllegalArgumentException( "Unexpected value: " + result.status() );
+            
+            switch (result.status) {
+                case String s when s.equals(Result.OK.toString()) -> passedCount++;
+                case String s when s.equals(Result.FAILURE.toString()) -> failedCount++;
+                case String s when s.equals(Result.ERROR.toString()) -> errorCount++;
+                case String s when s.equals(Result.IGNORED.toString()) -> skippedCount++;
+                case String s when s.equals(Result.UNDEFINED.toString()) -> skippedCount++;
+                // Runs inside JDT's test run notifier: throwing here would break the
+                // listener for the whole run over nothing more than an unknown status.
+                default -> skippedCount++;
             }
-            totalTime += result.executionTime();
+            
+            totalTime += result.executionTime;
+        }
+        
+        @Override
+        public String toString() {
+            return toSummary() + "\n" + toResults();
         }
 
-        public synchronized String getTestRunName() { return testRunName; }
-        public synchronized int getTotalCount() { return totalCount; }
-        public synchronized int getPassedCount() { return passedCount; }
-        public synchronized int getFailedCount() { return failedCount; }
-        public synchronized int getErrorCount() { return errorCount; }
-        public synchronized int getSkippedCount() { return skippedCount; }
-        public synchronized double getTotalTime() { return totalTime; }
-        public synchronized List<TestResult> getTestResults() { return new ArrayList<>( testResults ); }
+        /** Short pass/fail/error/skip counts — suitable for 'summary' intermediate result. */
+        public synchronized String toSummary() {
+            return "Test Run: " + testRunName + "\n"
+                + "Summary: Total: " + totalCount
+                + ", Passed: " + passedCount
+                + ", Failed: " + failedCount
+                + ", Errors: " + errorCount
+                + ", Skipped: " + skippedCount
+                + ", Time: " + String.format("%.2f", totalTime) + "s";
+        }
 
-        @Override
-        public synchronized String toString()
-        {
+        /** Full test listing — suitable for 'results' intermediate result. */
+        public synchronized String toResults() {
             StringBuilder sb = new StringBuilder();
-            sb.append( "Test Run: " ).append( testRunName ).append( "\n" );
-            sb.append( "Summary: Total: " ).append( totalCount )
-              .append( ", Passed: " ).append( passedCount )
-              .append( ", Failed: " ).append( failedCount )
-              .append( ", Errors: " ).append( errorCount )
-              .append( ", Skipped: " ).append( skippedCount )
-              .append( ", Time: " ).append( String.format( "%.2f", totalTime ) ).append( "s\n\n" );
-
-            if ( failedCount > 0 || errorCount > 0 )
-            {
-                sb.append( "Failed Tests:\n" );
+            if (failedCount > 0 || errorCount > 0) {
+                sb.append("Failed Tests:\n");
                 testResults.stream()
-                           .filter( r -> "FAILED".equals( r.status() ) || "ERROR".equals( r.status() ) )
-                           .forEach( r -> sb.append( "  " ).append( r.toString() ).append( "\n" ) );
-                sb.append( "\n" );
+                    .filter(r -> Result.FAILURE.toString().equals(r.status) || Result.ERROR.toString().equals(r.status))
+                    .forEach(r -> sb.append("  ").append(r.toString()).append("\n"));
+                sb.append("\n");
             }
-
-            sb.append( "All Tests:\n" );
-            testResults.forEach( r -> sb.append( "  " ).append( r.toString() ).append( "\n" ) );
+            sb.append("All Tests:\n");
+            testResults.forEach(r -> sb.append("  ").append(r.toString()).append("\n"));
             return sb.toString();
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Async public API - each method returns a run ID immediately
-    // -------------------------------------------------------------------------
-
+    
     /**
-     * Starts all tests in a project asynchronously.
-     * @return run ID - use getTestRunStatus to poll for results
+     * Runs all tests in a specific project.
+     * 
+     * @param projectName The name of the project containing the tests
+     * @param timeout Maximum time in seconds to wait for test completion
+     * @return A formatted string with test results
      */
-    public String startAllTests( String projectName, boolean withCoverage )
-    {
-        return startAllTests( projectName, withCoverage, null );
+    public String runAllTests(String projectName, Integer timeout) {
+        return runAllTests(projectName, timeout, false);
+    }
+
+    public String runAllTests(String projectName, Integer timeout, boolean withCoverage) {
+        return runAllTests(projectName, timeout, withCoverage, null);
     }
 
     /**
-     * Starts all tests in a project asynchronously, optionally based on a named launch configuration.
-     * When {@code launcherName} is provided the saved config is used as a base and only the test
-     * container attribute is overridden; all other settings (VM args, classpath, env vars, etc.) are kept.
+     * Runs all tests in a project, optionally using a saved launch configuration as a base.
      *
-     * @param launcherName optional saved launch config name (use listLaunchConfigurations to find it)
-     * @return run ID - use getTestRunStatus to poll for results
+     * @param launcherName optional saved launch config name to reuse (VM args, classpath, env vars, etc.)
      */
-    public String startAllTests( String projectName, boolean withCoverage, String launcherName )
-    {
-        Objects.requireNonNull( projectName, "Project name cannot be null" );
-        if ( projectName.isEmpty() )
-        {
-            throw new IllegalArgumentException( "Project name cannot be empty" );
+    public String runAllTests(String projectName, Integer timeout, boolean withCoverage, String launcherName) {
+        Objects.requireNonNull(projectName, "Project name cannot be null");
+        
+        if (projectName.isEmpty()) {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
         }
-        try
-        {
+        
+        if (timeout == null || timeout <= 0) {
+            timeout = 300; // Default timeout of 300 seconds
+        }
+        
+        try {
             IJavaProject javaProject = getJavaProject( projectName );
-            return startJUnitTests( javaProject, null, null, null, withCoverage,
-                "Running all tests in " + projectName, launcherName );
-        }
-        catch ( CoreException e )
-        {
-            throw new RuntimeException( "Error starting tests: " + e.getMessage(), e );
+            return launchJUnitTests(javaProject, null, null, timeout, null, withCoverage, launcherName);
+        } catch (CoreException e) {
+            throw new RuntimeException("Error running tests: " + e.getMessage(), e);
         }
     }
-
+    
     /**
-     * Starts tests for a package asynchronously.
-     * @return run ID - use getTestRunStatus to poll for results
+     * Runs tests in a specific package.
+     * 
+     * @param projectName The name of the project containing the tests
+     * @param packageName The fully qualified package name containing the tests
+     * @param timeout Maximum time in seconds to wait for test completion
+     * @return A formatted string with test results
      */
-    public String startPackageTests( String projectName, String packageName, boolean withCoverage )
-    {
-        return startPackageTests( projectName, packageName, withCoverage, null );
+    public String runPackageTests(String projectName, String packageName, Integer timeout) {
+        return runPackageTests(projectName, packageName, timeout, false);
+    }
+
+    public String runPackageTests(String projectName, String packageName, Integer timeout, boolean withCoverage) {
+        return runPackageTests(projectName, packageName, timeout, withCoverage, null);
     }
 
     /**
-     * Starts tests for a package asynchronously, optionally based on a named launch configuration.
+     * Runs tests in a package, optionally using a saved launch configuration as a base.
      *
-     * @param launcherName optional saved launch config name (use listLaunchConfigurations to find it)
-     * @return run ID - use getTestRunStatus to poll for results
+     * @param launcherName optional saved launch config name to reuse
      */
-    public String startPackageTests( String projectName, String packageName, boolean withCoverage,
-                                     String launcherName )
-    {
-        Objects.requireNonNull( projectName, "Project name cannot be null" );
-        Objects.requireNonNull( packageName, "Package name cannot be null" );
-        if ( projectName.isEmpty() )
-        {
-            throw new IllegalArgumentException( "Project name cannot be empty" );
+    public String runPackageTests(String projectName, String packageName, Integer timeout, boolean withCoverage, String launcherName) {
+        Objects.requireNonNull(projectName, "Project name cannot be null");
+        Objects.requireNonNull(packageName, "Package name cannot be null");
+        
+        if (projectName.isEmpty()) {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
         }
-        if ( packageName.isEmpty() )
-        {
-            throw new IllegalArgumentException( "Package name cannot be empty" );
+        
+        if (packageName.isEmpty()) {
+            throw new IllegalArgumentException("Error: Package name cannot be empty.");
         }
-        try
-        {
+        
+        if (timeout == null || timeout <= 0) {
+            timeout = 300; // Default timeout of 300 seconds
+        }
+        
+        try {
             IJavaProject javaProject = getJavaProject( projectName );
-            IPackageFragment pkg = findPackage( javaProject, packageName );
-            if ( pkg == null )
-            {
-                throw new RuntimeException(
-                    "Package '" + packageName + "' not found in project '" + projectName + "'" );
+            IPackageFragment pkg = findPackage(javaProject, packageName);
+            if (pkg == null) {
+                throw new RuntimeException("Error: Package '" + packageName + "' not found in project '" + projectName + "'.");
             }
-            return startJUnitTests( javaProject, pkg, null, null, withCoverage,
-                "Running package " + packageName + " in " + projectName, launcherName );
-        }
-        catch ( CoreException e )
-        {
-            throw new RuntimeException( "Error starting tests: " + e.getMessage(), e );
+            return launchJUnitTests(javaProject, pkg, null, timeout, null, withCoverage, launcherName);
+        } catch (CoreException e) {
+            throw new RuntimeException("Error running tests: " + e.getMessage(), e);
         }
     }
-
+    
     /**
-     * Starts tests for a specific class asynchronously.
-     * @return run ID - use getTestRunStatus to poll for results
+     * Runs tests for a specific class.
+     * 
+     * @param projectName The name of the project containing the tests
+     * @param className The fully qualified name of the test class
+     * @param timeout Maximum time in seconds to wait for test completion
+     * @return A formatted string with test results
      */
-    public String startClassTests( String projectName, String className, boolean withCoverage )
-    {
-        return startClassTests( projectName, className, withCoverage, null );
+    public String runClassTests(String projectName, String className, Integer timeout) {
+        return runClassTests(projectName, className, timeout, false);
+    }
+
+    public String runClassTests(String projectName, String className, Integer timeout, boolean withCoverage) {
+        return runClassTests(projectName, className, timeout, withCoverage, null);
     }
 
     /**
-     * Starts tests for a specific class asynchronously, optionally based on a named launch configuration.
+     * Runs tests for a class, optionally using a saved launch configuration as a base.
      *
-     * @param launcherName optional saved launch config name (use listLaunchConfigurations to find it)
-     * @return run ID - use getTestRunStatus to poll for results
+     * @param launcherName optional saved launch config name to reuse
      */
-    public String startClassTests( String projectName, String className, boolean withCoverage,
-                                   String launcherName )
-    {
-        Objects.requireNonNull( projectName, "Project name cannot be null" );
-        Objects.requireNonNull( className, "Class name cannot be null" );
-        if ( projectName.isEmpty() )
-        {
-            throw new IllegalArgumentException( "Project name cannot be empty" );
+    public String runClassTests(String projectName, String className, Integer timeout, boolean withCoverage, String launcherName) {
+        Objects.requireNonNull(projectName, "Project name cannot be null");
+        Objects.requireNonNull(className, "Class name cannot be null");
+        
+        if (projectName.isEmpty()) {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
         }
-        if ( className.isEmpty() )
-        {
-            throw new IllegalArgumentException( "Class name cannot be empty" );
+        
+        if (className.isEmpty()) {
+            throw new IllegalArgumentException("Error: Class name cannot be empty.");
         }
-        try
-        {
+        
+        if (timeout == null || timeout <= 0) {
+            timeout = 300; // Default timeout of 300 seconds
+        }
+        
+        try {
             IJavaProject javaProject = getJavaProject( projectName );
-            IType type = javaProject.findType( className );
-            if ( type == null )
-            {
-                throw new RuntimeException(
-                    "Class '" + className + "' not found in project '" + projectName + "'" );
+            IType type = javaProject.findType(className);
+            if (type == null) {
+                throw new RuntimeException("Error: Class '" + className + "' not found in project '" + projectName + "'.");
             }
-            return startJUnitTests( javaProject, null, type, null, withCoverage,
-                "Running " + className + " in " + projectName, launcherName );
-        }
-        catch ( CoreException e )
-        {
-            throw new RuntimeException( "Error starting tests: " + e.getMessage(), e );
+            return launchJUnitTests(javaProject, null, type, timeout, null, withCoverage, launcherName);
+        } catch (CoreException e) {
+            throw new RuntimeException("Error running tests: " + e.getMessage(), e);
         }
     }
-
+    
     /**
-     * Starts a specific test method asynchronously.
-     * @return run ID - use getTestRunStatus to poll for results
+     * Runs a specific test method.
+     * 
+     * @param projectName The name of the project containing the tests
+     * @param className The fully qualified name of the test class
+     * @param methodName The name of the test method to run
+     * @param timeout Maximum time in seconds to wait for test completion
+     * @return A formatted string with test results
      */
-    public String startTestMethod( String projectName, String className, String methodName,
-                                   boolean withCoverage )
-    {
-        return startTestMethod( projectName, className, methodName, withCoverage, null );
+    public String runTestMethod(String projectName, String className, String methodName, Integer timeout) {
+        return runTestMethod(projectName, className, methodName, timeout, false);
+    }
+
+    public String runTestMethod(String projectName, String className, String methodName, Integer timeout, boolean withCoverage) {
+        return runTestMethod(projectName, className, methodName, timeout, withCoverage, null);
     }
 
     /**
-     * Starts a specific test method asynchronously, optionally based on a named launch configuration.
+     * Runs a specific test method, optionally using a saved launch configuration as a base.
      *
-     * @param launcherName optional saved launch config name (use listLaunchConfigurations to find it)
-     * @return run ID - use getTestRunStatus to poll for results
+     * @param launcherName optional saved launch config name to reuse
      */
-    public String startTestMethod( String projectName, String className, String methodName,
-                                   boolean withCoverage, String launcherName )
-    {
-        Objects.requireNonNull( projectName, "Project name cannot be null" );
-        Objects.requireNonNull( className, "Class name cannot be null" );
-        Objects.requireNonNull( methodName, "Method name cannot be null" );
-        if ( projectName.isEmpty() )
-        {
-            throw new IllegalArgumentException( "Project name cannot be empty" );
+    public String runTestMethod(String projectName, String className, String methodName, Integer timeout, boolean withCoverage, String launcherName) {
+        Objects.requireNonNull(projectName, "Project name cannot be null");
+        Objects.requireNonNull(className, "Class name cannot be null");
+        Objects.requireNonNull(methodName, "Method name cannot be null");
+        
+        if (projectName.isEmpty()) {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
         }
-        if ( className.isEmpty() )
-        {
-            throw new IllegalArgumentException( "Class name cannot be empty" );
+        
+        if (className.isEmpty()) {
+            throw new IllegalArgumentException("Error: Class name cannot be empty.");
         }
-        if ( methodName.isEmpty() )
-        {
-            throw new IllegalArgumentException( "Method name cannot be empty" );
+        
+        if (methodName.isEmpty()) {
+            throw new IllegalArgumentException("Error: Method name cannot be empty.");
         }
-        try
-        {
+        
+        if (timeout == null || timeout <= 0) {
+            timeout = 300; // Default timeout of 300 seconds
+        }
+        
+        try {
             IJavaProject javaProject = getJavaProject( projectName );
-            IType type = javaProject.findType( className );
-            if ( type == null )
-            {
-                throw new RuntimeException(
-                    "Class '" + className + "' not found in project '" + projectName + "'" );
+            IType type = javaProject.findType(className);
+            if (type == null) {
+                throw new RuntimeException("Error: Class '" + className + "' not found in project '" + projectName + "'.");
             }
-            IMethod method = findMethod( type, methodName );
-            if ( method == null )
-            {
-                throw new RuntimeException(
-                    "Method '" + methodName + "' not found in class '" + className + "'" );
+            IMethod method = findMethod(type, methodName);
+            if (method == null) {
+                throw new RuntimeException("Error: Method '" + methodName + "' not found in class '" + className + "'.");
             }
-            return startJUnitTests( javaProject, null, type, methodName, withCoverage,
-                "Running " + className + "." + methodName + " in " + projectName, launcherName );
-        }
-        catch ( CoreException e )
-        {
-            throw new RuntimeException( "Error starting tests: " + e.getMessage(), e );
+            return launchJUnitTests(javaProject, null, type, timeout, methodName, withCoverage, launcherName);
+        } catch (CoreException e) {
+            throw new RuntimeException("Error running tests: " + e.getMessage(), e);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Core async launch logic
-    // -------------------------------------------------------------------------
-
-    private String startJUnitTests( IJavaProject javaProject, IPackageFragment packageFragment,
-                                    IType testClass, String methodName, boolean withCoverage,
-                                    String description, String launcherName )
-    {
-        TestRunSession session = testRunManager.createSession( description, withCoverage,
-            javaProject.getElementName() );
-
-        TestRunListener listener = new TestRunListener()
-        {
-            private TestRunResult currentRun = null;
-
-            @Override
-            public void sessionStarted( ITestRunSession s )
-            {
-                currentRun = new TestRunResult( s.getTestRunName() );
-                session.setTestRunResult( currentRun );
-            }
-
-            @Override
-            public void testCaseFinished( ITestCaseElement e )
-            {
-                if ( currentRun != null )
-                {
-                    String cls = e.getTestClassName();
-                    String name = e.getTestMethodName();
-                    String status = e.getTestResult( true ).toString();
-                    String msg = e.getFailureTrace() != null ? e.getFailureTrace().getTrace() : "";
-                    double time = e.getElapsedTimeInSeconds();
-                    currentRun.addTestResult( new TestResult( cls, name, status, msg, time ) );
+    
+    /**
+     * Detects the appropriate JUnit test kind loader. When a specific test class
+     * is provided, inspects its annotations and superclass to determine the exact
+     * JUnit version used — this avoids misdetection in PDE/mixed-classpath projects
+     * where multiple JUnit versions are resolvable. Falls back to project-level
+     * classpath analysis when no test class is given.
+     */
+    private String detectJUnitTestKind(IJavaProject javaProject, IType testClass, IPackageFragment packageFragment) throws JavaModelException {
+        if (testClass != null) {
+            String detected = detectJUnitTestKindFromClass(testClass);
+            if (detected != null) {
+                if (detected.equals("org.eclipse.jdt.junit.loader.junit5")) {
+                    String refined = detectJupiterVersion(javaProject);
+                    return refined != null ? refined : detected;
                 }
+                return detected;
             }
+        }
+        if (packageFragment != null) {
+            String detected = detectJUnitTestKindFromPackage(packageFragment);
+            if (detected != null) {
+                if (detected.equals("org.eclipse.jdt.junit.loader.junit5")) {
+                    String refined = detectJupiterVersion(javaProject);
+                    return refined != null ? refined : detected;
+                }
+                return detected;
+            }
+        }
+        return detectJUnitTestKindFromProject(javaProject);
+    }
 
-            @Override
-            public void sessionFinished( ITestRunSession s )
-            {
-                try
-                {
-                    if ( withCoverage && coverageService.isCoverageAvailable() )
-                    {
-                        String execFile = coverageService.waitForLatestCoverageFile(
-                            session.getStartTime(), 10000 );
-                        session.setCoverageInfo( coverageService.formatCoverageInfo(
-                            execFile, session.getProjectName() ) );
+    private String detectJUnitTestKindFromPackage(IPackageFragment packageFragment) throws JavaModelException {
+        int junit4Count = 0;
+        int junit5Count = 0;
+        int junit3Count = 0;
+
+        for (ICompilationUnit cu : packageFragment.getCompilationUnits()) {
+            for (IType type : cu.getTypes()) {
+                String kind = detectJUnitTestKindFromClass(type);
+                if (kind != null) {
+                    switch (kind) {
+                        case "org.eclipse.jdt.junit.loader.junit3":
+                            junit3Count++;
+                            break;
+                        case "org.eclipse.jdt.junit.loader.junit4":
+                            junit4Count++;
+                            break;
+                        case "org.eclipse.jdt.junit.loader.junit5":
+                            junit5Count++;
+                            break;
                     }
                 }
-                finally
-                {
-                    session.setState( TestRunSession.State.COMPLETED );
-                    JUnitCore.removeTestRunListener( this );
-                }
             }
-        };
-
-        JUnitCore.addTestRunListener( listener );
-
-        try
-        {
-            ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
-            ILaunchConfigurationWorkingCopy workingCopy;
-
-            if ( launcherName != null && !launcherName.isBlank() )
-            {
-                // Use the named saved config as base — clone it without saving
-                ILaunchConfiguration base = findExistingLaunchConfig( launchManager, launcherName );
-                if ( base == null )
-                {
-                    JUnitCore.removeTestRunListener( listener );
-                    session.setErrorMessage( "Launch configuration not found: " + launcherName );
-                    session.setState( TestRunSession.State.FAILED );
-                    throw new RuntimeException( "Launch configuration not found: " + launcherName );
-                }
-                workingCopy = base.getWorkingCopy();
-            }
-            else
-            {
-                ILaunchConfigurationType type = launchManager.getLaunchConfigurationType(
-                    "org.eclipse.jdt.junit.launchconfig" );
-                String launchName = buildLaunchName( javaProject, packageFragment, testClass, methodName );
-                ILaunchConfiguration existing = findExistingLaunchConfig( launchManager, launchName );
-                if ( existing != null )
-                {
-                    workingCopy = existing.getWorkingCopy();
-                }
-                else
-                {
-                    workingCopy = type.newInstance( null, launchName );
-                }
-            }
-
-            // Always override the targeting attributes — everything else from the base config is kept
-            workingCopy.setAttribute( IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME,
-                javaProject.getElementName() );
-
-            if ( testClass != null )
-            {
-                workingCopy.setAttribute( IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME,
-                    testClass.getFullyQualifiedName() );
-                workingCopy.setAttribute( "org.eclipse.jdt.junit.CONTAINER", "" );
-                if ( methodName != null && !methodName.isEmpty() )
-                {
-                    workingCopy.setAttribute( "org.eclipse.jdt.junit.TEST_METHOD", methodName );
-                }
-            }
-            else if ( packageFragment != null )
-            {
-                workingCopy.setAttribute( IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "" );
-                workingCopy.setAttribute( "org.eclipse.jdt.junit.CONTAINER",
-                    packageFragment.getHandleIdentifier() );
-            }
-            else
-            {
-                workingCopy.setAttribute( IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "" );
-                workingCopy.setAttribute( "org.eclipse.jdt.junit.CONTAINER",
-                    javaProject.getHandleIdentifier() );
-            }
-
-            // Only set TEST_KIND when not using a named launcher (the base config already has it)
-            if ( launcherName == null || launcherName.isBlank() )
-            {
-                workingCopy.setAttribute( "org.eclipse.jdt.junit.TEST_KIND",
-                    detectJUnitTestKind( javaProject ) );
-            }
-
-            ILaunchConfiguration configuration = workingCopy.doSave();
-
-            boolean useCoverage = withCoverage && coverageService.isCoverageAvailable();
-            String launchMode = useCoverage ? coverageService.getCoverageLaunchMode()
-                                            : ILaunchManager.RUN_MODE;
-
-            sync.asyncExec( () -> {
-                try
-                {
-                    var launch = configuration.launch( launchMode, new NullProgressMonitor() );
-                    session.setLaunch( launch );
-                    testRunManager.attachConsoleCapture( session );
-                }
-                catch ( CoreException e )
-                {
-                    JUnitCore.removeTestRunListener( listener );
-                    session.setErrorMessage( e.getMessage() );
-                    session.setState( TestRunSession.State.FAILED );
-                    logger.error( "Error launching tests", e );
-                }
-            } );
-
-            return session.getRunId();
         }
-        catch ( Exception e )
-        {
-            JUnitCore.removeTestRunListener( listener );
-            session.setErrorMessage( e.getMessage() );
-            session.setState( TestRunSession.State.FAILED );
-            throw new RuntimeException( "Error setting up test launch: " + e.getMessage(), e );
+
+        if (junit5Count > 0 && junit4Count == 0 && junit3Count == 0) {
+            return "org.eclipse.jdt.junit.loader.junit5";
+        }
+        if (junit4Count > 0 && junit5Count == 0 && junit3Count == 0) {
+            return "org.eclipse.jdt.junit.loader.junit4";
+        }
+        if (junit3Count > 0 && junit4Count == 0 && junit5Count == 0) {
+            return "org.eclipse.jdt.junit.loader.junit3";
+        }
+        if (junit4Count > 0 || junit3Count > 0) {
+            return "org.eclipse.jdt.junit.loader.junit4";
+        }
+        return null;
+    }
+
+    private String detectJupiterVersion(IJavaProject javaProject) throws JavaModelException {
+        for (var entry : javaProject.getResolvedClasspath(true)) {
+            String entryPath = entry.getPath().toString();
+            if (entryPath.contains("junit-jupiter-api")) {
+                if (entryPath.matches(".*junit-jupiter-api[_-]6\\..*")) {
+                    return "org.eclipse.jdt.junit.loader.junit6";
+                }
+                return "org.eclipse.jdt.junit.loader.junit5";
+            }
+        }
+        IType jupiterTest = javaProject.findType("org.junit.jupiter.api.Test");
+        if (jupiterTest != null) {
+            String typePath = jupiterTest.getPath().toString();
+            if (typePath.matches(".*junit-jupiter-api[_-]6\\..*")) {
+                return "org.eclipse.jdt.junit.loader.junit6";
+            }
+        }
+        return null;
+    }
+
+    private String detectJUnitTestKindFromClass(IType testClass) throws JavaModelException {
+        String[] imports = getImportsFromCompilationUnit(testClass);
+        boolean importsJUnit5 = false;
+        boolean importsJUnit4 = false;
+        for (String imp : imports) {
+            if (imp.startsWith("org.junit.jupiter.")) {
+                importsJUnit5 = true;
+            } else if (imp.equals("org.junit.Test") || imp.equals("org.junit.runner.RunWith")
+                    || (imp.startsWith("org.junit.") && !imp.startsWith("org.junit.jupiter."))) {
+                importsJUnit4 = true;
+            }
+        }
+
+        boolean hasJUnit4Indicator = false;
+        boolean hasJUnit5Indicator = false;
+
+        for (IMethod method : testClass.getMethods()) {
+            for (IAnnotation annotation : method.getAnnotations()) {
+                String name = annotation.getElementName();
+                if (name.equals("org.junit.Test")) {
+                    hasJUnit4Indicator = true;
+                } else if (name.equals("org.junit.jupiter.api.Test")
+                        || name.equals("org.junit.jupiter.params.ParameterizedTest")) {
+                    hasJUnit5Indicator = true;
+                } else if (name.equals("Test")) {
+                    if (importsJUnit5) {
+                        hasJUnit5Indicator = true;
+                    } else if (importsJUnit4) {
+                        hasJUnit4Indicator = true;
+                    }
+                } else if (name.equals("ParameterizedTest")) {
+                    if (importsJUnit5) {
+                        hasJUnit5Indicator = true;
+                    }
+                }
+            }
+        }
+
+        for (IAnnotation annotation : testClass.getAnnotations()) {
+            String name = annotation.getElementName();
+            if (name.equals("RunWith") || name.equals("org.junit.runner.RunWith")) {
+                hasJUnit4Indicator = true;
+            }
+            if (name.equals("ExtendWith") || name.equals("org.junit.jupiter.api.extension.ExtendWith")) {
+                hasJUnit5Indicator = true;
+            }
+        }
+
+        if (hasJUnit5Indicator) {
+            return "org.eclipse.jdt.junit.loader.junit5";
+        }
+        if (hasJUnit4Indicator) {
+            return "org.eclipse.jdt.junit.loader.junit4";
+        }
+
+        IType superType = findSuperType(testClass);
+        if (superType != null && "junit.framework.TestCase".equals(superType.getFullyQualifiedName())) {
+            return "org.eclipse.jdt.junit.loader.junit3";
+        }
+
+        if (importsJUnit5) {
+            return "org.eclipse.jdt.junit.loader.junit5";
+        }
+        if (importsJUnit4) {
+            return "org.eclipse.jdt.junit.loader.junit4";
+        }
+
+        return null;
+    }
+
+    private IType findSuperType(IType type) throws JavaModelException {
+        String superName = type.getSuperclassName();
+        if (superName == null) {
+            return null;
+        }
+        String[][] resolved = type.resolveType(superName);
+        if (resolved != null && resolved.length > 0) {
+            String fqn = resolved[0][0].isEmpty() ? resolved[0][1] : resolved[0][0] + "." + resolved[0][1];
+            return type.getJavaProject().findType(fqn);
+        }
+        return null;
+    }
+
+    private String[] getImportsFromCompilationUnit(IType type) {
+        ICompilationUnit cu = type.getCompilationUnit();
+        if (cu == null) {
+            return new String[0];
+        }
+        try {
+            var imports = cu.getImports();
+            String[] result = new String[imports.length];
+            for (int i = 0; i < imports.length; i++) {
+                result[i] = imports[i].getElementName();
+            }
+            return result;
+        } catch (JavaModelException e) {
+            return new String[0];
         }
     }
 
-    // -------------------------------------------------------------------------
-    // findTestClasses
-    // -------------------------------------------------------------------------
+    private String detectJUnitTestKindFromProject(IJavaProject javaProject) throws JavaModelException {
+        IType jupiterTest = javaProject.findType("org.junit.jupiter.api.Test");
+        if (jupiterTest != null) {
+            for (var entry : javaProject.getResolvedClasspath(true)) {
+                String entryPath = entry.getPath().toString();
+                if (entryPath.contains("junit-jupiter-api")) {
+                    if (entryPath.matches(".*junit-jupiter-api[_-]6\\..*")) {
+                        return "org.eclipse.jdt.junit.loader.junit6";
+                    }
+                    break;
+                }
+            }
+            String typePath = jupiterTest.getPath().toString();
+            if (typePath.matches(".*junit-jupiter-api[_-]6\\..*")) {
+                return "org.eclipse.jdt.junit.loader.junit6";
+            }
+            return "org.eclipse.jdt.junit.loader.junit5";
+        }
+        if (javaProject.findType("org.junit.Test") != null) {
+            return "org.eclipse.jdt.junit.loader.junit4";
+        }
+        if (javaProject.findType("junit.framework.TestCase") != null) {
+            return "org.eclipse.jdt.junit.loader.junit3";
+        }
+        return "org.eclipse.jdt.junit.loader.junit5";
+    }
+    
+    private String buildLaunchName(IJavaProject javaProject, IPackageFragment packageFragment,
+                                   IType testClass, String methodName) {
+        String projectName = javaProject.getElementName();
+        if (testClass != null && methodName != null) {
+            return projectName + " - " + testClass.getFullyQualifiedName() + "." + methodName;
+        }
+        if (testClass != null) {
+            return projectName + " - " + testClass.getFullyQualifiedName();
+        }
+        if (packageFragment != null) {
+            return projectName + " - " + packageFragment.getElementName();
+        }
+        return projectName + " - All Tests";
+    }
+    
+    private ILaunchConfiguration findExistingLaunchConfig(ILaunchManager launchManager, String name) {
+        try {
+            for (ILaunchConfiguration config : launchManager.getLaunchConfigurations()) {
+                if (config.getName().equals(name)) {
+                    return config;
+                }
+            }
+        } catch (CoreException e) {
+            logger.error("Error searching for existing launch configuration", e);
+        }
+        return null;
+    }
+    
+    /**
+     * Finds a method in a type by name.
+     */
+    private IMethod findMethod(IType type, String methodName) throws JavaModelException {
+        for (IMethod method : type.getMethods()) {
+            if (method.getElementName().equals(methodName)) {
+                return method;
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Finds a package in a Java project by name.
+     */
+    private IPackageFragment findPackage(IJavaProject javaProject, String packageName) throws JavaModelException {
+        for (IPackageFragmentRoot root : javaProject.getPackageFragmentRoots()) {
+            if (root.getKind() == IPackageFragmentRoot.K_SOURCE) {
+                IPackageFragment pkg = root.getPackageFragment(packageName);
+                if (pkg.exists()) {
+                    return pkg;
+                }
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Backstop so a test JVM that never reports and never dies cannot park a thread
+     * forever. It is not the caller's timeout - the caller is handed an operationId
+     * long before this - just an upper bound on how long we keep listening.
+     */
+    private static final int MAX_TEST_RUN_MINUTES = 120;
 
     /**
-     * Finds all test classes in a project.
+     * Waits for the run to finish, treating the death of the test JVM as an ending too:
+     * a crashed JVM never sends sessionFinished, and waiting for one that will never
+     * arrive is what used to hang these tools.
      */
-    public String findTestClasses( String projectName )
+    private boolean awaitTestRun( CountDownLatch latch, ILaunch launch, long boundMillis ) throws InterruptedException
     {
-        Objects.requireNonNull( projectName, "Project name cannot be null" );
-        if ( projectName.isEmpty() )
+        long deadline = System.currentTimeMillis() + boundMillis;
+        while ( System.currentTimeMillis() < deadline )
         {
-            throw new IllegalArgumentException( "Project name cannot be empty" );
-        }
-        try
-        {
-            IJavaProject javaProject = getJavaProject( projectName );
-            List<String> testClasses = new ArrayList<>();
-
-            for ( IPackageFragmentRoot root : javaProject.getPackageFragmentRoots() )
+            if ( latch.await( 200, TimeUnit.MILLISECONDS ) )
             {
-                if ( root.getKind() == IPackageFragmentRoot.K_SOURCE )
-                {
-                    for ( IJavaElement child : root.getChildren() )
-                    {
-                        if ( child instanceof IPackageFragment pkg )
-                        {
-                            for ( ICompilationUnit unit : pkg.getCompilationUnits() )
-                            {
-                                for ( IType type : unit.getAllTypes() )
-                                {
-                                    if ( isTestClass( type ) )
-                                    {
-                                        testClasses.add( type.getFullyQualifiedName() );
+                return true;
+            }
+            if ( launch != null && launch.isTerminated() )
+            {
+                // The JVM is gone; give the JUnit listener a moment to deliver the last events.
+                return latch.await( 5, TimeUnit.SECONDS );
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Launches JUnit tests using Eclipse's JUnit infrastructure with optional method filtering and coverage.
+     * <p>
+     * The {@code timeout} argument no longer bounds this method: a long execution tool
+     * is waited on by the framework, which hands the caller an operationId when its
+     * inline wait elapses while the run carries on here.
+     * <p>
+     * When {@code launcherName} is non-null, the named saved launch configuration is used
+     * as a base (reusing its VM args, classpath, env vars, etc.) and only the test
+     * targeting attributes are overridden.
+     */
+    private String launchJUnitTests(IJavaProject javaProject, IPackageFragment packageFragment,
+                                    IType testClass, int timeout, String methodName,
+                                    boolean withCoverage, String launcherName) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final TestRunResult[] testRunResults = new TestRunResult[1];
+        final Optional<Operation> operation = OperationContext.current();
+        final AtomicInteger finishedTests = new AtomicInteger();
+        
+        try {
+            // Register a test run listener to collect results
+            TestRunListener listener = new TestRunListener() {
+                private TestRunResult currentRun = null;
+                
+                @Override
+                public void sessionStarted(ITestRunSession session) {
+                    currentRun = new TestRunResult(session.getTestRunName());
+                    operation.ifPresent( op -> op.setProgress( "test session started" ) );
+                }
+                
+                @Override
+                public void sessionFinished(ITestRunSession session) {
+                    testRunResults[0] = currentRun;
+                    latch.countDown();
+                }
+                
+                @Override
+                public void testCaseFinished(ITestCaseElement testCaseElement) {
+                    if (currentRun != null) {
+                        String className = testCaseElement.getTestClassName();
+                        String testName = testCaseElement.getTestMethodName();
+                        String status = testCaseElement.getTestResult(true).toString();
+                        String message = testCaseElement.getFailureTrace() != null ? 
+                                         testCaseElement.getFailureTrace().getTrace() : "";
+                        double time = testCaseElement.getElapsedTimeInSeconds();
+                        
+                        currentRun.addTestResult(new TestResult(className, testName, status, message, time));
+                        int count = finishedTests.incrementAndGet();
+                        operation.ifPresent( op -> {
+                            op.setProgress( count + " tests finished; last: " + className + "#" + testName );
+                            // Publish typed intermediate results so getOperationStatus
+                            // can surface pass/fail counts and detailed test listing
+                            // while the run is still going.
+                            op.setIntermediateResult( "summary", currentRun.toSummary() );
+                            op.setIntermediateResult( "results", currentRun.toResults() );
+                        } );
+                    }
+                }
+            };
+            
+            JUnitCore.addTestRunListener(listener);
+            
+            try {
+                ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
+                ILaunchConfigurationWorkingCopy workingCopy;
+
+                if (launcherName != null && !launcherName.isBlank()) {
+                    // Use the named saved config as a base — only override targeting attributes
+                    ILaunchConfiguration base = findExistingLaunchConfig(launchManager, launcherName);
+                    if (base == null) {
+                        throw new RuntimeException("Launch configuration not found: " + launcherName);
+                    }
+                    workingCopy = base.getWorkingCopy();
+                } else {
+                    // Build a deterministic launch name based on the test target
+                    ILaunchConfigurationType type = launchManager.getLaunchConfigurationType(
+                            "org.eclipse.jdt.junit.launchconfig");
+                    String launchName = buildLaunchName(javaProject, packageFragment, testClass, methodName);
+                    ILaunchConfiguration existing = findExistingLaunchConfig(launchManager, launchName);
+                    if (existing != null) {
+                        workingCopy = existing.getWorkingCopy();
+                    } else {
+                        workingCopy = type.newInstance(null, launchName);
+                    }
+                }
+
+                // Always override targeting attributes — everything else from the base config is kept
+                workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME,
+                        javaProject.getElementName());
+
+                // CONTAINER must use the Java element handle identifier (e.g. "=ProjectName"),
+                // NOT the IResource path (e.g. "/ProjectName") — the JUnit launcher resolves
+                // the input element via JavaCore.create(handleId), and a resource path causes
+                // "The input element of the launch configuration does not exist".
+                if (testClass != null) {
+                    workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME,
+                            testClass.getFullyQualifiedName());
+                    workingCopy.setAttribute("org.eclipse.jdt.junit.CONTAINER", "");
+                    if (methodName != null && !methodName.isEmpty()) {
+                        workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_METHOD", methodName);
+                    }
+                } else if (packageFragment != null) {
+                    workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "");
+                    workingCopy.setAttribute("org.eclipse.jdt.junit.CONTAINER",
+                            packageFragment.getHandleIdentifier());
+                } else {
+                    workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "");
+                    workingCopy.setAttribute("org.eclipse.jdt.junit.CONTAINER",
+                            javaProject.getHandleIdentifier());
+                }
+
+                // Only set TEST_KIND when not using a named launcher (the base config already has it)
+                if (launcherName == null || launcherName.isBlank()) {
+                    String testKind = detectJUnitTestKind(javaProject, testClass, packageFragment);
+                    workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND", testKind);
+                }
+                // Create the actual configuration
+                ILaunchConfiguration configuration = workingCopy.doSave();
+                
+                // Determine launch mode
+                boolean useCoverage = withCoverage && coverageService.isCoverageAvailable();
+                String launchMode = useCoverage ? coverageService.getCoverageLaunchMode() : ILaunchManager.RUN_MODE;
+                
+                long launchStartTime = System.currentTimeMillis();
+                final ILaunch[] launchRef = new ILaunch[1];
+                // Launch the tests
+                sync.syncExec(() -> {
+                    try {
+                        launchRef[0] = configuration.launch(launchMode, new NullProgressMonitor());
+                    } catch (CoreException e) {
+                        logger.error("Error launching tests", e);
+                    }
+                });
+                
+                // Streams the test JVM's output into the operation and makes cancelling it
+                // terminate the JVM: interrupting this thread alone would leave it running.
+                operation.ifPresent( op -> ProcessOutputSource.attach( op, launchRef[0] ) );
+
+                // How long the CALLER is prepared to wait is the framework's business: once
+                // its inline wait elapses it hands the caller an operationId and this thread
+                // keeps going. So wait for the run to actually end, not for the caller.
+                // Run as an MCP operation, the caller has already been handed an operationId
+                // and the only bound left is a backstop. Called directly - from a test, an
+                // agent - there is no framework waiting for us, so the caller's timeout is
+                // still the bound.
+                long waitBoundMillis = operation.isPresent()
+                        ? TimeUnit.MINUTES.toMillis( MAX_TEST_RUN_MINUTES )
+                        : TimeUnit.SECONDS.toMillis( timeout );
+                boolean completed = awaitTestRun( latch, launchRef[0], waitBoundMillis );
+                
+                if (!completed) {
+                    return "Error: the test run did not report results in time.";
+                }
+                
+                if (testRunResults[0] == null) {
+                    return "Error: No test results collected. The test run may have failed to start.";
+                }
+                
+                String results = testRunResults[0].toString();
+                
+                if (useCoverage) {
+                    String execFile = coverageService.waitForLatestCoverageFile( launchStartTime, 10000 );
+                    results += coverageService.formatCoverageInfo( execFile, javaProject.getProject().getName() );
+                }
+                
+                return results;
+                
+            } finally {
+                JUnitCore.removeTestRunListener(listener);
+            }
+            
+        } catch (InterruptedException e) {
+            // cancelOperation interrupts this thread; the launch itself is terminated by
+            // the operation's cancel hook.
+            Thread.currentThread().interrupt();
+            return "Test run cancelled.";
+        } catch (Exception e) {
+            logger.error("Error running tests", e);
+            return "Error running tests: " + e.getMessage();
+        }
+    }
+    
+    /**
+     * Finds all test classes in a project.
+     * 
+     * @param projectName The name of the project to search
+     * @return A list of fully qualified class names of test classes
+     */
+    public String findTestClasses(String projectName) {
+        Objects.requireNonNull(projectName, "Project name cannot be null");
+
+        if (projectName.isEmpty()) {
+            throw new IllegalArgumentException("Error: Project name cannot be empty.");
+        }
+
+        try {
+            IJavaProject javaProject = getJavaProject( projectName );
+            List<String> plainTests = new ArrayList<>();
+            List<String> pdeTests = new ArrayList<>();
+            List<String> namingWarnings = new ArrayList<>();
+
+            for (IPackageFragmentRoot root : javaProject.getPackageFragmentRoots()) {
+                if (root.getKind() == IPackageFragmentRoot.K_SOURCE) {
+                    for (IJavaElement child : root.getChildren()) {
+                        if (child instanceof IPackageFragment pkg) {
+                            for (ICompilationUnit unit : pkg.getCompilationUnits()) {
+                                for (IType type : unit.getAllTypes()) {
+                                    if (isTestClass(type)) {
+                                        String className = type.getFullyQualifiedName();
+                                        if (type.getElementName().endsWith("PDETest")) {
+                                            pdeTests.add(className);
+                                        } else {
+                                            plainTests.add(className);
+                                            if (likelyRequiresPdeHarness(type)) {
+                                                namingWarnings.add(className);
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -539,149 +874,115 @@ public class UnitTestService
                 }
             }
 
-            if ( testClasses.isEmpty() )
-            {
+            int total = plainTests.size() + pdeTests.size();
+            if (total == 0) {
                 return "No test classes found in project '" + projectName + "'.";
             }
 
+            plainTests.sort(String::compareTo);
+            pdeTests.sort(String::compareTo);
+            namingWarnings.sort(String::compareTo);
+
             StringBuilder result = new StringBuilder();
-            result.append( "Found " ).append( testClasses.size() )
-                  .append( " test classes in project '" ).append( projectName ).append( "':\n\n" );
-            testClasses.forEach( c -> result.append( "- " ).append( c ).append( "\n" ) );
+            result.append("Found ").append(total).append(" test classes in project '")
+                  .append(projectName).append("':\n\n");
+            appendTestSection(result, "Plain JUnit tests", plainTests);
+            appendTestSection(result, "PDE harness tests (*PDETest)", pdeTests);
+
+            if (!namingWarnings.isEmpty()) {
+                result.append("\nNaming warnings (likely PDE runtime usage without *PDETest):\n");
+                for (String className : namingWarnings) {
+                    result.append("- ").append(className).append("\n");
+                }
+            }
             return result.toString();
-        }
-        catch ( CoreException e )
-        {
-            throw new RuntimeException( "Error finding test classes: " + e.getMessage(), e );
+
+        } catch (CoreException e) {
+            throw new RuntimeException("Error finding test classes: " + e.getMessage(), e);
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Private helpers (shared with callers)
-    // -------------------------------------------------------------------------
-
-    /**
-     * Detects the appropriate JUnit test kind loader based on the project's classpath.
-     */
-    private String detectJUnitTestKind( IJavaProject javaProject ) throws JavaModelException
+    private void appendTestSection(StringBuilder result, String title, List<String> classes)
     {
-        IType jupiterTest = javaProject.findType( "org.junit.jupiter.api.Test" );
-        if ( jupiterTest != null )
+        result.append(title).append(" (").append(classes.size()).append("):\n");
+        if (classes.isEmpty())
         {
-            for ( var entry : javaProject.getResolvedClasspath( true ) )
-            {
-                String entryPath = entry.getPath().toString();
-                if ( entryPath.contains( "junit-jupiter-api" ) )
-                {
-                    if ( entryPath.matches( ".*junit-jupiter-api[_-]6\\..*" ) )
-                    {
-                        return "org.eclipse.jdt.junit.loader.junit6";
-                    }
-                    break;
-                }
-            }
-            String typePath = jupiterTest.getPath().toString();
-            if ( typePath.matches( ".*junit-jupiter-api[_-]6\\..*" ) )
-            {
-                return "org.eclipse.jdt.junit.loader.junit6";
-            }
-            return "org.eclipse.jdt.junit.loader.junit5";
+            result.append("- none\n");
+            return;
         }
-        if ( javaProject.findType( "org.junit.Test" ) != null )
+        for (String className : classes)
         {
-            return "org.eclipse.jdt.junit.loader.junit4";
+            result.append("- ").append(className).append("\n");
         }
-        if ( javaProject.findType( "junit.framework.TestCase" ) != null )
-        {
-            return "org.eclipse.jdt.junit.loader.junit3";
-        }
-        return "org.eclipse.jdt.junit.loader.junit5";
     }
 
-    private String buildLaunchName( IJavaProject javaProject, IPackageFragment packageFragment,
-                                    IType testClass, String methodName )
+    private boolean likelyRequiresPdeHarness(IType type) throws JavaModelException
     {
-        String projectName = javaProject.getElementName();
-        if ( testClass != null && methodName != null )
+        ICompilationUnit unit = type.getCompilationUnit();
+        if (unit == null)
         {
-            return projectName + " - " + testClass.getFullyQualifiedName() + "." + methodName;
+            return false;
         }
-        if ( testClass != null )
-        {
-            return projectName + " - " + testClass.getFullyQualifiedName();
-        }
-        if ( packageFragment != null )
-        {
-            return projectName + " - " + packageFragment.getElementName();
-        }
-        return projectName + " - All Tests";
-    }
 
-    private ILaunchConfiguration findExistingLaunchConfig( ILaunchManager launchManager, String name )
-    {
-        try
-        {
-            for ( ILaunchConfiguration config : launchManager.getLaunchConfigurations() )
-            {
-                if ( config.getName().equals( name ) )
-                {
-                    return config;
-                }
-            }
-        }
-        catch ( CoreException e )
-        {
-            logger.error( "Error searching for existing launch configuration", e );
-        }
-        return null;
-    }
-
-    private IMethod findMethod( IType type, String methodName ) throws JavaModelException
-    {
-        for ( IMethod method : type.getMethods() )
-        {
-            if ( method.getElementName().equals( methodName ) )
-            {
-                return method;
-            }
-        }
-        return null;
-    }
-
-    private IPackageFragment findPackage( IJavaProject javaProject,
-                                          String packageName ) throws JavaModelException
-    {
-        return JavaModelUtils.findPackage( javaProject, packageName );
+        String source = unit.getSource();
+        return source.contains("ResourcesPlugin")
+                || source.contains("PlatformUI")
+                || source.contains("FrameworkUtil")
+                || source.contains("BundleContext")
+                || source.contains("ServiceTracker")
+                || source.contains("Platform.getBundle(");
     }
 
     private IJavaProject getJavaProject( String projectName ) throws CoreException
     {
-        return JavaModelUtils.getJavaProject( projectName );
+        // Get the project
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+        
+        if (!project.exists()) {
+            throw new RuntimeException("Error: Project '" + projectName + "' does not exist.");
+        }
+        
+        if (!project.isOpen()) {
+            throw new RuntimeException("Error: Project '" + projectName + "' is closed.");
+        }
+        
+        // Check if it's a Java project
+        if (!project.hasNature(JavaCore.NATURE_ID)) {
+            throw new RuntimeException("Error: Project '" + projectName + "' is not a Java project.");
+        }
+        
+        IJavaProject javaProject = JavaCore.create(project);
+        return javaProject;
     }
-
-    private boolean isTestClass( IType type ) throws JavaModelException
-    {
-        if ( type.getElementName().endsWith( "Test" ) )
-        {
+    
+    /**
+     * Determines if a class is a test class by checking for test annotations
+     * or methods following test naming conventions.
+     */
+    private boolean isTestClass(IType type) throws JavaModelException {
+        // Check if class name ends with Test
+        if (type.getElementName().endsWith("Test")) {
             return true;
         }
-        for ( IMethod method : type.getMethods() )
-        {
+        
+        // Check for test methods
+        for (IMethod method : type.getMethods()) {
             String methodName = method.getElementName();
-            for ( IAnnotation annotation : method.getAnnotations() )
-            {
+            
+            // Check for JUnit 4/5 annotations
+            for (IAnnotation annotation : method.getAnnotations()) {
                 String annotationName = annotation.getElementName();
-                if ( annotationName.contains( "Test" ) || annotationName.contains( "ParameterizedTest" ) )
-                {
+                if (annotationName.contains("Test") || annotationName.contains("ParameterizedTest")) {
                     return true;
                 }
             }
-            if ( methodName.startsWith( "test" ) && methodName.length() > 4
-                 && Character.isUpperCase( methodName.charAt( 4 ) ) )
-            {
+            
+            // Check for test naming convention (testXXX)
+            if (methodName.length() > 4 && methodName.startsWith("test") && Character.isUpperCase(methodName.charAt(4))) {
                 return true;
             }
         }
+        
         return false;
     }
 }

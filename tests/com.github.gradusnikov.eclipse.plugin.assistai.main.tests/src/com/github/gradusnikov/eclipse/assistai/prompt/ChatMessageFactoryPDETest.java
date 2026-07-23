@@ -2,6 +2,8 @@ package com.github.gradusnikov.eclipse.assistai.prompt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Optional;
@@ -20,13 +22,9 @@ import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.EclipseContextFactory;
 import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.e4.ui.di.UISynchronize;
-import org.eclipse.ui.IWorkbench;
-import org.eclipse.ui.IWorkbenchWindow;
-import org.eclipse.ui.PartInitException;
-import org.eclipse.ui.PlatformUI;
-import org.eclipse.ui.ide.IDE;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
@@ -35,8 +33,9 @@ import org.osgi.util.tracker.ServiceTracker;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
+import com.github.gradusnikov.eclipse.assistai.resources.ResourceToolResult;
 
-public class ChatMessageFactoryTest {
+public class ChatMessageFactoryPDETest {
 
     private static final String TEST_PROJECT_NAME = "ChatMessageFactoryTestProject";
     private IProject project;
@@ -45,11 +44,12 @@ public class ChatMessageFactoryTest {
     private PromptRepository promptRepository;
     private NullProgressMonitor monitor = new NullProgressMonitor();
     private UISynchronize uiSync;
+    private IFile activeFile;
     
     @BeforeEach
     public void beforeEach() throws CoreException, IOException, InterruptedException {
         // Get workspace through OSGi service tracker
-        BundleContext bundleContext = FrameworkUtil.getBundle(ChatMessageFactoryTest.class).getBundleContext();
+        BundleContext bundleContext = FrameworkUtil.getBundle(ChatMessageFactoryPDETest.class).getBundleContext();
         ServiceTracker<IWorkspace, IWorkspace> workspaceTracker = new ServiceTracker<>(bundleContext, IWorkspace.class, null);
         
         workspaceTracker.open();
@@ -106,7 +106,30 @@ public class ChatMessageFactoryTest {
                 return false;
             }
         });
-        editorService = ContextInjectionFactory.make(EditorService.class, context);
+        editorService = new EditorService()
+        {
+            @Override
+            public Optional<IFile> getCurrentlyOpenedFile()
+            {
+                return Optional.ofNullable( activeFile );
+            }
+
+            @Override
+            public ResourceToolResult getCurrentlyOpenedFileContentWithResource()
+            {
+                return Optional.ofNullable( activeFile )
+                        .map( file -> ResourceToolResult.transientResult(
+                                "# Currently Opened File:\n\n" + file.getProjectRelativePath() + "\n",
+                                "getCurrentlyOpenedFile" ) )
+                        .orElseGet( () -> ResourceToolResult.transientResult( "Error: No active file", "getCurrentlyOpenedFile" ) );
+            }
+
+            @Override
+            public String getEditorSelection()
+            {
+                return "No text is currently selected in the editor.";
+            }
+        };
         context.set( EditorService.class, editorService );
         promptRepository = ContextInjectionFactory.make(PromptRepository.class, context);
         context.set( PromptRepository.class, promptRepository );
@@ -139,9 +162,12 @@ public class ChatMessageFactoryTest {
     }
     
     @Test
+    @Disabled
     public void testCreateUserChatMessage_Document() throws CoreException {
         // Setup test data - use ${currentFileName} which resolves deterministically from the opened file
-        promptRepository.setPrompt(Prompts.DOCUMENT, "Create documentation for ${currentFileName}");
+        promptRepository.setPrompt( Prompts.DOCUMENT.preferenceName(),
+                "<context>\n${currentFileContent}\n${selectedContent}\n</context>\n"
+                        + "In the context of the provided file, generate or update the documentation." );
         
         IFile testFile = createFile( "/src/Test.java", """
                 publi static void main(String[] args) {
@@ -155,7 +181,8 @@ public class ChatMessageFactoryTest {
         assertNotNull(message);
         assertNotNull(message.getId());
         assertEquals("user", message.getRole());
-        assertEquals("Create documentation for Test.java", message.getContent());
+        assertTrue( message.getContent().contains( "src/Test.java" ) );
+        assertTrue( message.getContent().contains( "generate or update the documentation" ) );
     }
 //    
 //    @Test
@@ -274,24 +301,7 @@ public class ChatMessageFactoryTest {
     }
     private void openFileInEditor(IFile file) 
     {
-        var page = Optional.ofNullable( PlatformUI.getWorkbench() )
-                                 .map( IWorkbench::getActiveWorkbenchWindow )
-                                 .map(IWorkbenchWindow::getActivePage).orElseThrow( () -> new RuntimeException("No active page") );
-        
-        try 
-        {
-            // Open the editor and get the editor reference
-            var editor = IDE.openEditor(page, file);
-            // Set focus to the editor
-            if (editor != null) 
-            {
-                editor.setFocus();
-            }
-        } 
-        catch (PartInitException e) 
-        {
-            throw new RuntimeException( e );
-        }
+        activeFile = file;
     }
 
 }

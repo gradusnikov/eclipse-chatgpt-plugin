@@ -27,8 +27,11 @@ public class DuckDuckSearchMcpServer
     @Inject
     ILog logger;
 
+    /** Jsoup treats 0 as an infinite timeout, so this must be a positive value. */
+    private static final int SEARCH_TIMEOUT_MILLIS = 15_000;
+
     @SuppressWarnings("deprecation")
-	@Tool(name="webSearch", description="Performs a search using a Duck Duck Go search engine and returns the search result json.", type="object")
+	@Tool(name="webSearch", description="Performs a search using a Duck Duck Go search engine and returns the search result json.", type="object", longExecution=true, inlineWait=20)
     public String webSearch(
             @ToolParam(name="query", description="A search query", required=true) String query)
     {
@@ -42,7 +45,9 @@ public class DuckDuckSearchMcpServer
 
             logger.info( "Performing web search: " + url );
 
-            Document document = Jsoup.parse( new URL( url ), 0 );
+            // Jsoup reads a timeout of 0 as "wait forever": a black-holed connection used to
+            // hang this tool, and the MCP thread behind it, with no way out.
+            Document document = Jsoup.parse( new URL( url ), SEARCH_TIMEOUT_MILLIS );
             Elements results = document.select( ".results_links" );
 
             for ( Element result : results )

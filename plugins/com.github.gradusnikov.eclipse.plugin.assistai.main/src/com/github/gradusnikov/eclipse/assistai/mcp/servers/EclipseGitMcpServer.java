@@ -50,13 +50,26 @@ public class EclipseGitMcpServer
         return gitService.commit(projectName, message);
     }
 
-    @Tool(name = "gitDiff", description = "Shows the diff of changes in unified diff format. By default shows unstaged (working tree) changes; set staged to 'true' to see staged changes.", type = "object")
+    @Tool(name = "gitReadFile", description = "Reads a UTF-8 text file from a Git revision without changing the working tree. The path is relative to the Eclipse project. Use revision 'INDEX' to read the staged version; otherwise revision defaults to HEAD and may be a branch, tag, or commit.", type = "object")
+    public String gitReadFile(
+            @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
+            @ToolParam(name = "filePath", description = "File path relative to the Eclipse project", required = true) String filePath,
+            @ToolParam(name = "revision", description = "Git branch, tag, commit, or 'INDEX'. Default: HEAD", required = false) String revision)
+    {
+        String effectiveRevision = Optional.ofNullable(revision).filter(value -> !value.isBlank()).orElse("HEAD");
+        return gitService.readFileAtRevision(projectName, filePath, effectiveRevision);
+    }
+
+    @Tool(name = "gitDiff", description = "Shows a unified diff for staged or unstaged changes, optionally limited to comma-separated project-relative files/directories and with whitespace changes ignored.", type = "object")
     public String gitDiff(
             @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
-            @ToolParam(name = "staged", description = "If 'true', shows staged (cached) changes instead of unstaged. Default: false", required = false) String staged)
+            @ToolParam(name = "staged", description = "If 'true', shows staged (cached) changes instead of unstaged. Default: false", required = false) String staged,
+            @ToolParam(name = "pathFilter", description = "Optional comma-separated file or directory paths relative to the Eclipse project", required = false) String pathFilter,
+            @ToolParam(name = "ignoreWhitespace", description = "If 'true', ignores whitespace when formatting hunks. Default: false", required = false) String ignoreWhitespace)
     {
         boolean isStagedDiff = Optional.ofNullable(staged).map(Boolean::parseBoolean).orElse(false);
-        return gitService.getDiff(projectName, isStagedDiff);
+        boolean ignoresWhitespace = Optional.ofNullable(ignoreWhitespace).map(Boolean::parseBoolean).orElse(false);
+        return gitService.getDiff(projectName, isStagedDiff, pathFilter, ignoresWhitespace);
     }
 
     @Tool(name = "gitBranch", description = "Lists branches in the repository. The current branch is marked with an asterisk (*).", type = "object")
