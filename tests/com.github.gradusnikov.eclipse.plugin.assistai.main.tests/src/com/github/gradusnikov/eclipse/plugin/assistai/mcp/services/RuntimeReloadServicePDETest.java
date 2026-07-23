@@ -22,6 +22,10 @@ public class RuntimeReloadServicePDETest
         assertEquals(1500, service.delayMillis);
         assertNotNull(service.action);
         assertTrue(result.contains("current tool response will complete first"));
+
+        service.action.run();
+
+        assertTrue(service.restarted);
     }
 
     @Test
@@ -45,6 +49,7 @@ public class RuntimeReloadServicePDETest
     private static final class CapturingReloadService extends RuntimeReloadService
     {
         private boolean scheduled;
+        private boolean restarted;
         private int delayMillis;
         private Runnable action;
 
@@ -59,6 +64,12 @@ public class RuntimeReloadServicePDETest
             this.scheduled = true;
             this.delayMillis = delayMillis;
             this.action = action;
+        }
+
+        @Override
+        protected void restartMcpServersNow()
+        {
+            restarted = true;
         }
     }
 }

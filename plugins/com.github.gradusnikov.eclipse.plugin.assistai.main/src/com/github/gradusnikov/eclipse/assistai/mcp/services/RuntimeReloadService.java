@@ -8,6 +8,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.Constants;
@@ -25,21 +26,33 @@ public class RuntimeReloadService
     private static final int MIN_DELAY_MILLIS = 500;
     private static final int MAX_DELAY_MILLIS = 30_000;
 
-    private final HttpMcpServerRegistry httpMcpServerRegistry;
+    private final IEclipseContext eclipseContext;
     private final ILog logger;
 
     @Inject
-    public RuntimeReloadService(HttpMcpServerRegistry httpMcpServerRegistry, ILog logger)
+    public RuntimeReloadService(IEclipseContext eclipseContext, ILog logger)
     {
-        this.httpMcpServerRegistry = httpMcpServerRegistry;
+        this.eclipseContext = eclipseContext;
         this.logger = logger;
     }
 
     public String restartMcpServers(Integer delayMillis)
     {
         int delay = validateDelay(delayMillis);
-        schedule("Restart AssistAI MCP servers", delay, () -> httpMcpServerRegistry.restart());
+        schedule("Restart AssistAI MCP servers", delay, this::restartMcpServersNow);
         return "Scheduled MCP server restart in " + delay + " ms. The current tool response will complete first; clients may need to reconnect.";
+    }
+
+    protected void restartMcpServersNow()
+    {
+        // Resolve lazily: the registry creates PDEMcpServer, which injects this
+        // service. Eagerly injecting the registry here recurses during startup.
+        HttpMcpServerRegistry registry = eclipseContext.get(HttpMcpServerRegistry.class);
+        if (registry == null)
+        {
+            throw new IllegalStateException("The AssistAI HTTP MCP server registry is not available.");
+        }
+        registry.restart();
     }
 
     public String reloadWorkspaceBundle(String symbolicName, Integer delayMillis)
