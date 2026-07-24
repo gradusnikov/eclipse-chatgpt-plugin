@@ -134,15 +134,15 @@ public class PDEMcpServer
         if ( className != null && !className.isBlank() )
         {
             List<String> classes = parseCommaSeparated( className );
-            if ( classes.size() > 1 )
-            {
-                return pdeService.runJUnitPluginTestClasses(
-                    projectName, classes, timeoutSeconds, allPlugins, extras, launcherName );
-            }
-            else
+            if (classes.size() == 1)
             {
                 return pdeService.runJUnitPluginTestClass(
                     projectName, classes.get( 0 ), timeoutSeconds, coverage, allPlugins, extras, launcherName );
+            }
+            else
+            {
+            	return pdeService.runJUnitPluginTestClasses(
+            			projectName, classes, timeoutSeconds, allPlugins, extras, launcherName );
             }
         }
         else if ( packageName != null && !packageName.isBlank() )
