@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.function.Predicate;
 
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.Adapters;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
@@ -151,8 +152,8 @@ public class EditorService
     public ResourceReadResult readEditorSelection()
     {
         return uiSync.syncCall( () -> {
-            Optional<IEditorPart> editor = getActiveEditor();
-            if ( editor.isEmpty() || !( editor.get() instanceof ITextEditor textEditor ) )
+            Optional<ITextEditor> activeTextEditor = getActiveTextEditor();
+            if ( activeTextEditor.isEmpty() )
             {
                 return ResourceReadResult.failed( null, null, Diagnostic.fatal(
                         DiagnosticCode.RESOURCE_NOT_FOUND,
@@ -168,6 +169,7 @@ public class EditorService
                                 + " from AI processing by .aiignore." ) );
             }
 
+            ITextEditor textEditor = activeTextEditor.get();
             IFile file = opened.get();
             IDocument document = textEditor.getDocumentProvider().getDocument( textEditor.getEditorInput() );
             ISelection selection = textEditor.getSelectionProvider().getSelection();
@@ -367,8 +369,7 @@ public class EditorService
     private Optional<ITextEditor> getActiveTextEditor()
     {
         return getActiveEditor()
-                .filter(editor -> editor instanceof ITextEditor)
-                .map(editor -> (ITextEditor) editor);
+                .flatMap( editor -> Adapters.of( editor, ITextEditor.class ) );
     }
 
 }
