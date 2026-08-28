@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
+import org.eclipse.core.runtime.Adapters;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
@@ -74,11 +75,12 @@ public class AICompletionHandler extends AbstractHandler {
         }
         
         IEditorPart editor = page.getActiveEditor();
-        if (!(editor instanceof ITextEditor)) {
+        ITextEditor textEditor = Adapters.adapt(editor, ITextEditor.class);
+        if (textEditor == null) {
+            logger.info("AI completion is not available for the active editor: "
+                    + (editor == null ? "none" : editor.getClass().getName()));
             return null;
         }
-        
-        ITextEditor textEditor = (ITextEditor) editor;
         
         
         try {
