@@ -233,18 +233,20 @@ public class EclipseIntegrationsMcpServer
                 Optional.ofNullable( maxDepth ).map( Integer::parseInt ).orElse( 0 ) );
     }
 
-    @Tool( name = "getCompilationErrors", description = "Retrieves compilation errors and problems from the current workspace or a specific project. "
+    @Tool( name = "getCompilationErrors", description = "Retrieves compilation errors and problems from the current workspace, a specific project, or one folder or file within it. "
             + "Reports errorCount/warningCount for everything that matched, before any truncation, so 'are there errors?' is answerable "
             + "even from a shortened listing. Each problem carries its markerId and quick-fix indices for executeQuickFix.",
             type = "object", outputType = CompilationProblemsResponse.class )
     public CompilationProblemsResponse getCompilationErrors(
             @ToolParam( name = "projectName", description = "The name of the specific project to check (optional, leave empty for all projects)", required = false )
             String projectName,
-            @ToolParam( name = "severity", description = "Filter by severity level: 'ERROR', 'WARNING', or 'ALL' (default)", required = false )
+            @ToolParam( name = "resourcePath", description = "Project-relative path of a folder or file to restrict the report to, e.g. 'src/com/example' or 'src/com/example/Foo.java' (optional, requires projectName)", required = false )
+            String resourcePath,
+            @ToolParam( name = "severity", description = "Filter by severity level: 'ERROR', 'WARNING', 'INFO' or 'ALL' (default)", required = false )
             String severity, @ToolParam( name = "maxResults", description = "Maximum number of problems to return (default: 50)", required = false )
             String maxResults )
     {
-        return codeAnalysisService.getCompilationErrors( projectName, severity,
+        return codeAnalysisService.getCompilationErrors( projectName, resourcePath, severity,
                 Optional.ofNullable( maxResults ).map( Integer::parseInt ).orElse( 0 ) );
     }
 
