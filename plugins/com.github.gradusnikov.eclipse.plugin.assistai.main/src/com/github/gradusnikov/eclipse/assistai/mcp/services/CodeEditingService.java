@@ -64,6 +64,7 @@ import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.Document;
 import org.eclipse.jface.text.FindReplaceDocumentAdapter;
 import org.eclipse.jface.text.IDocument;
+import org.eclipse.jface.text.TextUtilities;
 import org.eclipse.ltk.core.refactoring.Change;
 import org.eclipse.ltk.core.refactoring.CompositeChange;
 import org.eclipse.swt.SWT;
@@ -512,7 +513,7 @@ public class CodeEditingService
             CodeFormatter formatter = ToolFactory.createCodeFormatter( options );
 
             // Format the code
-            TextEdit textEdit = formatter.format( CodeFormatter.K_COMPILATION_UNIT | CodeFormatter.F_INCLUDE_COMMENTS, code, 0, code.length(), 0, null );
+            TextEdit textEdit = formatter.format( CodeFormatter.K_COMPILATION_UNIT | CodeFormatter.F_INCLUDE_COMMENTS, code, 0, code.length(), 0, lineDelimiterFor( code, projectName ) );
 
             if ( textEdit == null )
             {
@@ -533,6 +534,13 @@ public class CodeEditingService
             logger.error( "Error during code formatting: " + e.getMessage(), e );
             throw new RuntimeException( "Error formatting code: " + e.getMessage(), e );
         }
+    }
+
+    /** The delimiter the code already uses, or the configured one for code without a line break. */
+    private String lineDelimiterFor( String code, String projectName )
+    {
+        String used = TextUtilities.determineLineDelimiter( code, null );
+        return used != null ? used : getLineDelimiterPreference( projectName ).delimiter();
     }
 
     /**
@@ -2819,13 +2827,13 @@ public class CodeEditingService
             // Format as statements (K_STATEMENTS works better for code
             // fragments)
             TextEdit textEdit = formatter.format( CodeFormatter.K_STATEMENTS | CodeFormatter.F_INCLUDE_COMMENTS, combinedCode, completionOffset,
-                    completionLength, getIndentationLevel( codeBefore ), null );
+                    completionLength, getIndentationLevel( codeBefore ), lineDelimiterFor( combinedCode, null ) );
 
             if ( textEdit == null )
             {
                 // Try formatting as unknown kind
                 textEdit = formatter.format( CodeFormatter.K_UNKNOWN, combinedCode, completionOffset, completionLength, getIndentationLevel( codeBefore ),
-                        null );
+                        lineDelimiterFor( combinedCode, null ) );
             }
 
             if ( textEdit == null )

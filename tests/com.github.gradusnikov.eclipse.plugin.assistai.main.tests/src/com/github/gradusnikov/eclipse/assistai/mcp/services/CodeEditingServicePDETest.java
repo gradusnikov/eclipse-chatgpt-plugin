@@ -1,6 +1,7 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -797,6 +798,31 @@ public class ApplicationNew {
         assertTrue( result.diagnostics().isEmpty(), () -> result.diagnostics().toString() );
         assertTrue( !ResourceUtilities.readFileContent( project.getFile( "src/pkg/Unused.java" ) )
                 .contains( "import java.util.List" ) );
+    }
+
+    @Test
+    public void testFormatCode_keepsTheLineDelimiterOfTheInput() {
+        String lfSource = "package x;\npublic class A {\nint a;\nvoid f(){a=1;}\n}\n";
+
+        String lfFormatted = service.formatCode(lfSource, TEST_PROJECT_NAME);
+        assertTrue(lfFormatted.contains("a = 1;"), lfFormatted);
+        assertFalse(lfFormatted.contains("\r"), lfFormatted);
+
+        String crlfFormatted = service.formatCode(lfSource.replace("\n", "\r\n"), TEST_PROJECT_NAME);
+        assertTrue(crlfFormatted.contains("a = 1;"), crlfFormatted);
+        assertFalse(crlfFormatted.replace("\r\n", "").contains("\n"), crlfFormatted);
+    }
+
+    @Test
+    public void testFormatFile_javaFileKeepsItsLineDelimiter() throws CoreException, IOException {
+        IFile testFile = createFile("src/A.java", "package x;\npublic class A {\nint a;\nvoid f(){a=1;}\n}\n");
+
+        EditResult result = service.formatFile(TEST_PROJECT_NAME, "src/A.java");
+
+        assertEquals(EditResult.EditStatus.APPLIED, result.status());
+        String formatted = ResourceUtilities.readFileContent(testFile);
+        assertTrue(formatted.contains("a = 1;"), formatted);
+        assertFalse(formatted.contains("\r"), formatted);
     }
 
     private IFile createFile(String path, String content) throws CoreException {
