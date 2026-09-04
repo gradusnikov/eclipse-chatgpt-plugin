@@ -173,17 +173,26 @@ public class CodeAnalysisService
         return null;
     }
     
+    /** Collects compilation problems from the workspace or a single project. */
+    public CompilationProblemsResponse getCompilationErrors( String projectName, String severity, Integer maxResults )
+    {
+        return getCompilationErrors( projectName, null, severity, maxResults );
+    }
+
     /**
-     * Collects compilation problems from the workspace or a single project.
+     * Collects compilation problems from the workspace, a project, or one folder or file
+     * within a project.
      * <p>
      * Collection only - the rendering is the record's JSON serialization, so how
      * problems are described can change without changing which problems are reported.
      *
-     * @param severity {@code ERROR}, {@code WARNING} or {@code ALL} (default)
+     * @param resourcePath project-relative path of a folder or file to restrict the report
+     *            to; requires {@code projectName}
+     * @param severity {@code ERROR}, {@code WARNING}, {@code INFO} or {@code ALL} (default)
      * @param maxResults how many problems to list; the counts are of everything that
      *            matched, so a truncated reply still answers "are there errors?"
      */
-    public CompilationProblemsResponse getCompilationErrors( String projectName, String severity, Integer maxResults )
+    public CompilationProblemsResponse getCompilationErrors( String projectName, String resourcePath, String severity, Integer maxResults )
     {
         String requestedSeverity = ( severity == null || severity.isBlank() ) ? "ALL" : severity.toUpperCase();
         int limit = ( maxResults == null || maxResults < 1 ) ? 50 : maxResults;
@@ -192,6 +201,7 @@ public class CodeAnalysisService
         {
             case "ERROR" -> IMarker.SEVERITY_ERROR;
             case "WARNING" -> IMarker.SEVERITY_WARNING;
+            case "INFO" -> IMarker.SEVERITY_INFO;
             default -> -1;
         };
 
@@ -210,8 +220,25 @@ public class CodeAnalysisService
                 {
                     throw new RuntimeException( "Project '" + projectName + "' is closed." );
                 }
-                scope = "Project: " + projectName;
-                markers = project.findMarkers( IMarker.PROBLEM, true, IResource.DEPTH_INFINITE );
+                if ( resourcePath != null && !resourcePath.isBlank() )
+                {
+                    IResource resource = project.findMember( resourcePath );
+                    if ( resource == null )
+                    {
+                        throw new RuntimeException( "Resource '" + resourcePath + "' not found in project '" + projectName + "'." );
+                    }
+                    scope = ( resource instanceof IFile ? "File: " : "Folder: " ) + projectName + "/" + resource.getProjectRelativePath();
+                    markers = resource.findMarkers( IMarker.PROBLEM, true, IResource.DEPTH_INFINITE );
+                }
+                else
+                {
+                    scope = "Project: " + projectName;
+                    markers = project.findMarkers( IMarker.PROBLEM, true, IResource.DEPTH_INFINITE );
+                }
+            }
+            else if ( resourcePath != null && !resourcePath.isBlank() )
+            {
+                throw new RuntimeException( "resourcePath requires projectName." );
             }
             else
             {

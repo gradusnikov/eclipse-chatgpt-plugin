@@ -2,6 +2,7 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -600,6 +601,49 @@ public class CodeAnalysisServicePDETest {
         createFile("src/com/example/Callee.java", calleeSource);
     }
     
+    @Test
+    public void testGetCompilationErrors_scopedToFolderOrFile() throws CoreException, InterruptedException {
+        createClassWithErrors();
+        createClassWithWarnings();
+        IFolder otherPackage = project.getFolder(new Path("src/com/other"));
+        if (!otherPackage.exists()) {
+            otherPackage.create(true, true, monitor);
+        }
+        createFile("src/com/other/AlsoBroken.java",
+                "package com.other;\n\npublic class AlsoBroken {\n    int x = undefinedVariable;\n}\n");
+
+        project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
+        project.build(IncrementalProjectBuilder.FULL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_MANUAL_BUILD, monitor);
+        Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
+        Thread.sleep(500);
+
+        IMarker[] markers = project.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
+        org.junit.jupiter.api.Assumptions.assumeTrue(markers.length > 0,
+                "No error markers generated - Java builder not active in this environment");
+
+        CompilationProblemsResponse oneFile = service.getCompilationErrors(
+                testProjectName, "src/com/example/ErrorClass.java", "ALL", 50);
+        assertTrue(oneFile.hasErrors(), "the broken class must report its own error");
+        assertEquals(1, oneFile.files().size(), "a file scope lists that file only");
+        assertEquals("src/com/example/ErrorClass.java", oneFile.files().get(0).filePath());
+
+        CompilationProblemsResponse oneFolder = service.getCompilationErrors(
+                testProjectName, "src/com/example", "ALL", 50);
+        assertTrue(oneFolder.totalProblems() >= oneFile.totalProblems());
+        assertTrue(oneFolder.files().stream().allMatch(f -> f.filePath().startsWith("src/com/example/")),
+                "a folder scope must not list files outside the folder");
+
+        CompilationProblemsResponse wholeProject = service.getCompilationErrors(testProjectName, null, "ALL", 50);
+        assertTrue(wholeProject.totalProblems() > oneFolder.totalProblems(),
+                "the error in com.other lies outside the folder scope");
+
+        assertThrows(RuntimeException.class,
+                () -> service.getCompilationErrors(testProjectName, "src/com/missing", "ALL", 50));
+        assertThrows(RuntimeException.class,
+                () -> service.getCompilationErrors(null, "src/com/example", "ALL", 50));
+    }
+
     private void createClassWithErrors() throws CoreException {
         // Create a class with compilation errors (undefined variable)
         String errorSource = 
