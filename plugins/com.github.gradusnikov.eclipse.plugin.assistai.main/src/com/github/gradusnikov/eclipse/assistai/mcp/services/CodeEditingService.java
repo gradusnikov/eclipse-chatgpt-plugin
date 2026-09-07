@@ -1762,24 +1762,21 @@ public class CodeEditingService
                     true,  // allowSyntaxErrors
                     chooseImportQuery );
 
-            operation.run( monitor );
-            compilationUnit.getResource().refreshLocal( IResource.DEPTH_ZERO, monitor );
-
-            String newSource = compilationUnit.getSource();
+            // OrganizeImportsOperation.run() saves through ICompilationUnit.save(), which is a
+            // no-op for a working copy - and the editor opened above makes this unit one. Take
+            // the edit and write it through the same path as every other edit instead.
+            String newSource = organizedSource( operation, originalSource, monitor );
+            if ( !originalSource.equals( newSource ) )
+            {
+                TextEditRequest edit = minimalReplacement( new Document( originalSource ), originalSource, newSource );
+                return applyTextEdits( projectName, filePath, IResource.NULL_STAMP, List.of( edit ), false );
+            }
 
             EditSynchronization synchronization = synchronizeAfterEdit( file, 1, currentHistoryState( file ) );
             List<Diagnostic> diagnostics = new ArrayList<>();
 
-            // JDT's operation wrote the compilation unit itself, through the Java
-            // model, so there is no text edit to route through applyTextEdits. This
-            // describes what it did, in the fields a caller reads for any other edit.
-            TextEditRequest describedAs = minimalReplacement( new Document( originalSource ), originalSource, newSource );
-            List<AppliedEdit> applied = originalSource.equals( newSource )
-                    ? List.of()
-                    : List.of( new AppliedEdit( describedAs.range(),
-                            ContentRange.wholeDocument( new Document( newSource ) ),
-                            describedAs.replacement().length(),
-                            describedAs.expectedText().length() ) );
+            // Nothing to organize: report the untouched file in the fields a caller reads for any other edit.
+            List<AppliedEdit> applied = List.of();
 
             return new EditResult(
                     diagnostics.isEmpty() ? EditStatus.APPLIED : EditStatus.APPLIED_WITH_WARNINGS,
@@ -1799,6 +1796,20 @@ public class CodeEditingService
         {
             throw new RuntimeException( "Error during organize imports: " + ExceptionUtils.getRootCauseMessage( e ), e );
         }
+    }
+
+    /** The source with imports organized, or the original when the operation finds nothing to change. */
+    private static String organizedSource( OrganizeImportsOperation operation, String originalSource, IProgressMonitor monitor )
+            throws CoreException, BadLocationException
+    {
+        TextEdit edit = operation.createTextEdit( monitor );
+        if ( edit == null )
+        {
+            return originalSource;
+        }
+        IDocument document = new Document( originalSource );
+        edit.apply( document );
+        return document.get();
     }
 
     /**
@@ -1898,12 +1909,17 @@ public class CodeEditingService
 
                     OrganizeImportsOperation operation = new OrganizeImportsOperation( cu, null, true, true, true, chooseImportQuery );
 
-                    operation.run( monitor );
-                    cu.getResource().refreshLocal( IResource.DEPTH_ZERO, monitor );
+                    String newSource = organizedSource( operation, originalSource, monitor );
 
-                    if ( !originalSource.equals( cu.getSource() ) && cu.getResource() instanceof IFile changedFile )
+                    if ( !originalSource.equals( newSource ) && cu.getResource() instanceof IFile changedFile )
                     {
-                        resourceCache.resourceChanged( changedFile.getFullPath() );
+                        TextEditRequest edit = minimalReplacement( new Document( originalSource ), originalSource, newSource );
+                        EditResult written = applyTextEdits( projectName, changedFile.getProjectRelativePath().toString(),
+                                IResource.NULL_STAMP, List.of( edit ), false );
+                        if ( written.status() == EditStatus.REJECTED )
+                        {
+                            throw new IllegalStateException( written.diagnostics().get( 0 ).message() );
+                        }
                         changed.add( AffectedResource.of( changedFile, ChangeKind.MODIFIED ) );
                         if ( firstChangedFile == null )
                         {
