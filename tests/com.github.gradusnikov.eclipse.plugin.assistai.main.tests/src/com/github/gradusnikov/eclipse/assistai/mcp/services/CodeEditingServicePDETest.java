@@ -2,6 +2,7 @@ package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -27,6 +28,9 @@ import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.EclipseContextFactory;
 import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.e4.ui.di.UISynchronize;
+import org.eclipse.ui.PartInitException;
+import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.ide.IDE;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -798,6 +802,39 @@ public class ApplicationNew {
         assertTrue( result.diagnostics().isEmpty(), () -> result.diagnostics().toString() );
         assertTrue( !ResourceUtilities.readFileContent( project.getFile( "src/pkg/Unused.java" ) )
                 .contains( "import java.util.List" ) );
+    }
+
+    @Test
+    public void testOrganizeImports_writesTheFileWhileItIsOpenInAnEditor() throws Exception
+    {
+        project.getFolder( "src/pkg" ).create( IResource.NONE, true, monitor );
+        IFile file = createFile( "src/pkg/Open.java", "package pkg;\n\nimport java.util.List;\n\npublic class Open {}\n" );
+
+        // An open editor makes JDT treat the unit as a working copy, whose save() is a no-op.
+        PlatformUI.getWorkbench().getDisplay().syncExec( () -> {
+            try
+            {
+                IDE.openEditor( PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage(), file );
+            }
+            catch ( PartInitException e )
+            {
+                throw new IllegalStateException( e );
+            }
+        } );
+        try
+        {
+            EditResult result = service.organizeImports( TEST_PROJECT_NAME, "src/pkg/Open.java" );
+
+            assertEquals( EditResult.EditStatus.APPLIED, result.status() );
+            assertFalse( ResourceUtilities.readFileContent( file ).contains( "import java.util.List" ),
+                    "the organized imports must reach the disk, not only the editor buffer" );
+            assertNotEquals( result.versionBefore().modificationStamp(), result.versionAfter().modificationStamp() );
+        }
+        finally
+        {
+            PlatformUI.getWorkbench().getDisplay().syncExec(
+                    () -> PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage().closeAllEditors( false ) );
+        }
     }
 
     @Test
