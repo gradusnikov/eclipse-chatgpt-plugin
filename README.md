@@ -293,20 +293,32 @@ Direct file-editing tools complete a workspace synchronization barrier before re
 | Tool | Description |
 |------|-------------|
 | gitStatus | Working tree status -- staged, unstaged, untracked files, branch tracking info |
-| gitLog | Commit history with author, date, and message |
+| gitLog | Commit history from any revision, optionally only the commits touching given project-relative paths |
+| gitShow | One commit with its parents and the diff it introduced, per file and as a unified diff |
 | gitReadFile | Read a UTF-8 text file from `HEAD`, a branch/tag/commit, or the staged `INDEX` without changing the working tree |
-| gitDiff | Unified diff of working tree or staged changes, with optional comma-separated project-relative path filters and whitespace-insensitive comparison |
-| gitAdd | Stage files for commit (supports patterns, '.' for all) |
+| gitDiff | Unified diff of unstaged or staged changes, or between two revisions, with optional project-relative path filters and whitespace-insensitive comparison |
+| gitAdd | Stage project-relative files or folders (comma-separated; '.' for the whole project) |
 | gitStagePatch | Stage selected unified-diff hunks directly into the index without changing the working tree |
-| gitCommit | Commit staged changes with a message |
-| gitReset | Unstage files from the index |
+| gitCommit | Commit staged changes; optionally stage every tracked change first (`-a`) or amend the previous commit |
+| gitReset | Unstage project-relative files from the index |
+| gitDiscardChanges | Restore tracked files from the index, dropping their uncommitted modifications |
+| gitResetToRevision | Move the branch to a revision (soft, mixed or hard) -- undo commits, or abandon a conflicted merge |
 | gitBranch | List branches (local or including remote) |
 | gitCreateBranch | Create a new branch from HEAD or a specified start point |
 | gitDeleteBranch | Delete a branch (with optional force) |
 | gitCheckout | Switch to a branch |
+| gitMerge | Merge a branch, tag or commit; reports fast-forward, merge commit, squash, conflicts or blocking local changes as structured fields |
+| gitRebase | Rebase onto an upstream and drive it through conflicts with CONTINUE, SKIP or ABORT |
+| gitCherryPick | Apply existing commits to the current branch as new commits |
+| gitRevert | Undo existing commits with new reverse commits |
+| gitTag / gitTagList / gitDeleteTag | Create (lightweight or annotated), list and delete tags |
 | gitStash | Stash working directory changes |
 | gitStashPop | Apply and drop the most recent stash |
 | gitStashList | List all stash entries |
+| gitRemoteList | List remotes with their fetch and push URLs |
+| gitFetch | Fetch from a remote and report every remote-tracking ref that moved |
+| gitPull | Fetch and merge, or rebase onto, the upstream; conflicts and blocking changes are reported as files |
+| gitPush | Push a branch, optionally recording it as upstream or forcing; a rejection names the remedy |
 
 ### eclipse-pde -- Plug-in Development
 

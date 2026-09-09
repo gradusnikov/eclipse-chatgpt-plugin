@@ -92,6 +92,30 @@ public enum DiagnosticCode
      */
     BRANCH_NOT_MERGED,
 
+    /** A branch, tag, commit or other revision expression that resolves to nothing. */
+    REVISION_NOT_FOUND,
+
+    /**
+     * The repository is in a state the operation does not allow: mid-merge, mid-rebase,
+     * or - for a continue, skip or abort - not mid-rebase at all.
+     */
+    WRONG_REPOSITORY_STATE,
+
+    /**
+     * Uncommitted local changes stopped an operation before it started. The remedy is
+     * mechanical - commit or stash them - which is why it is worth its own code.
+     */
+    UNCOMMITTED_CHANGES,
+
+    /**
+     * The remote refused a push, most often because it has commits the local branch
+     * does not. Pull first, or force.
+     */
+    PUSH_REJECTED,
+
+    /** The remote could not be reached, or refused the credentials. */
+    REMOTE_OPERATION_FAILED,
+
     // --- projects and launches ---
 
     /** No open project of that name in the workspace. */

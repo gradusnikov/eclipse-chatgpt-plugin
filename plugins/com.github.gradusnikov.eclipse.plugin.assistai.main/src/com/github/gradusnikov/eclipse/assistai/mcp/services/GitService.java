@@ -17,6 +17,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.Collections;
+import java.util.TreeMap;
 
 import java.nio.file.Path;
 
@@ -58,6 +60,47 @@ import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.ui.IEditorPart;
+import org.eclipse.egit.core.credentials.CredentialsStore;
+import org.eclipse.egit.core.credentials.UserPasswordCredentials;
+import org.eclipse.jgit.api.CheckoutCommand;
+import org.eclipse.jgit.api.CherryPickCommand;
+import org.eclipse.jgit.api.CherryPickResult;
+import org.eclipse.jgit.api.FetchCommand;
+import org.eclipse.jgit.api.LogCommand;
+import org.eclipse.jgit.api.MergeCommand;
+import org.eclipse.jgit.api.MergeCommand.FastForwardMode;
+import org.eclipse.jgit.api.MergeResult;
+import org.eclipse.jgit.api.PullCommand;
+import org.eclipse.jgit.api.PullResult;
+import org.eclipse.jgit.api.PushCommand;
+import org.eclipse.jgit.api.RebaseCommand;
+import org.eclipse.jgit.api.RebaseResult;
+import org.eclipse.jgit.api.ResetCommand;
+import org.eclipse.jgit.api.ResetCommand.ResetType;
+import org.eclipse.jgit.api.RevertCommand;
+import org.eclipse.jgit.api.Status;
+import org.eclipse.jgit.api.TagCommand;
+import org.eclipse.jgit.api.errors.InvalidConfigurationException;
+import org.eclipse.jgit.api.errors.InvalidRemoteException;
+import org.eclipse.jgit.api.errors.RefNotFoundException;
+import org.eclipse.jgit.api.errors.TransportException;
+import org.eclipse.jgit.api.errors.WrongRepositoryStateException;
+import org.eclipse.jgit.lib.ConfigConstants;
+import org.eclipse.jgit.lib.RefUpdate;
+import org.eclipse.jgit.lib.StoredConfig;
+import org.eclipse.jgit.revwalk.RevObject;
+import org.eclipse.jgit.revwalk.RevTag;
+import org.eclipse.jgit.transport.CredentialsProvider;
+import org.eclipse.jgit.transport.FetchResult;
+import org.eclipse.jgit.transport.PushResult;
+import org.eclipse.jgit.transport.RemoteConfig;
+import org.eclipse.jgit.transport.RemoteRefUpdate;
+import org.eclipse.jgit.transport.TrackingRefUpdate;
+import org.eclipse.jgit.transport.URIish;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.FrameworkUtil;
+import org.osgi.framework.ServiceReference;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.results.Diagnostic;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.DiagnosticCode;
@@ -77,6 +120,31 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.GitStashResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitStatusResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitStatusResponse.ChangeType;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitStatusResponse.GitFileChange;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitApplyCommitsResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitApplyCommitsResponse.ApplyOperation;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitApplyCommitsResponse.ApplyStatus;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitDiscardResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitFetchResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitFetchResponse.GitRefUpdate;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitLogResponse.GitCommit;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitMergeResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitMergeResponse.MergeStatus;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitPullResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitPullResponse.PullStatus;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitPushResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitPushResponse.GitPushUpdate;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitPushResponse.PushStatus;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitRebaseResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitRebaseResponse.RebaseOperation;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitRebaseResponse.RebaseStatus;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitRemoteListResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitRemoteListResponse.GitRemote;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitResetResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitResetResponse.ResetMode;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitShowResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitTagListResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitTagListResponse.GitTag;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitTagResponse;
 import com.github.gradusnikov.eclipse.assistai.tools.UISynchronizeCallable;
 
 import jakarta.inject.Inject;
@@ -280,13 +348,38 @@ public class GitService
      */
     public GitLogResponse getLog(String projectName, int maxCount)
     {
+        return getLog(projectName, maxCount, null, null);
+    }
+
+    /**
+     * The most recent commits reachable from a revision, optionally only those that
+     * touch some paths.
+     *
+     * @param revision the branch, tag or commit to walk back from; HEAD when null
+     * @param pathFilter comma-separated project-relative files or folders; null for all
+     */
+    public GitLogResponse getLog(String projectName, int maxCount, String revision, String pathFilter)
+    {
         Repository repository = getRepository(projectName);
         int limit = Math.max(maxCount, 0);
+        List<String> repositoryPaths = resolveDiffPaths(projectName, pathFilter);
 
         try (Git git = new Git(repository))
         {
+            LogCommand command = git.log().setMaxCount(limit + 1);
+            String from = repository.getBranch();
+            if (revision != null && !revision.isBlank())
+            {
+                command.add(resolveRevision(repository, revision.trim()));
+                from = revision.trim();
+            }
+            for (String path : repositoryPaths)
+            {
+                command.addPath(path);
+            }
+
             List<RevCommit> commits = new ArrayList<>();
-            for (RevCommit commit : git.log().setMaxCount(limit + 1).call())
+            for (RevCommit commit : command.call())
             {
                 commits.add(commit);
             }
@@ -297,7 +390,11 @@ public class GitService
                 commits = commits.subList(0, limit);
             }
 
-            return GitLogResponse.from(projectName, repository.getBranch(), commits, truncated);
+            return GitLogResponse.from(projectName, from, commits, truncated);
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw e;
         }
         catch (Exception e)
         {
@@ -312,10 +409,14 @@ public class GitService
      * pattern back - "Added: src/Typo.java" - confirmed a stage that never happened and
      * the commit that followed was silently wrong. The index is compared before and
      * after instead.
+     * <p>
+     * The pattern is project-relative, like every other path these tools take, and is
+     * translated to the repository-relative form Git needs by {@link #resolvePathspecs}.
      */
     public GitStageResponse addFiles(String projectName, String filePattern)
     {
         Repository repository = getRepository(projectName);
+        List<String> pathspecs = resolvePathspecs(projectName, filePattern);
         ReentrantLock lock = getRepositoryLock(repository);
         lock.lock();
 
@@ -323,8 +424,12 @@ public class GitService
         try (Git git = new Git(repository))
         {
             IndexSnapshot before = indexSnapshot(repository);
-            git.add().addFilepattern(filePattern).call();
-            git.add().setUpdate(true).addFilepattern(filePattern).call();
+            for (String pathspec : pathspecs)
+            {
+                String pattern = pathspec.isEmpty() ? "." : pathspec;
+                git.add().addFilepattern(pattern).call();
+                git.add().setUpdate(true).addFilepattern(pattern).call();
+            }
             staged = indexDelta(before, indexSnapshot(repository), mappedProjects(repository));
         }
         catch (Exception e)
@@ -600,12 +705,26 @@ public class GitService
      */
     public GitCommitResponse commit(String projectName, String message)
     {
+        return commit(projectName, message, false, false);
+    }
+
+    /**
+     * Commits the index, optionally staging tracked changes first or replacing the
+     * previous commit.
+     *
+     * @param amend whether to replace the previous commit rather than add one after it
+     * @param all whether to stage every tracked file's modifications and deletions
+     *            first, repository-wide - {@code git commit -a}; new files still need
+     *            {@code gitAdd}
+     */
+    public GitCommitResponse commit(String projectName, String message, boolean amend, boolean all)
+    {
         Repository repository = getRepository(projectName);
         ReentrantLock lock = getRepositoryLock(repository);
         lock.lock();
         try (Git git = new Git(repository))
         {
-            RevCommit commit = git.commit().setMessage(message).call();
+            RevCommit commit = git.commit().setMessage(message).setAmend(amend).setAll(all).call();
             String branch = repository.getBranch();
             refreshProject(projectName);
             return GitCommitResponse.of(projectName, branch, GitLogResponse.toCommit(commit));
@@ -714,9 +833,27 @@ public class GitService
      */
     public GitDiffResponse getDiff(String projectName, boolean staged, String pathFilter, boolean ignoreWhitespace)
     {
+        return getDiff(projectName, staged, pathFilter, ignoreWhitespace, null, null);
+    }
+
+    /**
+     * The differences between two revisions, or between a revision and the working
+     * tree, when {@code fromRevision} or {@code toRevision} is given; otherwise the
+     * staged or unstaged differences.
+     *
+     * @param fromRevision the older side; HEAD when only toRevision is given
+     * @param toRevision the newer side; the working tree when null
+     */
+    public GitDiffResponse getDiff(String projectName, boolean staged, String pathFilter, boolean ignoreWhitespace,
+            String fromRevision, String toRevision)
+    {
         Repository repository = getRepository(projectName);
         List<String> repositoryPaths = resolveDiffPaths(projectName, pathFilter);
         Map<String, String> projects = mappedProjects(repository);
+        boolean betweenRevisions = (fromRevision != null && !fromRevision.isBlank())
+                || (toRevision != null && !toRevision.isBlank());
+        // A comparison of two revisions is neither the staged nor the unstaged diff.
+        boolean stagedDiff = staged && !betweenRevisions;
 
         try (var out = new ByteArrayOutputStream();
              var formatter = new DiffFormatter(out))
@@ -732,15 +869,44 @@ public class GitService
                 formatter.setPathFilter(PathFilterGroup.createFromStrings(repositoryPaths));
             }
 
-            // A repository with no commits has no HEAD to compare against. The empty
-            // tree is what Git itself compares a fresh index with, so the staged changes
-            // are still reported rather than replaced by a sentence.
-            AbstractTreeIterator oldTree = staged
-                    ? (head == null ? new EmptyTreeIterator() : prepareTreeParser(repository, head))
-                    : prepareIndexTreeParser(repository);
-            AbstractTreeIterator newTree = staged
-                    ? prepareIndexTreeParser(repository)
-                    : new FileTreeIterator(repository);
+            AbstractTreeIterator oldTree;
+            AbstractTreeIterator newTree;
+            String fromLabel;
+            String toLabel;
+            String baseRevision;
+            if (betweenRevisions)
+            {
+                String from = fromRevision == null || fromRevision.isBlank() ? Constants.HEAD : fromRevision.trim();
+                ObjectId fromId = resolveRevision(repository, from);
+                oldTree = prepareTreeParser(repository, fromId);
+                fromLabel = from;
+                baseRevision = fromId.getName();
+                if (toRevision == null || toRevision.isBlank())
+                {
+                    newTree = new FileTreeIterator(repository);
+                    toLabel = "WORKING_TREE";
+                }
+                else
+                {
+                    newTree = prepareTreeParser(repository, resolveRevision(repository, toRevision.trim()));
+                    toLabel = toRevision.trim();
+                }
+            }
+            else
+            {
+                // A repository with no commits has no HEAD to compare against. The empty
+                // tree is what Git itself compares a fresh index with, so the staged changes
+                // are still reported rather than replaced by a sentence.
+                oldTree = stagedDiff
+                        ? (head == null ? new EmptyTreeIterator() : prepareTreeParser(repository, head))
+                        : prepareIndexTreeParser(repository);
+                newTree = stagedDiff
+                        ? prepareIndexTreeParser(repository)
+                        : new FileTreeIterator(repository);
+                fromLabel = stagedDiff ? (head == null ? "EMPTY_TREE" : "HEAD") : "INDEX";
+                toLabel = stagedDiff ? "INDEX" : "WORKING_TREE";
+                baseRevision = head == null ? null : head.getName();
+            }
 
             List<DiffEntry> diffs = formatter.scan(oldTree, newTree);
 
@@ -753,11 +919,8 @@ public class GitService
             }
             formatter.format(diffs);
 
-            String fromLabel = staged ? (head == null ? "EMPTY_TREE" : "HEAD") : "INDEX";
-            String toLabel = staged ? "INDEX" : "WORKING_TREE";
-
-            return GitDiffResponse.of(projectName, staged, fromLabel, toLabel, head == null ? null : head.getName(),
-                    files, out.toString(StandardCharsets.UTF_8));
+            return GitDiffResponse.of(projectName, stagedDiff, fromLabel, toLabel, baseRevision, files,
+                    out.toString(StandardCharsets.UTF_8));
         }
         catch (IllegalArgumentException e)
         {
@@ -775,24 +938,9 @@ public class GitService
         {
             return List.of();
         }
-
-        String projectPrefix = projectPrefix(projectName);
-
-        return java.util.Arrays.stream(pathFilter.split(","))
-                .map(String::trim)
-                .filter(path -> !path.isEmpty())
-                .map(path -> {
-                    String input = path.replace('\\', '/');
-                    Path normalizedPath = Path.of(input).normalize();
-                    String normalized = normalizedPath.toString().replace('\\', '/');
-                    if (normalizedPath.isAbsolute() || normalized.equals("..") || normalized.startsWith("../")
-                            || input.matches("^[A-Za-z]:.*"))
-                    {
-                        throw new IllegalArgumentException("Diff path must be relative to the Eclipse project: " + path);
-                    }
-                    return projectPrefix == null || projectPrefix.isBlank() ? normalized : projectPrefix + "/" + normalized;
-                })
-                .toList();
+        List<String> pathspecs = resolvePathspecs(projectName, pathFilter);
+        // An entry standing for the whole repository makes a filter pointless.
+        return pathspecs.contains("") ? List.of() : pathspecs;
     }
 
     /**
@@ -927,6 +1075,7 @@ public class GitService
     public GitStageResponse resetFiles(String projectName, String filePattern)
     {
         Repository repository = getRepository(projectName);
+        List<String> pathspecs = resolvePathspecs(projectName, filePattern);
         ReentrantLock lock = getRepositoryLock(repository);
         lock.lock();
 
@@ -934,7 +1083,14 @@ public class GitService
         try (Git git = new Git(repository))
         {
             IndexSnapshot before = indexSnapshot(repository);
-            git.reset().addPath(filePattern).call();
+            ResetCommand command = git.reset();
+            if (!pathspecs.contains(""))
+            {
+                // Without paths a mixed reset covers the whole index, which is what "."
+                // means for a project at the repository root.
+                pathspecs.forEach(command::addPath);
+            }
+            command.call();
             unstaged = indexDelta(before, indexSnapshot(repository), mappedProjects(repository));
         }
         catch (Exception e)
@@ -1069,6 +1225,1217 @@ public class GitService
         {
             throw new RuntimeException("Failed to list stashes: " + e.getMessage(), e);
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Pathspecs
+    // -------------------------------------------------------------------------
+
+    /**
+     * Project-relative pathspecs, as every other tool takes them, translated to the
+     * repository-relative form Git needs.
+     * <p>
+     * {@code gitAdd} and {@code gitReset} used to hand the caller's pattern to JGit
+     * untouched, which reads it from the repository root. For the common layout of
+     * several projects under one repository, "src/Foo.java" of a project living in
+     * {@code plugins/x} therefore matched nothing - silently, since Git does not fail on
+     * an unmatched pathspec - while {@code gitStatus} reported the very same file by that
+     * project-relative path. Comma-separated entries are accepted, and an entry of
+     * {@code "."} means the project; the empty string in the result stands for the whole
+     * repository, which is what "." is for a project sitting at the repository root.
+     */
+    private List<String> resolvePathspecs(String projectName, String filePattern)
+    {
+        String prefix = projectPrefix(projectName);
+        List<String> pathspecs = new ArrayList<>();
+        for (String raw : (filePattern == null ? "" : filePattern).split(","))
+        {
+            String path = raw.trim().replace('\\', '/');
+            if (path.isEmpty() || path.equals(".") || path.equals("./"))
+            {
+                pathspecs.add(prefix);
+                continue;
+            }
+            Path normalizedPath = Path.of(path).normalize();
+            String normalized = normalizedPath.toString().replace('\\', '/');
+            if (normalizedPath.isAbsolute() || normalized.equals("..") || normalized.startsWith("../")
+                    || path.matches("^[A-Za-z]:.*"))
+            {
+                throw new IllegalArgumentException("Path must be relative to the Eclipse project: " + raw.trim());
+            }
+            if (normalized.isEmpty())
+            {
+                pathspecs.add(prefix);
+                continue;
+            }
+            pathspecs.add(prefix.isBlank() ? normalized : prefix + "/" + normalized);
+        }
+        return pathspecs;
+    }
+
+    /** Whether a repository path falls under one of the resolved pathspecs. */
+    private static boolean matchesPathspec(String repoPath, List<String> pathspecs)
+    {
+        for (String pathspec : pathspecs)
+        {
+            if (pathspec.isEmpty() || repoPath.equals(pathspec) || repoPath.startsWith(pathspec + "/"))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A revision expression resolved to an object, or an explanation of why not. */
+    private static ObjectId resolveRevision(Repository repository, String revision) throws IOException
+    {
+        if (revision == null || revision.isBlank())
+        {
+            throw new IllegalArgumentException("A revision is required.");
+        }
+        ObjectId objectId = repository.resolve(revision);
+        if (objectId == null || !repository.getObjectDatabase().has(objectId))
+        {
+            throw new IllegalArgumentException("Git revision could not be resolved: " + revision);
+        }
+        return objectId;
+    }
+
+    private static List<GitFileChange> locateAll(Collection<String> repoPaths, ChangeType changeType,
+            Map<String, String> projects)
+    {
+        List<GitFileChange> located = new ArrayList<>();
+        if (repoPaths != null)
+        {
+            for (String path : new TreeSet<>(repoPaths))
+            {
+                located.add(GitStatusResponse.locate(path, changeType, projects));
+            }
+        }
+        return located;
+    }
+
+    private List<GitFileChange> conflictingFiles(Git git, Map<String, String> projects) throws Exception
+    {
+        return locateAll(git.status().call().getConflicting(), ChangeType.CONFLICTING, projects);
+    }
+
+    private static GitCommit commitOf(Repository repository, ObjectId objectId) throws IOException
+    {
+        if (objectId == null)
+        {
+            return null;
+        }
+        try (RevWalk walk = new RevWalk(repository))
+        {
+            return GitLogResponse.toCommit(walk.parseCommit(objectId));
+        }
+    }
+
+    /** The commits reachable from {@code newHead} but not from {@code previousHead}, oldest first. */
+    private static List<GitCommit> commitsBetween(Git git, Repository repository, String previousHead, String newHead)
+            throws Exception
+    {
+        if (newHead == null || newHead.equals(previousHead))
+        {
+            return List.of();
+        }
+        LogCommand log = git.log();
+        if (previousHead == null)
+        {
+            log.add(ObjectId.fromString(newHead));
+        }
+        else
+        {
+            log.addRange(ObjectId.fromString(previousHead), ObjectId.fromString(newHead));
+        }
+        List<GitCommit> commits = new ArrayList<>();
+        for (RevCommit commit : log.call())
+        {
+            commits.add(GitLogResponse.toCommit(commit));
+        }
+        Collections.reverse(commits);
+        return commits;
+    }
+
+    // -------------------------------------------------------------------------
+    // Merging, rebasing and replaying commits
+    // -------------------------------------------------------------------------
+
+    /**
+     * Merges a branch, tag or commit into the checked-out branch.
+     * <p>
+     * JGit answers with a status and the paths involved, and each status needs a
+     * different next step from the caller - commit the resolved conflicts, clear the
+     * blocking local changes, commit the squashed result. They are passed on as a
+     * status with the files resolved to projects, rather than collapsed into "merged" or
+     * thrown.
+     *
+     * @param fastForwardMode FF, NO_FF or FF_ONLY; FF when null
+     * @param squash whether to leave the merged result staged instead of committing it
+     */
+    public GitMergeResponse merge(String projectName, String ref, String fastForwardMode, boolean squash, String message)
+    {
+        Objects.requireNonNull(ref, "ref");
+        FastForwardMode mode = fastForwardMode == null || fastForwardMode.isBlank()
+                ? FastForwardMode.FF
+                : FastForwardMode.valueOf(fastForwardMode.trim().toUpperCase());
+
+        Repository repository = getRepository(projectName);
+        Map<String, String> projects = mappedProjects(repository);
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
+
+        String previousHead;
+        MergeResult result;
+        List<GitFileChange> conflicting = List.of();
+        try (Git git = new Git(repository))
+        {
+            ObjectId target = repository.resolve(ref);
+            if (target == null || !repository.getObjectDatabase().has(target))
+            {
+                return GitMergeResponse.of(projectName, MergeStatus.FAILED, ref, headSha(repository), headSha(repository),
+                        null, List.of(), List.of(), List.of(),
+                        List.of(Diagnostic.fatal(DiagnosticCode.REVISION_NOT_FOUND,
+                                "Git revision could not be resolved: " + ref)));
+            }
+            previousHead = headSha(repository);
+
+            MergeCommand command = git.merge().setFastForward(mode).setSquash(squash);
+            Ref namedRef = repository.findRef(ref);
+            if (namedRef != null)
+            {
+                command.include(namedRef);
+            }
+            else
+            {
+                command.include(ref, target);
+            }
+            if (message != null && !message.isBlank())
+            {
+                command.setMessage(message);
+            }
+            result = command.call();
+            if (result.getMergeStatus() == MergeResult.MergeStatus.CONFLICTING)
+            {
+                conflicting = conflictingFiles(git, projects);
+            }
+        }
+        catch (WrongRepositoryStateException e)
+        {
+            return GitMergeResponse.of(projectName, MergeStatus.FAILED, ref, headSha(repository), headSha(repository),
+                    null, List.of(), List.of(), List.of(),
+                    List.of(Diagnostic.fatal(DiagnosticCode.WRONG_REPOSITORY_STATE, e.getMessage())));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to merge: " + e.getMessage(), e);
+        }
+        finally
+        {
+            lock.unlock();
+        }
+
+        List<String> refreshed = refreshMappedProjects(repository);
+        String newHead = headSha(repository);
+        try
+        {
+            return switch (result.getMergeStatus())
+            {
+                case FAST_FORWARD -> GitMergeResponse.of(projectName, MergeStatus.FAST_FORWARD, ref, previousHead, newHead,
+                        null, List.of(), List.of(), refreshed, List.of());
+                case ALREADY_UP_TO_DATE -> GitMergeResponse.of(projectName, MergeStatus.ALREADY_UP_TO_DATE, ref,
+                        previousHead, newHead, null, List.of(), List.of(), refreshed, List.of());
+                case MERGED -> GitMergeResponse.of(projectName, MergeStatus.MERGED, ref, previousHead, newHead,
+                        commitOf(repository, result.getNewHead()), List.of(), List.of(), refreshed, List.of());
+                case FAST_FORWARD_SQUASHED, MERGED_SQUASHED, MERGED_SQUASHED_NOT_COMMITTED, MERGED_NOT_COMMITTED ->
+                    GitMergeResponse.of(projectName, MergeStatus.MERGED_NOT_COMMITTED, ref, previousHead, newHead, null,
+                            List.of(), List.of(), refreshed, List.of());
+                case CONFLICTING -> GitMergeResponse.of(projectName, MergeStatus.CONFLICTED, ref, previousHead, newHead,
+                        null, conflicting, List.of(), refreshed,
+                        List.of(Diagnostic.fatal(DiagnosticCode.MERGE_CONFLICT,
+                                "Merging '" + ref + "' left conflict markers in " + conflicting.size()
+                                        + " file(s). Resolve them, gitAdd them and gitCommit to finish the merge,"
+                                        + " or gitResetToRevision HEAD with mode HARD to abandon it.")));
+                case CHECKOUT_CONFLICT ->
+                {
+                    List<GitFileChange> blocking = locateAll(result.getCheckoutConflicts(), ChangeType.MODIFIED, projects);
+                    yield GitMergeResponse.of(projectName, MergeStatus.BLOCKED, ref, previousHead, newHead, null,
+                            List.of(), blocking, refreshed,
+                            List.of(Diagnostic.fatal(DiagnosticCode.CHECKOUT_CONFLICT,
+                                    "Local changes to " + blocking.size() + " file(s) would be overwritten by merging '"
+                                            + ref + "'. Commit, stash or discard them first.")));
+                }
+                case FAILED ->
+                {
+                    Map<String, ?> failing = result.getFailingPaths();
+                    List<GitFileChange> blocking = locateAll(failing == null ? List.of() : failing.keySet(),
+                            ChangeType.MODIFIED, projects);
+                    yield GitMergeResponse.of(projectName, MergeStatus.BLOCKED, ref, previousHead, newHead, null,
+                            List.of(), blocking, refreshed,
+                            List.of(Diagnostic.fatal(DiagnosticCode.CHECKOUT_CONFLICT,
+                                    "Merging '" + ref + "' was refused because of " + blocking.size()
+                                            + " dirty file(s): " + failing + ". Commit, stash or discard them first.")));
+                }
+                default -> GitMergeResponse.of(projectName, MergeStatus.FAILED, ref, previousHead, newHead, null,
+                        List.of(), List.of(), refreshed,
+                        List.of(Diagnostic.fatal(DiagnosticCode.INTERNAL_ERROR,
+                                "JGit reported merge status " + result.getMergeStatus() + ".")));
+            };
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Failed to describe the merge: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Rebases the checked-out branch onto an upstream, or drives a rebase already in
+     * progress on.
+     * <p>
+     * A rebase pauses on conflicts and stays paused across calls, so every call reports
+     * where the repository now is - which commit it stopped on, which files conflict -
+     * and the caller answers with the next {@link RebaseOperation}.
+     *
+     * @param upstream the ref to rebase onto; required for BEGIN, ignored otherwise
+     * @param operationName BEGIN (default), CONTINUE, SKIP or ABORT
+     */
+    public GitRebaseResponse rebase(String projectName, String upstream, String operationName)
+    {
+        RebaseOperation operation = operationName == null || operationName.isBlank()
+                ? RebaseOperation.BEGIN
+                : RebaseOperation.valueOf(operationName.trim().toUpperCase());
+        if (operation == RebaseOperation.BEGIN && (upstream == null || upstream.isBlank()))
+        {
+            throw new IllegalArgumentException("An upstream is required to begin a rebase.");
+        }
+        String onto = operation == RebaseOperation.BEGIN ? upstream.trim() : null;
+
+        Repository repository = getRepository(projectName);
+        Map<String, String> projects = mappedProjects(repository);
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
+
+        RebaseResult result;
+        Diagnostic failure = null;
+        List<GitFileChange> conflicting = List.of();
+        try (Git git = new Git(repository))
+        {
+            RebaseCommand command = git.rebase();
+            if (operation == RebaseOperation.BEGIN)
+            {
+                ObjectId ontoId = repository.resolve(onto);
+                if (ontoId == null || !repository.getObjectDatabase().has(ontoId))
+                {
+                    return GitRebaseResponse.of(projectName, operation, RebaseStatus.FAILED, onto,
+                            currentBranch(repository), headSha(repository), null, List.of(), List.of(), List.of(),
+                            List.of(Diagnostic.fatal(DiagnosticCode.REVISION_NOT_FOUND,
+                                    "Git revision could not be resolved: " + onto)));
+                }
+                command.setUpstream(onto);
+            }
+            else
+            {
+                command.setOperation(RebaseCommand.Operation.valueOf(operation.name()));
+            }
+            result = command.call();
+            if (result.getStatus() == RebaseResult.Status.STOPPED)
+            {
+                conflicting = conflictingFiles(git, projects);
+            }
+        }
+        catch (WrongRepositoryStateException e)
+        {
+            result = null;
+            failure = Diagnostic.fatal(DiagnosticCode.WRONG_REPOSITORY_STATE,
+                    operation == RebaseOperation.BEGIN
+                            ? "The repository is mid-operation, so a rebase cannot start: " + e.getMessage()
+                            : "No rebase is in progress to " + operation.name().toLowerCase() + ": " + e.getMessage());
+        }
+        catch (RefNotFoundException e)
+        {
+            result = null;
+            failure = Diagnostic.fatal(DiagnosticCode.REVISION_NOT_FOUND, e.getMessage());
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to rebase: " + e.getMessage(), e);
+        }
+        finally
+        {
+            lock.unlock();
+        }
+
+        List<String> refreshed = refreshMappedProjects(repository);
+        String branch = currentBranch(repository);
+        String head = headSha(repository);
+        if (failure != null)
+        {
+            return GitRebaseResponse.of(projectName, operation, RebaseStatus.FAILED, onto, branch, head, null, List.of(),
+                    List.of(), refreshed, List.of(failure));
+        }
+
+        return switch (result.getStatus())
+        {
+            case OK -> GitRebaseResponse.of(projectName, operation, RebaseStatus.OK, onto, branch, head, null, List.of(),
+                    List.of(), refreshed, List.of());
+            case UP_TO_DATE -> GitRebaseResponse.of(projectName, operation, RebaseStatus.UP_TO_DATE, onto, branch, head,
+                    null, List.of(), List.of(), refreshed, List.of());
+            case FAST_FORWARD -> GitRebaseResponse.of(projectName, operation, RebaseStatus.FAST_FORWARD, onto, branch,
+                    head, null, List.of(), List.of(), refreshed, List.of());
+            case ABORTED -> GitRebaseResponse.of(projectName, operation, RebaseStatus.ABORTED, onto, branch, head, null,
+                    List.of(), List.of(), refreshed, List.of());
+            case NOTHING_TO_COMMIT -> GitRebaseResponse.of(projectName, operation, RebaseStatus.NOTHING_TO_COMMIT, onto,
+                    branch, head, null, List.of(), List.of(), refreshed, List.of());
+            case STOPPED ->
+            {
+                GitCommit stoppedAt = result.getCurrentCommit() == null
+                        ? null
+                        : GitLogResponse.toCommit(result.getCurrentCommit());
+                yield GitRebaseResponse.of(projectName, operation, RebaseStatus.STOPPED, onto, branch, head, stoppedAt,
+                        conflicting, List.of(), refreshed,
+                        List.of(Diagnostic.fatal(DiagnosticCode.MERGE_CONFLICT,
+                                "Replaying " + (stoppedAt == null ? "a commit" : stoppedAt.shortSha()) + " left "
+                                        + conflicting.size() + " conflicting file(s). Resolve and gitAdd them, then call"
+                                        + " gitRebase with operation CONTINUE - or SKIP that commit, or ABORT.")));
+            }
+            case UNCOMMITTED_CHANGES ->
+            {
+                List<GitFileChange> blocking = locateAll(result.getUncommittedChanges(), ChangeType.MODIFIED, projects);
+                yield GitRebaseResponse.of(projectName, operation, RebaseStatus.UNCOMMITTED_CHANGES, onto, branch, head,
+                        null, List.of(), blocking, refreshed,
+                        List.of(Diagnostic.fatal(DiagnosticCode.UNCOMMITTED_CHANGES,
+                                blocking.size() + " uncommitted change(s) stop the rebase. Commit or stash them first.")));
+            }
+            case CONFLICTS ->
+            {
+                List<GitFileChange> blocking = locateAll(result.getConflicts(), ChangeType.MODIFIED, projects);
+                yield GitRebaseResponse.of(projectName, operation, RebaseStatus.BLOCKED, onto, branch, head, null,
+                        List.of(), blocking, refreshed,
+                        List.of(Diagnostic.fatal(DiagnosticCode.CHECKOUT_CONFLICT,
+                                "Local changes to " + blocking.size() + " file(s) would be overwritten. Commit, stash or"
+                                        + " discard them first.")));
+            }
+            case FAILED ->
+            {
+                Map<String, ?> failing = result.getFailingPaths();
+                List<GitFileChange> blocking = locateAll(failing == null ? List.of() : failing.keySet(),
+                        ChangeType.MODIFIED, projects);
+                yield GitRebaseResponse.of(projectName, operation, RebaseStatus.FAILED, onto, branch, head, null,
+                        List.of(), blocking, refreshed,
+                        List.of(Diagnostic.fatal(DiagnosticCode.CHECKOUT_CONFLICT,
+                                "The rebase failed on " + blocking.size() + " file(s): " + failing + ".")));
+            }
+            default -> GitRebaseResponse.of(projectName, operation, RebaseStatus.FAILED, onto, branch, head, null,
+                    List.of(), List.of(), refreshed,
+                    List.of(Diagnostic.fatal(DiagnosticCode.INTERNAL_ERROR,
+                            "JGit reported rebase status " + result.getStatus() + ", which this tool does not drive.")));
+        };
+    }
+
+    /**
+     * Applies the changes of existing commits to the checked-out branch as new commits.
+     */
+    public GitApplyCommitsResponse cherryPick(String projectName, List<String> commits)
+    {
+        return applyCommits(projectName, ApplyOperation.CHERRY_PICK, commits);
+    }
+
+    /**
+     * Undoes the changes of existing commits with new commits.
+     */
+    public GitApplyCommitsResponse revert(String projectName, List<String> commits)
+    {
+        return applyCommits(projectName, ApplyOperation.REVERT, commits);
+    }
+
+    private GitApplyCommitsResponse applyCommits(String projectName, ApplyOperation operation, List<String> commits)
+    {
+        if (commits == null || commits.isEmpty())
+        {
+            throw new IllegalArgumentException("At least one commit is required.");
+        }
+        List<String> requested = commits.stream().map(String::trim).filter(c -> !c.isEmpty()).toList();
+
+        Repository repository = getRepository(projectName);
+        Map<String, String> projects = mappedProjects(repository);
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
+
+        String previousHead;
+        ApplyStatus status;
+        List<GitFileChange> conflicting = List.of();
+        List<GitFileChange> blocking = List.of();
+        Diagnostic failure = null;
+        List<GitCommit> created = List.of();
+        try (Git git = new Git(repository))
+        {
+            previousHead = headSha(repository);
+            List<ObjectId> ids = new ArrayList<>();
+            for (String commit : requested)
+            {
+                ObjectId id = repository.resolve(commit);
+                if (id == null || !repository.getObjectDatabase().has(id))
+                {
+                    return GitApplyCommitsResponse.of(projectName, operation, ApplyStatus.FAILED, requested, previousHead,
+                            previousHead, List.of(), List.of(), List.of(), List.of(),
+                            List.of(Diagnostic.fatal(DiagnosticCode.REVISION_NOT_FOUND,
+                                    "Git revision could not be resolved: " + commit)));
+                }
+                ids.add(id);
+            }
+
+            Map<String, ?> failingPaths = null;
+            if (operation == ApplyOperation.CHERRY_PICK)
+            {
+                CherryPickCommand command = git.cherryPick();
+                ids.forEach(command::include);
+                CherryPickResult result = command.call();
+                status = switch (result.getStatus())
+                {
+                    case OK -> ApplyStatus.APPLIED;
+                    case CONFLICTING -> ApplyStatus.CONFLICTED;
+                    default -> ApplyStatus.BLOCKED;
+                };
+                failingPaths = result.getFailingPaths();
+            }
+            else
+            {
+                RevertCommand command = git.revert();
+                ids.forEach(command::include);
+                RevCommit newHead = command.call();
+                if (newHead != null)
+                {
+                    status = ApplyStatus.APPLIED;
+                }
+                else if (!command.getUnmergedPaths().isEmpty())
+                {
+                    status = ApplyStatus.CONFLICTED;
+                }
+                else
+                {
+                    status = ApplyStatus.BLOCKED;
+                    failingPaths = command.getFailingResult() == null ? null : command.getFailingResult().getFailingPaths();
+                }
+            }
+
+            if (status == ApplyStatus.CONFLICTED)
+            {
+                conflicting = conflictingFiles(git, projects);
+                failure = Diagnostic.fatal(DiagnosticCode.MERGE_CONFLICT,
+                        "A commit did not apply cleanly; " + conflicting.size() + " file(s) hold conflict markers."
+                                + " Resolve and gitAdd them and gitCommit, or gitResetToRevision HEAD with mode HARD"
+                                + " to abandon the operation.");
+            }
+            else if (status == ApplyStatus.BLOCKED)
+            {
+                blocking = locateAll(failingPaths == null ? List.of() : failingPaths.keySet(), ChangeType.MODIFIED, projects);
+                failure = Diagnostic.fatal(DiagnosticCode.CHECKOUT_CONFLICT,
+                        "Local changes to " + blocking.size() + " file(s) block the operation: " + failingPaths
+                                + ". Commit, stash or discard them first.");
+            }
+            created = commitsBetween(git, repository, previousHead, headSha(repository));
+        }
+        catch (WrongRepositoryStateException e)
+        {
+            return GitApplyCommitsResponse.of(projectName, operation, ApplyStatus.FAILED, requested, headSha(repository),
+                    headSha(repository), List.of(), List.of(), List.of(), List.of(),
+                    List.of(Diagnostic.fatal(DiagnosticCode.WRONG_REPOSITORY_STATE, e.getMessage())));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to " + (operation == ApplyOperation.CHERRY_PICK ? "cherry-pick: " : "revert: ")
+                    + e.getMessage(), e);
+        }
+        finally
+        {
+            lock.unlock();
+        }
+
+        List<String> refreshed = refreshMappedProjects(repository);
+        return GitApplyCommitsResponse.of(projectName, operation, status, requested, previousHead, headSha(repository),
+                created, conflicting, blocking, refreshed, failure == null ? List.of() : List.of(failure));
+    }
+
+    // -------------------------------------------------------------------------
+    // Tags and single commits
+    // -------------------------------------------------------------------------
+
+    /**
+     * Creates a tag - annotated when a message is given, lightweight otherwise.
+     *
+     * @param revision what to tag; HEAD when null
+     */
+    public GitTagResponse createTag(String projectName, String tagName, String message, String revision)
+    {
+        Objects.requireNonNull(tagName, "tagName");
+        Repository repository = getRepository(projectName);
+        try (Git git = new Git(repository); RevWalk walk = new RevWalk(repository))
+        {
+            ObjectId target = resolveRevision(repository, revision == null || revision.isBlank() ? Constants.HEAD : revision);
+            RevObject object = walk.parseAny(target);
+            boolean annotated = message != null && !message.isBlank();
+
+            TagCommand command = git.tag().setName(tagName).setObjectId(object).setAnnotated(annotated);
+            if (annotated)
+            {
+                command.setMessage(message);
+            }
+            Ref ref = command.call();
+            return GitTagResponse.created(projectName, describeTag(repository, ref));
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw e;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to create tag: " + e.getMessage(), e);
+        }
+    }
+
+    public GitTagListResponse listTags(String projectName)
+    {
+        Repository repository = getRepository(projectName);
+        try (Git git = new Git(repository))
+        {
+            List<GitTag> tags = new ArrayList<>();
+            for (Ref ref : git.tagList().call())
+            {
+                tags.add(describeTag(repository, ref));
+            }
+            return GitTagListResponse.of(projectName, tags);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to list tags: " + e.getMessage(), e);
+        }
+    }
+
+    public GitTagResponse deleteTag(String projectName, String tagName)
+    {
+        Objects.requireNonNull(tagName, "tagName");
+        Repository repository = getRepository(projectName);
+        try (Git git = new Git(repository))
+        {
+            Ref ref = repository.findRef(Constants.R_TAGS + tagName);
+            if (ref == null)
+            {
+                throw new IllegalArgumentException("No tag named '" + tagName + "'.");
+            }
+            GitTag tag = describeTag(repository, ref);
+            git.tagDelete().setTags(tagName).call();
+            return GitTagResponse.deleted(projectName, tag);
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw e;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to delete tag: " + e.getMessage(), e);
+        }
+    }
+
+    private static GitTag describeTag(Repository repository, Ref ref) throws IOException
+    {
+        Ref peeled = repository.getRefDatabase().peel(ref);
+        ObjectId objectId = ref.getObjectId();
+        ObjectId peeledId = peeled.getPeeledObjectId();
+        boolean annotated = peeledId != null;
+
+        String message = null;
+        if (annotated)
+        {
+            try (RevWalk walk = new RevWalk(repository))
+            {
+                RevObject object = walk.parseAny(objectId);
+                if (object instanceof RevTag tag)
+                {
+                    message = tag.getFullMessage() == null ? null : tag.getFullMessage().strip();
+                }
+            }
+        }
+        return new GitTag(Repository.shortenRefName(ref.getName()), ref.getName(),
+                objectId == null ? null : objectId.getName(),
+                annotated ? peeledId.getName() : (objectId == null ? null : objectId.getName()),
+                annotated, message);
+    }
+
+    /**
+     * One commit and the change it introduced, against its first parent - or against
+     * the empty tree for a root commit, as {@code git show} does.
+     */
+    public GitShowResponse show(String projectName, String revision, String pathFilter)
+    {
+        Repository repository = getRepository(projectName);
+        Map<String, String> projects = mappedProjects(repository);
+        List<String> repositoryPaths = resolveDiffPaths(projectName, pathFilter);
+        String requested = revision == null || revision.isBlank() ? Constants.HEAD : revision;
+
+        try (RevWalk walk = new RevWalk(repository);
+             var out = new ByteArrayOutputStream();
+             var formatter = new DiffFormatter(out))
+        {
+            RevCommit commit = walk.parseCommit(resolveRevision(repository, requested));
+            List<String> parents = new ArrayList<>();
+            for (RevCommit parent : commit.getParents())
+            {
+                parents.add(parent.getName());
+            }
+
+            AbstractTreeIterator oldTree = commit.getParentCount() == 0
+                    ? new EmptyTreeIterator()
+                    : prepareTreeParser(repository, commit.getParent(0).getId());
+            AbstractTreeIterator newTree = prepareTreeParser(repository, commit.getId());
+
+            formatter.setRepository(repository);
+            formatter.setDetectRenames(true);
+            if (!repositoryPaths.isEmpty())
+            {
+                formatter.setPathFilter(PathFilterGroup.createFromStrings(repositoryPaths));
+            }
+
+            List<DiffEntry> diffs = formatter.scan(oldTree, newTree);
+            List<GitDiffResponse.GitFileDiff> files = new ArrayList<>();
+            for (DiffEntry diff : diffs)
+            {
+                files.add(GitDiffResponse.file(formatter.toFileHeader(diff), projects));
+            }
+            formatter.format(diffs);
+
+            return GitShowResponse.of(projectName, requested, GitLogResponse.toCommit(commit), parents, files,
+                    out.toString(StandardCharsets.UTF_8));
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw e;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to show commit: " + e.getMessage(), e);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Remotes
+    // -------------------------------------------------------------------------
+
+    public GitRemoteListResponse listRemotes(String projectName)
+    {
+        Repository repository = getRepository(projectName);
+        try (Git git = new Git(repository))
+        {
+            List<GitRemote> remotes = new ArrayList<>();
+            for (RemoteConfig config : git.remoteList().call())
+            {
+                String fetchUrl = config.getURIs().isEmpty() ? null : config.getURIs().get(0).toString();
+                String pushUrl = config.getPushURIs().isEmpty() ? fetchUrl : config.getPushURIs().get(0).toString();
+                remotes.add(new GitRemote(config.getName(), fetchUrl, pushUrl));
+            }
+            return GitRemoteListResponse.of(projectName, remotes);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to list remotes: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Fetches from a remote and reports every remote-tracking ref that moved.
+     *
+     * @param remote the remote; {@code origin} when null
+     * @param prune whether to drop remote-tracking refs the remote no longer has
+     */
+    public GitFetchResponse fetch(String projectName, String remote, boolean prune)
+    {
+        String remoteName = remote == null || remote.isBlank() ? Constants.DEFAULT_REMOTE_NAME : remote.trim();
+        Repository repository = getRepository(projectName);
+        try (Git git = new Git(repository))
+        {
+            FetchCommand command = git.fetch().setRemote(remoteName).setRemoveDeletedRefs(prune);
+            CredentialsProvider credentials = credentialsFor(repository, remoteName);
+            if (credentials != null)
+            {
+                command.setCredentialsProvider(credentials);
+            }
+            FetchResult result = command.call();
+            return GitFetchResponse.of(projectName, remoteName, refUpdates(result), result.getMessages());
+        }
+        catch (InvalidRemoteException e)
+        {
+            return GitFetchResponse.failed(projectName, remoteName, Diagnostic.fatal(DiagnosticCode.REMOTE_OPERATION_FAILED,
+                    "No remote named '" + remoteName + "': " + e.getMessage()));
+        }
+        catch (TransportException e)
+        {
+            return GitFetchResponse.failed(projectName, remoteName, Diagnostic.fatal(DiagnosticCode.REMOTE_OPERATION_FAILED,
+                    "The remote '" + remoteName + "' could not be fetched from: " + e.getMessage()));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to fetch: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Fetches and then merges - or, with {@code rebase}, rebases onto - the upstream of
+     * the checked-out branch.
+     *
+     * @param remote the remote; the branch's configured remote, else {@code origin},
+     *            when null
+     * @param remoteBranch the branch on the remote; the branch's configured upstream
+     *            when null
+     */
+    public GitPullResponse pull(String projectName, String remote, String remoteBranch, boolean rebase)
+    {
+        Repository repository = getRepository(projectName);
+        Map<String, String> projects = mappedProjects(repository);
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
+
+        String branch = currentBranch(repository);
+        StoredConfig config = repository.getConfig();
+        String configuredRemote = config.getString(ConfigConstants.CONFIG_BRANCH_SECTION, branch, ConfigConstants.CONFIG_KEY_REMOTE);
+        String configuredMerge = config.getString(ConfigConstants.CONFIG_BRANCH_SECTION, branch, ConfigConstants.CONFIG_KEY_MERGE);
+        String remoteName = remote != null && !remote.isBlank() ? remote.trim()
+                : configuredRemote != null ? configuredRemote : Constants.DEFAULT_REMOTE_NAME;
+        String remoteBranchName = remoteBranch != null && !remoteBranch.isBlank() ? remoteBranch.trim()
+                : configuredMerge != null ? Repository.shortenRefName(configuredMerge) : null;
+
+        String previousHead = headSha(repository);
+        PullResult result = null;
+        Diagnostic failure = null;
+        List<GitFileChange> conflicting = List.of();
+        try (Git git = new Git(repository))
+        {
+            PullCommand command = git.pull().setRemote(remoteName).setRebase(rebase);
+            if (remoteBranchName != null)
+            {
+                command.setRemoteBranchName(remoteBranchName);
+            }
+            CredentialsProvider credentials = credentialsFor(repository, remoteName);
+            if (credentials != null)
+            {
+                command.setCredentialsProvider(credentials);
+            }
+            result = command.call();
+
+            boolean stoppedOnConflicts = (result.getRebaseResult() != null
+                    && result.getRebaseResult().getStatus() == RebaseResult.Status.STOPPED)
+                    || (result.getMergeResult() != null
+                            && result.getMergeResult().getMergeStatus() == MergeResult.MergeStatus.CONFLICTING);
+            if (stoppedOnConflicts)
+            {
+                conflicting = conflictingFiles(git, projects);
+            }
+        }
+        catch (InvalidRemoteException | TransportException e)
+        {
+            failure = Diagnostic.fatal(DiagnosticCode.REMOTE_OPERATION_FAILED,
+                    "The remote '" + remoteName + "' could not be pulled from: " + e.getMessage());
+        }
+        catch (InvalidConfigurationException e)
+        {
+            failure = Diagnostic.fatal(DiagnosticCode.VALIDATION_ERROR,
+                    "The branch '" + branch + "' has no upstream configured and no remoteBranch was given: "
+                            + e.getMessage() + " Pass remoteBranch, or gitPush with setUpstream=true first.");
+        }
+        catch (WrongRepositoryStateException e)
+        {
+            failure = Diagnostic.fatal(DiagnosticCode.WRONG_REPOSITORY_STATE, e.getMessage());
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to pull: " + e.getMessage(), e);
+        }
+        finally
+        {
+            lock.unlock();
+        }
+
+        List<String> refreshed = refreshMappedProjects(repository);
+        String newHead = headSha(repository);
+        if (failure != null)
+        {
+            return GitPullResponse.of(projectName, remoteName, remoteBranchName, rebase, PullStatus.FAILED, 0,
+                    previousHead, newHead, List.of(), List.of(), refreshed, List.of(failure));
+        }
+
+        int fetched = result.getFetchResult() == null ? 0 : refUpdates(result.getFetchResult()).size();
+        PullStatus status;
+        List<GitFileChange> blocking = List.of();
+        Diagnostic diagnostic = null;
+        if (result.getRebaseResult() != null)
+        {
+            RebaseResult rebaseResult = result.getRebaseResult();
+            switch (rebaseResult.getStatus())
+            {
+                case OK -> status = PullStatus.REBASED;
+                case UP_TO_DATE -> status = PullStatus.ALREADY_UP_TO_DATE;
+                case FAST_FORWARD -> status = PullStatus.FAST_FORWARD;
+                case STOPPED ->
+                {
+                    status = PullStatus.CONFLICTED;
+                    diagnostic = Diagnostic.fatal(DiagnosticCode.MERGE_CONFLICT,
+                            "The rebase stopped with " + conflicting.size() + " conflicting file(s). Resolve and gitAdd"
+                                    + " them, then gitRebase with operation CONTINUE - or ABORT.");
+                }
+                case UNCOMMITTED_CHANGES ->
+                {
+                    status = PullStatus.BLOCKED;
+                    blocking = locateAll(rebaseResult.getUncommittedChanges(), ChangeType.MODIFIED, projects);
+                    diagnostic = Diagnostic.fatal(DiagnosticCode.UNCOMMITTED_CHANGES,
+                            blocking.size() + " uncommitted change(s) stop the rebase. Commit or stash them first.");
+                }
+                case CONFLICTS ->
+                {
+                    status = PullStatus.BLOCKED;
+                    blocking = locateAll(rebaseResult.getConflicts(), ChangeType.MODIFIED, projects);
+                    diagnostic = Diagnostic.fatal(DiagnosticCode.CHECKOUT_CONFLICT,
+                            "Local changes to " + blocking.size() + " file(s) would be overwritten. Commit, stash or"
+                                    + " discard them first.");
+                }
+                default ->
+                {
+                    status = PullStatus.FAILED;
+                    diagnostic = Diagnostic.fatal(DiagnosticCode.INTERNAL_ERROR,
+                            "JGit reported rebase status " + rebaseResult.getStatus() + ".");
+                }
+            }
+        }
+        else if (result.getMergeResult() != null)
+        {
+            MergeResult mergeResult = result.getMergeResult();
+            switch (mergeResult.getMergeStatus())
+            {
+                case FAST_FORWARD -> status = PullStatus.FAST_FORWARD;
+                case MERGED -> status = PullStatus.MERGED;
+                case ALREADY_UP_TO_DATE -> status = PullStatus.ALREADY_UP_TO_DATE;
+                case CONFLICTING ->
+                {
+                    status = PullStatus.CONFLICTED;
+                    diagnostic = Diagnostic.fatal(DiagnosticCode.MERGE_CONFLICT,
+                            "The merge left " + conflicting.size() + " conflicting file(s). Resolve and gitAdd them and"
+                                    + " gitCommit, or gitResetToRevision HEAD with mode HARD to abandon it.");
+                }
+                case CHECKOUT_CONFLICT ->
+                {
+                    status = PullStatus.BLOCKED;
+                    blocking = locateAll(mergeResult.getCheckoutConflicts(), ChangeType.MODIFIED, projects);
+                    diagnostic = Diagnostic.fatal(DiagnosticCode.CHECKOUT_CONFLICT,
+                            "Local changes to " + blocking.size() + " file(s) would be overwritten. Commit, stash or"
+                                    + " discard them first.");
+                }
+                case FAILED ->
+                {
+                    status = PullStatus.BLOCKED;
+                    Map<String, ?> failing = mergeResult.getFailingPaths();
+                    blocking = locateAll(failing == null ? List.of() : failing.keySet(), ChangeType.MODIFIED, projects);
+                    diagnostic = Diagnostic.fatal(DiagnosticCode.CHECKOUT_CONFLICT,
+                            "The merge was refused because of " + blocking.size() + " dirty file(s): " + failing + ".");
+                }
+                default ->
+                {
+                    status = PullStatus.FAILED;
+                    diagnostic = Diagnostic.fatal(DiagnosticCode.INTERNAL_ERROR,
+                            "JGit reported merge status " + mergeResult.getMergeStatus() + ".");
+                }
+            }
+        }
+        else
+        {
+            status = PullStatus.ALREADY_UP_TO_DATE;
+        }
+
+        return GitPullResponse.of(projectName, remoteName, remoteBranchName, rebase, status, fetched, previousHead, newHead,
+                conflicting, blocking, refreshed, diagnostic == null ? List.of() : List.of(diagnostic));
+    }
+
+    /**
+     * Pushes a branch to a remote.
+     *
+     * @param remote the remote; {@code origin} when null
+     * @param branch the local branch; the checked-out one when null
+     * @param setUpstream whether to make the pushed branch the upstream of the local one
+     *            afterwards, so later pulls and pushes need no arguments
+     * @param force whether to overwrite the remote branch even when it has commits the
+     *            local one does not
+     */
+    public GitPushResponse push(String projectName, String remote, String branch, boolean setUpstream, boolean force)
+    {
+        String remoteName = remote == null || remote.isBlank() ? Constants.DEFAULT_REMOTE_NAME : remote.trim();
+        Repository repository = getRepository(projectName);
+        try (Git git = new Git(repository))
+        {
+            String localBranch = branch == null || branch.isBlank() ? repository.getBranch() : branch.trim();
+            if (localBranch == null || repository.findRef(Constants.R_HEADS + localBranch) == null)
+            {
+                throw new IllegalArgumentException("No local branch named '" + localBranch + "' to push.");
+            }
+
+            PushCommand command = git.push().setRemote(remoteName).setForce(force).add(Constants.R_HEADS + localBranch);
+            CredentialsProvider credentials = credentialsFor(repository, remoteName);
+            if (credentials != null)
+            {
+                command.setCredentialsProvider(credentials);
+            }
+
+            List<GitPushUpdate> updates = new ArrayList<>();
+            boolean pushed = false;
+            boolean rejected = false;
+            boolean failed = false;
+            for (PushResult result : command.call())
+            {
+                for (RemoteRefUpdate update : result.getRemoteUpdates())
+                {
+                    updates.add(new GitPushUpdate(update.getSrcRef(), update.getRemoteName(), update.getStatus().name(),
+                            update.getMessage()));
+                    switch (update.getStatus())
+                    {
+                        case OK -> pushed = true;
+                        case UP_TO_DATE -> { }
+                        case REJECTED_NONFASTFORWARD, REJECTED_NODELETE, REJECTED_REMOTE_CHANGED, REJECTED_OTHER_REASON ->
+                            rejected = true;
+                        default -> failed = true;
+                    }
+                }
+            }
+
+            PushStatus status = failed ? PushStatus.FAILED : rejected ? PushStatus.REJECTED
+                    : pushed ? PushStatus.PUSHED : PushStatus.UP_TO_DATE;
+            List<Diagnostic> diagnostics = new ArrayList<>();
+            if (rejected)
+            {
+                diagnostics.add(Diagnostic.fatal(DiagnosticCode.PUSH_REJECTED,
+                        "The remote refused the push - usually because it has commits '" + localBranch
+                                + "' does not. gitPull (or gitFetch and gitRebase) first, or push with force=true to"
+                                + " overwrite the remote branch."));
+            }
+            else if (failed)
+            {
+                diagnostics.add(Diagnostic.fatal(DiagnosticCode.REMOTE_OPERATION_FAILED,
+                        "The push did not complete; see the per-ref status."));
+            }
+
+            if (setUpstream && (status == PushStatus.PUSHED || status == PushStatus.UP_TO_DATE))
+            {
+                StoredConfig config = repository.getConfig();
+                config.setString(ConfigConstants.CONFIG_BRANCH_SECTION, localBranch, ConfigConstants.CONFIG_KEY_REMOTE, remoteName);
+                config.setString(ConfigConstants.CONFIG_BRANCH_SECTION, localBranch, ConfigConstants.CONFIG_KEY_MERGE,
+                        Constants.R_HEADS + localBranch);
+                config.save();
+            }
+            return GitPushResponse.of(projectName, remoteName, status, updates, diagnostics);
+        }
+        catch (InvalidRemoteException e)
+        {
+            return GitPushResponse.of(projectName, remoteName, PushStatus.FAILED, List.of(),
+                    List.of(Diagnostic.fatal(DiagnosticCode.REMOTE_OPERATION_FAILED,
+                            "No remote named '" + remoteName + "': " + e.getMessage())));
+        }
+        catch (TransportException e)
+        {
+            return GitPushResponse.of(projectName, remoteName, PushStatus.FAILED, List.of(),
+                    List.of(Diagnostic.fatal(DiagnosticCode.REMOTE_OPERATION_FAILED,
+                            "The remote '" + remoteName + "' could not be pushed to: " + e.getMessage())));
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw e;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to push: " + e.getMessage(), e);
+        }
+    }
+
+    private static List<GitRefUpdate> refUpdates(FetchResult result)
+    {
+        List<GitRefUpdate> updates = new ArrayList<>();
+        for (TrackingRefUpdate update : result.getTrackingRefUpdates())
+        {
+            if (update.getResult() == RefUpdate.Result.NO_CHANGE)
+            {
+                continue;
+            }
+            updates.add(new GitRefUpdate(update.getLocalName(), update.getRemoteName(), shaOrNull(update.getOldObjectId()),
+                    shaOrNull(update.getNewObjectId()), update.getResult().name()));
+        }
+        return updates;
+    }
+
+    private static String shaOrNull(ObjectId objectId)
+    {
+        return objectId == null || ObjectId.zeroId().equals(objectId) ? null : objectId.getName();
+    }
+
+    /**
+     * Credentials for an HTTP(S) remote, from EGit's secure store - the same place the
+     * IDE's own fetch and push look, so a remote that works from the Git Repositories
+     * view works here. SSH remotes need nothing here: EGit installs its SSH session
+     * factory into JGit at startup, so keys and agents behave as they do in the IDE.
+     */
+    private CredentialsProvider credentialsFor(Repository repository, String remoteName)
+    {
+        try
+        {
+            RemoteConfig config = new RemoteConfig(repository.getConfig(), remoteName);
+            List<URIish> uris = config.getURIs();
+            if (uris.isEmpty())
+            {
+                return null;
+            }
+            URIish uri = uris.get(0);
+            if (uri.getScheme() == null || !uri.getScheme().startsWith("http"))
+            {
+                return null;
+            }
+
+            BundleContext context = FrameworkUtil.getBundle(GitService.class).getBundleContext();
+            ServiceReference<CredentialsStore> reference = context.getServiceReference(CredentialsStore.class);
+            if (reference == null)
+            {
+                return null;
+            }
+            try
+            {
+                UserPasswordCredentials credentials = context.getService(reference).getCredentials(uri);
+                return credentials == null
+                        ? null
+                        : new UsernamePasswordCredentialsProvider(credentials.getUser(), credentials.getPassword());
+            }
+            finally
+            {
+                context.ungetService(reference);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.warn("Could not read the stored Git credentials for remote '" + remoteName + "': " + e.getMessage());
+            return null;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Undoing
+    // -------------------------------------------------------------------------
+
+    /**
+     * Moves the checked-out branch to a revision.
+     * <p>
+     * SOFT leaves the index and working tree as they are, so the commits between the
+     * two revisions become staged changes; MIXED also resets the index; HARD also
+     * rewrites the working tree, which discards uncommitted work. A HARD reset to HEAD
+     * is also how a conflicted merge, cherry-pick or revert is abandoned.
+     *
+     * @param modeName SOFT, MIXED (default) or HARD
+     */
+    public GitResetResponse resetToRevision(String projectName, String revision, String modeName)
+    {
+        ResetMode mode = modeName == null || modeName.isBlank()
+                ? ResetMode.MIXED
+                : ResetMode.valueOf(modeName.trim().toUpperCase());
+        String requested = revision == null || revision.isBlank() ? Constants.HEAD : revision.trim();
+
+        Repository repository = getRepository(projectName);
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
+
+        String previousHead;
+        try (Git git = new Git(repository))
+        {
+            resolveRevision(repository, requested);
+            previousHead = headSha(repository);
+            git.reset().setMode(ResetType.valueOf(mode.name())).setRef(requested).call();
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw e;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to reset: " + e.getMessage(), e);
+        }
+        finally
+        {
+            lock.unlock();
+        }
+
+        List<String> refreshed = refreshMappedProjects(repository);
+        return GitResetResponse.of(projectName, mode, requested, previousHead, headSha(repository), refreshed);
+    }
+
+    /**
+     * Restores the working-tree content of tracked files from the index, dropping
+     * their uncommitted modifications - {@code git checkout -- <path>}. Untracked
+     * files and staged changes are left alone.
+     */
+    public GitDiscardResponse discardChanges(String projectName, String filePattern)
+    {
+        List<String> pathspecs = resolvePathspecs(projectName, filePattern);
+        boolean wholeRepository = pathspecs.contains("");
+
+        Repository repository = getRepository(projectName);
+        Map<String, String> projects = mappedProjects(repository);
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
+
+        List<GitFileChange> restored = new ArrayList<>();
+        try (Git git = new Git(repository))
+        {
+            Status before = git.status().call();
+            Map<String, ChangeType> candidates = new TreeMap<>();
+            for (String path : before.getModified())
+            {
+                if (matchesPathspec(path, pathspecs))
+                {
+                    candidates.put(path, ChangeType.MODIFIED);
+                }
+            }
+            for (String path : before.getMissing())
+            {
+                if (matchesPathspec(path, pathspecs))
+                {
+                    candidates.put(path, ChangeType.DELETED);
+                }
+            }
+
+            if (!candidates.isEmpty())
+            {
+                CheckoutCommand command = git.checkout();
+                if (wholeRepository)
+                {
+                    command.setAllPaths(true);
+                }
+                else
+                {
+                    pathspecs.forEach(command::addPath);
+                }
+                command.call();
+
+                Status after = git.status().call();
+                for (Map.Entry<String, ChangeType> candidate : candidates.entrySet())
+                {
+                    String path = candidate.getKey();
+                    if (!after.getModified().contains(path) && !after.getMissing().contains(path))
+                    {
+                        restored.add(GitStatusResponse.locate(path, candidate.getValue(), projects));
+                    }
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to discard changes: " + e.getMessage(), e);
+        }
+        finally
+        {
+            lock.unlock();
+        }
+
+        List<String> refreshed = refreshMappedProjects(repository);
+        return GitDiscardResponse.of(projectName, filePattern, restored, refreshed);
     }
 
     public String getCurrentDiff()

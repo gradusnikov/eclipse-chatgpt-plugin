@@ -44,7 +44,7 @@ a `status` a caller can branch on, and `diagnostics` carrying a coded
 | [duck-duck-search](#duck-duck-search) | 1 |
 | [eclipse-coder](#eclipse-coder) | 21 |
 | [eclipse-context](#eclipse-context) | 7 |
-| [eclipse-git](#eclipse-git) | 15 |
+| [eclipse-git](#eclipse-git) | 29 |
 | [eclipse-ide](#eclipse-ide) | 39 |
 | [eclipse-pde](#eclipse-pde) | 6 |
 | [eclipse-runner](#eclipse-runner) | 17 |
@@ -407,12 +407,12 @@ Restores a file to a specific Local History version. The current content becomes
 
 ### `gitAdd`
 
-Stages files for the next commit. Use '.' to stage all changes (new, modified, and deleted files). Reports the files whose index entry actually changed, each naming its Eclipse projectName and project-relative filePath as well as the repository-relative repoPath. A pattern that matches no changed file is totalFiles=0 with an empty list - Git does not fail on it, so check the count rather than assuming the pattern matched.
+Stages files for the next commit. Paths are relative to the Eclipse project - the filePath gitStatus reports - and may be comma-separated; '.' stages every change under the project (new, modified and deleted files). Reports the files whose index entry actually changed, each naming its Eclipse projectName and project-relative filePath as well as the repository-relative repoPath. A pattern that matches no changed file is totalFiles=0 with an empty list - Git does not fail on it, so check the count rather than assuming the pattern matched.
 
 | Parameter | | Description |
 |---|---|---|
 | `projectName` | \* | The Eclipse project name |
-| `filePattern` | \* | File pattern to add (e.g., '.' for all, 'src/com/example/MyClass.java' for a specific file) |
+| `filePattern` | \* | Comma-separated files or folders relative to the Eclipse project (e.g. 'src/com/example/MyClass.java'), or '.' for the whole project |
 
 **Returns** [`GitStageResponse`](#gitstageresponse)
 
@@ -438,14 +438,27 @@ Checks out a branch, switching the working tree to that branch. status is SWITCH
 
 **Returns** [`GitCheckoutResponse`](#gitcheckoutresponse)
 
+### `gitCherryPick`
+
+Applies the changes of one or more existing commits to the checked-out branch as new commits. status APPLIED lists the created commits (createdCommits, in the shape gitLog uses); CONFLICTED means a commit did not apply cleanly - conflicting names the files, the commits before it are already on the branch, and the repository is mid-operation until they are resolved, staged and committed, or abandoned with gitResetToRevision HEAD mode HARD; BLOCKED means local changes (blockingFiles) would be overwritten and nothing was applied.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+| `commits` | \* | Comma-separated commit shas or refs to apply, oldest first |
+
+**Returns** [`GitApplyCommitsResponse`](#gitapplycommitsresponse)
+
 ### `gitCommit`
 
-Commits the currently staged changes with the given message. Returns the new commit as sha, shortSha, author, authorEmail, authorTimeMillis, message and shortMessage - the same shape gitLog reports - so the sha is a field rather than a prefix of a sentence.
+Commits the currently staged changes with the given message. With all='true' every tracked file's modifications and deletions are staged first, repository-wide ('git commit -a'; new files still need gitAdd). With amend='true' the previous commit is replaced instead of a new one being added. Returns the new commit as sha, shortSha, author, authorEmail, authorTimeMillis, message and shortMessage - the same shape gitLog reports - so the sha is a field rather than a prefix of a sentence.
 
 | Parameter | | Description |
 |---|---|---|
 | `projectName` | \* | The Eclipse project name |
 | `message` | \* | The commit message |
+| `amend` |  | If 'true', replaces the previous commit. Default: false |
+| `all` |  | If 'true', stages all tracked modifications and deletions before committing. Default: false |
 
 **Returns** [`GitCommitResponse`](#gitcommitresponse)
 
@@ -473,29 +486,108 @@ Deletes a branch. Cannot delete the currently checked-out branch. deleted says w
 
 **Returns** [`GitDeleteBranchResponse`](#gitdeletebranchresponse)
 
-### `gitDiff`
+### `gitDeleteTag`
 
-Shows a unified diff for staged or unstaged changes, optionally limited to comma-separated project-relative files/directories and with whitespace changes ignored. The hunks are in unifiedDiff, which names paths from the repository root; the files list additionally resolves each of them to an Eclipse projectName and project-relative filePath that the reading and editing tools accept, with per-file addedLines/removedLines. identical=true means the two sides are the same, and baseRevision is null in a repository with no commits.
+Deletes a local tag. Reports what was known about the tag before it was removed. A tag that does not exist is an error.
 
 | Parameter | | Description |
 |---|---|---|
 | `projectName` | \* | The Eclipse project name |
-| `staged` |  | If 'true', shows staged (cached) changes instead of unstaged. Default: false |
+| `tagName` | \* | The tag name |
+
+**Returns** [`GitTagResponse`](#gittagresponse)
+
+### `gitDiff`
+
+Shows a unified diff. Without revisions it compares the index with the working tree, or with staged='true' HEAD with the index. With fromRevision and/or toRevision it compares two revisions, or a revision with the working tree when toRevision is omitted (fromRevision defaults to HEAD when only toRevision is given). Optionally limited to comma-separated project-relative files/directories, with whitespace changes ignored. The hunks are in unifiedDiff, which names paths from the repository root; the files list additionally resolves each of them to an Eclipse projectName and project-relative filePath that the reading and editing tools accept, with per-file addedLines/removedLines. identical=true means the two sides are the same, and baseRevision is null in a repository with no commits.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+| `staged` |  | If 'true', shows staged (cached) changes instead of unstaged. Ignored when a revision is given. Default: false |
 | `pathFilter` |  | Optional comma-separated file or directory paths relative to the Eclipse project |
 | `ignoreWhitespace` |  | If 'true', ignores whitespace when formatting hunks. Default: false |
+| `fromRevision` |  | Optional older side of the comparison: branch, tag or commit (e.g. 'main', 'HEAD~3') |
+| `toRevision` |  | Optional newer side of the comparison; the working tree when omitted |
 
 **Returns** [`GitDiffResponse`](#gitdiffresponse)
 
+### `gitDiscardChanges`
+
+Discards uncommitted modifications of tracked files by restoring their working-tree content from the index ('git checkout -- <path>'). Staged changes and untracked files are left alone. Paths are relative to the Eclipse project and may be comma-separated; '.' covers the whole project. This cannot be undone, so gitStash first when in doubt. Reports the files that were actually restored, each naming its Eclipse projectName, project-relative filePath and repoPath; a pattern matching no changed tracked file is totalFiles=0.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+| `filePattern` | \* | Comma-separated files or folders relative to the Eclipse project, or '.' for the whole project |
+
+**Returns** [`GitDiscardResponse`](#gitdiscardresponse)
+
+### `gitFetch` *(long)*
+
+Fetches from a remote without touching the working tree. status is UPDATED (updates lists every remote-tracking ref that moved, with oldSha/newSha), UP_TO_DATE, or FAILED with a REMOTE_OPERATION_FAILED diagnostic when the remote could not be reached or refused the credentials. HTTPS credentials come from EGit's secure store, the same place the IDE's own fetch uses; SSH uses the IDE's keys and agent.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+| `remote` |  | The remote name. Default: origin |
+| `prune` |  | If 'true', removes remote-tracking refs the remote no longer has. Default: false |
+
+**Returns** [`GitFetchResponse`](#gitfetchresponse)
+
 ### `gitLog`
 
-Lists the most recent commits of the Git repository associated with the project. Each commit reports sha, shortSha, author, authorEmail, authorTimeMillis (epoch milliseconds), the full message and its first line. The truncated flag says whether the history goes further back than maxCount.
+Lists the most recent commits reachable from a revision - the current branch by default - optionally only those touching some paths. Each commit reports sha, shortSha, author, authorEmail, authorTimeMillis (epoch milliseconds), the full message and its first line. The truncated flag says whether the history goes further back than maxCount.
 
 | Parameter | | Description |
 |---|---|---|
 | `projectName` | \* | The Eclipse project name |
 | `maxCount` |  | Maximum number of commits to show (default: 20) |
+| `revision` |  | Branch, tag or commit to walk back from. Default: HEAD |
+| `pathFilter` |  | Optional comma-separated files or folders relative to the Eclipse project; only commits touching them are listed |
 
 **Returns** [`GitLogResponse`](#gitlogresponse)
+
+### `gitMerge`
+
+Merges a branch, tag or commit into the checked-out branch. status is FAST_FORWARD, MERGED (commit carries the new merge commit), ALREADY_UP_TO_DATE, MERGED_NOT_COMMITTED (a squash: the result is staged, gitCommit it), CONFLICTED (conflict markers are in the working tree; conflicting names the files with projectName/filePath/repoPath and a MERGE_CONFLICT diagnostic is attached - resolve them, gitAdd them and gitCommit, or gitResetToRevision HEAD with mode HARD to abandon), BLOCKED (local changes named in blockingFiles would be overwritten; nothing was merged) or FAILED. Every Eclipse project mapped into the repository is refreshed afterwards.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+| `ref` | \* | The branch, tag or commit to merge into the current branch |
+| `fastForward` |  | FF (fast-forward when possible, default), NO_FF (always create a merge commit) or FF_ONLY (refuse unless a fast-forward) |
+| `squash` |  | If 'true', stages the merged result without committing it. Default: false |
+| `message` |  | Optional message for the merge commit |
+
+**Returns** [`GitMergeResponse`](#gitmergeresponse)
+
+### `gitPull` *(long)*
+
+Fetches and then merges - or with rebase='true' rebases onto - the upstream of the checked-out branch. status is FAST_FORWARD, MERGED, REBASED, ALREADY_UP_TO_DATE, CONFLICTED (conflicting names the files; the repository is mid-merge or mid-rebase - finish it with gitAdd and gitCommit or gitRebase CONTINUE, or abandon it), BLOCKED (local changes in blockingFiles would be overwritten; only the fetch happened) or FAILED. A branch with no configured upstream needs remoteBranch, or a gitPush with setUpstream='true' first. Every Eclipse project mapped into the repository is refreshed afterwards.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+| `remote` |  | The remote name. Default: the branch's configured remote, else origin |
+| `remoteBranch` |  | The branch on the remote. Default: the branch's configured upstream |
+| `rebase` |  | If 'true', rebases local commits onto the fetched ones instead of merging. Default: false |
+
+**Returns** [`GitPullResponse`](#gitpullresponse)
+
+### `gitPush` *(long)*
+
+Pushes a local branch - the checked-out one by default - to a remote. status is PUSHED, UP_TO_DATE, REJECTED (the remote has commits the branch does not: gitPull first, or push again with force='true' to overwrite; a PUSH_REJECTED diagnostic says so) or FAILED (REMOTE_OPERATION_FAILED: unreachable, or credentials refused). updates reports each ref's outcome in Git's own words. setUpstream='true' makes the pushed branch the local branch's upstream, so later gitPull and gitPush calls need no arguments. HTTPS credentials come from EGit's secure store; SSH uses the IDE's keys and agent.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+| `remote` |  | The remote name. Default: origin |
+| `branch` |  | The local branch to push. Default: the checked-out branch |
+| `setUpstream` |  | If 'true', records the remote branch as the local branch's upstream ('git push -u'). Default: false |
+| `force` |  | If 'true', overwrites the remote branch even when it has commits the local one does not. Default: false |
+
+**Returns** [`GitPushResponse`](#gitpushresponse)
 
 ### `gitReadFile`
 
@@ -509,16 +601,73 @@ Reads a UTF-8 text file from a Git revision without changing the working tree. T
 
 **Returns** `String`
 
-### `gitReset`
+### `gitRebase`
 
-Unstages files from the index (equivalent to 'git reset HEAD <file>'). Does not modify the working tree. Reports the index entries that actually left the staged set, each naming its Eclipse projectName and project-relative filePath plus the repository-relative repoPath, with changeType being what the file had been staged as. A pattern matching nothing is totalFiles=0.
+Rebases the checked-out branch onto an upstream, or drives a rebase already in progress. operation BEGIN (default, needs upstream) starts it; on a conflict status is STOPPED, stoppedAt names the commit being replayed, conflicting names the files (projectName/filePath/repoPath) and the repository stays mid-rebase - resolve and gitAdd them, then call again with operation CONTINUE, or SKIP that commit, or ABORT to put the branch back. Other statuses: OK, UP_TO_DATE, FAST_FORWARD, ABORTED, NOTHING_TO_COMMIT (the replayed commit became empty: SKIP or ABORT), UNCOMMITTED_CHANGES and BLOCKED (local changes in blockingFiles stop it; commit or stash them first) and FAILED. Every Eclipse project mapped into the repository is refreshed afterwards.
 
 | Parameter | | Description |
 |---|---|---|
 | `projectName` | \* | The Eclipse project name |
-| `filePattern` | \* | File pattern to unstage (e.g., '.' for all, or a specific file path) |
+| `upstream` |  | The branch, tag or commit to rebase onto (e.g. 'main', 'origin/main'). Required for BEGIN, ignored otherwise |
+| `operation` |  | BEGIN, CONTINUE, SKIP or ABORT. Default: BEGIN |
+
+**Returns** [`GitRebaseResponse`](#gitrebaseresponse)
+
+### `gitRemoteList`
+
+Lists the remotes configured for the repository, each with its name - what gitFetch, gitPull and gitPush take - and its fetch and push URLs.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+
+**Returns** [`GitRemoteListResponse`](#gitremotelistresponse)
+
+### `gitReset`
+
+Unstages files from the index (equivalent to 'git reset HEAD <file>'). Does not modify the working tree. Paths are relative to the Eclipse project and may be comma-separated; '.' unstages everything under the project. Reports the index entries that actually left the staged set, each naming its Eclipse projectName and project-relative filePath plus the repository-relative repoPath, with changeType being what the file had been staged as. A pattern matching nothing is totalFiles=0. To move the branch itself - undo a commit, discard everything - use gitResetToRevision.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+| `filePattern` | \* | Comma-separated files or folders relative to the Eclipse project, or '.' for the whole project |
 
 **Returns** [`GitStageResponse`](#gitstageresponse)
+
+### `gitResetToRevision`
+
+Moves the checked-out branch to a revision ('git reset'). mode SOFT keeps the index and working tree, so the commits between become staged changes - the way to undo a commit while keeping its work ('HEAD~1'); MIXED (default) also resets the index; HARD also rewrites the working tree, which discards uncommitted work, and is how a conflicted merge, cherry-pick or revert is abandoned (HARD to HEAD). previousHead is the handle for undoing the reset. Every Eclipse project mapped into the repository is refreshed afterwards.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+| `revision` |  | Branch, tag or commit to move to (e.g. 'HEAD~1', 'origin/main', a sha). Default: HEAD |
+| `mode` |  | SOFT, MIXED or HARD. Default: MIXED |
+
+**Returns** [`GitResetResponse`](#gitresetresponse)
+
+### `gitRevert`
+
+Undoes the changes of one or more existing commits with new commits that apply the reverse patch, leaving history intact. status APPLIED lists the created commits; CONFLICTED means a reverse patch did not apply cleanly - conflicting names the files and the repository is mid-operation until they are resolved, staged and committed, or abandoned with gitResetToRevision HEAD mode HARD; BLOCKED means local changes (blockingFiles) would be overwritten and nothing was applied.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+| `commits` | \* | Comma-separated commit shas or refs to undo |
+
+**Returns** [`GitApplyCommitsResponse`](#gitapplycommitsresponse)
+
+### `gitShow`
+
+Shows one commit and the change it introduced against its first parent - what 'git show' prints. The commit has the shape gitLog uses and the change the shape gitDiff uses: per-file entries resolved to an Eclipse projectName and project-relative filePath with addedLines/removedLines, plus the unifiedDiff with repository-relative paths. parentShas is empty for a root commit and has two entries for a merge commit.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+| `revision` |  | Branch, tag or commit sha. Default: HEAD |
+| `pathFilter` |  | Optional comma-separated files or folders relative to the Eclipse project |
+
+**Returns** [`GitShowResponse`](#gitshowresponse)
 
 ### `gitStagePatch`
 
@@ -571,6 +720,29 @@ Reports the working tree status of the Git repository associated with the projec
 | `projectName` | \* | The Eclipse project name (use listProjects to find it) |
 
 **Returns** [`GitStatusResponse`](#gitstatusresponse)
+
+### `gitTag`
+
+Creates a tag at a revision (HEAD by default): annotated when a message is given, lightweight otherwise. Reports the tag in the shape gitTagList uses.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+| `tagName` | \* | The tag name (e.g. 'v1.2.0') |
+| `message` |  | Optional message; given, the tag is annotated |
+| `revision` |  | Branch, tag or commit to tag. Default: HEAD |
+
+**Returns** [`GitTagResponse`](#gittagresponse)
+
+### `gitTagList`
+
+Lists the repository's tags. Each reports name (what every revision parameter and gitDeleteTag take), fullName, sha, targetSha (the commit it points at), whether it is annotated, and the annotated tag's message.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+
+**Returns** [`GitTagListResponse`](#gittaglistresponse)
 
 ## eclipse-ide
 
@@ -1444,6 +1616,23 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `diagnostics` | [`Diagnostic`](#diagnostic)[] |
 | `summaryText` | `String` |
 
+### `GitApplyCommitsResponse`
+
+| Field | Type |
+|---|---|
+| `projectName` | `String` |
+| `operation` | [`GitApplyCommitsResponseApplyOperation`](#gitapplycommitsresponseapplyoperation) |
+| `status` | [`GitApplyCommitsResponseApplyStatus`](#gitapplycommitsresponseapplystatus) |
+| `requestedCommits` | `String`[] |
+| `previousHead` | `String` |
+| `newHead` | `String` |
+| `createdCommits` | [`GitLogResponseGitCommit`](#gitlogresponsegitcommit)[] |
+| `conflicting` | [`GitStatusResponseGitFileChange`](#gitstatusresponsegitfilechange)[] |
+| `blockingFiles` | [`GitStatusResponseGitFileChange`](#gitstatusresponsegitfilechange)[] |
+| `refreshedProjects` | `String`[] |
+| `diagnostics` | [`Diagnostic`](#diagnostic)[] |
+| `summaryText` | `String` |
+
 ### `GitCommitResponse`
 
 | Field | Type |
@@ -1465,6 +1654,15 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `diagnostics` | [`Diagnostic`](#diagnostic)[] |
 | `summaryText` | `String` |
 
+### `GitTagResponse`
+
+| Field | Type |
+|---|---|
+| `projectName` | `String` |
+| `operation` | [`GitTagResponseTagOperation`](#gittagresponsetagoperation) |
+| `tag` | [`GitTagListResponseGitTag`](#gittaglistresponsegittag) |
+| `summaryText` | `String` |
+
 ### `GitDiffResponse`
 
 | Field | Type |
@@ -1482,6 +1680,30 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `unifiedDiff` | `String` |
 | `summaryText` | `String` |
 
+### `GitDiscardResponse`
+
+| Field | Type |
+|---|---|
+| `projectName` | `String` |
+| `pathspec` | `String` |
+| `totalFiles` | `int` |
+| `files` | [`GitStatusResponseGitFileChange`](#gitstatusresponsegitfilechange)[] |
+| `refreshedProjects` | `String`[] |
+| `summaryText` | `String` |
+
+### `GitFetchResponse`
+
+| Field | Type |
+|---|---|
+| `projectName` | `String` |
+| `remote` | `String` |
+| `status` | [`GitFetchResponseFetchStatus`](#gitfetchresponsefetchstatus) |
+| `totalUpdates` | `int` |
+| `updates` | [`GitFetchResponseGitRefUpdate`](#gitfetchresponsegitrefupdate)[] |
+| `messages` | `String` |
+| `diagnostics` | [`Diagnostic`](#diagnostic)[] |
+| `summaryText` | `String` |
+
 ### `GitLogResponse`
 
 | Field | Type |
@@ -1491,6 +1713,104 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `commitCount` | `int` |
 | `commits` | [`GitLogResponseGitCommit`](#gitlogresponsegitcommit)[] |
 | `truncated` | `boolean` |
+| `summaryText` | `String` |
+
+### `GitMergeResponse`
+
+| Field | Type |
+|---|---|
+| `projectName` | `String` |
+| `status` | [`GitMergeResponseMergeStatus`](#gitmergeresponsemergestatus) |
+| `mergedRef` | `String` |
+| `previousHead` | `String` |
+| `newHead` | `String` |
+| `commit` | [`GitLogResponseGitCommit`](#gitlogresponsegitcommit) |
+| `conflicting` | [`GitStatusResponseGitFileChange`](#gitstatusresponsegitfilechange)[] |
+| `blockingFiles` | [`GitStatusResponseGitFileChange`](#gitstatusresponsegitfilechange)[] |
+| `refreshedProjects` | `String`[] |
+| `diagnostics` | [`Diagnostic`](#diagnostic)[] |
+| `summaryText` | `String` |
+
+### `GitPullResponse`
+
+| Field | Type |
+|---|---|
+| `projectName` | `String` |
+| `remote` | `String` |
+| `remoteBranch` | `String` |
+| `rebase` | `boolean` |
+| `status` | [`GitPullResponsePullStatus`](#gitpullresponsepullstatus) |
+| `fetchedUpdates` | `int` |
+| `previousHead` | `String` |
+| `newHead` | `String` |
+| `conflicting` | [`GitStatusResponseGitFileChange`](#gitstatusresponsegitfilechange)[] |
+| `blockingFiles` | [`GitStatusResponseGitFileChange`](#gitstatusresponsegitfilechange)[] |
+| `refreshedProjects` | `String`[] |
+| `diagnostics` | [`Diagnostic`](#diagnostic)[] |
+| `summaryText` | `String` |
+
+### `GitPushResponse`
+
+| Field | Type |
+|---|---|
+| `projectName` | `String` |
+| `remote` | `String` |
+| `status` | [`GitPushResponsePushStatus`](#gitpushresponsepushstatus) |
+| `updates` | [`GitPushResponseGitPushUpdate`](#gitpushresponsegitpushupdate)[] |
+| `diagnostics` | [`Diagnostic`](#diagnostic)[] |
+| `summaryText` | `String` |
+
+### `GitRebaseResponse`
+
+| Field | Type |
+|---|---|
+| `projectName` | `String` |
+| `operation` | [`GitRebaseResponseRebaseOperation`](#gitrebaseresponserebaseoperation) |
+| `status` | [`GitRebaseResponseRebaseStatus`](#gitrebaseresponserebasestatus) |
+| `upstream` | `String` |
+| `currentBranch` | `String` |
+| `headSha` | `String` |
+| `stoppedAt` | [`GitLogResponseGitCommit`](#gitlogresponsegitcommit) |
+| `conflicting` | [`GitStatusResponseGitFileChange`](#gitstatusresponsegitfilechange)[] |
+| `blockingFiles` | [`GitStatusResponseGitFileChange`](#gitstatusresponsegitfilechange)[] |
+| `refreshedProjects` | `String`[] |
+| `diagnostics` | [`Diagnostic`](#diagnostic)[] |
+| `summaryText` | `String` |
+
+### `GitRemoteListResponse`
+
+| Field | Type |
+|---|---|
+| `projectName` | `String` |
+| `totalRemotes` | `int` |
+| `remotes` | [`GitRemoteListResponseGitRemote`](#gitremotelistresponsegitremote)[] |
+| `summaryText` | `String` |
+
+### `GitResetResponse`
+
+| Field | Type |
+|---|---|
+| `projectName` | `String` |
+| `mode` | [`GitResetResponseResetMode`](#gitresetresponseresetmode) |
+| `revision` | `String` |
+| `previousHead` | `String` |
+| `newHead` | `String` |
+| `refreshedProjects` | `String`[] |
+| `summaryText` | `String` |
+
+### `GitShowResponse`
+
+| Field | Type |
+|---|---|
+| `projectName` | `String` |
+| `revision` | `String` |
+| `commit` | [`GitLogResponseGitCommit`](#gitlogresponsegitcommit) |
+| `parentShas` | `String`[] |
+| `totalFiles` | `int` |
+| `addedLines` | `int` |
+| `removedLines` | `int` |
+| `files` | [`GitDiffResponseGitFileDiff`](#gitdiffresponsegitfilediff)[] |
+| `unifiedDiff` | `String` |
 | `summaryText` | `String` |
 
 ### `GitStagePatchResponse`
@@ -1554,6 +1874,15 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `conflicting` | [`GitStatusResponseGitFileChange`](#gitstatusresponsegitfilechange)[] |
 | `totalChanges` | `int` |
 | `clean` | `boolean` |
+| `summaryText` | `String` |
+
+### `GitTagListResponse`
+
+| Field | Type |
+|---|---|
+| `projectName` | `String` |
+| `totalTags` | `int` |
+| `tags` | [`GitTagListResponseGitTag`](#gittaglistresponsegittag)[] |
 | `summaryText` | `String` |
 
 ### `QuickFixResponse`
@@ -2165,6 +2494,14 @@ Reads the content of the given web page and returns it as markdown, together wit
 
 `SWITCHED` \| `BLOCKED`
 
+### `GitApplyCommitsResponseApplyOperation`
+
+`CHERRY_PICK` \| `REVERT`
+
+### `GitApplyCommitsResponseApplyStatus`
+
+`APPLIED` \| `CONFLICTED` \| `BLOCKED` \| `FAILED`
+
 ### `GitLogResponseGitCommit`
 
 | Field | Type |
@@ -2176,6 +2513,21 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `authorTimeMillis` | `long` |
 | `message` | `String` |
 | `shortMessage` | `String` |
+
+### `GitTagResponseTagOperation`
+
+`CREATED` \| `DELETED`
+
+### `GitTagListResponseGitTag`
+
+| Field | Type |
+|---|---|
+| `name` | `String` |
+| `fullName` | `String` |
+| `sha` | `String` |
+| `targetSha` | `String` |
+| `annotated` | `boolean` |
+| `message` | `String` |
 
 ### `GitDiffResponseGitFileDiff`
 
@@ -2189,6 +2541,61 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `addedLines` | `int` |
 | `removedLines` | `int` |
 | `binary` | `boolean` |
+
+### `GitFetchResponseFetchStatus`
+
+`UPDATED` \| `UP_TO_DATE` \| `FAILED`
+
+### `GitFetchResponseGitRefUpdate`
+
+| Field | Type |
+|---|---|
+| `localRef` | `String` |
+| `remoteRef` | `String` |
+| `oldSha` | `String` |
+| `newSha` | `String` |
+| `result` | `String` |
+
+### `GitMergeResponseMergeStatus`
+
+`FAST_FORWARD` \| `MERGED` \| `ALREADY_UP_TO_DATE` \| `MERGED_NOT_COMMITTED` \| `CONFLICTED` \| `BLOCKED` \| `FAILED`
+
+### `GitPullResponsePullStatus`
+
+`FAST_FORWARD` \| `MERGED` \| `REBASED` \| `ALREADY_UP_TO_DATE` \| `CONFLICTED` \| `BLOCKED` \| `FAILED`
+
+### `GitPushResponsePushStatus`
+
+`PUSHED` \| `UP_TO_DATE` \| `REJECTED` \| `FAILED`
+
+### `GitPushResponseGitPushUpdate`
+
+| Field | Type |
+|---|---|
+| `localRef` | `String` |
+| `remoteRef` | `String` |
+| `status` | `String` |
+| `message` | `String` |
+
+### `GitRebaseResponseRebaseOperation`
+
+`BEGIN` \| `CONTINUE` \| `SKIP` \| `ABORT`
+
+### `GitRebaseResponseRebaseStatus`
+
+`OK` \| `UP_TO_DATE` \| `FAST_FORWARD` \| `STOPPED` \| `ABORTED` \| `NOTHING_TO_COMMIT` \| `UNCOMMITTED_CHANGES` \| `BLOCKED` \| `FAILED`
+
+### `GitRemoteListResponseGitRemote`
+
+| Field | Type |
+|---|---|
+| `name` | `String` |
+| `fetchUrl` | `String` |
+| `pushUrl` | `String` |
+
+### `GitResetResponseResetMode`
+
+`SOFT` \| `MIXED` \| `HARD`
 
 ### `GitStagePatchResponsePatchStatus`
 
@@ -2658,7 +3065,7 @@ Reads the content of the given web page and returns it as markdown, together wit
 
 ### `DiagnosticCode`
 
-`RESOURCE_NOT_FOUND` \| `RESOURCE_NOT_ACCESSIBLE` \| `RESOURCE_ALREADY_EXISTS` \| `READ_ONLY_RESOURCE` \| `INVALID_RANGE` \| `VERSION_CONFLICT` \| `RESOURCE_VERSION_EXPIRED` \| `RESOURCE_OUT_OF_SYNC` \| `HISTORY_UNAVAILABLE` \| `TEXT_NOT_FOUND` \| `AMBIGUOUS_MATCH` \| `OVERLAPPING_EDITS` \| `INVALID_JAVA_EDIT` \| `REFACTORING_PRECONDITION_FAILED` \| `EDITOR_REVEAL_FAILED` \| `FORMATTER_FAILED` \| `PATCH_APPLY_FAILED` \| `MERGE_CONFLICT` \| `CHECKOUT_CONFLICT` \| `BRANCH_NOT_MERGED` \| `PROJECT_NOT_FOUND` \| `TEST_CLASS_NOT_FOUND` \| `TEST_PACKAGE_NOT_FOUND` \| `PDE_LAUNCH_TYPE_MISSING` \| `LAUNCH_CONFIGURATION_NOT_FOUND` \| `WORKSPACE_LOCKED` \| `OPERATION_TIMED_OUT` \| `DEPENDENCY_RESOLUTION_FAILED` \| `TEST_RESULTS_NOT_REPORTED` \| `COVERAGE_UNAVAILABLE` \| `VALIDATION_ERROR` \| `INTERNAL_ERROR`
+`RESOURCE_NOT_FOUND` \| `RESOURCE_NOT_ACCESSIBLE` \| `RESOURCE_ALREADY_EXISTS` \| `READ_ONLY_RESOURCE` \| `INVALID_RANGE` \| `VERSION_CONFLICT` \| `RESOURCE_VERSION_EXPIRED` \| `RESOURCE_OUT_OF_SYNC` \| `HISTORY_UNAVAILABLE` \| `TEXT_NOT_FOUND` \| `AMBIGUOUS_MATCH` \| `OVERLAPPING_EDITS` \| `INVALID_JAVA_EDIT` \| `REFACTORING_PRECONDITION_FAILED` \| `EDITOR_REVEAL_FAILED` \| `FORMATTER_FAILED` \| `PATCH_APPLY_FAILED` \| `MERGE_CONFLICT` \| `CHECKOUT_CONFLICT` \| `BRANCH_NOT_MERGED` \| `REVISION_NOT_FOUND` \| `WRONG_REPOSITORY_STATE` \| `UNCOMMITTED_CHANGES` \| `PUSH_REJECTED` \| `REMOTE_OPERATION_FAILED` \| `PROJECT_NOT_FOUND` \| `TEST_CLASS_NOT_FOUND` \| `TEST_PACKAGE_NOT_FOUND` \| `PDE_LAUNCH_TYPE_MISSING` \| `LAUNCH_CONFIGURATION_NOT_FOUND` \| `WORKSPACE_LOCKED` \| `OPERATION_TIMED_OUT` \| `DEPENDENCY_RESOLUTION_FAILED` \| `TEST_RESULTS_NOT_REPORTED` \| `COVERAGE_UNAVAILABLE` \| `VALIDATION_ERROR` \| `INTERNAL_ERROR`
 
 ### `ResourceDescriptorResourceType`
 
