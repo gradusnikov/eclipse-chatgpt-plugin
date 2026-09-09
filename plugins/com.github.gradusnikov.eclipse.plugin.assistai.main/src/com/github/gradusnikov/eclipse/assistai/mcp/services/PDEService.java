@@ -631,6 +631,15 @@ public class PDEService
     private static final int MAX_TEST_RUN_MINUTES = 120;
 
     /**
+     * How long to keep waiting, after the test instance exits with code 23, for PDE to
+     * launch it again. Equinox exits with 23 (IApplication.EXIT_RESTART) when it had to
+     * rewire bundles on first boot, and PDE's LaunchListener honours that by relaunching
+     * the configuration - but only once the debug framework's asynchronous TERMINATE
+     * event reaches it, which can be well after the launch reports itself terminated.
+     */
+    private static final long RESTART_GRACE_MILLIS = 15_000;
+
+    /**
      * JDT's own test-container attribute. Not exposed as API by
      * {@code org.eclipse.jdt.junit}, so it is a string literal wherever it is used - once,
      * here.
@@ -910,6 +919,7 @@ public class PDEService
                 Display display = Display.getCurrent();
                 boolean completed = false;
                 boolean attached = false;
+                long restartGraceDeadline = 0;
                 while ( !completed && System.currentTimeMillis() < deadline )
                 {
                     if ( display != null && !display.isDisposed() )
@@ -931,19 +941,34 @@ public class PDEService
                     if ( !completed && launchRef[0] != null && launchRef[0].isTerminated() )
                     {
                         // When Equinox needs to rewire bundles it exits with code 23 and PDE's
-                        // LaunchListener synchronously creates a restart launch before marking
-                        // the original terminated. Switch tracking to the restart launch.
+                        // LaunchListener launches the same configuration again with RESTART=true.
+                        // It does that from the process's TERMINATE debug event, which is
+                        // dispatched asynchronously - so the launch can already report itself
+                        // terminated here while the restart launch does not exist yet. Concluding
+                        // at that instant reported "no test results, exit code 23" for a run that
+                        // was about to succeed. Give the listener a bounded grace period instead.
                         if ( testRunResults[0] == null
-                            && getRawExitCode( launchRef[0] ) == org.eclipse.equinox.app.IApplication.EXIT_RESTART
-                            && restartLaunchRef[0] != null )
+                            && getRawExitCode( launchRef[0] ) == org.eclipse.equinox.app.IApplication.EXIT_RESTART )
                         {
-                            String msg = "[PDEService] Equinox requested restart (exit 23) —"
-                                + " bundle cache is now warm, following auto-restarted launch";
-                            System.out.println( msg );
-                            operation.ifPresent( op -> op.setProgress( msg ) );
-                            launchRef[0] = restartLaunchRef[0];
-                            restartLaunchRef[0] = null;
-                            attached = false; // re-attach process output to the new launch
+                            if ( restartLaunchRef[0] != null )
+                            {
+                                String msg = "[PDEService] Equinox requested restart (exit 23) —"
+                                    + " bundle cache is now warm, following auto-restarted launch";
+                                System.out.println( msg );
+                                operation.ifPresent( op -> op.setProgress( msg ) );
+                                launchRef[0] = restartLaunchRef[0];
+                                restartLaunchRef[0] = null;
+                                attached = false; // re-attach process output to the new launch
+                                restartGraceDeadline = 0;
+                            }
+                            else if ( restartGraceDeadline == 0 )
+                            {
+                                restartGraceDeadline = System.currentTimeMillis() + RESTART_GRACE_MILLIS;
+                            }
+                            else if ( System.currentTimeMillis() >= restartGraceDeadline )
+                            {
+                                completed = true;
+                            }
                         }
                         else
                         {
@@ -976,11 +1001,19 @@ public class PDEService
 
                 if ( testRunResults[0] == null )
                 {
+                    String exitHint = launchRef[0] == null ? ""
+                        : "\n\nEclipse exit code: " + getExitCode( launchRef[0] );
+                    if ( launchRef[0] != null
+                        && getRawExitCode( launchRef[0] ) == org.eclipse.equinox.app.IApplication.EXIT_RESTART )
+                    {
+                        exitHint += "\nExit code 23 is Equinox asking for a restart; PDE did not launch the"
+                            + " configuration again within " + RESTART_GRACE_MILLIS / 1000 + "s.";
+                    }
                     return TestRunResponse.notStarted( projectName, requestedClasses,
                         Diagnostic.fatal( DiagnosticCode.TEST_RESULTS_NOT_REPORTED,
                             "No test results collected. The test run may have failed to start."
                                 + "\nCheck the console output of the launch or the workspace log file."
-                                + ( launchRef[0] != null ? "\n\nEclipse exit code: " + getExitCode( launchRef[0] ) : "" ) ),
+                                + exitHint ),
                         elapsed( runStartMillis ) );
                 }
 
