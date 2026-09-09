@@ -226,7 +226,15 @@ public class PDEService
             return ActiveTargetResponse.runningPlatform();
         }
 
-        ITargetDefinition definition = handle.getTargetDefinition();
+        // Ask for the definition PDE holds, not handle.getTargetDefinition(): the handle
+        // re-reads the .target file into a new, never-resolved instance on every call, so
+        // "resolved" from it is always false - even straight after LoadTargetDefinitionJob
+        // resolved the workspace target, which is the very thing reload is asked about.
+        ITargetDefinition definition = service.getWorkspaceTargetDefinition();
+        if ( definition == null )
+        {
+            definition = handle.getTargetDefinition();
+        }
         boolean resolved = definition.isResolved();
         Integer bundleCount = null;
         if ( resolved )
