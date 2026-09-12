@@ -85,6 +85,17 @@ public class JavadocsTest
     }
 
     @Test
+    public void markdownTidiesTheArtifactsJdkCommentsProduce()
+    {
+        // A line break after {@code List} in the source lands inside the code span; an empty anchor becomes {#id}.
+        String markdown = Javadocs.toMarkdown( "of the <code>List\n</code> interface.<a id=\"fail-fast\"></a>\n<p>Fail-fast means..." );
+
+        assertTrue( markdown.contains( "the `List` interface." ), markdown );
+        assertFalse( markdown.contains( "{#" ), markdown );
+        assertTrue( markdown.contains( "Fail-fast means" ), markdown );
+    }
+
+    @Test
     public void detailParsesCaseInsensitivelyWithADefault()
     {
         assertEquals( Javadocs.Detail.SUMMARY, Javadocs.Detail.parse( null, Javadocs.Detail.SUMMARY ) );

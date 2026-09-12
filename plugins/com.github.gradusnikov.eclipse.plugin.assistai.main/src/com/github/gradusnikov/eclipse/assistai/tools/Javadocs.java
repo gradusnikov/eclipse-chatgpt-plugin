@@ -86,6 +86,12 @@ public final class Javadocs
 
     private static final Pattern WHITESPACE = Pattern.compile( "\\s+" );
 
+    /** A single-backtick code span with whitespace inside its delimiters: a line break in the source comment ends up as {@code `List\n`}. */
+    private static final Pattern PADDED_CODE_SPAN = Pattern.compile( "(?<!`)`\\s*([^`]*?)\\s*`(?!`)" );
+
+    /** An empty HTML anchor ({@code <a id="fail-fast"></a>}), which the converter renders as an attribute block. */
+    private static final Pattern ANCHOR_ATTRIBUTE = Pattern.compile( "\\s*\\{#[\\w.:-]+\\}" );
+
     private Javadocs()
     {
     }
@@ -134,7 +140,10 @@ public final class Javadocs
     public static String toMarkdown( String html )
     {
         String markdown = CONVERTER.convert( HTML_COMMENT.matcher( html ).replaceAll( "" ) );
-        return WORKBENCH_LINK.matcher( markdown ).replaceAll( "$1" ).strip();
+        markdown = WORKBENCH_LINK.matcher( markdown ).replaceAll( "$1" );
+        markdown = PADDED_CODE_SPAN.matcher( markdown ).replaceAll( "`$1`" );
+        markdown = ANCHOR_ATTRIBUTE.matcher( markdown ).replaceAll( "" );
+        return markdown.strip();
     }
 
     /**
