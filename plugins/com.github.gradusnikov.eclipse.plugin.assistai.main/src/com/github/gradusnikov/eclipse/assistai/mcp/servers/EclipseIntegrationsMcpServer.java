@@ -51,6 +51,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.ResourceService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.SearchService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.UnitTestService;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceReadResult;
+import com.github.gradusnikov.eclipse.assistai.tools.Javadocs;
 
 import io.modelcontextprotocol.spec.McpSchema;
 import jakarta.inject.Inject;
@@ -107,15 +108,23 @@ public class EclipseIntegrationsMcpServer
         return codeEditingService.formatCode( code, projectName );
     }
 
-    @Tool( name = "getJavaDoc", description = "Gets the JavaDoc of a Java type as Markdown, with each of its members' declarations. "
+    @Tool( name = "getJavaDoc", description = "Renders the Javadoc of a Java type and of the members it declares as Markdown, the way the IDE's hover does: "
+            + "an undocumented override reports its supertype's text with javadocInherited=true, and {@inheritDoc} is expanded. "
+            + "javadoc is the type's own comment (null when it has none); members lists each field, method and member type with its declaration as label. "
+            + "memberName restricts members to one name - every overload of a method. "
             + "A member type of class A in package x.y is named x.y.A.B, and a type name must match its compilation unit name to be found. "
-            + "status separates the three cases that used to share one sentence: OK, NO_JAVADOC (the type exists and is undocumented - read the "
-            + "source instead) and TYPE_NOT_FOUND (no open project resolves the name - fix it). projectName says which project answered.",
+            + "status separates OK, NO_JAVADOC (the type exists and nothing in it is documented - read the source instead), MEMBER_NOT_FOUND "
+            + "and TYPE_NOT_FOUND (no open project resolves the name - fix it). projectName says which project answered.",
             type = "object", outputType = JavaDocResponse.class )
-    public JavaDocResponse getJavaDoc( @ToolParam( name = "fullyQualifiedName", description = "A fully qualified name of the compilation unit", required = true )
-    String fullyQualifiedClassName )
+    public JavaDocResponse getJavaDoc(
+            @ToolParam( name = "fullyQualifiedName", description = "A fully qualified name of the compilation unit", required = true )
+            String fullyQualifiedClassName,
+            @ToolParam( name = "memberName", description = "A field, method or member type name to document instead of every member (e.g. 'save')", required = false )
+            String memberName,
+            @ToolParam( name = "javadoc", description = "FULL (default): each whole comment as Markdown, with parameters, return and exceptions; SUMMARY: the first sentence only", required = false )
+            String javadoc )
     {
-        return javaDocService.getJavaDoc( fullyQualifiedClassName );
+        return javaDocService.getJavaDoc( fullyQualifiedClassName, memberName, Javadocs.Detail.parse( javadoc, Javadocs.Detail.FULL ) );
     }
 
     @Tool( name = "getSource", description = "Get source for a workspace or referenced-library class. Prefers original/attached source and decompiles binary classes when source is unavailable. "
@@ -140,19 +149,23 @@ public class EclipseIntegrationsMcpServer
         return javaDocService.explainTypeResolution( projectName, fullyQualifiedClassName );
     }
 
-    @Tool( name = "getClassOutline", description = "Returns the outline of a Java class: its declaration plus fields, method signatures (no bodies) and inner types. "
+    @Tool( name = "getClassOutline", description = "Returns the outline of a Java class: its declaration plus fields, method signatures (no bodies) and inner types, "
+            + "each with the first sentence of its Javadoc, so the outline says what the members do and not only how they are called. "
             + "Every entry carries a 1-based startLine and endLine, so one member can be read with readProjectResource(projectName, filePath, startLine, endLine) "
             + "instead of fetching the whole file. Much cheaper than getSource; use this first, then getMethodSource or readProjectResource for the member you want. "
-            + "status reports TYPE_NOT_FOUND, NO_SOURCE or ACCESS_DENIED rather than an empty outline.",
+            + "javadoc=FULL renders each member's whole comment as Markdown and NONE leaves documentation out; a method with no comment of its own reports "
+            + "its supertype's text with javadocInherited=true. status reports TYPE_NOT_FOUND, NO_SOURCE or ACCESS_DENIED rather than an empty outline.",
             type = "object", outputType = ClassOutlineResponse.class )
     public ClassOutlineResponse getClassOutline(
             @ToolParam( name = "fullyQualifiedClassName", description = "A fully qualified class name (e.g. 'com.example.MyClass')", required = true )
             String fullyQualifiedClassName,
             @ToolParam( name = "includeFields", description = "Whether to include field declarations (default: true)", required = false )
-            String includeFields )
+            String includeFields,
+            @ToolParam( name = "javadoc", description = "How much of each member's Javadoc to include: SUMMARY (default) is the first sentence, FULL the whole comment as Markdown, NONE leaves it out", required = false )
+            String javadoc )
     {
         boolean fields = Optional.ofNullable( includeFields ).map( Boolean::parseBoolean ).orElse( true );
-        return codeAnalysisService.getClassOutline( fullyQualifiedClassName, fields );
+        return codeAnalysisService.getClassOutline( fullyQualifiedClassName, fields, Javadocs.Detail.parse( javadoc, Javadocs.Detail.SUMMARY ) );
     }
 
     @Tool( name = "getMethodSource", description = "Returns the source of specific method(s) of one class. Accepts comma-separated method names to retrieve several in one call. "
@@ -503,13 +516,16 @@ public class EclipseIntegrationsMcpServer
     @Tool( name = "getTypeHierarchy", longExecution = true, description = "Retrieves the type hierarchy of a Java class or interface as three separate lists: "
             + "superclasses (nearest first), implemented interfaces and subtypes. A type whose source is in the workspace also reports the projectName "
             + "and project-relative filePath the reading and editing tools take; one from a JAR or the JRE reports neither. "
-            + "status is TYPE_NOT_FOUND when no open Java project knows the name.",
+            + "status is TYPE_NOT_FOUND when no open Java project knows the name. "
+            + "javadoc=SUMMARY adds each type's first Javadoc sentence and FULL its whole comment; the default NONE keeps the answer structural.",
             type = "object", outputType = TypeHierarchyResponse.class )
     public TypeHierarchyResponse getTypeHierarchy(
             @ToolParam( name = "fullyQualifiedClassName", description = "The fully qualified name of the class (e.g., 'com.example.MyClass')", required = true )
-            String fullyQualifiedClassName )
+            String fullyQualifiedClassName,
+            @ToolParam( name = "javadoc", description = "How much of each type's Javadoc to include: NONE (default), SUMMARY (first sentence) or FULL (whole comment as Markdown)", required = false )
+            String javadoc )
     {
-        return codeAnalysisService.getTypeHierarchy( fullyQualifiedClassName );
+        return codeAnalysisService.getTypeHierarchy( fullyQualifiedClassName, Javadocs.Detail.parse( javadoc, Javadocs.Detail.NONE ) );
     }
 
     @Tool( name = "findReferences", longExecution = true, description = "Finds all references/usages of a Java type, method, or field across the entire workspace. "
@@ -699,7 +715,8 @@ public class EclipseIntegrationsMcpServer
                        + "Prefer this over fileSearch for finding types: it searches the JDT index (instant) rather than file contents, "
                        + "and supports CamelCase patterns that text search cannot. "
                        + "After finding types, use getClassOutline or getPackageSummary to understand them, "
-                       + "then getMethodSource to read specific methods.",
+                       + "then getMethodSource to read specific methods. "
+                       + "javadoc=SUMMARY adds each shown type's first Javadoc sentence, which tells similar names apart without opening them; default NONE.",
            type = "object",
            outputType = TypeSearchResponse.class )
     public TypeSearchResponse searchTypes(
@@ -711,10 +728,12 @@ public class EclipseIntegrationsMcpServer
                                                       + "Tips: try multiple patterns for a concept — e.g. for 'payment' try '*Payment*', '*Billing*', '*Transaction*'.", required = true )
             String pattern,
             @ToolParam( name = "maxResults", description = "Maximum number of results to return (default: 100)", required = false )
-            String maxResults )
+            String maxResults,
+            @ToolParam( name = "javadoc", description = "How much of each type's Javadoc to include: NONE (default), SUMMARY (first sentence) or FULL (whole comment as Markdown)", required = false )
+            String javadoc )
     {
         Integer limit = parseOptionalInt( maxResults );
-        return codeDiscoveryService.searchTypes( pattern, limit );
+        return codeDiscoveryService.searchTypes( pattern, limit, Javadocs.Detail.parse( javadoc, Javadocs.Detail.NONE ) );
     }
 
     @Tool( name = "searchMethods",
@@ -725,7 +744,9 @@ public class EclipseIntegrationsMcpServer
                        + "Supports wildcards (* and ?), CamelCase matching, and prefix matching. "
                        + "Optionally filter by declaring type to narrow results. "
                        + "Returns the method name, declaring class, package, parameter types, and return type. "
-                       + "After finding a method, use getMethodSource to read its implementation.",
+                       + "After finding a method, use getMethodSource to read its implementation. "
+                       + "javadoc=SUMMARY adds each shown method's first Javadoc sentence; an undocumented override reports its supertype's "
+                       + "text with javadocInherited=true. Default NONE.",
            type = "object",
            outputType = MethodSearchResponse.class )
     public MethodSearchResponse searchMethods(
@@ -739,10 +760,12 @@ public class EclipseIntegrationsMcpServer
                                                                    + "Useful when the method name is common (e.g. 'get*') and you want to narrow to specific classes.", required = false )
             String declaringTypePattern,
             @ToolParam( name = "maxResults", description = "Maximum number of results to return (default: 100)", required = false )
-            String maxResults )
+            String maxResults,
+            @ToolParam( name = "javadoc", description = "How much of each method's Javadoc to include: NONE (default), SUMMARY (first sentence) or FULL (whole comment as Markdown)", required = false )
+            String javadoc )
     {
         Integer limit = parseOptionalInt( maxResults );
-        return codeDiscoveryService.searchMethods( pattern, declaringTypePattern, limit );
+        return codeDiscoveryService.searchMethods( pattern, declaringTypePattern, limit, Javadocs.Detail.parse( javadoc, Javadocs.Detail.NONE ) );
     }
 
     @Tool( name = "getPackageSummary",
@@ -759,9 +782,11 @@ public class EclipseIntegrationsMcpServer
             @ToolParam( name = "packageName", description = "Fully qualified package name (e.g. 'com.example.payment', 'org.acme.auth.service')", required = true )
             String packageName,
             @ToolParam( name = "projectName", description = "Optional project name to narrow the search. Useful in multi-project workspaces.", required = false )
-            String projectName )
+            String projectName,
+            @ToolParam( name = "javadoc", description = "How much of each type's Javadoc to include: SUMMARY (default) is the first sentence, FULL the whole comment as Markdown, NONE leaves it out", required = false )
+            String javadoc )
     {
-        return codeDiscoveryService.getPackageSummary( packageName, projectName );
+        return codeDiscoveryService.getPackageSummary( packageName, projectName, Javadocs.Detail.parse( javadoc, Javadocs.Detail.SUMMARY ) );
     }
 
     @Tool( name = "getWorkspaceOverview",

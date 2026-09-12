@@ -10,13 +10,21 @@ public record MethodSearchResponse(
     String summaryText
 )
 {
+    /**
+     * @param javadoc the method's documentation as Markdown at the requested detail, or
+     *            null when none was requested or the method has none, its own or inherited
+     * @param javadocInherited the method has no comment of its own and {@code javadoc} is
+     *            its supertype's
+     */
     public record MethodMatch(
         String methodName,
         String declaringType,
         String packageName,
         String projectName,
         String returnType,
-        List<String> parameterTypes
+        List<String> parameterTypes,
+        String javadoc,
+        boolean javadocInherited
     )
     {
     }

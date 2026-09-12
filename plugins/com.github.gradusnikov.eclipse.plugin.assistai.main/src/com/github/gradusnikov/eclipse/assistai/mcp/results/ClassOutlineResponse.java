@@ -15,6 +15,10 @@ import java.util.List;
  * the editing tools take, so a member can be read with
  * {@code readProjectResource(projectName, filePath, startLine, endLine)} without a
  * second lookup.
+ * <p>
+ * Each entry also carries its Javadoc, rendered the way the IDE's hover renders it - by
+ * default the first sentence, which is what turns a list of signatures into an overview
+ * of what the members do. The caller chooses the level of detail; see {@code Member}.
  */
 public record ClassOutlineResponse(
     String typeName,
@@ -49,12 +53,20 @@ public record ClassOutlineResponse(
      * @param startLine 1-based, inclusive, counted by the platform's line tracker so a
      *            CRLF file reports the same lines as an LF one
      * @param endLine 1-based, inclusive; equal to {@code startLine} for a one-line member
+     * @param javadoc the member's documentation as Markdown at the requested detail - the
+     *            first sentence, or the whole comment - or null when none was requested
+     *            or the member has none, its own or inherited
+     * @param javadocInherited the member has no comment of its own and {@code javadoc} is
+     *            its supertype's, which is what a caller deciding whether to document the
+     *            member needs to know. Only methods inherit
      */
     public record Member(
         String name,
         String label,
         int startLine,
-        int endLine
+        int endLine,
+        String javadoc,
+        boolean javadocInherited
     )
     {
         /** How many lines reading this member costs, which is what a caller budgets against. */

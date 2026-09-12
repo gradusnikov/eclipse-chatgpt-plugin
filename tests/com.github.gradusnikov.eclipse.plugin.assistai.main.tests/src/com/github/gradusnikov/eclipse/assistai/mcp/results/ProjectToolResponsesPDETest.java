@@ -362,7 +362,7 @@ public class ProjectToolResponsesPDETest
 
     private static JavaDocResponse someJavaDoc()
     {
-        return JavaDocResponse.of( JavaDocResponse.Status.OK, "com.example.A", "P", "Documents A." );
+        return JavaDocResponse.of( JavaDocResponse.Status.OK, "com.example.A", "P", "Documents A.", List.of() );
     }
 
     @Test
@@ -372,13 +372,13 @@ public class ProjectToolResponsesPDETest
     }
 
     @Test
-    public void javaDocKeepsTheBodyAsOneMarkdownString()
+    public void javaDocKeepsTheTypesCommentAsOneMarkdownString()
     {
-        // One string, and nullable: a type that resolves but carries no documentation
-        // reports NO_JAVADOC with no body, rather than an empty string that a caller
-        // would have to tell apart from documentation that is genuinely blank.
+        // One string, and nullable: a type that resolves but carries no comment of its
+        // own reports null, rather than an empty string that a caller would have to tell
+        // apart from documentation that is genuinely blank.
         assertEquals( List.of( "string", "null" ),
-                property( properties( JavaDocResponse.class ), "markdown" ).get( "type" ),
+                property( properties( JavaDocResponse.class ), "javadoc" ).get( "type" ),
                 "rendered Markdown is one piece of text, the trade DiffResponse also makes" );
     }
 
@@ -392,7 +392,7 @@ public class ProjectToolResponsesPDETest
         JavaDocResponse missing = JavaDocResponse.notFound( "com.example.Nope",
                 Diagnostic.fatal( DiagnosticCode.RESOURCE_NOT_FOUND, "no project resolves it" ) );
         JavaDocResponse undocumented =
-                JavaDocResponse.of( JavaDocResponse.Status.NO_JAVADOC, "com.example.A", "P", "A [in A.java]" );
+                JavaDocResponse.of( JavaDocResponse.Status.NO_JAVADOC, "com.example.A", "P", null, List.of() );
 
         assertNull( missing.projectName() );
         assertEquals( DiagnosticCode.RESOURCE_NOT_FOUND, missing.diagnostics().get( 0 ).code() );

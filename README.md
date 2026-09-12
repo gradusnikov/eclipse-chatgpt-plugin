@@ -220,12 +220,12 @@ Direct file-editing tools complete a workspace synchronization barrier before re
 |------|-------------|
 | getSource | Source of a workspace or referenced-library class; prefers attached source JARs and decompiles binaries when source is unavailable |
 | explainTypeResolution | Explain how a type resolves in a specific project's JDT classpath: source/binary origin, root, entry, attachment, class file, and source/decompilation strategy |
-| getClassOutline | Compact class outline -- declarations and method signatures (no bodies) with line numbers |
+| getClassOutline | Compact class outline -- declarations and method signatures (no bodies) with line numbers and each member's Javadoc summary |
 | getMethodSource | Source of specific methods by name, with overload disambiguation |
 | getFilteredSource | Full source with non-selected methods collapsed to signatures |
 | readProjectResource | Read a text resource, with optional import block collapsing |
 | readImageResource | Return a workspace image as native MCP `ImageContent` (PNG, JPEG, GIF, BMP, TIFF, or ICO; maximum 20 MiB) |
-| getJavaDoc | JavaDoc for a compilation unit |
+| getJavaDoc | Rendered JavaDoc of a type and its members, inherited text included |
 | formatCode | Format code using Eclipse formatter settings |
 | getProjectProperties | Project properties and configuration |
 | getProjectLayout | File/folder structure with `scopePath` and `maxDepth` support |

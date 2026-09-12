@@ -857,12 +857,13 @@ Formats code according to the current Eclipse formatter settings.
 
 ### `getClassOutline`
 
-Returns the outline of a Java class: its declaration plus fields, method signatures (no bodies) and inner types. Every entry carries a 1-based startLine and endLine, so one member can be read with readProjectResource(projectName, filePath, startLine, endLine) instead of fetching the whole file. Much cheaper than getSource; use this first, then getMethodSource or readProjectResource for the member you want. status reports TYPE_NOT_FOUND, NO_SOURCE or ACCESS_DENIED rather than an empty outline.
+Returns the outline of a Java class: its declaration plus fields, method signatures (no bodies) and inner types, each with the first sentence of its Javadoc, so the outline says what the members do and not only how they are called. Every entry carries a 1-based startLine and endLine, so one member can be read with readProjectResource(projectName, filePath, startLine, endLine) instead of fetching the whole file. Much cheaper than getSource; use this first, then getMethodSource or readProjectResource for the member you want. javadoc=FULL renders each member's whole comment as Markdown and NONE leaves documentation out; a method with no comment of its own reports its supertype's text with javadocInherited=true. status reports TYPE_NOT_FOUND, NO_SOURCE or ACCESS_DENIED rather than an empty outline.
 
 | Parameter | | Description |
 |---|---|---|
 | `fullyQualifiedClassName` | \* | A fully qualified class name (e.g. 'com.example.MyClass') |
 | `includeFields` |  | Whether to include field declarations (default: true) |
+| `javadoc` |  | How much of each member's Javadoc to include: SUMMARY (default) is the first sentence, FULL the whole comment as Markdown, NONE leaves it out |
 
 **Returns** [`ClassOutlineResponse`](#classoutlineresponse)
 
@@ -938,11 +939,13 @@ Finds import candidates for the unresolved types in a Java file. Each candidate 
 
 ### `getJavaDoc`
 
-Gets the JavaDoc of a Java type as Markdown, with each of its members' declarations. A member type of class A in package x.y is named x.y.A.B, and a type name must match its compilation unit name to be found. status separates the three cases that used to share one sentence: OK, NO_JAVADOC (the type exists and is undocumented - read the source instead) and TYPE_NOT_FOUND (no open project resolves the name - fix it). projectName says which project answered.
+Renders the Javadoc of a Java type and of the members it declares as Markdown, the way the IDE's hover does: an undocumented override reports its supertype's text with javadocInherited=true, and {@inheritDoc} is expanded. javadoc is the type's own comment (null when it has none); members lists each field, method and member type with its declaration as label. memberName restricts members to one name - every overload of a method. A member type of class A in package x.y is named x.y.A.B, and a type name must match its compilation unit name to be found. status separates OK, NO_JAVADOC (the type exists and nothing in it is documented - read the source instead), MEMBER_NOT_FOUND and TYPE_NOT_FOUND (no open project resolves the name - fix it). projectName says which project answered.
 
 | Parameter | | Description |
 |---|---|---|
 | `fullyQualifiedName` | \* | A fully qualified name of the compilation unit |
+| `memberName` |  | A field, method or member type name to document instead of every member (e.g. 'save') |
+| `javadoc` |  | FULL (default): each whole comment as Markdown, with parameters, return and exceptions; SUMMARY: the first sentence only |
 
 **Returns** [`JavaDocResponse`](#javadocresponse)
 
@@ -1004,6 +1007,7 @@ Returns a table-of-contents for a Java package: every type's name, kind (class/i
 |---|---|---|
 | `packageName` | \* | Fully qualified package name (e.g. 'com.example.payment', 'org.acme.auth.service') |
 | `projectName` |  | Optional project name to narrow the search. Useful in multi-project workspaces. |
+| `javadoc` |  | How much of each type's Javadoc to include: SUMMARY (default) is the first sentence, FULL the whole comment as Markdown, NONE leaves it out |
 
 **Returns** [`PackageSummaryResponse`](#packagesummaryresponse)
 
@@ -1051,11 +1055,12 @@ Get source for a workspace or referenced-library class. Prefers original/attache
 
 ### `getTypeHierarchy` *(long)*
 
-Retrieves the type hierarchy of a Java class or interface as three separate lists: superclasses (nearest first), implemented interfaces and subtypes. A type whose source is in the workspace also reports the projectName and project-relative filePath the reading and editing tools take; one from a JAR or the JRE reports neither. status is TYPE_NOT_FOUND when no open Java project knows the name.
+Retrieves the type hierarchy of a Java class or interface as three separate lists: superclasses (nearest first), implemented interfaces and subtypes. A type whose source is in the workspace also reports the projectName and project-relative filePath the reading and editing tools take; one from a JAR or the JRE reports neither. status is TYPE_NOT_FOUND when no open Java project knows the name. javadoc=SUMMARY adds each type's first Javadoc sentence and FULL its whole comment; the default NONE keeps the answer structural.
 
 | Parameter | | Description |
 |---|---|---|
 | `fullyQualifiedClassName` | \* | The fully qualified name of the class (e.g., 'com.example.MyClass') |
+| `javadoc` |  | How much of each type's Javadoc to include: NONE (default), SUMMARY (first sentence) or FULL (whole comment as Markdown) |
 
 **Returns** [`TypeHierarchyResponse`](#typehierarchyresponse)
 
@@ -1166,24 +1171,26 @@ Search and replace across multiple files in the workspace using Eclipse's text s
 
 ### `searchMethods` *(long)*
 
-Searches for methods by name pattern across the entire workspace. Use this when you know (or can guess) a method name but don't know which class contains it. For example, if a user says 'fix the error handling', search for '*error*' or 'handle*' to find relevant methods. Supports wildcards (* and ?), CamelCase matching, and prefix matching. Optionally filter by declaring type to narrow results. Returns the method name, declaring class, package, parameter types, and return type. After finding a method, use getMethodSource to read its implementation.
+Searches for methods by name pattern across the entire workspace. Use this when you know (or can guess) a method name but don't know which class contains it. For example, if a user says 'fix the error handling', search for '*error*' or 'handle*' to find relevant methods. Supports wildcards (* and ?), CamelCase matching, and prefix matching. Optionally filter by declaring type to narrow results. Returns the method name, declaring class, package, parameter types, and return type. After finding a method, use getMethodSource to read its implementation. javadoc=SUMMARY adds each shown method's first Javadoc sentence; an undocumented override reports its supertype's text with javadocInherited=true. Default NONE.
 
 | Parameter | | Description |
 |---|---|---|
 | `pattern` | \* | Method name pattern. Supports: wildcards (handle*Error, get*, *Payment, process*), CamelCase (pP -> processPayment — requires 2+ uppercase letters), or prefix (handle -> handleError, handleTimeout, ...). Note: CamelCase and prefix patterns are case-sensitive; use wildcards (*foo*) for case-insensitive matching. |
 | `declaringTypePattern` |  | Optional pattern to filter by declaring type name (e.g. '*Service', 'Payment*'). Useful when the method name is common (e.g. 'get*') and you want to narrow to specific classes. |
 | `maxResults` |  | Maximum number of results to return (default: 100) |
+| `javadoc` |  | How much of each method's Javadoc to include: NONE (default), SUMMARY (first sentence) or FULL (whole comment as Markdown) |
 
 **Returns** [`MethodSearchResponse`](#methodsearchresponse)
 
 ### `searchTypes` *(long)*
 
-Searches for Java types (classes, interfaces, enums, records, annotations) by name pattern. This is the primary discovery tool — use it FIRST when a user mentions a concept (e.g. 'payment handling', 'authentication') and you need to find which classes implement it. Supports wildcards (* and ?), CamelCase matching (e.g. 'PS' finds 'PaymentService'), and prefix matching. Prefer this over fileSearch for finding types: it searches the JDT index (instant) rather than file contents, and supports CamelCase patterns that text search cannot. After finding types, use getClassOutline or getPackageSummary to understand them, then getMethodSource to read specific methods.
+Searches for Java types (classes, interfaces, enums, records, annotations) by name pattern. This is the primary discovery tool — use it FIRST when a user mentions a concept (e.g. 'payment handling', 'authentication') and you need to find which classes implement it. Supports wildcards (* and ?), CamelCase matching (e.g. 'PS' finds 'PaymentService'), and prefix matching. Prefer this over fileSearch for finding types: it searches the JDT index (instant) rather than file contents, and supports CamelCase patterns that text search cannot. After finding types, use getClassOutline or getPackageSummary to understand them, then getMethodSource to read specific methods. javadoc=SUMMARY adds each shown type's first Javadoc sentence, which tells similar names apart without opening them; default NONE.
 
 | Parameter | | Description |
 |---|---|---|
 | `pattern` | \* | Type name pattern. Supports: wildcards (*Payment*, *Service, Error*), CamelCase (PS -> PaymentService, TxH -> TransactionHandler, CC -> CreditCard), prefix (Payment -> PaymentService, PaymentProcessor, ...), or package-qualified (com.example.*Service). Tips: try multiple patterns for a concept — e.g. for 'payment' try '*Payment*', '*Billing*', '*Transaction*'. |
 | `maxResults` |  | Maximum number of results to return (default: 100) |
+| `javadoc` |  | How much of each type's Javadoc to include: NONE (default), SUMMARY (first sentence) or FULL (whole comment as Markdown) |
 
 **Returns** [`TypeSearchResponse`](#typesearchresponse)
 
@@ -2042,7 +2049,8 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `status` | [`JavaDocResponseStatus`](#javadocresponsestatus) |
 | `typeName` | `String` |
 | `projectName` | `String` |
-| `markdown` | `String` |
+| `javadoc` | `String` |
+| `members` | [`JavaDocResponseMemberJavadoc`](#javadocresponsememberjavadoc)[] |
 | `diagnostics` | [`Diagnostic`](#diagnostic)[] |
 
 ### `MarkdownOutlineResponse`
@@ -2728,6 +2736,8 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `label` | `String` |
 | `startLine` | `int` |
 | `endLine` | `int` |
+| `javadoc` | `String` |
+| `javadocInherited` | `boolean` |
 
 ### `CompilationProblemsResponseFileProblems`
 
@@ -2766,7 +2776,16 @@ Reads the content of the given web page and returns it as markdown, together wit
 
 ### `JavaDocResponseStatus`
 
-`OK` \| `NO_JAVADOC` \| `TYPE_NOT_FOUND`
+`OK` \| `NO_JAVADOC` \| `MEMBER_NOT_FOUND` \| `TYPE_NOT_FOUND`
+
+### `JavaDocResponseMemberJavadoc`
+
+| Field | Type |
+|---|---|
+| `name` | `String` |
+| `label` | `String` |
+| `javadoc` | `String` |
+| `javadocInherited` | `boolean` |
 
 ### `MarkdownOutlineResponseStatus`
 
@@ -2816,7 +2835,7 @@ Reads the content of the given web page and returns it as markdown, together wit
 |---|---|
 | `simpleName` | `String` |
 | `typeKind` | `String` |
-| `javadocSummary` | `String` |
+| `javadoc` | `String` |
 | `methodCount` | `int` |
 | `fieldCount` | `int` |
 | `superInterfaces` | `String`[] |
@@ -2871,6 +2890,7 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `fullyQualifiedName` | `String` |
 | `projectName` | `String` |
 | `filePath` | `String` |
+| `javadoc` | `String` |
 
 ### `WorkspaceOverviewResponseProjectOverview`
 
@@ -2987,6 +3007,8 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `projectName` | `String` |
 | `returnType` | `String` |
 | `parameterTypes` | `String`[] |
+| `javadoc` | `String` |
+| `javadocInherited` | `boolean` |
 
 ### `TypeSearchResponseTypeMatch`
 
@@ -2997,6 +3019,7 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `packageName` | `String` |
 | `projectName` | `String` |
 | `typeKind` | `String` |
+| `javadoc` | `String` |
 
 ### `ActiveTargetResponseTargetStatus`
 
