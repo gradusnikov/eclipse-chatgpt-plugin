@@ -460,7 +460,7 @@ public class EclipseIntegrationsMcpServer
 
     @Tool( name = "updateMavenProject", longExecution = true, description = "Runs the equivalent of the IDE's 'Maven > Update Project' action: re-reads the pom, re-resolves dependencies and reconfigures the project's classpath. Use this after editing a pom.xml - until it runs, the workspace does not see the change, so a newly added dependency is not on the classpath and code using it still fails to compile.", type = "object" )
     public String updateMavenProject(
-            @ToolParam( name = "projectName", description = "The name of the Maven project to update (use listMavenProjects to find it)", required = true )
+            @ToolParam( name = "projectName", description = "The Eclipse project to update (use listMavenProjects to find it); a Maven artifactId or groupId:artifactId is accepted when no project has that name", required = true )
             String projectName,
             @ToolParam( name = "forceDependencyUpdate", description = "If 'true', re-resolves snapshots and releases even when already cached (the 'Force Update of Snapshots/Releases' checkbox). Default: false", required = false )
             String forceDependencyUpdate,
@@ -473,7 +473,7 @@ public class EclipseIntegrationsMcpServer
     }
 
     @Tool( name = "getEffectivePom", longExecution = true, description = "Gets the effective POM for a Maven project.", type = "object" )
-    public String getEffectivePom( @ToolParam( name = "projectName", description = "The name of the Maven project", required = true )
+    public String getEffectivePom( @ToolParam( name = "projectName", description = "The Eclipse project name (use listMavenProjects to find it); a Maven artifactId or groupId:artifactId is accepted when no project has that name", required = true )
     String projectName )
     {
         return mavenService.getEffectivePom( projectName );
@@ -492,7 +492,7 @@ public class EclipseIntegrationsMcpServer
             + "version is null when the pom does not state one here, which is the ordinary case for a dependency managed by a parent's dependencyManagement. "
             + "scope is 'compile' when the pom omits it, the default Maven itself applies.",
             type = "object", outputType = MavenDependenciesResponse.class )
-    public MavenDependenciesResponse getProjectDependencies( @ToolParam( name = "projectName", description = "The name of the Maven project", required = true )
+    public MavenDependenciesResponse getProjectDependencies( @ToolParam( name = "projectName", description = "The Eclipse project name (use listMavenProjects to find it); a Maven artifactId or groupId:artifactId is accepted when no project has that name", required = true )
     String projectName )
     {
         return mavenService.getProjectDependencies( projectName );

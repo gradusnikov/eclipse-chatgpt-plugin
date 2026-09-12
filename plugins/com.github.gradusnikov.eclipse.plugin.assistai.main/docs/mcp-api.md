@@ -909,7 +909,7 @@ Gets the effective POM for a Maven project.
 
 | Parameter | | Description |
 |---|---|---|
-| `projectName` | \* | The name of the Maven project |
+| `projectName` | \* | The Eclipse project name (use listMavenProjects to find it); a Maven artifactId or groupId:artifactId is accepted when no project has that name |
 
 **Returns** `String`
 
@@ -1013,7 +1013,7 @@ Lists the dependencies one project's pom declares. These come from the Maven pro
 
 | Parameter | | Description |
 |---|---|---|
-| `projectName` | \* | The name of the Maven project |
+| `projectName` | \* | The Eclipse project name (use listMavenProjects to find it); a Maven artifactId or groupId:artifactId is accepted when no project has that name |
 
 **Returns** [`MavenDependenciesResponse`](#mavendependenciesresponse)
 
@@ -1193,7 +1193,7 @@ Runs the equivalent of the IDE's 'Maven > Update Project' action: re-reads the p
 
 | Parameter | | Description |
 |---|---|---|
-| `projectName` | \* | The name of the Maven project to update (use listMavenProjects to find it) |
+| `projectName` | \* | The Eclipse project to update (use listMavenProjects to find it); a Maven artifactId or groupId:artifactId is accepted when no project has that name |
 | `forceDependencyUpdate` |  | If 'true', re-resolves snapshots and releases even when already cached (the 'Force Update of Snapshots/Releases' checkbox). Default: false |
 | `offline` |  | If 'true', resolves only from the local repository without reaching the network. Default: false |
 

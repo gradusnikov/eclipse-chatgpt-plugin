@@ -384,6 +384,23 @@ public class MavenService
         return null;
     }
 
+    /**
+     * {@link #resolveProject} for the tools that answer in prose and report a missing
+     * project by throwing. The message names the Maven projects that do exist, since a
+     * caller who got the name wrong needs the right one more than the news.
+     */
+    private IProject requireProject( String projectName )
+    {
+        IProject project = resolveProject( projectName );
+        if ( project == null )
+        {
+            throw new RuntimeException( "Error: Project '" + projectName
+                    + "' does not exist, and no Maven project has that artifactId. Known Maven projects: "
+                    + knownMavenProjects() + "." );
+        }
+        return project;
+    }
+
     private static String knownMavenProjects()
     {
         List<String> names = new ArrayList<>();
@@ -650,11 +667,7 @@ public class MavenService
             throw new RuntimeException( "Error: Project name cannot be empty." );
         }
 
-        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( projectName );
-        if ( !project.exists() )
-        {
-            throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
-        }
+        IProject project = requireProject( projectName );
         if ( !project.isOpen() )
         {
             throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
@@ -716,12 +729,7 @@ public class MavenService
         try
         {
             // Get the project
-            IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( projectName );
-
-            if ( !project.exists() )
-            {
-                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
-            }
+            IProject project = requireProject( projectName );
 
             if ( !project.isOpen() )
             {
@@ -852,12 +860,7 @@ public class MavenService
         try
         {
             // Get the project
-            IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( projectName );
-
-            if ( !project.exists() )
-            {
-                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
-            }
+            IProject project = requireProject( projectName );
 
             if ( !project.isOpen() )
             {
