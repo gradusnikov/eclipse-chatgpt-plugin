@@ -1135,16 +1135,22 @@ Starts a JUnit test run asynchronously and returns an operationId for polling. S
 
 ### `runMavenBuild` *(long)*
 
-Runs a Maven build with the specified goals on a project.
+Runs a Maven build on a project exactly the way the IDE's Run As > Maven build does: through m2e's Maven launch configuration, in a separate JVM with the configured Maven runtime, so the complete Maven log - [INFO] and [ERROR] lines, compiler and test output, the reactor summary - lands in the Console view under the launch's name. goals takes everything you would type after 'mvn', options included, and passes it to Maven verbatim: 'clean verify', 'test -Dtest=FooTest', 'install -DskipTests -pl module -am'. The result reports status (SUCCESS, FAILURE, RUNNING when the wait ran out, CANCELLED, FAILED_TO_START), the exit code, mavenCommand (the command line as Maven received it), errorLines (every distinct [ERROR] line, in order) and output (the last lines of the log, where the verdict and reactor summary are). The whole log is in the console named launchName: read it with getConsoleOutput(consoleName=launchName). The launch configuration is saved, so the build can be rerun from the IDE.
 
 | Parameter | | Description |
 |---|---|---|
-| `projectName` | \* | The name of the project to build |
-| `goals` | \* | The Maven goals to execute (e.g., "clean install") |
-| `profiles` |  | Optional Maven profiles to activate |
-| `timeout` |  | Maximum time in seconds to wait for build completion (0 for no timeout) |
+| `projectName` | \* | The Eclipse project to build (use listMavenProjects to find it). A Maven artifactId or groupId:artifactId is accepted when no project has that name. |
+| `goals` | \* | Everything after 'mvn': phases, goals and any options, passed to Maven verbatim, e.g. 'clean verify' or 'test -Dtest=FooTest -DfailIfNoTests=false' |
+| `profiles` |  | Optional comma-separated profiles to activate (Maven's -P) |
+| `properties` |  | Optional comma-separated key=value system properties, each passed as -Dkey=value. A value that itself contains a comma goes in goals instead, as -Dkey=value. |
+| `pomDirectory` |  | Optional project-relative directory holding the pom.xml to build - a module of a multi-module project. Default: the project root |
+| `offline` |  | If 'true', works offline (-o). Default: false |
+| `updateSnapshots` |  | If 'true', forces a check for updated snapshots and releases (-U). Default: false |
+| `skipTests` |  | If 'true', neither compiles nor runs tests (-Dmaven.test.skip=true -DskipTests). Default: false |
+| `debugOutput` |  | If 'true', asks Maven for debug output and full stack traces (-X -e). Default: false |
+| `timeout` |  | Seconds to wait for the build before this call returns an operationId instead. The build carries on; getOperationStatus reports its output and, once it ends, this same result. Default: 60 |
 
-**Returns** `String`
+**Returns** [`MavenBuildResponse`](#mavenbuildresponse)
 
 ### `searchAndReplace` *(long)*
 
@@ -2196,6 +2202,24 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `summaryText` | `String` |
 | `durationMillis` | `long` |
 
+### `MavenBuildResponse`
+
+| Field | Type |
+|---|---|
+| `status` | [`MavenBuildResponseBuildStatus`](#mavenbuildresponsebuildstatus) |
+| `projectName` | `String` |
+| `pomDirectory` | `String` |
+| `launchName` | `String` |
+| `mavenCommand` | `String` |
+| `exitCode` | `Integer` |
+| `timedOut` | `boolean` |
+| `durationMillis` | `long` |
+| `errorLines` | `String`[] |
+| `errorLinesTruncated` | `boolean` |
+| `output` | [`MavenBuildResponseOutputTail`](#mavenbuildresponseoutputtail) |
+| `diagnostics` | [`Diagnostic`](#diagnostic)[] |
+| `summaryText` | `String` |
+
 ### `SearchReplaceResponse`
 
 | Field | Type |
@@ -2932,6 +2956,18 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `execFilePath` | `String` |
 | `report` | `String` |
 
+### `MavenBuildResponseBuildStatus`
+
+`SUCCESS` \| `FAILURE` \| `RUNNING` \| `CANCELLED` \| `FAILED_TO_START`
+
+### `MavenBuildResponseOutputTail`
+
+| Field | Type |
+|---|---|
+| `text` | `String` |
+| `totalLines` | `int` |
+| `truncated` | `boolean` |
+
 ### `SearchReplaceResponseFileReplacement`
 
 | Field | Type |
@@ -3085,7 +3121,7 @@ Reads the content of the given web page and returns it as markdown, together wit
 
 ### `DiagnosticCode`
 
-`RESOURCE_NOT_FOUND` \| `RESOURCE_NOT_ACCESSIBLE` \| `RESOURCE_ALREADY_EXISTS` \| `READ_ONLY_RESOURCE` \| `INVALID_RANGE` \| `VERSION_CONFLICT` \| `RESOURCE_VERSION_EXPIRED` \| `RESOURCE_OUT_OF_SYNC` \| `HISTORY_UNAVAILABLE` \| `TEXT_NOT_FOUND` \| `AMBIGUOUS_MATCH` \| `OVERLAPPING_EDITS` \| `INVALID_JAVA_EDIT` \| `REFACTORING_PRECONDITION_FAILED` \| `EDITOR_REVEAL_FAILED` \| `FORMATTER_FAILED` \| `PATCH_APPLY_FAILED` \| `MERGE_CONFLICT` \| `CHECKOUT_CONFLICT` \| `BRANCH_NOT_MERGED` \| `REVISION_NOT_FOUND` \| `WRONG_REPOSITORY_STATE` \| `UNCOMMITTED_CHANGES` \| `PUSH_REJECTED` \| `REMOTE_OPERATION_FAILED` \| `PROJECT_NOT_FOUND` \| `TEST_CLASS_NOT_FOUND` \| `TEST_PACKAGE_NOT_FOUND` \| `PDE_LAUNCH_TYPE_MISSING` \| `LAUNCH_CONFIGURATION_NOT_FOUND` \| `WORKSPACE_LOCKED` \| `OPERATION_TIMED_OUT` \| `DEPENDENCY_RESOLUTION_FAILED` \| `TEST_RESULTS_NOT_REPORTED` \| `COVERAGE_UNAVAILABLE` \| `VALIDATION_ERROR` \| `INTERNAL_ERROR`
+`RESOURCE_NOT_FOUND` \| `RESOURCE_NOT_ACCESSIBLE` \| `RESOURCE_ALREADY_EXISTS` \| `READ_ONLY_RESOURCE` \| `INVALID_RANGE` \| `VERSION_CONFLICT` \| `RESOURCE_VERSION_EXPIRED` \| `RESOURCE_OUT_OF_SYNC` \| `HISTORY_UNAVAILABLE` \| `TEXT_NOT_FOUND` \| `AMBIGUOUS_MATCH` \| `OVERLAPPING_EDITS` \| `INVALID_JAVA_EDIT` \| `REFACTORING_PRECONDITION_FAILED` \| `EDITOR_REVEAL_FAILED` \| `FORMATTER_FAILED` \| `PATCH_APPLY_FAILED` \| `MERGE_CONFLICT` \| `CHECKOUT_CONFLICT` \| `BRANCH_NOT_MERGED` \| `REVISION_NOT_FOUND` \| `WRONG_REPOSITORY_STATE` \| `UNCOMMITTED_CHANGES` \| `PUSH_REJECTED` \| `REMOTE_OPERATION_FAILED` \| `PROJECT_NOT_FOUND` \| `TEST_CLASS_NOT_FOUND` \| `TEST_PACKAGE_NOT_FOUND` \| `PDE_LAUNCH_TYPE_MISSING` \| `MAVEN_LAUNCH_TYPE_MISSING` \| `LAUNCH_CONFIGURATION_NOT_FOUND` \| `WORKSPACE_LOCKED` \| `OPERATION_TIMED_OUT` \| `DEPENDENCY_RESOLUTION_FAILED` \| `TEST_RESULTS_NOT_REPORTED` \| `COVERAGE_UNAVAILABLE` \| `VALIDATION_ERROR` \| `INTERNAL_ERROR`
 
 ### `ResourceDescriptorResourceType`
 

@@ -133,6 +133,12 @@ public enum DiagnosticCode
      */
     PDE_LAUNCH_TYPE_MISSING,
 
+    /**
+     * m2e's Maven launch configuration type is not installed, so a Maven build cannot
+     * be launched the way the IDE launches one.
+     */
+    MAVEN_LAUNCH_TYPE_MISSING,
+
     /** A saved launch configuration was named but no configuration has that name. */
     LAUNCH_CONFIGURATION_NOT_FOUND,
 

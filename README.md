@@ -249,7 +249,7 @@ Direct file-editing tools complete a workspace synchronization barrier before re
 | runClassTests | Run tests for a specific class |
 | runTestMethod | Run a specific test method |
 | findTestClasses | Classify plain JUnit and `*PDETest` harness tests; warns about likely PDE-dependent tests that violate the naming convention |
-| runMavenBuild | Run a Maven build with specified goals |
+| runMavenBuild | Run a Maven build the way Run As > Maven build does, with the full Maven log in the console; reports exit code, `[ERROR]` lines and the log tail |
 | getEffectivePom | Effective POM for a Maven project |
 | getProjectDependencies | Maven project dependencies |
 | getMarkdownOutline | Heading structure (TOC) of a Markdown file with line numbers and section sizes |

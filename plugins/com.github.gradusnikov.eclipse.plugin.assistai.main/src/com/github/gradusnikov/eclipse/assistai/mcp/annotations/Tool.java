@@ -42,8 +42,8 @@ public @interface Tool
     /**
      * Name of the tool argument, in seconds, that lets the caller override
      * {@link #inlineWait()} for a single call. Set to the empty string for a tool
-     * whose own timeout argument means something else - runMavenBuild counts in
-     * minutes - so that its value is not misread as an inline wait.
+     * whose own timeout argument means something other than seconds to wait, so
+     * that its value is not misread as an inline wait.
      */
     public String inlineWaitParam() default "timeout";
 

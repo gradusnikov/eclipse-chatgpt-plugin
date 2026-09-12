@@ -15,6 +15,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.FileListResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.ImportSuggestionsResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.JavaDocResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.MarkdownOutlineResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.MavenBuildResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.MavenDependenciesResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.MavenProjectListResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.MethodSearchResponse;
@@ -420,17 +421,41 @@ public class EclipseIntegrationsMcpServer
 
     // Maven Service Tools
 
-    // inlineWaitParam is cleared because this tool's own 'timeout' counts
-    // MINUTES, and
-    // reading it as an inline wait in seconds would silently shorten it by 60x.
-    @Tool( name = "runMavenBuild", description = "Runs a Maven build with the specified goals on a project.", type = "object", longExecution = true, inlineWaitParam = "" )
-    public String runMavenBuild( @ToolParam( name = "projectName", description = "The name of the project to build", required = true )
-    String projectName, @ToolParam( name = "goals", description = "The Maven goals to execute (e.g., \"clean install\")", required = true )
-    String goals, @ToolParam( name = "profiles", description = "Optional Maven profiles to activate", required = false )
-    String profiles, @ToolParam( name = "timeout", description = "Maximum time in seconds to wait for build completion (0 for no timeout)", required = false )
-    String timeout )
+    @Tool( name = "runMavenBuild", longExecution = true, type = "object", outputType = MavenBuildResponse.class,
+           description = "Runs a Maven build on a project exactly the way the IDE's Run As > Maven build does: through m2e's Maven launch "
+            + "configuration, in a separate JVM with the configured Maven runtime, so the complete Maven log - [INFO] and [ERROR] lines, compiler "
+            + "and test output, the reactor summary - lands in the Console view under the launch's name. goals takes everything you would type "
+            + "after 'mvn', options included, and passes it to Maven verbatim: 'clean verify', 'test -Dtest=FooTest', 'install -DskipTests -pl module -am'. "
+            + "The result reports status (SUCCESS, FAILURE, RUNNING when the wait ran out, CANCELLED, FAILED_TO_START), the exit code, mavenCommand "
+            + "(the command line as Maven received it), errorLines (every distinct [ERROR] line, in order) and output (the last lines of the log, "
+            + "where the verdict and reactor summary are). The whole log is in the console named launchName: read it with "
+            + "getConsoleOutput(consoleName=launchName). The launch configuration is saved, so the build can be rerun from the IDE." )
+    public MavenBuildResponse runMavenBuild(
+            @ToolParam( name = "projectName", description = "The Eclipse project to build (use listMavenProjects to find it). A Maven artifactId or groupId:artifactId is accepted when no project has that name.", required = true )
+            String projectName,
+            @ToolParam( name = "goals", description = "Everything after 'mvn': phases, goals and any options, passed to Maven verbatim, e.g. 'clean verify' or 'test -Dtest=FooTest -DfailIfNoTests=false'", required = true )
+            String goals,
+            @ToolParam( name = "profiles", description = "Optional comma-separated profiles to activate (Maven's -P)", required = false )
+            String profiles,
+            @ToolParam( name = "properties", description = "Optional comma-separated key=value system properties, each passed as -Dkey=value. A value that itself contains a comma goes in goals instead, as -Dkey=value.", required = false )
+            String properties,
+            @ToolParam( name = "pomDirectory", description = "Optional project-relative directory holding the pom.xml to build - a module of a multi-module project. Default: the project root", required = false )
+            String pomDirectory,
+            @ToolParam( name = "offline", description = "If 'true', works offline (-o). Default: false", required = false )
+            String offline,
+            @ToolParam( name = "updateSnapshots", description = "If 'true', forces a check for updated snapshots and releases (-U). Default: false", required = false )
+            String updateSnapshots,
+            @ToolParam( name = "skipTests", description = "If 'true', neither compiles nor runs tests (-Dmaven.test.skip=true -DskipTests). Default: false", required = false )
+            String skipTests,
+            @ToolParam( name = "debugOutput", description = "If 'true', asks Maven for debug output and full stack traces (-X -e). Default: false", required = false )
+            String debugOutput,
+            @ToolParam( name = "timeout", description = "Seconds to wait for the build before this call returns an operationId instead. The build carries on; getOperationStatus reports its output and, once it ends, this same result. Default: 60", required = false )
+            String timeout )
     {
-        return mavenService.runMavenBuild( projectName, goals, profiles, Optional.ofNullable( timeout ).map( Integer::parseInt ).orElse( 0 ) );
+        return mavenService.runMavenBuild( projectName, goals, profiles, properties, pomDirectory,
+                Boolean.parseBoolean( offline ), Boolean.parseBoolean( updateSnapshots ),
+                Boolean.parseBoolean( skipTests ), Boolean.parseBoolean( debugOutput ),
+                Optional.ofNullable( timeout ).filter( t -> !t.isBlank() ).map( t -> Integer.parseInt( t.trim() ) ).orElse( 60 ) );
     }
 
     @Tool( name = "updateMavenProject", longExecution = true, description = "Runs the equivalent of the IDE's 'Maven > Update Project' action: re-reads the pom, re-resolves dependencies and reconfigures the project's classpath. Use this after editing a pom.xml - until it runs, the workspace does not see the change, so a newly added dependency is not on the classpath and code using it still fails to compile.", type = "object" )
