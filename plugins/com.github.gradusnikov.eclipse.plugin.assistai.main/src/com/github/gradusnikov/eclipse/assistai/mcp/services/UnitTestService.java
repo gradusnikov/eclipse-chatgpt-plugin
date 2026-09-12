@@ -48,6 +48,7 @@ import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMethod;
+import org.eclipse.jdt.core.Signature;
 import org.eclipse.jdt.core.IPackageFragment;
 import org.eclipse.jdt.core.IPackageFragmentRoot;
 import org.eclipse.jdt.core.IType;
@@ -654,6 +655,55 @@ public class UnitTestService {
         }
         return null;
     }
+
+    /**
+     * JDT's launch attribute for a single test method - the key its own "Run single
+     * test" shortcut writes. Named here because the constants class that defines it is
+     * internal API.
+     */
+    static final String JDT_JUNIT_TEST_NAME = "org.eclipse.jdt.junit.TESTNAME";
+
+    /**
+     * The method name as JDT's launch shortcut spells it: {@code name(param,types)} with
+     * the parameter types fully qualified and type arguments erased. JUnit 5 selects a
+     * method by that exact spelling, so a bare name would not find an overloaded or
+     * parameterized test. A name the caller already spelled with parentheses is kept,
+     * and a method that does not exist is passed through for the launcher to report.
+     */
+    public String qualifiedTestName(IType testClass, String methodName) throws JavaModelException {
+        if (methodName.contains("(")) {
+            return methodName;
+        }
+        IMethod method = testClass == null ? null : findMethod(testClass, methodName);
+        if (method == null) {
+            return methodName;
+        }
+        StringBuilder name = new StringBuilder(methodName).append('(');
+        String[] parameterTypes = method.getParameterTypes();
+        for (int i = 0; i < parameterTypes.length; i++) {
+            if (i > 0) {
+                name.append(',');
+            }
+            name.append(resolvedTypeName(testClass, parameterTypes[i]));
+        }
+        return name.append(')').toString();
+    }
+
+    /** A parameter type signature as a fully qualified source name: {@code int[]}, {@code java.util.List}. */
+    private static String resolvedTypeName(IType context, String signature) throws JavaModelException {
+        String erased = Signature.getTypeErasure(signature);
+        int dimensions = Signature.getArrayCount(erased);
+        String element = Signature.getElementType(erased);
+        String name = Signature.toString(element);
+        if (Signature.getTypeSignatureKind(element) != Signature.BASE_TYPE_SIGNATURE
+                && element.charAt(0) == Signature.C_UNRESOLVED) {
+            String[][] resolved = context.resolveType(name);
+            if (resolved != null && resolved.length == 1) {
+                name = resolved[0][0].isEmpty() ? resolved[0][1] : resolved[0][0] + '.' + resolved[0][1];
+            }
+        }
+        return name + "[]".repeat(dimensions);
+    }
     
     /**
      * Finds a package in a Java project by name.
@@ -810,7 +860,14 @@ public class UnitTestService {
                             testClass.getFullyQualifiedName());
                     workingCopy.setAttribute("org.eclipse.jdt.junit.CONTAINER", "");
                     if (methodName != null && !methodName.isEmpty()) {
-                        workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_METHOD", methodName);
+                        // JDT reads the single test method from TESTNAME, the key its own launch
+                        // shortcut writes. "TEST_METHOD" was never a JDT key, so it was silently
+                        // ignored and the whole class ran (issue 158). The value carries the
+                        // parameter types, as the shortcut writes it, so overloaded and
+                        // parameterized JUnit 5 methods resolve too.
+                        workingCopy.setAttribute(JDT_JUNIT_TEST_NAME, qualifiedTestName(testClass, methodName));
+                        // A configuration saved by an earlier version still carries the dead key.
+                        workingCopy.removeAttribute("org.eclipse.jdt.junit.TEST_METHOD");
                     }
                 } else if (packageFragment != null) {
                     workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "");
