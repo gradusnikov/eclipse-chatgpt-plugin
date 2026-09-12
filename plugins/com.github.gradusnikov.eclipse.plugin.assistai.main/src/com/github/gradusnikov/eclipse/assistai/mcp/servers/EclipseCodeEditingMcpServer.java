@@ -214,6 +214,24 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.refactorRenameJavaType(projectName, filePath, newTypeName);
     }
 
+    @Tool(name="refactorRenameJavaElement", longExecution=true, description="Renames the Java element at a position in a source file - a method, field, enum constant, local variable, parameter, type parameter or type - using the matching Eclipse rename refactoring, so every reference in the workspace follows. The position is selected the way the IDE selects it: put line and column on the identifier, either at its declaration or at any reference to it. Pass elementName to make sure the position lands on the element you mean; a mismatch is reported as VALIDATION_ERROR and nothing is renamed. A rename that Eclipse refuses (an invalid name, a clash) is reported as REFACTORING_PRECONDITION_FAILED. The result is addressed to the file as it stands afterwards - renaming a file's top-level type renames the file too - and affectedResources lists every file the refactoring rewrote, in any project, with the version each one now has. Use refactorRenameJavaType to rename a type by file and refactorRenamePackage for packages.", type="object", outputType=EditResult.class)
+    public EditResult refactorRenameJavaElement(
+        @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
+        @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java')", required=true) String filePath,
+        @ToolParam(name="line", description="1-based line of the identifier to rename", required=true) int line,
+        @ToolParam(name="column", description="1-based column of the identifier to rename; anywhere within the identifier works", required=true) int column,
+        @ToolParam(name="newName", description="The new name for the element", required=true) String newName,
+        @ToolParam(name="elementName", description="Optional: the current simple name of the element expected at that position, e.g. 'calculateTotal'. When the element found there has a different name the rename is refused.", required=false) String elementName,
+        @ToolParam(name="updateReferences", description="Whether to rewrite references to the element as well. Default: true", required=false) Boolean updateReferences,
+        @ToolParam(name="updateTextualOccurrences", description="Whether to also rewrite occurrences of the name in comments and string literals (types and fields only). Default: false", required=false) Boolean updateTextualOccurrences,
+        @ToolParam(name="updateGettersAndSetters", description="When renaming a field, whether to rename its getter and setter with it. Default: false", required=false) Boolean updateGettersAndSetters)
+    {
+        return codeEditingService.refactorRenameJavaElement(projectName, filePath, line, column, newName, elementName,
+                updateReferences == null || updateReferences,
+                Boolean.TRUE.equals(updateTextualOccurrences),
+                Boolean.TRUE.equals(updateGettersAndSetters));
+    }
+
     @Tool(name="refactorExtractTypeToNewFile", longExecution=true, description="Extracts a nested Java class, interface, enum, or record into a new top-level Java file using Eclipse's Move Type to New File refactoring. The type name must be relative to the source compilation unit, for example 'Outer.Inner'. Eclipse validates the change and updates all required references. The result names the new file, and affectedResources lists it as CREATED beside the source file and every other file whose references changed, with the version each one now has. A failed precondition is reported as REFACTORING_PRECONDITION_FAILED.", type="object", outputType=EditResult.class)
     public EditResult refactorExtractTypeToNewFile(
         @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,

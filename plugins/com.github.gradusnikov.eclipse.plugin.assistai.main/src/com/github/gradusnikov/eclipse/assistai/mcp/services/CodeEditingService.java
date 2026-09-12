@@ -41,6 +41,10 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.IField;
+import org.eclipse.jdt.core.ILocalVariable;
+import org.eclipse.jdt.core.IMethod;
+import org.eclipse.jdt.core.ITypeParameter;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IPackageFragment;
@@ -1323,6 +1327,274 @@ public class CodeEditingService
         {
             throw new RuntimeException( "Error during refactoring: " + ExceptionUtils.getRootCauseMessage( e ), e );
         }
+    }
+
+    /**
+     * Renames whatever Java element sits at a position in a source file - a method,
+     * field, enum constant, local variable, parameter, type parameter or type - using
+     * the matching Eclipse rename refactoring, so every reference follows.
+     * <p>
+     * The element is selected the way the IDE selects it: the position may be on the
+     * declaration or on any reference to it, in which case the declaration is what
+     * gets renamed.
+     *
+     * @param projectName
+     *            The name of the project containing the Java file
+     * @param filePath
+     *            The path to the Java file relative to the project root
+     * @param line
+     *            1-based line of the identifier
+     * @param column
+     *            1-based column of the identifier
+     * @param newName
+     *            The new name
+     * @param expectedElementName
+     *            Optional: the simple name the caller expects at that position. When
+     *            it is not what is there, nothing is renamed
+     * @param updateReferences
+     *            Whether references are rewritten too
+     * @param updateTextualOccurrences
+     *            Whether occurrences in comments and strings are rewritten as well
+     *            (types and fields only)
+     * @param updateGettersAndSetters
+     *            When a field is renamed, whether its getter and setter are renamed
+     *            with it
+     */
+    public EditResult refactorRenameJavaElement( String projectName, String filePath, int line, int column, String newName,
+                                                 String expectedElementName, boolean updateReferences,
+                                                 boolean updateTextualOccurrences, boolean updateGettersAndSetters )
+    {
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+        Objects.requireNonNull( newName );
+
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
+        }
+        if ( filePath.isEmpty() || !filePath.endsWith( ".java" ) )
+        {
+            throw new IllegalArgumentException( "Error: File path must identify a Java file." );
+        }
+        if ( newName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: New name cannot be empty." );
+        }
+        if ( line < 1 || column < 1 )
+        {
+            throw new IllegalArgumentException( "Error: Line and column are 1-based." );
+        }
+
+        try
+        {
+            IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( projectName );
+            if ( !project.exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
+            }
+            if ( !project.isOpen() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
+            }
+            if ( !JavaCore.create( project ).exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is not a Java project." );
+            }
+
+            IFile file = project.getFile( IPath.fromPath( Path.of( filePath ) ) );
+            if ( !file.exists() )
+            {
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
+            }
+
+            IJavaElement javaElement = JavaCore.create( file );
+            if ( ! ( javaElement instanceof ICompilationUnit compilationUnit ) )
+            {
+                throw new RuntimeException( "Error: Could not resolve Java compilation unit for file '" + filePath + "'." );
+            }
+
+            // Select the element under the position the way the editor does.
+            IDocument document = new Document( compilationUnit.getSource() );
+            if ( line > document.getNumberOfLines() )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR,
+                                "Line " + line + " is beyond the end of '" + filePath + "', which has "
+                                        + document.getNumberOfLines() + " lines." ) );
+            }
+            int offset = document.getLineOffset( line - 1 ) + column - 1;
+            IJavaElement[] selected = compilationUnit.codeSelect( offset, 0 );
+            if ( selected.length == 0 )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR,
+                                "There is no Java element at line " + line + ", column " + column + " of '" + filePath
+                                        + "'. Put the position on the identifier itself." ) );
+            }
+            IJavaElement element = selected[0];
+            String elementName = element.getElementName();
+
+            if ( expectedElementName != null && !expectedElementName.isBlank() && !expectedElementName.equals( elementName ) )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR,
+                                "The element at line " + line + ", column " + column + " is " + describeElement( element )
+                                        + ", not '" + expectedElementName + "'. Nothing was renamed." ) );
+            }
+            if ( element.getAncestor( IJavaElement.COMPILATION_UNIT ) == null )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR,
+                                describeElement( element ) + " is not defined in source and cannot be renamed." ) );
+            }
+
+            String refactoringId = renameRefactoringId( element );
+            if ( refactoringId == null )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR,
+                                describeElement( element ) + " is not something this tool renames. Use "
+                                        + "refactorRenamePackage for packages." ) );
+            }
+
+            // Close the editor if the file is open (to avoid conflicts)
+            sync.syncExec( () -> {
+                // Off the UI thread - a test's inline UISynchronize - there is no active window.
+                IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+                IWorkbenchPage page = window == null ? null : window.getActivePage();
+                if ( page != null )
+                {
+                    IEditorPart editor = page.findEditor( new FileEditorInput( file ) );
+                    if ( editor != null )
+                    {
+                        page.closeEditor( editor, true ); // save before closing
+                    }
+                }
+            } );
+
+            RefactoringContribution contribution = RefactoringCore.getRefactoringContribution( refactoringId );
+            RenameJavaElementDescriptor descriptor = (RenameJavaElementDescriptor) contribution.createDescriptor();
+            descriptor.setJavaElement( element );
+            descriptor.setNewName( newName );
+            descriptor.setUpdateReferences( updateReferences );
+            if ( element instanceof IType )
+            {
+                descriptor.setUpdateSimilarDeclarations( false );
+                descriptor.setUpdateTextualOccurrences( updateTextualOccurrences );
+            }
+            else if ( element instanceof IField field && !field.isEnumConstant() )
+            {
+                descriptor.setUpdateTextualOccurrences( updateTextualOccurrences );
+                descriptor.setRenameGetters( updateGettersAndSetters );
+                descriptor.setRenameSetters( updateGettersAndSetters );
+            }
+
+            RefactoringStatus status = new RefactoringStatus();
+            Refactoring refactoring = descriptor.createRefactoring( status );
+
+            EditResult precondition = refusedPrecondition( file, status );
+            if ( precondition != null )
+            {
+                return precondition;
+            }
+
+            IProgressMonitor monitor = new NullProgressMonitor();
+            precondition = refusedPrecondition( file, refactoring.checkInitialConditions( monitor ) );
+            if ( precondition != null )
+            {
+                return precondition;
+            }
+
+            precondition = refusedPrecondition( file, refactoring.checkFinalConditions( monitor ) );
+            if ( precondition != null )
+            {
+                return precondition;
+            }
+
+            ResourceVersion before = ResourceVersion.of( file );
+
+            Change change = refactoring.createChange( monitor );
+            // Read the change set before performing it: afterwards the tree is the undo.
+            PendingChanges pending = pendingChanges( change );
+            change.perform( monitor );
+            project.refreshLocal( IResource.DEPTH_INFINITE, monitor );
+
+            // Renaming the file's own top-level type renames the file too; every other
+            // rename rewrites it in place. Either way the result is addressed to the file
+            // as it stands now, with every rewritten file listed in affectedResources.
+            IFile primary = file;
+            ChangeKind primaryKind = ChangeKind.MODIFIED;
+            if ( !file.exists() )
+            {
+                primary = ( (IContainer) file.getParent() ).getFile( IPath.fromOSString( newName + ".java" ) );
+                primaryKind = ChangeKind.MOVED;
+            }
+
+            resourceCache.resourceChanged( file.getFullPath() );
+            EditSynchronization synchronization = synchronizeAfterEdit( primary, line, null );
+            List<Diagnostic> diagnostics = new ArrayList<>();
+            EditorReveal reveal = describeReveal( primary, new ContentRange( line, 1, line, 1 ), diagnostics );
+
+            return resourceRelocated( primary, before, affectedBy( pending, primary, primaryKind ),
+                    reveal, synchronization.workspaceState(), diagnostics );
+        }
+        catch ( CoreException | BadLocationException e )
+        {
+            throw new RuntimeException( "Error during refactoring: " + ExceptionUtils.getRootCauseMessage( e ), e );
+        }
+    }
+
+    /**
+     * The rename refactoring that applies to an element, or null for one that has
+     * none (a package, an import, an initializer).
+     */
+    private static String renameRefactoringId( IJavaElement element ) throws JavaModelException
+    {
+        if ( element instanceof IMethod )
+        {
+            return IJavaRefactorings.RENAME_METHOD;
+        }
+        if ( element instanceof IField field )
+        {
+            return field.isEnumConstant() ? IJavaRefactorings.RENAME_ENUM_CONSTANT : IJavaRefactorings.RENAME_FIELD;
+        }
+        if ( element instanceof ILocalVariable )
+        {
+            return IJavaRefactorings.RENAME_LOCAL_VARIABLE;
+        }
+        if ( element instanceof ITypeParameter )
+        {
+            return IJavaRefactorings.RENAME_TYPE_PARAMETER;
+        }
+        if ( element instanceof IType )
+        {
+            return IJavaRefactorings.RENAME_TYPE;
+        }
+        return null;
+    }
+
+    /**
+     * An element as a message names it: its kind and name, plus the type that holds
+     * it when there is one, so a wrong-position message says what was found there.
+     */
+    private static String describeElement( IJavaElement element )
+    {
+        String kind = switch ( element.getElementType() )
+        {
+            case IJavaElement.METHOD -> "the method";
+            case IJavaElement.FIELD -> "the field";
+            case IJavaElement.LOCAL_VARIABLE -> ( (ILocalVariable) element ).isParameter() ? "the parameter" : "the local variable";
+            case IJavaElement.TYPE_PARAMETER -> "the type parameter";
+            case IJavaElement.TYPE -> "the type";
+            case IJavaElement.PACKAGE_FRAGMENT -> "the package";
+            default -> "the element";
+        };
+        IJavaElement holder = element.getAncestor( IJavaElement.TYPE );
+        if ( holder != null && holder != element )
+        {
+            return kind + " '" + element.getElementName() + "' in " + holder.getElementName();
+        }
+        return kind + " '" + element.getElementName() + "'";
     }
 
     /**

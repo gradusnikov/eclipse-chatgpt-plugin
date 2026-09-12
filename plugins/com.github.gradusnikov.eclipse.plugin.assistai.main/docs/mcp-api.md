@@ -42,7 +42,7 @@ a `status` a caller can branch on, and `diagnostics` carrying a coded
 | Server | Tools |
 |---|---|
 | [duck-duck-search](#duck-duck-search) | 1 |
-| [eclipse-coder](#eclipse-coder) | 21 |
+| [eclipse-coder](#eclipse-coder) | 22 |
 | [eclipse-context](#eclipse-context) | 7 |
 | [eclipse-git](#eclipse-git) | 29 |
 | [eclipse-ide](#eclipse-ide) | 39 |
@@ -250,6 +250,24 @@ Moves a Java class/interface/enum to a different package using Eclipse's refacto
 | `targetPackage` | \* | The fully qualified target package name (e.g., 'com.example.newpackage') |
 | `targetProjectName` |  | Optional project that should receive the file. Without it the package is looked for in the file's project and every project on its build path. |
 | `targetSourceFolder` |  | Optional project-relative source folder that should receive the file (e.g. 'src/main/java'), for when more than one folder could. |
+
+**Returns** [`EditResult`](#editresult)
+
+### `refactorRenameJavaElement` *(long)*
+
+Renames the Java element at a position in a source file - a method, field, enum constant, local variable, parameter, type parameter or type - using the matching Eclipse rename refactoring, so every reference in the workspace follows. The position is selected the way the IDE selects it: put line and column on the identifier, either at its declaration or at any reference to it. Pass elementName to make sure the position lands on the element you mean; a mismatch is reported as VALIDATION_ERROR and nothing is renamed. A rename that Eclipse refuses (an invalid name, a clash) is reported as REFACTORING_PRECONDITION_FAILED. The result is addressed to the file as it stands afterwards - renaming a file's top-level type renames the file too - and affectedResources lists every file the refactoring rewrote, in any project, with the version each one now has. Use refactorRenameJavaType to rename a type by file and refactorRenamePackage for packages.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The name of the project containing the Java file |
+| `filePath` | \* | The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java') |
+| `line` | \* | 1-based line of the identifier to rename |
+| `column` | \* | 1-based column of the identifier to rename; anywhere within the identifier works |
+| `newName` | \* | The new name for the element |
+| `elementName` |  | Optional: the current simple name of the element expected at that position, e.g. 'calculateTotal'. When the element found there has a different name the rename is refused. |
+| `updateReferences` |  | Whether to rewrite references to the element as well. Default: true |
+| `updateTextualOccurrences` |  | Whether to also rewrite occurrences of the name in comments and string literals (types and fields only). Default: false |
+| `updateGettersAndSetters` |  | When renaming a field, whether to rename its getter and setter with it. Default: false |
 
 **Returns** [`EditResult`](#editresult)
 
