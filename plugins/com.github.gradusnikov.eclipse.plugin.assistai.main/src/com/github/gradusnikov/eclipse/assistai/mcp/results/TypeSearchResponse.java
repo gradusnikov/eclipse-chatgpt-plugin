@@ -10,12 +10,17 @@ public record TypeSearchResponse(
     String summaryText
 )
 {
+    /**
+     * @param javadoc the type's documentation as Markdown at the requested detail, or null
+     *            when none was requested or the type has no comment
+     */
     public record TypeMatch(
         String fullyQualifiedName,
         String simpleName,
         String packageName,
         String projectName,
-        String typeKind
+        String typeKind,
+        String javadoc
     )
     {
     }
