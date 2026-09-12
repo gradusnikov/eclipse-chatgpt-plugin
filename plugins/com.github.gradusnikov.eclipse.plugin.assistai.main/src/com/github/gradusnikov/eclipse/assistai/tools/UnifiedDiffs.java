@@ -106,6 +106,20 @@ public final class UnifiedDiffs
         return "--- " + oldLabel + "\n+++ " + newLabel + "\n" + body;
     }
 
+    /**
+     * The line counts of a change in place of its diff, for a result whose caller already
+     * holds the text - repeating it back would only cost tokens. Identical sides give an
+     * empty string, like {@link #diff}.
+     */
+    public static String omitted( Unified unified, String reason )
+    {
+        if ( unified.isEmpty() )
+        {
+            return "";
+        }
+        return "\\ diff omitted (+" + unified.addedLines() + " -" + unified.removedLines() + " lines): " + reason + "\n";
+    }
+
     private static byte[] toBytes( String content )
     {
         return content == null ? new byte[0] : content.getBytes( StandardCharsets.UTF_8 );

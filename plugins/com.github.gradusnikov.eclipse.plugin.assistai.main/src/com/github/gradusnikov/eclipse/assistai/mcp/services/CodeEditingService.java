@@ -246,7 +246,7 @@ public class CodeEditingService
 
             TextEditRequest edit = minimalReplacement( new Document( current ), current, restored );
 
-            return applyTextEdits( projectName, filePath, IResource.NULL_STAMP, List.of( edit ), false );
+            return applyTextEdits( projectName, filePath, IResource.NULL_STAMP, List.of( edit ), false, true );
         }
         catch ( CoreException | IOException | BadLocationException e )
         {
@@ -571,7 +571,7 @@ public class CodeEditingService
             {
                 String formatted = formatCode( originalContent, projectName );
                 TextEditRequest edit = minimalReplacement( new Document( originalContent ), originalContent, formatted );
-                return applyTextEdits( projectName, filePath, IResource.NULL_STAMP, List.of( edit ), false );
+                return applyTextEdits( projectName, filePath, IResource.NULL_STAMP, List.of( edit ), false, true );
             }
 
             formatUsingRegisteredEditor( file );
@@ -781,7 +781,7 @@ public class CodeEditingService
                     ResourceVersion.UNKNOWN,
                     synchronization.version(),
                     List.of( new AppliedEdit( new ContentRange( 1, 1, 1, 1 ), newRange, created.length(), 0 ) ),
-                    UnifiedDiffs.diff( "", normalizedPath, created, normalizedPath, UnifiedDiffs.DEFAULT_CONTEXT_LINES ),
+                    UnifiedDiffs.omitted( UnifiedDiffs.compare( "", created, 0 ), "the content is the one supplied" ),
                     List.of( AffectedResource.of( file, ChangeKind.CREATED ) ),
                     reveal,
                     EditResult.NO_UNDO_STATE,
@@ -1769,7 +1769,7 @@ public class CodeEditingService
             if ( !originalSource.equals( newSource ) )
             {
                 TextEditRequest edit = minimalReplacement( new Document( originalSource ), originalSource, newSource );
-                return applyTextEdits( projectName, filePath, IResource.NULL_STAMP, List.of( edit ), false );
+                return applyTextEdits( projectName, filePath, IResource.NULL_STAMP, List.of( edit ), false, true );
             }
 
             EditSynchronization synchronization = synchronizeAfterEdit( file, 1, currentHistoryState( file ) );
@@ -2210,7 +2210,7 @@ public class CodeEditingService
                     before,
                     ResourceVersion.UNKNOWN,
                     List.of( applied ),
-                    UnifiedDiffs.diff( removed, filePath, "", filePath, UnifiedDiffs.DEFAULT_CONTEXT_LINES ),
+                    UnifiedDiffs.omitted( UnifiedDiffs.compare( removed, "", 0 ), "the removed content is in Local History" ),
                     List.of( AffectedResource.of( file, ChangeKind.DELETED ) ),
                     EditorReveal.none(),
                     undoState != null ? undoState.getModificationTime() : EditResult.NO_UNDO_STATE,
@@ -2970,6 +2970,18 @@ public class CodeEditingService
     public EditResult applyTextEdits( String projectName, String filePath, long expectedModificationStamp,
                                       List<TextEditRequest> requestedEdits, boolean preview )
     {
+        // The caller wrote these edits, so a diff would only echo them back; a preview is
+        // the one case where seeing the outcome is the point, and it keeps the diff.
+        return applyTextEdits( projectName, filePath, expectedModificationStamp, requestedEdits, preview, false );
+    }
+
+    /**
+     * @param showDiff whether an applied result carries the diff - the only account
+     *            of an edit the IDE computed, such as a format or organize imports
+     */
+    private EditResult applyTextEdits( String projectName, String filePath, long expectedModificationStamp,
+                                       List<TextEditRequest> requestedEdits, boolean preview, boolean showDiff )
+    {
         Objects.requireNonNull( projectName );
         Objects.requireNonNull( filePath );
         Objects.requireNonNull( requestedEdits );
@@ -3050,8 +3062,9 @@ public class CodeEditingService
             }
 
             String updated = document.get();
-            String diff = UnifiedDiffs.diff( original, filePath, updated, filePath,
-                    UnifiedDiffs.DEFAULT_CONTEXT_LINES );
+            String diff = showDiff || preview
+                    ? UnifiedDiffs.diff( original, filePath, updated, filePath, UnifiedDiffs.DEFAULT_CONTEXT_LINES )
+                    : UnifiedDiffs.omitted( UnifiedDiffs.compare( original, updated, 0 ), "the change is the one requested" );
 
             List<AppliedEdit> applied = new ArrayList<>();
             for ( int i = 0; i < children.size(); i++ )

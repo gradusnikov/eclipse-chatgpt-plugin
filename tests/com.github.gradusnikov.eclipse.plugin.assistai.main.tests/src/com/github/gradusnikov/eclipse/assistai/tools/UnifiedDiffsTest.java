@@ -93,4 +93,20 @@ public class UnifiedDiffsTest
 
         assertFalse( diff.isEmpty(), "a line-ending change is a change" );
     }
+
+    @Test
+    public void omittedIsTheCountsAndTheReason()
+    {
+        UnifiedDiffs.Unified unified = UnifiedDiffs.compare( "a\nb\n", "a\nc\nd\n", 3 );
+
+        assertEquals( "\\ diff omitted (+2 -1 lines): because\n", UnifiedDiffs.omitted( unified, "because" ) );
+    }
+
+    @Test
+    public void omittedIsEmptyForIdenticalSides()
+    {
+        UnifiedDiffs.Unified unified = UnifiedDiffs.compare( "same\n", "same\n", 3 );
+
+        assertEquals( "", UnifiedDiffs.omitted( unified, "because" ) );
+    }
 }
