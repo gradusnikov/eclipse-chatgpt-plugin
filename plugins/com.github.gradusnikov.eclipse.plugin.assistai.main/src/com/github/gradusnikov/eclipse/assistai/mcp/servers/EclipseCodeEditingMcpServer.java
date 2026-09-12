@@ -223,13 +223,15 @@ public class EclipseCodeEditingMcpServer
         return codeEditingService.refactorExtractTypeToNewFile(projectName, filePath, nestedTypeName);
     }
 
-    @Tool(name="refactorMoveJavaType", longExecution=true, description="Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism. This updates the package declaration and ALL references throughout the workspace. The target package will be created if it doesn't exist. The result names the moved file at its new location, and affectedResources lists every file the refactoring rewrote - in any project - with the version each one now has. A failed precondition is reported as REFACTORING_PRECONDITION_FAILED.", type="object", outputType=EditResult.class)
+    @Tool(name="refactorMoveJavaType", longExecution=true, description="Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism, updating the package declaration and ALL references throughout the workspace. The package is looked for in the file's project and in every project on its build path: the one source folder that already holds it is used; several holding it are refused with an AMBIGUOUS_MATCH diagnostic that lists the candidate folders; and a package that exists nowhere is created beside the file, in its own source folder. targetProjectName and targetSourceFolder narrow that choice, and are the way to move a type into a project that does not yet have the package. The result names the moved file at its new location - possibly in another project - and affectedResources lists every file the refactoring rewrote with the version each one now has. A failed precondition is reported as REFACTORING_PRECONDITION_FAILED.", type="object", outputType=EditResult.class)
     public EditResult refactorMoveJavaType(
         @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java')", required=true) String filePath,
-        @ToolParam(name="targetPackage", description="The fully qualified target package name (e.g., 'com.example.newpackage')", required=true) String targetPackage) 
+        @ToolParam(name="targetPackage", description="The fully qualified target package name (e.g., 'com.example.newpackage')", required=true) String targetPackage,
+        @ToolParam(name="targetProjectName", description="Optional project that should receive the file. Without it the package is looked for in the file's project and every project on its build path.", required=false) String targetProjectName,
+        @ToolParam(name="targetSourceFolder", description="Optional project-relative source folder that should receive the file (e.g. 'src/main/java'), for when more than one folder could.", required=false) String targetSourceFolder)
     {
-        return codeEditingService.refactorMoveJavaType(projectName, filePath, targetPackage);
+        return codeEditingService.refactorMoveJavaType(projectName, filePath, targetPackage, targetProjectName, targetSourceFolder);
     }
 
     @Tool(name="refactorRenamePackage", longExecution=true, description="Renames a Java package using Eclipse's refactoring mechanism. This renames the package directory, updates all package declarations in contained files, and updates ALL references throughout the workspace. The result names the renamed package folder, and affectedResources lists every file the refactoring rewrote - in any project - with the version each one now has. A failed precondition is reported as REFACTORING_PRECONDITION_FAILED.", type="object", outputType=EditResult.class)
