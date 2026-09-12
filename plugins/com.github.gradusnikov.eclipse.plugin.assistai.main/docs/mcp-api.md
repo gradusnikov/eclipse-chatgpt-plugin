@@ -42,7 +42,7 @@ a `status` a caller can branch on, and `diagnostics` carrying a coded
 | Server | Tools |
 |---|---|
 | [duck-duck-search](#duck-duck-search) | 1 |
-| [eclipse-coder](#eclipse-coder) | 21 |
+| [eclipse-coder](#eclipse-coder) | 22 |
 | [eclipse-context](#eclipse-context) | 7 |
 | [eclipse-git](#eclipse-git) | 29 |
 | [eclipse-ide](#eclipse-ide) | 39 |
@@ -241,13 +241,33 @@ Extracts a nested Java class, interface, enum, or record into a new top-level Ja
 
 ### `refactorMoveJavaType` *(long)*
 
-Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism. This updates the package declaration and ALL references throughout the workspace. The target package will be created if it doesn't exist. The result names the moved file at its new location, and affectedResources lists every file the refactoring rewrote - in any project - with the version each one now has. A failed precondition is reported as REFACTORING_PRECONDITION_FAILED.
+Moves a Java class/interface/enum to a different package using Eclipse's refactoring mechanism, updating the package declaration and ALL references throughout the workspace. The package is looked for in the file's project and in every project on its build path: the one source folder that already holds it is used; several holding it are refused with an AMBIGUOUS_MATCH diagnostic that lists the candidate folders; and a package that exists nowhere is created beside the file, in its own source folder. targetProjectName and targetSourceFolder narrow that choice, and are the way to move a type into a project that does not yet have the package. The result names the moved file at its new location - possibly in another project - and affectedResources lists every file the refactoring rewrote with the version each one now has. A failed precondition is reported as REFACTORING_PRECONDITION_FAILED.
 
 | Parameter | | Description |
 |---|---|---|
 | `projectName` | \* | The name of the project containing the Java file |
 | `filePath` | \* | The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java') |
 | `targetPackage` | \* | The fully qualified target package name (e.g., 'com.example.newpackage') |
+| `targetProjectName` |  | Optional project that should receive the file. Without it the package is looked for in the file's project and every project on its build path. |
+| `targetSourceFolder` |  | Optional project-relative source folder that should receive the file (e.g. 'src/main/java'), for when more than one folder could. |
+
+**Returns** [`EditResult`](#editresult)
+
+### `refactorRenameJavaElement` *(long)*
+
+Renames the Java element at a position in a source file - a method, field, enum constant, local variable, parameter, type parameter or type - using the matching Eclipse rename refactoring, so every reference in the workspace follows. The position is selected the way the IDE selects it: put line and column on the identifier, either at its declaration or at any reference to it. Pass elementName to make sure the position lands on the element you mean; a mismatch is reported as VALIDATION_ERROR and nothing is renamed. A rename that Eclipse refuses (an invalid name, a clash) is reported as REFACTORING_PRECONDITION_FAILED. The result is addressed to the file as it stands afterwards - renaming a file's top-level type renames the file too - and affectedResources lists every file the refactoring rewrote, in any project, with the version each one now has. Use refactorRenameJavaType to rename a type by file and refactorRenamePackage for packages.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The name of the project containing the Java file |
+| `filePath` | \* | The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java') |
+| `line` | \* | 1-based line of the identifier to rename |
+| `column` | \* | 1-based column of the identifier to rename; anywhere within the identifier works |
+| `newName` | \* | The new name for the element |
+| `elementName` |  | Optional: the current simple name of the element expected at that position, e.g. 'calculateTotal'. When the element found there has a different name the rename is refused. |
+| `updateReferences` |  | Whether to rewrite references to the element as well. Default: true |
+| `updateTextualOccurrences` |  | Whether to also rewrite occurrences of the name in comments and string literals (types and fields only). Default: false |
+| `updateGettersAndSetters` |  | When renaming a field, whether to rename its getter and setter with it. Default: false |
 
 **Returns** [`EditResult`](#editresult)
 
@@ -890,7 +910,7 @@ Gets the effective POM for a Maven project.
 
 | Parameter | | Description |
 |---|---|---|
-| `projectName` | \* | The name of the Maven project |
+| `projectName` | \* | The Eclipse project name (use listMavenProjects to find it); a Maven artifactId or groupId:artifactId is accepted when no project has that name |
 
 **Returns** `String`
 
@@ -997,7 +1017,7 @@ Lists the dependencies one project's pom declares. These come from the Maven pro
 
 | Parameter | | Description |
 |---|---|---|
-| `projectName` | \* | The name of the Maven project |
+| `projectName` | \* | The Eclipse project name (use listMavenProjects to find it); a Maven artifactId or groupId:artifactId is accepted when no project has that name |
 
 **Returns** [`MavenDependenciesResponse`](#mavendependenciesresponse)
 
@@ -1120,16 +1140,22 @@ Starts a JUnit test run asynchronously and returns an operationId for polling. S
 
 ### `runMavenBuild` *(long)*
 
-Runs a Maven build with the specified goals on a project.
+Runs a Maven build on a project exactly the way the IDE's Run As > Maven build does: through m2e's Maven launch configuration, in a separate JVM with the configured Maven runtime, so the complete Maven log - [INFO] and [ERROR] lines, compiler and test output, the reactor summary - lands in the Console view under the launch's name. goals takes everything you would type after 'mvn', options included, and passes it to Maven verbatim: 'clean verify', 'test -Dtest=FooTest', 'install -DskipTests -pl module -am'. The result reports status (SUCCESS, FAILURE, RUNNING when the wait ran out, CANCELLED, FAILED_TO_START), the exit code, mavenCommand (the command line as Maven received it), errorLines (every distinct [ERROR] line, in order) and output (the last lines of the log, where the verdict and reactor summary are). The whole log is in the console named launchName: read it with getConsoleOutput(consoleName=launchName). The launch configuration is saved, so the build can be rerun from the IDE.
 
 | Parameter | | Description |
 |---|---|---|
-| `projectName` | \* | The name of the project to build |
-| `goals` | \* | The Maven goals to execute (e.g., "clean install") |
-| `profiles` |  | Optional Maven profiles to activate |
-| `timeout` |  | Maximum time in seconds to wait for build completion (0 for no timeout) |
+| `projectName` | \* | The Eclipse project to build (use listMavenProjects to find it). A Maven artifactId or groupId:artifactId is accepted when no project has that name. |
+| `goals` | \* | Everything after 'mvn': phases, goals and any options, passed to Maven verbatim, e.g. 'clean verify' or 'test -Dtest=FooTest -DfailIfNoTests=false' |
+| `profiles` |  | Optional comma-separated profiles to activate (Maven's -P) |
+| `properties` |  | Optional comma-separated key=value system properties, each passed as -Dkey=value. A value that itself contains a comma goes in goals instead, as -Dkey=value. |
+| `pomDirectory` |  | Optional project-relative directory holding the pom.xml to build - a module of a multi-module project. Default: the project root |
+| `offline` |  | If 'true', works offline (-o). Default: false |
+| `updateSnapshots` |  | If 'true', forces a check for updated snapshots and releases (-U). Default: false |
+| `skipTests` |  | If 'true', neither compiles nor runs tests (-Dmaven.test.skip=true -DskipTests). Default: false |
+| `debugOutput` |  | If 'true', asks Maven for debug output and full stack traces (-X -e). Default: false |
+| `timeout` |  | Seconds to wait for the build before this call returns an operationId instead. The build carries on; getOperationStatus reports its output and, once it ends, this same result. Default: 60 |
 
-**Returns** `String`
+**Returns** [`MavenBuildResponse`](#mavenbuildresponse)
 
 ### `searchAndReplace` *(long)*
 
@@ -1174,7 +1200,7 @@ Runs the equivalent of the IDE's 'Maven > Update Project' action: re-reads the p
 
 | Parameter | | Description |
 |---|---|---|
-| `projectName` | \* | The name of the Maven project to update (use listMavenProjects to find it) |
+| `projectName` | \* | The Eclipse project to update (use listMavenProjects to find it); a Maven artifactId or groupId:artifactId is accepted when no project has that name |
 | `forceDependencyUpdate` |  | If 'true', re-resolves snapshots and releases even when already cached (the 'Force Update of Snapshots/Releases' checkbox). Default: false |
 | `offline` |  | If 'true', resolves only from the local repository without reaching the network. Default: false |
 
@@ -2184,6 +2210,24 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `summaryText` | `String` |
 | `durationMillis` | `long` |
 
+### `MavenBuildResponse`
+
+| Field | Type |
+|---|---|
+| `status` | [`MavenBuildResponseBuildStatus`](#mavenbuildresponsebuildstatus) |
+| `projectName` | `String` |
+| `pomDirectory` | `String` |
+| `launchName` | `String` |
+| `mavenCommand` | `String` |
+| `exitCode` | `Integer` |
+| `timedOut` | `boolean` |
+| `durationMillis` | `long` |
+| `errorLines` | `String`[] |
+| `errorLinesTruncated` | `boolean` |
+| `output` | [`MavenBuildResponseOutputTail`](#mavenbuildresponseoutputtail) |
+| `diagnostics` | [`Diagnostic`](#diagnostic)[] |
+| `summaryText` | `String` |
+
 ### `SearchReplaceResponse`
 
 | Field | Type |
@@ -2932,6 +2976,18 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `execFilePath` | `String` |
 | `report` | `String` |
 
+### `MavenBuildResponseBuildStatus`
+
+`SUCCESS` \| `FAILURE` \| `RUNNING` \| `CANCELLED` \| `FAILED_TO_START`
+
+### `MavenBuildResponseOutputTail`
+
+| Field | Type |
+|---|---|
+| `text` | `String` |
+| `totalLines` | `int` |
+| `truncated` | `boolean` |
+
 ### `SearchReplaceResponseFileReplacement`
 
 | Field | Type |
@@ -3088,7 +3144,7 @@ Reads the content of the given web page and returns it as markdown, together wit
 
 ### `DiagnosticCode`
 
-`RESOURCE_NOT_FOUND` \| `RESOURCE_NOT_ACCESSIBLE` \| `RESOURCE_ALREADY_EXISTS` \| `READ_ONLY_RESOURCE` \| `INVALID_RANGE` \| `VERSION_CONFLICT` \| `RESOURCE_VERSION_EXPIRED` \| `RESOURCE_OUT_OF_SYNC` \| `HISTORY_UNAVAILABLE` \| `TEXT_NOT_FOUND` \| `AMBIGUOUS_MATCH` \| `OVERLAPPING_EDITS` \| `INVALID_JAVA_EDIT` \| `REFACTORING_PRECONDITION_FAILED` \| `EDITOR_REVEAL_FAILED` \| `FORMATTER_FAILED` \| `PATCH_APPLY_FAILED` \| `MERGE_CONFLICT` \| `CHECKOUT_CONFLICT` \| `BRANCH_NOT_MERGED` \| `REVISION_NOT_FOUND` \| `WRONG_REPOSITORY_STATE` \| `UNCOMMITTED_CHANGES` \| `PUSH_REJECTED` \| `REMOTE_OPERATION_FAILED` \| `PROJECT_NOT_FOUND` \| `TEST_CLASS_NOT_FOUND` \| `TEST_PACKAGE_NOT_FOUND` \| `PDE_LAUNCH_TYPE_MISSING` \| `LAUNCH_CONFIGURATION_NOT_FOUND` \| `WORKSPACE_LOCKED` \| `OPERATION_TIMED_OUT` \| `DEPENDENCY_RESOLUTION_FAILED` \| `TEST_RESULTS_NOT_REPORTED` \| `COVERAGE_UNAVAILABLE` \| `VALIDATION_ERROR` \| `INTERNAL_ERROR`
+`RESOURCE_NOT_FOUND` \| `RESOURCE_NOT_ACCESSIBLE` \| `RESOURCE_ALREADY_EXISTS` \| `READ_ONLY_RESOURCE` \| `INVALID_RANGE` \| `VERSION_CONFLICT` \| `RESOURCE_VERSION_EXPIRED` \| `RESOURCE_OUT_OF_SYNC` \| `HISTORY_UNAVAILABLE` \| `TEXT_NOT_FOUND` \| `AMBIGUOUS_MATCH` \| `OVERLAPPING_EDITS` \| `INVALID_JAVA_EDIT` \| `REFACTORING_PRECONDITION_FAILED` \| `EDITOR_REVEAL_FAILED` \| `FORMATTER_FAILED` \| `PATCH_APPLY_FAILED` \| `MERGE_CONFLICT` \| `CHECKOUT_CONFLICT` \| `BRANCH_NOT_MERGED` \| `REVISION_NOT_FOUND` \| `WRONG_REPOSITORY_STATE` \| `UNCOMMITTED_CHANGES` \| `PUSH_REJECTED` \| `REMOTE_OPERATION_FAILED` \| `PROJECT_NOT_FOUND` \| `TEST_CLASS_NOT_FOUND` \| `TEST_PACKAGE_NOT_FOUND` \| `PDE_LAUNCH_TYPE_MISSING` \| `MAVEN_LAUNCH_TYPE_MISSING` \| `LAUNCH_CONFIGURATION_NOT_FOUND` \| `WORKSPACE_LOCKED` \| `OPERATION_TIMED_OUT` \| `DEPENDENCY_RESOLUTION_FAILED` \| `TEST_RESULTS_NOT_REPORTED` \| `COVERAGE_UNAVAILABLE` \| `VALIDATION_ERROR` \| `INTERNAL_ERROR`
 
 ### `ResourceDescriptorResourceType`
 

@@ -41,6 +41,10 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.IField;
+import org.eclipse.jdt.core.ILocalVariable;
+import org.eclipse.jdt.core.IMethod;
+import org.eclipse.jdt.core.ITypeParameter;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IPackageFragment;
@@ -1247,7 +1251,9 @@ public class CodeEditingService
 
             // Close the editor if the file is open (to avoid conflicts)
             sync.syncExec( () -> {
-                IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+                // Off the UI thread - a test's inline UISynchronize - there is no active window.
+                IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+                IWorkbenchPage page = window == null ? null : window.getActivePage();
                 if ( page != null )
                 {
                     IEditorPart editor = page.findEditor( new FileEditorInput( file ) );
@@ -1324,6 +1330,274 @@ public class CodeEditingService
     }
 
     /**
+     * Renames whatever Java element sits at a position in a source file - a method,
+     * field, enum constant, local variable, parameter, type parameter or type - using
+     * the matching Eclipse rename refactoring, so every reference follows.
+     * <p>
+     * The element is selected the way the IDE selects it: the position may be on the
+     * declaration or on any reference to it, in which case the declaration is what
+     * gets renamed.
+     *
+     * @param projectName
+     *            The name of the project containing the Java file
+     * @param filePath
+     *            The path to the Java file relative to the project root
+     * @param line
+     *            1-based line of the identifier
+     * @param column
+     *            1-based column of the identifier
+     * @param newName
+     *            The new name
+     * @param expectedElementName
+     *            Optional: the simple name the caller expects at that position. When
+     *            it is not what is there, nothing is renamed
+     * @param updateReferences
+     *            Whether references are rewritten too
+     * @param updateTextualOccurrences
+     *            Whether occurrences in comments and strings are rewritten as well
+     *            (types and fields only)
+     * @param updateGettersAndSetters
+     *            When a field is renamed, whether its getter and setter are renamed
+     *            with it
+     */
+    public EditResult refactorRenameJavaElement( String projectName, String filePath, int line, int column, String newName,
+                                                 String expectedElementName, boolean updateReferences,
+                                                 boolean updateTextualOccurrences, boolean updateGettersAndSetters )
+    {
+        Objects.requireNonNull( projectName );
+        Objects.requireNonNull( filePath );
+        Objects.requireNonNull( newName );
+
+        if ( projectName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: Project name cannot be empty." );
+        }
+        if ( filePath.isEmpty() || !filePath.endsWith( ".java" ) )
+        {
+            throw new IllegalArgumentException( "Error: File path must identify a Java file." );
+        }
+        if ( newName.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Error: New name cannot be empty." );
+        }
+        if ( line < 1 || column < 1 )
+        {
+            throw new IllegalArgumentException( "Error: Line and column are 1-based." );
+        }
+
+        try
+        {
+            IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( projectName );
+            if ( !project.exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' does not exist." );
+            }
+            if ( !project.isOpen() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is closed." );
+            }
+            if ( !JavaCore.create( project ).exists() )
+            {
+                throw new RuntimeException( "Error: Project '" + projectName + "' is not a Java project." );
+            }
+
+            IFile file = project.getFile( IPath.fromPath( Path.of( filePath ) ) );
+            if ( !file.exists() )
+            {
+                throw new RuntimeException( "Error: File '" + filePath + "' does not exist in project '" + projectName + "'." );
+            }
+
+            IJavaElement javaElement = JavaCore.create( file );
+            if ( ! ( javaElement instanceof ICompilationUnit compilationUnit ) )
+            {
+                throw new RuntimeException( "Error: Could not resolve Java compilation unit for file '" + filePath + "'." );
+            }
+
+            // Select the element under the position the way the editor does.
+            IDocument document = new Document( compilationUnit.getSource() );
+            if ( line > document.getNumberOfLines() )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR,
+                                "Line " + line + " is beyond the end of '" + filePath + "', which has "
+                                        + document.getNumberOfLines() + " lines." ) );
+            }
+            int offset = document.getLineOffset( line - 1 ) + column - 1;
+            IJavaElement[] selected = compilationUnit.codeSelect( offset, 0 );
+            if ( selected.length == 0 )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR,
+                                "There is no Java element at line " + line + ", column " + column + " of '" + filePath
+                                        + "'. Put the position on the identifier itself." ) );
+            }
+            IJavaElement element = selected[0];
+            String elementName = element.getElementName();
+
+            if ( expectedElementName != null && !expectedElementName.isBlank() && !expectedElementName.equals( elementName ) )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR,
+                                "The element at line " + line + ", column " + column + " is " + describeElement( element )
+                                        + ", not '" + expectedElementName + "'. Nothing was renamed." ) );
+            }
+            if ( element.getAncestor( IJavaElement.COMPILATION_UNIT ) == null )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR,
+                                describeElement( element ) + " is not defined in source and cannot be renamed." ) );
+            }
+
+            String refactoringId = renameRefactoringId( element );
+            if ( refactoringId == null )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR,
+                                describeElement( element ) + " is not something this tool renames. Use "
+                                        + "refactorRenamePackage for packages." ) );
+            }
+
+            // Close the editor if the file is open (to avoid conflicts)
+            sync.syncExec( () -> {
+                // Off the UI thread - a test's inline UISynchronize - there is no active window.
+                IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+                IWorkbenchPage page = window == null ? null : window.getActivePage();
+                if ( page != null )
+                {
+                    IEditorPart editor = page.findEditor( new FileEditorInput( file ) );
+                    if ( editor != null )
+                    {
+                        page.closeEditor( editor, true ); // save before closing
+                    }
+                }
+            } );
+
+            RefactoringContribution contribution = RefactoringCore.getRefactoringContribution( refactoringId );
+            RenameJavaElementDescriptor descriptor = (RenameJavaElementDescriptor) contribution.createDescriptor();
+            descriptor.setJavaElement( element );
+            descriptor.setNewName( newName );
+            descriptor.setUpdateReferences( updateReferences );
+            if ( element instanceof IType )
+            {
+                descriptor.setUpdateSimilarDeclarations( false );
+                descriptor.setUpdateTextualOccurrences( updateTextualOccurrences );
+            }
+            else if ( element instanceof IField field && !field.isEnumConstant() )
+            {
+                descriptor.setUpdateTextualOccurrences( updateTextualOccurrences );
+                descriptor.setRenameGetters( updateGettersAndSetters );
+                descriptor.setRenameSetters( updateGettersAndSetters );
+            }
+
+            RefactoringStatus status = new RefactoringStatus();
+            Refactoring refactoring = descriptor.createRefactoring( status );
+
+            EditResult precondition = refusedPrecondition( file, status );
+            if ( precondition != null )
+            {
+                return precondition;
+            }
+
+            IProgressMonitor monitor = new NullProgressMonitor();
+            precondition = refusedPrecondition( file, refactoring.checkInitialConditions( monitor ) );
+            if ( precondition != null )
+            {
+                return precondition;
+            }
+
+            precondition = refusedPrecondition( file, refactoring.checkFinalConditions( monitor ) );
+            if ( precondition != null )
+            {
+                return precondition;
+            }
+
+            ResourceVersion before = ResourceVersion.of( file );
+
+            Change change = refactoring.createChange( monitor );
+            // Read the change set before performing it: afterwards the tree is the undo.
+            PendingChanges pending = pendingChanges( change );
+            change.perform( monitor );
+            project.refreshLocal( IResource.DEPTH_INFINITE, monitor );
+
+            // Renaming the file's own top-level type renames the file too; every other
+            // rename rewrites it in place. Either way the result is addressed to the file
+            // as it stands now, with every rewritten file listed in affectedResources.
+            IFile primary = file;
+            ChangeKind primaryKind = ChangeKind.MODIFIED;
+            if ( !file.exists() )
+            {
+                primary = ( (IContainer) file.getParent() ).getFile( IPath.fromOSString( newName + ".java" ) );
+                primaryKind = ChangeKind.MOVED;
+            }
+
+            resourceCache.resourceChanged( file.getFullPath() );
+            EditSynchronization synchronization = synchronizeAfterEdit( primary, line, null );
+            List<Diagnostic> diagnostics = new ArrayList<>();
+            EditorReveal reveal = describeReveal( primary, new ContentRange( line, 1, line, 1 ), diagnostics );
+
+            return resourceRelocated( primary, before, affectedBy( pending, primary, primaryKind ),
+                    reveal, synchronization.workspaceState(), diagnostics );
+        }
+        catch ( CoreException | BadLocationException e )
+        {
+            throw new RuntimeException( "Error during refactoring: " + ExceptionUtils.getRootCauseMessage( e ), e );
+        }
+    }
+
+    /**
+     * The rename refactoring that applies to an element, or null for one that has
+     * none (a package, an import, an initializer).
+     */
+    private static String renameRefactoringId( IJavaElement element ) throws JavaModelException
+    {
+        if ( element instanceof IMethod )
+        {
+            return IJavaRefactorings.RENAME_METHOD;
+        }
+        if ( element instanceof IField field )
+        {
+            return field.isEnumConstant() ? IJavaRefactorings.RENAME_ENUM_CONSTANT : IJavaRefactorings.RENAME_FIELD;
+        }
+        if ( element instanceof ILocalVariable )
+        {
+            return IJavaRefactorings.RENAME_LOCAL_VARIABLE;
+        }
+        if ( element instanceof ITypeParameter )
+        {
+            return IJavaRefactorings.RENAME_TYPE_PARAMETER;
+        }
+        if ( element instanceof IType )
+        {
+            return IJavaRefactorings.RENAME_TYPE;
+        }
+        return null;
+    }
+
+    /**
+     * An element as a message names it: its kind and name, plus the type that holds
+     * it when there is one, so a wrong-position message says what was found there.
+     */
+    private static String describeElement( IJavaElement element )
+    {
+        String kind = switch ( element.getElementType() )
+        {
+            case IJavaElement.METHOD -> "the method";
+            case IJavaElement.FIELD -> "the field";
+            case IJavaElement.LOCAL_VARIABLE -> ( (ILocalVariable) element ).isParameter() ? "the parameter" : "the local variable";
+            case IJavaElement.TYPE_PARAMETER -> "the type parameter";
+            case IJavaElement.TYPE -> "the type";
+            case IJavaElement.PACKAGE_FRAGMENT -> "the package";
+            default -> "the element";
+        };
+        IJavaElement holder = element.getAncestor( IJavaElement.TYPE );
+        if ( holder != null && holder != element )
+        {
+            return kind + " '" + element.getElementName() + "' in " + holder.getElementName();
+        }
+        return kind + " '" + element.getElementName() + "'";
+    }
+
+    /**
      * Moves a Java compilation unit to a different package using Eclipse's
      * refactoring mechanism. This updates the package declaration and all
      * references throughout the workspace.
@@ -1335,9 +1609,18 @@ public class CodeEditingService
      * @param targetPackage
      *            The fully qualified name of the target package (e.g.,
      *            "com.example.newpackage")
-     * @return A status message indicating success or failure
+     * @param targetProjectName
+     *            The project that should receive the file, or null to look for the
+     *            package in this project and every project on its build path
+     * @param targetSourceFolder
+     *            The project-relative source folder that should receive the file, or
+     *            null to use the one that already holds the package - or, for a package
+     *            that exists nowhere yet, the file's own
+     * @return The moved file and everything the refactoring rewrote, or a rejection
+     *         naming the candidate folders when the package name alone is ambiguous
      */
-    public EditResult refactorMoveJavaType( String projectName, String filePath, String targetPackage )
+    public EditResult refactorMoveJavaType( String projectName, String filePath, String targetPackage,
+                                            String targetProjectName, String targetSourceFolder )
     {
         Objects.requireNonNull( projectName );
         Objects.requireNonNull( filePath );
@@ -1402,14 +1685,25 @@ public class CodeEditingService
             }
 
             String typeName = primaryType.getElementName();
-            String oldPackageName = primaryType.getPackageFragment().getElementName();
 
-            // Find or create the target package
-            IPackageFragment targetPackageFragment = findOrCreatePackage( javaProject, targetPackage );
+
+
+            // Where the file goes. The package may already live in another project on the
+            // build path, or in several places, and a caller who said nothing more is told
+            // about that choice rather than surprised by it.
+            TargetPackage target = resolveTargetPackage( javaProject, compilationUnit, targetPackage,
+                    targetProjectName, targetSourceFolder );
+            if ( target.problem() != null )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ), target.problem() );
+            }
+            IPackageFragment targetPackageFragment = target.fragment();
 
             // Close the editor if the file is open
             sync.syncExec( () -> {
-                IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+                // Off the UI thread - a test's inline UISynchronize - there is no active window.
+                IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+                IWorkbenchPage page = window == null ? null : window.getActivePage();
                 if ( page != null )
                 {
                     IEditorPart editor = page.findEditor( new FileEditorInput( file ) );
@@ -1460,16 +1754,17 @@ public class CodeEditingService
             PendingChanges pending = pendingChanges( change );
             change.perform( monitor );
 
-            // Refresh the project
+            // Refresh both ends: the destination may be another project.
             project.refreshLocal( IResource.DEPTH_INFINITE, monitor );
+            IResource targetFolder = targetPackageFragment.getResource();
+            if ( targetFolder != null && !targetFolder.getProject().equals( project ) )
+            {
+                targetFolder.getProject().refreshLocal( IResource.DEPTH_INFINITE, monitor );
+            }
 
-            // Build the new file path
-            String packagePath = targetPackage.replace( '.', '/' );
-            IPackageFragmentRoot sourceRoot = (IPackageFragmentRoot) compilationUnit.getParent().getParent();
-            String sourceRootPath = sourceRoot.getResource().getProjectRelativePath().toString();
-            String newFilePath = sourceRootPath + "/" + packagePath + "/" + typeName + ".java";
-
-            IFile newFile = project.getFile( IPath.fromPath( Path.of( newFilePath ) ) );
+            // The moved file is wherever the target package's folder is, which is not
+            // necessarily in this project, let alone under the file's old source folder.
+            IFile newFile = ( (IContainer) targetFolder ).getFile( IPath.fromOSString( typeName + ".java" ) );
 
             // The refactoring moved the file and updated every reference to it. It
             // reports the moved file - what the caller addresses next - and every file
@@ -1486,6 +1781,15 @@ public class CodeEditingService
         {
             throw new RuntimeException( "Error during refactoring: " + ExceptionUtils.getRootCauseMessage( e ), e );
         }
+    }
+
+    /**
+     * Moves a type to a package, letting {@link #resolveTargetPackage} decide where that
+     * package is - see the five-argument form for what that means.
+     */
+    public EditResult refactorMoveJavaType( String projectName, String filePath, String targetPackage )
+    {
+        return refactorMoveJavaType( projectName, filePath, targetPackage, null, null );
     }
 
     /**
@@ -1554,7 +1858,9 @@ public class CodeEditingService
             sync.syncExec( () -> {
                 try
                 {
-                    IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+                    // Off the UI thread - a test's inline UISynchronize - there is no active window.
+                    IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+                    IWorkbenchPage page = window == null ? null : window.getActivePage();
                     if ( page != null )
                     {
                         for ( ICompilationUnit cu : packageFragment.getCompilationUnits() )
@@ -2052,7 +2358,9 @@ public class CodeEditingService
             if ( sourceResource instanceof IFile sourceFile )
             {
                 sync.syncExec( () -> {
-                    IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+                    // Off the UI thread - a test's inline UISynchronize - there is no active window.
+                    IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+                    IWorkbenchPage page = window == null ? null : window.getActivePage();
                     if ( page != null )
                     {
                         IEditorPart editor = page.findEditor( new FileEditorInput( sourceFile ) );
@@ -2130,28 +2438,200 @@ public class CodeEditingService
         return null;
     }
 
-    /**
-     * Finds or creates a package fragment in the Java project.
-     */
-    private IPackageFragment findOrCreatePackage( IJavaProject javaProject, String packageName ) throws CoreException
+    /** Where a moved type goes: the package fragment, or the reason none could be chosen. */
+    private record TargetPackage( IPackageFragment fragment, Diagnostic problem )
     {
-        // First try to find existing package
-        IPackageFragment existing = findPackage( javaProject, packageName );
-        if ( existing != null )
+        static TargetPackage of( IPackageFragment fragment )
         {
-            return existing;
+            return new TargetPackage( fragment, null );
         }
 
-        // Find the first source folder and create the package there
-        for ( IPackageFragmentRoot root : javaProject.getPackageFragmentRoots() )
+        static TargetPackage refused( DiagnosticCode code, String message )
         {
-            if ( root.getKind() == IPackageFragmentRoot.K_SOURCE )
+            return new TargetPackage( null, Diagnostic.fatal( code, message ) );
+        }
+    }
+
+    /**
+     * Resolves the package a type is moved into.
+     * <p>
+     * A package name alone is ambiguous whenever more than one source folder can hold
+     * it, and those folders are routinely in different projects: the package the caller
+     * means is usually the one that already exists, on the build path of the project the
+     * file is in. The old lookup searched only the file's own project and, finding
+     * nothing there, created the package in whichever source folder came first on the
+     * classpath - a resources folder, in the case that was reported (issue 159). So the
+     * package is looked for in the file's project and every project it can see: exactly
+     * one match is taken, several are refused with the candidates listed, and none means
+     * it is created beside the file, in the file's own source folder, unless the caller
+     * named a project or folder.
+     */
+    private TargetPackage resolveTargetPackage( IJavaProject source, ICompilationUnit unit, String packageName,
+                                                String targetProjectName, String targetSourceFolder )
+            throws CoreException
+    {
+        boolean explicitProject = targetProjectName != null && !targetProjectName.isBlank();
+        boolean explicitFolder = targetSourceFolder != null && !targetSourceFolder.isBlank();
+
+        List<IJavaProject> scope = explicitProject
+                ? List.of( javaProjectNamed( targetProjectName.trim() ) )
+                : visibleProjects( source );
+        List<IPackageFragmentRoot> roots = new ArrayList<>();
+        for ( IJavaProject candidate : scope )
+        {
+            for ( IPackageFragmentRoot root : candidate.getPackageFragmentRoots() )
             {
-                return root.createPackageFragment( packageName, true, new NullProgressMonitor() );
+                if ( root.getKind() == IPackageFragmentRoot.K_SOURCE && !root.isArchive()
+                        && ( !explicitFolder || isSourceFolder( root, targetSourceFolder ) ) )
+                {
+                    roots.add( root );
+                }
             }
         }
+        if ( roots.isEmpty() )
+        {
+            return TargetPackage.refused( DiagnosticCode.RESOURCE_NOT_FOUND, explicitFolder
+                    ? "No source folder '" + targetSourceFolder + "' in " + describe( scope ) + "."
+                    : "No source folder in " + describe( scope ) + " to receive package '" + packageName + "'." );
+        }
 
-        throw new RuntimeException( "Error: No source folder found in project to create package '" + packageName + "'." );
+        List<IPackageFragmentRoot> holding = new ArrayList<>();
+        for ( IPackageFragmentRoot root : roots )
+        {
+            IPackageFragment fragment = root.getPackageFragment( packageName );
+            if ( fragment != null && fragment.exists() )
+            {
+                holding.add( root );
+            }
+        }
+        if ( holding.size() == 1 )
+        {
+            return TargetPackage.of( holding.get( 0 ).getPackageFragment( packageName ) );
+        }
+        if ( holding.size() > 1 )
+        {
+            return TargetPackage.refused( DiagnosticCode.AMBIGUOUS_MATCH,
+                    "Package '" + packageName + "' exists in " + holding.size() + " source folders: " + describe( holding )
+                            + ". Pass targetProjectName and/or targetSourceFolder to say which one." );
+        }
+
+        // The package exists nowhere yet. Without a say from the caller it is created
+        // beside the file, in the file's own source folder.
+        IPackageFragmentRoot destination;
+        if ( !explicitProject && !explicitFolder )
+        {
+            destination = (IPackageFragmentRoot) unit.getAncestor( IJavaElement.PACKAGE_FRAGMENT_ROOT );
+        }
+        else if ( roots.size() == 1 )
+        {
+            destination = roots.get( 0 );
+        }
+        else
+        {
+            // Several folders could take it. One that already holds Java sources is a
+            // source folder in more than name; a resources folder is not.
+            List<IPackageFragmentRoot> withSources = roots.stream().filter( CodeEditingService::holdsJavaSources ).toList();
+            if ( withSources.size() != 1 )
+            {
+                return TargetPackage.refused( DiagnosticCode.AMBIGUOUS_MATCH,
+                        "Package '" + packageName + "' does not exist yet and " + roots.size()
+                                + " source folders could receive it: " + describe( roots )
+                                + ". Pass targetSourceFolder to say which one." );
+            }
+            destination = withSources.get( 0 );
+        }
+        return TargetPackage.of( destination.createPackageFragment( packageName, true, new NullProgressMonitor() ) );
+    }
+
+    private static IJavaProject javaProjectNamed( String name )
+    {
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( name );
+        if ( !project.exists() || !project.isOpen() )
+        {
+            throw new RuntimeException( "Error: Project '" + name + "' does not exist or is closed." );
+        }
+        IJavaProject javaProject = JavaCore.create( project );
+        if ( javaProject == null || !javaProject.exists() )
+        {
+            throw new RuntimeException( "Error: Project '" + name + "' is not a Java project." );
+        }
+        return javaProject;
+    }
+
+    /** The project itself, then every project on its build path, transitively, each once. */
+    private static List<IJavaProject> visibleProjects( IJavaProject source ) throws JavaModelException
+    {
+        List<IJavaProject> visible = new ArrayList<>();
+        Deque<IJavaProject> pending = new ArrayDeque<>();
+        pending.add( source );
+        while ( !pending.isEmpty() )
+        {
+            IJavaProject next = pending.poll();
+            if ( visible.stream().anyMatch( seen -> seen.getElementName().equals( next.getElementName() ) ) )
+            {
+                continue;
+            }
+            visible.add( next );
+            for ( String required : next.getRequiredProjectNames() )
+            {
+                IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject( required );
+                if ( project.isAccessible() )
+                {
+                    IJavaProject javaProject = JavaCore.create( project );
+                    if ( javaProject.exists() )
+                    {
+                        pending.add( javaProject );
+                    }
+                }
+            }
+        }
+        return visible;
+    }
+
+    private static boolean isSourceFolder( IPackageFragmentRoot root, String projectRelativeFolder )
+    {
+        IResource resource = root.getResource();
+        String wanted = projectRelativeFolder.trim().replace( '\\', '/' ).replaceAll( "^/+|/+$", "" );
+        return resource != null && resource.getProjectRelativePath().toString().equals( wanted );
+    }
+
+    private static boolean holdsJavaSources( IPackageFragmentRoot root )
+    {
+        try
+        {
+            for ( IJavaElement child : root.getChildren() )
+            {
+                if ( child instanceof IPackageFragment fragment && fragment.getCompilationUnits().length > 0 )
+                {
+                    return true;
+                }
+            }
+        }
+        catch ( JavaModelException e )
+        {
+            // Unreadable: not a folder to put sources in.
+        }
+        return false;
+    }
+
+    /** Source folders as "project/folder", projects by name - for a diagnostic. */
+    private static String describe( List<?> elements )
+    {
+        List<String> names = new ArrayList<>();
+        for ( Object element : elements )
+        {
+            if ( element instanceof IPackageFragmentRoot root )
+            {
+                IResource resource = root.getResource();
+                names.add( root.getJavaProject().getElementName() + "/"
+                        + ( resource == null ? root.getElementName() : resource.getProjectRelativePath().toString() ) );
+            }
+            else if ( element instanceof IJavaProject project )
+            {
+                names.add( project.getElementName() );
+            }
+        }
+        return String.join( ", ", names );
     }
 
     /**
@@ -2179,7 +2659,9 @@ public class CodeEditingService
             // Close the editor first: leaving one open on a resource that no longer
             // exists leaves the user looking at content that is gone.
             sync.syncExec( () -> {
-                IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+                // Off the UI thread - a test's inline UISynchronize - there is no active window.
+                IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+                IWorkbenchPage page = window == null ? null : window.getActivePage();
                 if ( page != null )
                 {
                     IEditorPart editor = page.findEditor( new FileEditorInput( file ) );

@@ -64,6 +64,39 @@ public class ToolExecutorPDETest
         assertEquals( "", tools.newString );
         assertEquals( "replaced", result );
     }
+    /**
+     * Every argument reaches a tool as the String the client sent: the schema declares
+     * every parameter as a string and mapArguments hands the values to Method.invoke
+     * untouched. A tool declaring an int or a Boolean parameter therefore fails on
+     * every call with an argument type mismatch - and no service-level test notices,
+     * because those call the service directly. This catches it at build time.
+     */
+    @Test
+    public void everyToolParameterIsAString()
+    {
+        java.util.List<String> offenders = new java.util.ArrayList<>();
+        for ( Class<?> server : McpServerBuiltins.BUILT_IN_MCP_SERVERS )
+        {
+            for ( java.lang.reflect.Method method : server.getDeclaredMethods() )
+            {
+                if ( method.getAnnotation( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool.class ) == null )
+                {
+                    continue;
+                }
+                for ( java.lang.reflect.Parameter parameter : method.getParameters() )
+                {
+                    if ( parameter.getType() != String.class )
+                    {
+                        offenders.add( server.getSimpleName() + "." + method.getName() + "("
+                                + parameter.getType().getSimpleName() + " " + ToolExecutor.toParamName( parameter ) + ")" );
+                    }
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals( java.util.List.of(), offenders,
+                "tool parameters must be declared as String and parsed in the tool method" );
+    }
+
 
     static final class ReplaceTools
     {

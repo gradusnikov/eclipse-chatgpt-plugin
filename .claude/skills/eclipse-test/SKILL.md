@@ -27,7 +27,7 @@ Execute JUnit tests and Maven builds using Eclipse's built-in infrastructure.
 
 ## Build Tools
 
-- **runMavenBuild** — Run Maven with specified goals. Provide `projectName`, `goals` (e.g., `clean install`), optional `profiles`, and `timeout`.
+- **runMavenBuild** — Run Maven the way Run As > Maven build does. Provide `projectName` and `goals` written exactly as after `mvn` (e.g., `clean install -DskipTests -pl module`); optional `profiles`, `properties`, `pomDirectory`, `offline`, `skipTests`, and `timeout` (seconds to wait before an operationId is returned). The result carries the exit code, every `[ERROR]` line and the tail of the log; the full log is in the console named `launchName`.
 - **getEffectivePom** — Get the effective POM for a Maven project.
 - **listMavenProjects** — List all Maven projects in the workspace.
 - **getProjectDependencies** — Get Maven dependencies for a project.
@@ -51,7 +51,7 @@ Execute JUnit tests and Maven builds using Eclipse's built-in infrastructure.
 
 4. **Build with Maven:**
    ```
-   runMavenBuild(projectName="myapp", goals="clean verify", timeout="300")
+   runMavenBuild(projectName="myapp", goals="clean verify -DskipTests", timeout="300")
    ```
 
 5. **Check build output:**

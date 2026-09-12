@@ -204,6 +204,7 @@ External agents don't know what you're looking at in Eclipse -- unless they ask.
 | replaceFileContent | Replaces the entire content of a file |
 | deleteLinesInFile | Deletes a range of lines (1-based indexing) |
 | refactorRenameJavaType | Renames a Java type using Eclipse's refactoring, updating all references |
+| refactorRenameJavaElement | Renames the method, field, local, parameter, type parameter or type at a line and column, updating all references |
 | refactorExtractTypeToNewFile | Extracts a nested Java type to a new top-level Java file using Eclipse's refactoring |
 | refactorMoveJavaType | Moves a Java type to a different package, updating all references |
 | refactorRenamePackage | Renames a package, updating all declarations and references |
@@ -248,7 +249,7 @@ Direct file-editing tools complete a workspace synchronization barrier before re
 | runClassTests | Run tests for a specific class |
 | runTestMethod | Run a specific test method |
 | findTestClasses | Classify plain JUnit and `*PDETest` harness tests; warns about likely PDE-dependent tests that violate the naming convention |
-| runMavenBuild | Run a Maven build with specified goals |
+| runMavenBuild | Run a Maven build the way Run As > Maven build does, with the full Maven log in the console; reports exit code, `[ERROR]` lines and the log tail |
 | getEffectivePom | Effective POM for a Maven project |
 | getProjectDependencies | Maven project dependencies |
 | getMarkdownOutline | Heading structure (TOC) of a Markdown file with line numbers and section sizes |

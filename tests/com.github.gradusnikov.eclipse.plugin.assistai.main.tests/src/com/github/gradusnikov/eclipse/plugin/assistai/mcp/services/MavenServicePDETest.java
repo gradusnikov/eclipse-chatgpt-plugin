@@ -3,6 +3,7 @@ package com.github.gradusnikov.eclipse.plugin.assistai.mcp.services;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -24,6 +25,7 @@ import org.eclipse.core.runtime.ILogListener;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.EclipseContextFactory;
 import org.eclipse.e4.core.contexts.IEclipseContext;
@@ -36,6 +38,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.osgi.framework.Bundle;
 
+import com.github.gradusnikov.eclipse.assistai.mcp.results.DiagnosticCode;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.MavenBuildResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.MavenBuildResponse.BuildStatus;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.MavenDependenciesResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.MavenProjectListResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.MavenService;
@@ -176,7 +181,24 @@ public class MavenServicePDETest extends AbstractOperationPDETest
     public void afterEach() throws CoreException {
         // Clean up the test project
         if (project != null && project.exists()) {
-            project.delete(true, true, monitor);
+            // A Maven launch leaves the auto-build and m2e's own jobs holding files under
+            // target/ for a moment; on Windows that makes the first delete fail.
+            try {
+                Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_BUILD, monitor);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            CoreException lastFailure = null;
+            for (int attempt = 0; attempt < 5; attempt++) {
+                try {
+                    project.delete(true, true, monitor);
+                    return;
+                } catch (CoreException e) {
+                    lastFailure = e;
+                    try { Thread.sleep(300); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                }
+            }
+            throw lastFailure;
         }
     }
     
@@ -207,85 +229,161 @@ public class MavenServicePDETest extends AbstractOperationPDETest
         assertTrue(exception.getMessage().contains("does not exist"), exception.getMessage());
     }
 
-    @Test
-    public void testRunMavenBuild_InvalidProject() {
-        // Test with non-existent project
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            service.runMavenBuild("NonExistentProject", "clean install", "", 0);
-        });
-        
-        assertTrue(exception.getMessage().contains("does not exist"));
-    }
-    
-    @Test
-    public void testRunMavenBuild_ValidProject()
-    {
-        try {
-            runWithOperationAndPrintConsoleOnProblems( "testRunMavenBuild_ValidProject", () -> {
-                String result = service.runMavenBuild( TEST_PROJECT_NAME, "clean install", "", 0 );
+    // ---- runMavenBuild: the build runs through m2e's launcher, like Run As > Maven build ----
 
-                // Verify result contains expected information
-                assertTrue( result.contains( "Maven build" ), result );
-                assertTrue( result.contains( "for project" ), result );
-                assertTrue( result.contains( "with goals: clean install" ), result );
-                assertTrue( result.contains( "To view build output" ), result );
-            } );
-        } catch (RuntimeException e) {
-            if (e.getMessage() != null && e.getMessage().contains("Could not find Maven configuration")) {
-                // This is expected in test environment - M2E integration is difficult to test
-                System.out.println("Note: Maven configuration not found - this is expected in test environment");
-                assumeTrue(false, "Skipping test as Maven configuration is not available");
-            } else {
-                throw e;
-            }
+    /**
+     * A Maven launch needs m2e's launcher and a JRE to run in. When the harness has
+     * neither, that is a fact about the harness, not about the code under test.
+     */
+    private static void assumeLaunchable( MavenBuildResponse result )
+    {
+        if ( result.status() == BuildStatus.FAILED_TO_START )
+        {
+            DiagnosticCode code = result.diagnostics().get( 0 ).code();
+            assumeTrue( code != DiagnosticCode.MAVEN_LAUNCH_TYPE_MISSING,
+                    "Skipping: " + result.summaryText() );
         }
     }
 
-    @Test
-    public void testRunMavenBuild_WithProfiles()
+    private MavenBuildResponse build( String goals, boolean offline )
     {
-        try {
-            runWithOperationAndPrintConsoleOnProblems( "testRunMavenBuild_WithProfiles", () -> {
-                String result = service.runMavenBuild( TEST_PROJECT_NAME, "clean install", "dev,test", 0 );
+        return service.runMavenBuild( TEST_PROJECT_NAME, goals, null, null, null, offline, false, false, false, 300 );
+    }
 
-                // Verify result contains profile information
-                assertTrue( result.contains( "with goals: clean install" ) );
-                assertTrue( result.contains( "and profiles: dev,test" ) );
-            } );
-        } catch (RuntimeException e) {
-            if (e.getMessage() != null && e.getMessage().contains("Could not find Maven configuration")) {
-                // This is expected in test environment
-                System.out.println("Note: Maven configuration not found - this is expected in test environment");
-                assumeTrue(false, "Skipping test as Maven configuration is not available");
-            } else {
-                throw e;
-            }
-        }
-    }
-    
     @Test
-    public void testRunMavenBuild_NullOrEmptyParams() {
-        // Test with null project name
-        assertThrows(NullPointerException.class, () -> {
-            service.runMavenBuild(null, "clean", "", 0);
-        });
-        
-        // Test with empty project name
-        assertThrows(IllegalArgumentException.class, () -> {
-            service.runMavenBuild("", "clean", "", 0);
-        });
-        
-        // Test with null goals
-        assertThrows(NullPointerException.class, () -> {
-            service.runMavenBuild(TEST_PROJECT_NAME, null, "", 0);
-        });
-        
-        // Test with empty goals
-        assertThrows(IllegalArgumentException.class, () -> {
-            service.runMavenBuild(TEST_PROJECT_NAME, "", "", 0);
-        });
+    public void aBuildRunsThroughTheMavenLauncherAndReportsMavensOwnLog()
+    {
+        runWithOperationAndPrintConsoleOnProblems( "aBuildRunsThroughTheMavenLauncher", () -> {
+            MavenBuildResponse result = build( "validate", true );
+            assumeLaunchable( result );
+
+            assertEquals( BuildStatus.SUCCESS, result.status(), () -> result.summaryText() + "\n" + result.output().text() );
+            assertEquals( 0, result.exitCode() );
+            assertEquals( TEST_PROJECT_NAME, result.projectName() );
+            assertEquals( "/" + TEST_PROJECT_NAME, result.pomDirectory() );
+            assertEquals( "mvn -B -o validate", result.mavenCommand() );
+            // Maven's own log, not a summary of ours: the INFO lines and the verdict.
+            assertTrue( result.output().text().contains( "[INFO] BUILD SUCCESS" ), result.output().text() );
+            assertTrue( result.output().text().contains( "[INFO] Scanning for projects..." ), result.output().text() );
+            assertTrue( result.errorLines().isEmpty(), result.errorLines().toString() );
+            assertFalse( result.timedOut() );
+            // The launch configuration is saved under the name the console carries.
+            assertNotNull( result.launchName() );
+            assertTrue( result.launchName().startsWith( TEST_PROJECT_NAME + " [validate]" ), result.launchName() );
+            assertTrue( java.util.Arrays.stream( org.eclipse.debug.core.DebugPlugin.getDefault().getLaunchManager().getLaunchConfigurations() )
+                    .anyMatch( c -> c.getName().equals( result.launchName() ) ), "the launch configuration was saved" );
+        } );
     }
-    
+
+    @Test
+    public void everythingAfterMvnReachesMavenUntouched()
+    {
+        runWithOperationAndPrintConsoleOnProblems( "everythingAfterMvnReachesMavenUntouched", () -> {
+            // The way a command line is typed: a leading 'mvn', options among the goals.
+            MavenBuildResponse result = build( "mvn  validate -Dsome.property=1 -N", true );
+            assumeLaunchable( result );
+
+            assertEquals( BuildStatus.SUCCESS, result.status(), () -> result.summaryText() + "\n" + result.output().text() );
+            assertEquals( "mvn -B -o validate -Dsome.property=1 -N", result.mavenCommand() );
+            assertTrue( result.launchName().contains( "[validate -Dsome.property=1 -N]" ), result.launchName() );
+        } );
+    }
+
+    @Test
+    public void aFailingBuildReportsItsExitCodeAndErrorLines()
+    {
+        runWithOperationAndPrintConsoleOnProblems( "aFailingBuildReportsItsExitCodeAndErrorLines", () -> {
+            MavenBuildResponse result = build( "no-such-phase-xyz", true );
+            assumeLaunchable( result );
+
+            assertEquals( BuildStatus.FAILURE, result.status(), () -> result.summaryText() + "\n" + result.output().text() );
+            assertEquals( 1, result.exitCode() );
+            assertTrue( result.output().text().contains( "BUILD FAILURE" ), result.output().text() );
+            assertFalse( result.errorLines().isEmpty(), "Maven's [ERROR] lines are reported as a list" );
+            assertTrue( result.errorLines().stream().anyMatch( line -> line.contains( "no-such-phase-xyz" ) ),
+                    result.errorLines().toString() );
+            assertTrue( result.summaryText().startsWith( "BUILD FAILURE (exit code 1)" ), result.summaryText() );
+            assertTrue( result.diagnostics().isEmpty(), "a failed build is a status, not a diagnostic" );
+        } );
+    }
+
+    @Test
+    public void profilesAndPropertiesBecomeMavenOptions()
+    {
+        runWithOperationAndPrintConsoleOnProblems( "profilesAndPropertiesBecomeMavenOptions", () -> {
+            MavenBuildResponse result = service.runMavenBuild( TEST_PROJECT_NAME, "validate", "dev, test",
+                    "env.check=1,-Dother=2", null, true, false, true, false, 300 );
+            assumeLaunchable( result );
+
+            assertEquals( BuildStatus.SUCCESS, result.status(), () -> result.summaryText() + "\n" + result.output().text() );
+            assertEquals( "mvn -B -o -Dmaven.test.skip=true -DskipTests -Denv.check=1 -Dother=2 -Pdev,test validate",
+                    result.mavenCommand() );
+        } );
+    }
+
+    @Test
+    public void aMavenArtifactIdNamesTheProjectToo()
+    {
+        assumeTrue( MavenPlugin.getMavenProjectRegistry().getProject( project ) != null,
+                "Skipping: m2e has not registered the fixture project" );
+        runWithOperationAndPrintConsoleOnProblems( "aMavenArtifactIdNamesTheProjectToo", () -> {
+            MavenBuildResponse result = service.runMavenBuild( "maven-test-project", "validate", null, null, null,
+                    true, false, false, false, 300 );
+            assumeLaunchable( result );
+
+            assertEquals( TEST_PROJECT_NAME, result.projectName(), "resolved to the Eclipse project" );
+            assertEquals( BuildStatus.SUCCESS, result.status(), () -> result.summaryText() + "\n" + result.output().text() );
+        } );
+    }
+
+    @Test
+    public void aMissingProjectIsAFieldNotAnException()
+    {
+        MavenBuildResponse result = service.runMavenBuild( "NonExistentProject", "clean install", null, null, null,
+                false, false, false, false, 10 );
+
+        assertEquals( BuildStatus.FAILED_TO_START, result.status() );
+        assertEquals( DiagnosticCode.PROJECT_NOT_FOUND, result.diagnostics().get( 0 ).code() );
+        assertTrue( result.summaryText().contains( "NonExistentProject" ), result.summaryText() );
+        assertNull( result.exitCode() );
+    }
+
+    @Test
+    public void emptyGoalsAreRefusedBeforeAnythingIsLaunched()
+    {
+        for ( String goals : new String[] { "", "   ", "mvn", "./mvnw" } )
+        {
+            MavenBuildResponse result = service.runMavenBuild( TEST_PROJECT_NAME, goals, null, null, null,
+                    false, false, false, false, 10 );
+            assertEquals( BuildStatus.FAILED_TO_START, result.status(), goals );
+            assertEquals( DiagnosticCode.VALIDATION_ERROR, result.diagnostics().get( 0 ).code(), goals );
+        }
+        assertThrows( NullPointerException.class,
+                () -> service.runMavenBuild( TEST_PROJECT_NAME, null, null, null, null, false, false, false, false, 10 ) );
+    }
+
+    @Test
+    public void aMalformedPropertyIsRefused()
+    {
+        MavenBuildResponse result = service.runMavenBuild( TEST_PROJECT_NAME, "validate", null, "novalue", null,
+                false, false, false, false, 10 );
+
+        assertEquals( BuildStatus.FAILED_TO_START, result.status() );
+        assertEquals( DiagnosticCode.VALIDATION_ERROR, result.diagnostics().get( 0 ).code() );
+        assertTrue( result.summaryText().contains( "novalue" ), result.summaryText() );
+    }
+
+    @Test
+    public void aDirectoryWithoutAPomIsRefused()
+    {
+        MavenBuildResponse result = service.runMavenBuild( TEST_PROJECT_NAME, "validate", null, null, "src/main/java",
+                false, false, false, false, 10 );
+
+        assertEquals( BuildStatus.FAILED_TO_START, result.status() );
+        assertEquals( DiagnosticCode.RESOURCE_NOT_FOUND, result.diagnostics().get( 0 ).code() );
+        assertEquals( "/" + TEST_PROJECT_NAME + "/src/main/java", result.pomDirectory() );
+    }
+
     @Test
     public void testGetEffectivePom() {
         try {
