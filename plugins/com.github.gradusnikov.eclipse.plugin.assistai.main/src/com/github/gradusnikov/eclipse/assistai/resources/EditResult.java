@@ -29,6 +29,12 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.DiagnosticCode;
  * behind, because a refactoring silently invalidates every {@code modificationStamp}
  * the caller holds. There is deliberately no per-entry diff or edit list: that would
  * put a second unbounded content payload in every refactoring result.
+ * <p>
+ * {@link #unifiedDiff()} is the complete diff when it is the caller's only account of
+ * the change - a preview, or an edit the IDE computed such as a format or organize
+ * imports. When the caller supplied the text itself the diff would only echo it back,
+ * so it is replaced by a single {@code \ diff omitted (+added -removed lines)} line;
+ * an unchanged file gives an empty string either way.
  */
 public record EditResult(
     EditStatus status,

@@ -165,6 +165,8 @@ public class CodeEditingServicePDETest {
         EditResult inserted = insertIntoFile("src/testFile.txt", "Inserted", 2);
         assertEquals(EditResult.EditStatus.APPLIED, inserted.status());
         assertEquals("Line 1\nInserted\nLine 2\n", ResourceUtilities.readFileContent(testFile));
+        // The caller wrote the text, so the result counts the change instead of echoing it.
+        assertEquals("\\ diff omitted (+1 -0 lines): the change is the one requested\n", inserted.unifiedDiff());
 
         // One past the last line appends rather than failing.
         EditResult appended = insertIntoFile("src/testFile.txt", "Appended", 4);
@@ -860,6 +862,22 @@ public class ApplicationNew {
         String formatted = ResourceUtilities.readFileContent(testFile);
         assertTrue(formatted.contains("a = 1;"), formatted);
         assertFalse(formatted.contains("\r"), formatted);
+        // The IDE computed this change, so the diff is the caller's only account of it.
+        assertTrue(result.unifiedDiff().contains("-void f(){a=1;}"), result.unifiedDiff());
+    }
+
+    @Test
+    public void testReplaceFileContent_previewKeepsTheWholeDiff() throws CoreException, IOException {
+        createFile("src/long.txt", "old\n");
+        String longContent = "line\n".repeat(200);
+
+        EditResult result = service.replaceFileContent(TEST_PROJECT_NAME, "src/long.txt", longContent, IResource.NULL_STAMP, true);
+
+        assertEquals(EditResult.EditStatus.PREVIEW, result.status());
+        // A preview exists to show the outcome, so its diff is never cut short; a large reply is the client's to page.
+        String diff = result.unifiedDiff();
+        assertTrue(diff.startsWith("--- src/long.txt\n+++ src/long.txt\n@@"), diff);
+        assertEquals(200, diff.lines().filter("+line"::equals).count(), diff);
     }
 
     private IFile createFile(String path, String content) throws CoreException {
