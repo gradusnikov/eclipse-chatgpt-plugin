@@ -10,10 +10,15 @@ public record PackageSummaryResponse(
     String summaryText
 )
 {
+    /**
+     * @param javadoc the type's documentation as Markdown at the requested detail - by
+     *            default its first sentence - or null when none was requested or the type
+     *            has no comment of its own; a member's comment is not the type's
+     */
     public record TypeSummary(
         String simpleName,
         String typeKind,
-        String javadocSummary,
+        String javadoc,
         int methodCount,
         int fieldCount,
         List<String> superInterfaces

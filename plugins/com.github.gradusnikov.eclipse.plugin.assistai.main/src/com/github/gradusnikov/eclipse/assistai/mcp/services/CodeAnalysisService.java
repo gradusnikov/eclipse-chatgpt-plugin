@@ -31,6 +31,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.ImportSuggestionsResp
 import com.github.gradusnikov.eclipse.assistai.mcp.results.QuickFixResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.ReferencesResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.TypeHierarchyResponse;
+import com.github.gradusnikov.eclipse.assistai.tools.Javadocs;
 import com.github.gradusnikov.eclipse.assistai.tools.LineOffsets;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jdt.core.Flags;
@@ -40,6 +41,7 @@ import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaModelMarker;
 import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.IMember;
 import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.ISourceRange;
 import org.eclipse.jdt.core.IType;
@@ -561,8 +563,10 @@ public class CodeAnalysisService
      * the caller's next act is to open one of them.
      *
      * @param fullyQualifiedClassName The fully qualified name of the class
+     * @param javadoc how much of each type's documentation to carry; NONE keeps the
+     *            answer structural
      */
-    public TypeHierarchyResponse getTypeHierarchy( String fullyQualifiedClassName )
+    public TypeHierarchyResponse getTypeHierarchy( String fullyQualifiedClassName, Javadocs.Detail javadoc )
     {
         try
         {
@@ -575,9 +579,9 @@ public class CodeAnalysisService
             var hierarchy = targetType.newTypeHierarchy( new NullProgressMonitor() );
 
             return TypeHierarchyResponse.of( fullyQualifiedClassName,
-                    toHierarchyTypes( hierarchy.getAllSuperclasses( targetType ) ),
-                    toHierarchyTypes( hierarchy.getAllSuperInterfaces( targetType ) ),
-                    toHierarchyTypes( hierarchy.getAllSubtypes( targetType ) ) );
+                    toHierarchyTypes( hierarchy.getAllSuperclasses( targetType ), javadoc ),
+                    toHierarchyTypes( hierarchy.getAllSuperInterfaces( targetType ), javadoc ),
+                    toHierarchyTypes( hierarchy.getAllSubtypes( targetType ), javadoc ) );
         }
         catch ( Exception e )
         {
@@ -586,12 +590,12 @@ public class CodeAnalysisService
         }
     }
 
-    private static List<TypeHierarchyResponse.HierarchyType> toHierarchyTypes( IType[] types )
+    private static List<TypeHierarchyResponse.HierarchyType> toHierarchyTypes( IType[] types, Javadocs.Detail javadoc )
     {
         List<TypeHierarchyResponse.HierarchyType> hierarchyTypes = new ArrayList<>();
         for ( IType type : types )
         {
-            hierarchyTypes.add( toHierarchyType( type ) );
+            hierarchyTypes.add( toHierarchyType( type, javadoc ) );
         }
         return hierarchyTypes;
     }
@@ -599,16 +603,21 @@ public class CodeAnalysisService
     /**
      * A type from a JAR or the JRE has no compilation unit, so it reports no location -
      * which is how a caller tells "I can open and edit this" from "I cannot".
+     * <p>
+     * Its documentation comes from source only, attached or in the workspace: a hierarchy
+     * can reach dozens of library types, and a project's Javadoc location may be a URL.
      */
-    private static TypeHierarchyResponse.HierarchyType toHierarchyType( IType type )
+    private static TypeHierarchyResponse.HierarchyType toHierarchyType( IType type, Javadocs.Detail javadoc )
     {
+        Javadocs.Rendered rendered = Javadocs.render( type, javadoc, false );
+        String documentation = rendered == null ? null : rendered.markdown();
         ICompilationUnit unit = type.getCompilationUnit();
         if ( unit != null && unit.getResource() instanceof IFile file )
         {
             return new TypeHierarchyResponse.HierarchyType( type.getFullyQualifiedName(),
-                    file.getProject().getName(), file.getProjectRelativePath().toString() );
+                    file.getProject().getName(), file.getProjectRelativePath().toString(), documentation );
         }
-        return new TypeHierarchyResponse.HierarchyType( type.getFullyQualifiedName(), null, null );
+        return new TypeHierarchyResponse.HierarchyType( type.getFullyQualifiedName(), null, null, documentation );
     }
 
     /**
@@ -621,8 +630,10 @@ public class CodeAnalysisService
      *
      * @param fullyQualifiedClassName the type to outline
      * @param includeFields whether field declarations are listed
+     * @param javadoc how much of each member's documentation to carry
      */
-    public ClassOutlineResponse getClassOutline( String fullyQualifiedClassName, boolean includeFields )
+    public ClassOutlineResponse getClassOutline( String fullyQualifiedClassName, boolean includeFields,
+            Javadocs.Detail javadoc )
     {
         try
         {
@@ -655,27 +666,23 @@ public class CodeAnalysisService
             {
                 for ( IField field : type.getFields() )
                 {
-                    fields.add( toMember( document, field.getElementName(), formatFieldDeclaration( field ),
-                            field.getSourceRange() ) );
+                    fields.add( toMember( document, field, formatFieldDeclaration( field ), javadoc ) );
                 }
             }
 
             List<ClassOutlineResponse.Member> methods = new ArrayList<>();
             for ( IMethod method : type.getMethods() )
             {
-                methods.add( toMember( document, method.getElementName(), formatMethodSignature( method ),
-                        method.getSourceRange() ) );
+                methods.add( toMember( document, method, formatMethodSignature( method ), javadoc ) );
             }
 
             List<ClassOutlineResponse.Member> innerTypes = new ArrayList<>();
             for ( IType innerType : type.getTypes() )
             {
-                innerTypes.add( toMember( document, innerType.getElementName(), formatTypeDeclaration( innerType ),
-                        innerType.getSourceRange() ) );
+                innerTypes.add( toMember( document, innerType, formatTypeDeclaration( innerType ), javadoc ) );
             }
 
-            ClassOutlineResponse.Member declaration = toMember( document, type.getElementName(),
-                    formatTypeDeclaration( type ), type.getSourceRange() );
+            ClassOutlineResponse.Member declaration = toMember( document, type, formatTypeDeclaration( type ), javadoc );
 
             return ClassOutlineResponse.of( fullyQualifiedClassName,
                     resource == null ? null : resource.getProject().getName(),
@@ -691,15 +698,19 @@ public class CodeAnalysisService
     }
 
     /** Both line numbers are 1-based and inclusive, as the reading tools take them. */
-    private static ClassOutlineResponse.Member toMember( IDocument document, String name, String label,
-            ISourceRange range ) throws BadLocationException
+    /** An outline is workspace source, so the attached-Javadoc lookup never applies. */
+    private static ClassOutlineResponse.Member toMember( IDocument document, IMember member, String label,
+            Javadocs.Detail javadoc ) throws JavaModelException, BadLocationException
     {
+        ISourceRange range = member.getSourceRange();
         int startLine = document.getLineOfOffset( range.getOffset() ) + 1;
         int endLine = document.getLineOfOffset( range.getOffset() + Math.max( range.getLength() - 1, 0 ) ) + 1;
-        return new ClassOutlineResponse.Member( name, label, startLine, endLine );
+        Javadocs.Rendered rendered = Javadocs.render( member, javadoc, false );
+        return new ClassOutlineResponse.Member( member.getElementName(), label, startLine, endLine,
+                rendered == null ? null : rendered.markdown(), rendered != null && rendered.inherited() );
     }
 
-    private static String formatTypeDeclaration( IType type ) throws JavaModelException
+    static String formatTypeDeclaration( IType type ) throws JavaModelException
     {
         StringBuilder declaration = new StringBuilder();
         appendAnnotations( declaration, type.getAnnotations() );
@@ -770,7 +781,7 @@ public class CodeAnalysisService
         return declaration.toString();
     }
 
-    private static String formatFieldDeclaration( IField field ) throws JavaModelException
+    static String formatFieldDeclaration( IField field ) throws JavaModelException
     {
         if ( field.isEnumConstant() )
         {
@@ -797,7 +808,7 @@ public class CodeAnalysisService
         return declaration.toString();
     }
 
-    private static String formatMethodSignature( IMethod method ) throws JavaModelException
+    static String formatMethodSignature( IMethod method ) throws JavaModelException
     {
         StringBuilder signature = new StringBuilder();
         appendAnnotations( signature, method.getAnnotations() );

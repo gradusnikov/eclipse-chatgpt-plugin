@@ -44,6 +44,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.McpOutputSchemas;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeAnalysisService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ProjectService;
 import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
+import com.github.gradusnikov.eclipse.assistai.tools.Javadocs;
 
 /**
  * The responses the analysis tools - {@code listProjects}, {@code getTypeHierarchy} and
@@ -117,7 +118,11 @@ public class AnalysisResponsesPDETest
         createFolder( "src/com" );
         createFolder( "src/com/example" );
         createFile( "src/com/example/Greeter.java",
-                "package com.example;\n\npublic interface Greeter\n{\n    String greet();\n}\n" );
+                "package com.example;\n\n"
+                + "/** Greets people. Politely, when asked. */\n"
+                + "public interface Greeter\n{\n"
+                + "    /**\n     * Says hello.\n     * Second sentence, e.g. the details.\n     *\n     * @return the greeting\n     */\n"
+                + "    String greet();\n}\n" );
         createFile( "src/com/example/Base.java",
                 "package com.example;\n\npublic class Base implements Greeter\n{\n"
                 + "    public String greet()\n    {\n        return \"base\";\n    }\n}\n" );
@@ -280,8 +285,8 @@ public class AnalysisResponsesPDETest
     @Test
     public void aMemberKnowsHowManyLinesReadingItCosts()
     {
-        assertEquals( 1, new ClassOutlineResponse.Member( "f", "int f", 5, 5 ).lineCount() );
-        assertEquals( 4, new ClassOutlineResponse.Member( "m", "void m()", 7, 10 ).lineCount() );
+        assertEquals( 1, new ClassOutlineResponse.Member( "f", "int f", 5, 5, null, false ).lineCount() );
+        assertEquals( 4, new ClassOutlineResponse.Member( "m", "void m()", 7, 10, null, false ).lineCount() );
     }
 
     // ---- against a real project ------------------------------------------
@@ -305,7 +310,7 @@ public class AnalysisResponsesPDETest
     @Test
     public void outlinesATypeWithLineRangesThatLandOnItsMembers() throws CoreException, IOException
     {
-        ClassOutlineResponse response = codeAnalysisService.getClassOutline( "com.example.Child", true );
+        ClassOutlineResponse response = codeAnalysisService.getClassOutline( "com.example.Child", true, Javadocs.Detail.SUMMARY );
 
         assertEquals( ClassOutlineResponse.Status.OK, response.status() );
         assertEquals( TEST_PROJECT_NAME, response.projectName() );
@@ -333,7 +338,7 @@ public class AnalysisResponsesPDETest
     @Test
     public void omitsFieldsWhenNotAskedForThem()
     {
-        ClassOutlineResponse response = codeAnalysisService.getClassOutline( "com.example.Child", false );
+        ClassOutlineResponse response = codeAnalysisService.getClassOutline( "com.example.Child", false, Javadocs.Detail.SUMMARY );
 
         assertEquals( ClassOutlineResponse.Status.OK, response.status() );
         assertTrue( response.fields().isEmpty() );
@@ -343,7 +348,7 @@ public class AnalysisResponsesPDETest
     @Test
     public void reportsTypeNotFoundRatherThanAnEmptyOutline()
     {
-        ClassOutlineResponse response = codeAnalysisService.getClassOutline( "com.example.NoSuchType", true );
+        ClassOutlineResponse response = codeAnalysisService.getClassOutline( "com.example.NoSuchType", true, Javadocs.Detail.SUMMARY );
 
         assertEquals( ClassOutlineResponse.Status.TYPE_NOT_FOUND, response.status() );
     }
@@ -351,7 +356,7 @@ public class AnalysisResponsesPDETest
     @Test
     public void reportsWhereEachTypeInTheHierarchyLives()
     {
-        TypeHierarchyResponse response = codeAnalysisService.getTypeHierarchy( "com.example.Child" );
+        TypeHierarchyResponse response = codeAnalysisService.getTypeHierarchy( "com.example.Child", Javadocs.Detail.NONE );
 
         assertEquals( TypeHierarchyResponse.Status.OK, response.status() );
 
@@ -377,7 +382,7 @@ public class AnalysisResponsesPDETest
     @Test
     public void reportsSubtypesOfASupertype()
     {
-        TypeHierarchyResponse response = codeAnalysisService.getTypeHierarchy( "com.example.Base" );
+        TypeHierarchyResponse response = codeAnalysisService.getTypeHierarchy( "com.example.Base", Javadocs.Detail.NONE );
 
         assertEquals( TypeHierarchyResponse.Status.OK, response.status() );
         assertTrue( response.hasSubtypes() );
@@ -387,9 +392,72 @@ public class AnalysisResponsesPDETest
     @Test
     public void reportsAnUnknownTypeAsAStatusRatherThanThrowing()
     {
-        TypeHierarchyResponse response = codeAnalysisService.getTypeHierarchy( "com.example.NoSuchType" );
+        TypeHierarchyResponse response = codeAnalysisService.getTypeHierarchy( "com.example.NoSuchType", Javadocs.Detail.NONE );
 
         assertEquals( TypeHierarchyResponse.Status.TYPE_NOT_FOUND, response.status() );
+    }
+
+    // ---- javadoc ---------------------------------------------------------
+
+    @Test
+    public void outlineCarriesTheFirstJavadocSentenceOfEachMember()
+    {
+        ClassOutlineResponse response =
+                codeAnalysisService.getClassOutline( "com.example.Greeter", true, Javadocs.Detail.SUMMARY );
+
+        assertEquals( "Greets people.", response.declaration().javadoc() );
+        ClassOutlineResponse.Member greet = member( response.methods(), "greet" );
+        assertEquals( "Says hello.", greet.javadoc() );
+        assertFalse( greet.javadocInherited() );
+    }
+
+    @Test
+    public void anUndocumentedOverrideReportsItsSupertypesJavadocAndSaysSo()
+    {
+        // Child.greet overrides Base.greet, which implements Greeter.greet: the comment is two levels up.
+        ClassOutlineResponse response =
+                codeAnalysisService.getClassOutline( "com.example.Child", true, Javadocs.Detail.SUMMARY );
+
+        ClassOutlineResponse.Member greet = member( response.methods(), "greet" );
+        assertEquals( "Says hello.", greet.javadoc() );
+        assertTrue( greet.javadocInherited() );
+        assertNull( response.declaration().javadoc(), "a type does not inherit its supertype's comment" );
+        assertNull( member( response.fields(), "counter" ).javadoc() );
+    }
+
+    @Test
+    public void fullJavadocRendersTheWholeCommentAsMarkdown()
+    {
+        ClassOutlineResponse response =
+                codeAnalysisService.getClassOutline( "com.example.Greeter", true, Javadocs.Detail.FULL );
+
+        String javadoc = member( response.methods(), "greet" ).javadoc();
+        assertTrue( javadoc.contains( "Second sentence, e.g. the details." ), javadoc );
+        assertTrue( javadoc.contains( "the greeting" ), javadoc );
+        assertFalse( javadoc.contains( "/**" ), "rendered, not pasted: " + javadoc );
+        assertFalse( javadoc.contains( "<" ), "Markdown, not HTML: " + javadoc );
+    }
+
+    @Test
+    public void noJavadocLeavesTheFieldsNull()
+    {
+        ClassOutlineResponse response =
+                codeAnalysisService.getClassOutline( "com.example.Greeter", true, Javadocs.Detail.NONE );
+
+        assertNull( response.declaration().javadoc() );
+        assertNull( member( response.methods(), "greet" ).javadoc() );
+    }
+
+    @Test
+    public void hierarchyCarriesJavadocOnlyWhenAsked()
+    {
+        TypeHierarchyResponse structural =
+                codeAnalysisService.getTypeHierarchy( "com.example.Child", Javadocs.Detail.NONE );
+        assertNull( hierarchyType( structural.interfaces(), "com.example.Greeter" ).javadoc() );
+
+        TypeHierarchyResponse summarised =
+                codeAnalysisService.getTypeHierarchy( "com.example.Child", Javadocs.Detail.SUMMARY );
+        assertEquals( "Greets people.", hierarchyType( summarised.interfaces(), "com.example.Greeter" ).javadoc() );
     }
 
     // ---- fixture ---------------------------------------------------------

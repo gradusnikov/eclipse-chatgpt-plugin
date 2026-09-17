@@ -41,6 +41,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.MethodSearchResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.PackageSummaryResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.TypeSearchResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.WorkspaceOverviewResponse;
+import com.github.gradusnikov.eclipse.assistai.tools.Javadocs;
 
 public class CodeDiscoveryServicePDETest
 {
@@ -169,7 +170,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testSearchTypes_WildcardPattern()
     {
-        TypeSearchResponse result = service.searchTypes( "*PaymentService*", null );
+        TypeSearchResponse result = service.searchTypes( "*PaymentService*", null, Javadocs.Detail.NONE );
 
         assertNotNull( result );
         assertEquals( "*PaymentService*", result.pattern() );
@@ -181,7 +182,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testSearchTypes_CamelCasePattern()
     {
-        TypeSearchResponse result = service.searchTypes( "PS", null );
+        TypeSearchResponse result = service.searchTypes( "PS", null, Javadocs.Detail.NONE );
 
         assertNotNull( result );
         assertTrue( result.types().stream()
@@ -192,7 +193,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testSearchTypes_PrefixPattern()
     {
-        TypeSearchResponse result = service.searchTypes( "Payment", null );
+        TypeSearchResponse result = service.searchTypes( "Payment", null, Javadocs.Detail.NONE );
 
         assertNotNull( result );
         assertTrue( result.totalMatches() >= 1 );
@@ -203,7 +204,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testSearchTypes_QualifiedPattern()
     {
-        TypeSearchResponse result = service.searchTypes( "com.example.payment.*Service", null );
+        TypeSearchResponse result = service.searchTypes( "com.example.payment.*Service", null, Javadocs.Detail.NONE );
 
         assertNotNull( result );
         assertTrue( result.totalMatches() >= 1 );
@@ -214,7 +215,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testSearchTypes_NoMatch()
     {
-        TypeSearchResponse result = service.searchTypes( "XyzNonExistentClass999", null );
+        TypeSearchResponse result = service.searchTypes( "XyzNonExistentClass999", null, Javadocs.Detail.NONE );
 
         assertNotNull( result );
         assertEquals( 0, result.totalMatches() );
@@ -224,7 +225,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testSearchTypes_MaxResults()
     {
-        TypeSearchResponse result = service.searchTypes( "*", 2 );
+        TypeSearchResponse result = service.searchTypes( "*", 2, Javadocs.Detail.NONE );
 
         assertNotNull( result );
         assertTrue( result.types().size() <= 2 );
@@ -237,7 +238,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testSearchTypes_ReturnsTypeKind()
     {
-        TypeSearchResponse result = service.searchTypes( "*PaymentProcessor*", null );
+        TypeSearchResponse result = service.searchTypes( "*PaymentProcessor*", null, Javadocs.Detail.NONE );
 
         assertNotNull( result );
         assertTrue( result.types().stream()
@@ -252,7 +253,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testSearchMethods_WildcardPattern()
     {
-        MethodSearchResponse result = service.searchMethods( "process*", null, null );
+        MethodSearchResponse result = service.searchMethods( "process*", null, null, Javadocs.Detail.NONE );
 
         assertNotNull( result );
         assertTrue( result.totalMatches() >= 1 );
@@ -263,7 +264,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testSearchMethods_ExactName()
     {
-        MethodSearchResponse result = service.searchMethods( "handleError", null, null );
+        MethodSearchResponse result = service.searchMethods( "handleError", null, null, Javadocs.Detail.NONE );
 
         assertNotNull( result );
         assertTrue( result.totalMatches() >= 1 );
@@ -274,7 +275,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testSearchMethods_WithDeclaringTypeFilter()
     {
-        MethodSearchResponse result = service.searchMethods( "process*", "*PaymentService*", null );
+        MethodSearchResponse result = service.searchMethods( "process*", "*PaymentService*", null, Javadocs.Detail.NONE );
 
         assertNotNull( result );
         assertTrue( result.totalMatches() >= 1 );
@@ -285,7 +286,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testSearchMethods_NoMatch()
     {
-        MethodSearchResponse result = service.searchMethods( "xyzNonExistentMethod999", null, null );
+        MethodSearchResponse result = service.searchMethods( "xyzNonExistentMethod999", null, null, Javadocs.Detail.NONE );
 
         assertNotNull( result );
         assertEquals( 0, result.totalMatches() );
@@ -295,7 +296,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testSearchMethods_ReturnsParameterTypes()
     {
-        MethodSearchResponse result = service.searchMethods( "processPayment", null, null );
+        MethodSearchResponse result = service.searchMethods( "processPayment", null, null, Javadocs.Detail.NONE );
 
         assertNotNull( result );
         assertTrue( result.totalMatches() >= 1 );
@@ -313,7 +314,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testGetPackageSummary_ExistingPackage()
     {
-        PackageSummaryResponse result = service.getPackageSummary( "com.example.payment", testProjectName );
+        PackageSummaryResponse result = service.getPackageSummary( "com.example.payment", testProjectName, Javadocs.Detail.SUMMARY );
 
         assertNotNull( result );
         assertEquals( "com.example.payment", result.packageName() );
@@ -327,7 +328,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testGetPackageSummary_ReportsTypeKind()
     {
-        PackageSummaryResponse result = service.getPackageSummary( "com.example.payment", testProjectName );
+        PackageSummaryResponse result = service.getPackageSummary( "com.example.payment", testProjectName, Javadocs.Detail.SUMMARY );
 
         var processor = result.types().stream()
                 .filter( t -> "PaymentProcessor".equals( t.simpleName() ) )
@@ -345,21 +346,21 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testGetPackageSummary_ReportsJavadoc()
     {
-        PackageSummaryResponse result = service.getPackageSummary( "com.example.payment", testProjectName );
+        PackageSummaryResponse result = service.getPackageSummary( "com.example.payment", testProjectName, Javadocs.Detail.SUMMARY );
 
         var serviceType = result.types().stream()
                 .filter( t -> "PaymentService".equals( t.simpleName() ) )
                 .findFirst()
                 .orElseThrow();
-        assertNotNull( serviceType.javadocSummary() );
-        assertTrue( serviceType.javadocSummary().contains( "payment" ),
-                "Javadoc should mention payment: " + serviceType.javadocSummary() );
+        assertNotNull( serviceType.javadoc() );
+        assertTrue( serviceType.javadoc().contains( "payment" ),
+                "Javadoc should mention payment: " + serviceType.javadoc() );
     }
 
     @Test
     public void testGetPackageSummary_ReportsMethodAndFieldCounts()
     {
-        PackageSummaryResponse result = service.getPackageSummary( "com.example.payment", testProjectName );
+        PackageSummaryResponse result = service.getPackageSummary( "com.example.payment", testProjectName, Javadocs.Detail.SUMMARY );
 
         var serviceType = result.types().stream()
                 .filter( t -> "PaymentService".equals( t.simpleName() ) )
@@ -371,7 +372,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testGetPackageSummary_ReportsSuperInterfaces()
     {
-        PackageSummaryResponse result = service.getPackageSummary( "com.example.payment", testProjectName );
+        PackageSummaryResponse result = service.getPackageSummary( "com.example.payment", testProjectName, Javadocs.Detail.SUMMARY );
 
         var serviceType = result.types().stream()
                 .filter( t -> "PaymentService".equals( t.simpleName() ) )
@@ -384,7 +385,7 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testGetPackageSummary_NonExistentPackage()
     {
-        PackageSummaryResponse result = service.getPackageSummary( "com.nonexistent.pkg", testProjectName );
+        PackageSummaryResponse result = service.getPackageSummary( "com.nonexistent.pkg", testProjectName, Javadocs.Detail.SUMMARY );
 
         assertNotNull( result );
         assertEquals( 0, result.totalTypes() );
@@ -398,69 +399,133 @@ public class CodeDiscoveryServicePDETest
     @Test
     public void testGetPackageSummary_ClassWithoutJavadoc_ReturnsNull()
     {
-        PackageSummaryResponse result = service.getPackageSummary( "com.example.javadoc", testProjectName );
+        PackageSummaryResponse result = service.getPackageSummary( "com.example.javadoc", testProjectName, Javadocs.Detail.SUMMARY );
 
         var noDoc = result.types().stream()
                 .filter( t -> "NoDocClass".equals( t.simpleName() ) )
                 .findFirst()
                 .orElseThrow();
-        assertNull( noDoc.javadocSummary(),
+        assertNull( noDoc.javadoc(),
                 "A class without Javadoc must return null, not a method's Javadoc" );
     }
 
     @Test
     public void testGetPackageSummary_ClassWithMethodJavadocOnly_ReturnsNull()
     {
-        PackageSummaryResponse result = service.getPackageSummary( "com.example.javadoc", testProjectName );
+        PackageSummaryResponse result = service.getPackageSummary( "com.example.javadoc", testProjectName, Javadocs.Detail.SUMMARY );
 
         var methodDocOnly = result.types().stream()
                 .filter( t -> "MethodDocOnly".equals( t.simpleName() ) )
                 .findFirst()
                 .orElseThrow();
-        assertNull( methodDocOnly.javadocSummary(),
+        assertNull( methodDocOnly.javadoc(),
                 "A class without class-level Javadoc but with method Javadoc must return null" );
     }
 
     @Test
     public void testGetPackageSummary_ClassWithMultiSentenceJavadoc_ReturnsFirstSentence()
     {
-        PackageSummaryResponse result = service.getPackageSummary( "com.example.javadoc", testProjectName );
+        PackageSummaryResponse result = service.getPackageSummary( "com.example.javadoc", testProjectName, Javadocs.Detail.SUMMARY );
 
         var multiSentence = result.types().stream()
                 .filter( t -> "MultiSentenceDoc".equals( t.simpleName() ) )
                 .findFirst()
                 .orElseThrow();
-        assertNotNull( multiSentence.javadocSummary() );
-        assertTrue( multiSentence.javadocSummary().endsWith( "." ),
-                "First sentence should end with a period: " + multiSentence.javadocSummary() );
-        assertFalse( multiSentence.javadocSummary().contains( "second sentence" ),
+        assertNotNull( multiSentence.javadoc() );
+        assertTrue( multiSentence.javadoc().endsWith( "." ),
+                "First sentence should end with a period: " + multiSentence.javadoc() );
+        assertFalse( multiSentence.javadoc().contains( "second sentence" ),
                 "Should only contain the first sentence" );
     }
 
     @Test
     public void testGetPackageSummary_ClassWithTagOnlyJavadoc_ReturnsNull()
     {
-        PackageSummaryResponse result = service.getPackageSummary( "com.example.javadoc", testProjectName );
+        PackageSummaryResponse result = service.getPackageSummary( "com.example.javadoc", testProjectName, Javadocs.Detail.SUMMARY );
 
         var tagOnly = result.types().stream()
                 .filter( t -> "TagOnlyDoc".equals( t.simpleName() ) )
                 .findFirst()
                 .orElseThrow();
-        assertNull( tagOnly.javadocSummary(),
+        assertNull( tagOnly.javadoc(),
                 "A Javadoc with only @tags and no description should return null" );
     }
 
     @Test
     public void testGetPackageSummary_ClassWithShortJavadocNoPeriod_ReturnsFullText()
     {
-        PackageSummaryResponse result = service.getPackageSummary( "com.example.javadoc", testProjectName );
+        PackageSummaryResponse result = service.getPackageSummary( "com.example.javadoc", testProjectName, Javadocs.Detail.SUMMARY );
 
         var shortDoc = result.types().stream()
                 .filter( t -> "ShortDocNoPeriod".equals( t.simpleName() ) )
                 .findFirst()
                 .orElseThrow();
-        assertNotNull( shortDoc.javadocSummary() );
-        assertEquals( "A utility without a period", shortDoc.javadocSummary() );
+        assertNotNull( shortDoc.javadoc() );
+        assertEquals( "A utility without a period", shortDoc.javadoc() );
+    }
+
+    // -------------------------------------------------------------------------
+    // Javadoc on search results
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testSearchTypes_SummaryAddsTheFirstJavadocSentence()
+    {
+        TypeSearchResponse result = service.searchTypes( "*PaymentService*", null, Javadocs.Detail.SUMMARY );
+
+        var match = result.types().stream()
+                .filter( t -> "PaymentService".equals( t.simpleName() ) )
+                .findFirst()
+                .orElseThrow();
+        assertEquals( "Service that handles payment processing and error recovery.", match.javadoc() );
+    }
+
+    @Test
+    public void testSearchTypes_NoneLeavesJavadocNull()
+    {
+        TypeSearchResponse result = service.searchTypes( "*PaymentService*", null, Javadocs.Detail.NONE );
+
+        assertTrue( result.types().stream().allMatch( t -> t.javadoc() == null ) );
+    }
+
+    @Test
+    public void testSearchMethods_SummaryReportsInheritedJavadoc()
+    {
+        MethodSearchResponse result = service.searchMethods( "processPayment", null, null, Javadocs.Detail.SUMMARY );
+
+        var declared = result.methods().stream()
+                .filter( m -> "com.example.payment.PaymentProcessor".equals( m.declaringType() ) )
+                .findFirst()
+                .orElseThrow();
+        var overriding = result.methods().stream()
+                .filter( m -> "com.example.payment.PaymentService".equals( m.declaringType() ) )
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals( "Charges the order.", declared.javadoc() );
+        assertFalse( declared.javadocInherited() );
+        assertEquals( "Charges the order.", overriding.javadoc(), "an undocumented override reports its supertype's text" );
+        assertTrue( overriding.javadocInherited() );
+    }
+
+    @Test
+    public void testGetPackageSummary_FullRendersTheWholeComment()
+    {
+        PackageSummaryResponse result = service.getPackageSummary( "com.example.javadoc", testProjectName, Javadocs.Detail.FULL );
+
+        var multiSentence = result.types().stream()
+                .filter( t -> "MultiSentenceDoc".equals( t.simpleName() ) )
+                .findFirst()
+                .orElseThrow();
+        assertTrue( multiSentence.javadoc().contains( "second sentence" ), multiSentence.javadoc() );
+    }
+
+    @Test
+    public void testGetPackageSummary_NoneLeavesJavadocNull()
+    {
+        PackageSummaryResponse result = service.getPackageSummary( "com.example.payment", testProjectName, Javadocs.Detail.NONE );
+
+        assertTrue( result.types().stream().allMatch( t -> t.javadoc() == null ) );
     }
 
     // -------------------------------------------------------------------------
@@ -550,6 +615,7 @@ public class CodeDiscoveryServicePDETest
                 " * Interface for processing payments.\n" +
                 " */\n" +
                 "public interface PaymentProcessor {\n" +
+                "    /** Charges the order. Retries are the caller's business. */\n" +
                 "    void processPayment(String orderId, double amount);\n" +
                 "}\n";
         createFile( "src/com/example/payment/PaymentProcessor.java", paymentProcessorSource );

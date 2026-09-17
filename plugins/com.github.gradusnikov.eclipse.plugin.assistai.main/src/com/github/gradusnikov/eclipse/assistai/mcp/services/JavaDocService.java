@@ -13,13 +13,13 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.jdt.core.IClasspathEntry;
 import org.eclipse.jdt.core.IPackageFragmentRoot;
-import org.eclipse.jdt.core.IBuffer;
 import org.eclipse.jdt.core.IClassFile;
+import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMember;
-import org.eclipse.jdt.core.ISourceRange;
+import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
@@ -35,7 +35,7 @@ import com.github.gradusnikov.eclipse.assistai.resources.ResourceReadResult;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceVersion;
 import com.github.gradusnikov.eclipse.assistai.resources.SourceOrigin;
 import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
-import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
+import com.github.gradusnikov.eclipse.assistai.tools.Javadocs;
 
 import jakarta.inject.Inject;
 
@@ -57,21 +57,29 @@ public class JavaDocService
     private ClassFileDecompiler classFileDecompiler;
 
     /**
-     * The documentation of a type, as Markdown.
+     * The documentation of a type and of the members it declares, as Markdown.
      * <p>
-     * The body stays text - it is rendered Markdown, one thing with nothing smuggled
-     * alongside it. What needed a field is the miss:
-     * {@code "JavaDoc is not available for X"} occupied the answer slot, so a type with
-     * no documentation, a misspelled name, and a type whose real documentation contains
-     * that sentence were three indistinguishable results.
+     * Rendered through {@link Javadocs}, that is by JDT's hover engine, so an undocumented
+     * override reports its supertype's text and says so. This is the one place a project's
+     * Javadoc location is consulted for a binary member without source: a single type the
+     * caller asked for by name, not every type in a search result.
      *
-     * @param fullyQualifiedClassName
-     *            The fully qualified name of the class to find the JavaDoc for.
-     * @return the documentation with its status, or a not-found result carrying the
-     *         reason as a code
+     * @param memberName a field, method or member type name to restrict the members to,
+     *            or null for all of them; every overload of a method is listed
+     * @param javadoc SUMMARY or FULL; the tool exists to render documentation, so NONE is
+     *            rejected rather than answered with nothing
+     * @return the documentation with its status, or a not-found result carrying the reason
+     *         as a code
      */
-    public JavaDocResponse getJavaDoc( String fullyQualifiedClassName )
+    public JavaDocResponse getJavaDoc( String fullyQualifiedClassName, String memberName, Javadocs.Detail javadoc )
     {
+        if ( javadoc == Javadocs.Detail.NONE )
+        {
+            throw new IllegalArgumentException( "getJavaDoc renders documentation; javadoc must be SUMMARY or FULL" );
+        }
+        // Null once blank, so one test below stands for both spellings of "every member".
+        String wanted = memberName == null || memberName.isBlank() ? null : memberName;
+
         for ( IJavaProject javaProject : getAvailableJavaProjects() )
         {
             IType type;
@@ -89,10 +97,35 @@ public class JavaDocService
                 continue;
             }
 
-            JavaDocText documentation = collectJavaDoc( type );
-            return JavaDocResponse.of(
-                    documentation.documented() ? JavaDocResponse.Status.OK : JavaDocResponse.Status.NO_JAVADOC,
-                    fullyQualifiedClassName, javaProject.getElementName(), documentation.markdown() );
+            String projectName = javaProject.getElementName();
+            try
+            {
+                List<JavaDocResponse.MemberJavadoc> members = new ArrayList<>();
+                for ( IJavaElement child : type.getChildren() )
+                {
+                    if ( child instanceof IMember member && ( wanted == null || wanted.equals( member.getElementName() ) ) )
+                    {
+                        members.add( describe( member, javadoc ) );
+                    }
+                }
+                if ( wanted != null && members.isEmpty() )
+                {
+                    return JavaDocResponse.memberNotFound( fullyQualifiedClassName, projectName,
+                            Diagnostic.fatal( DiagnosticCode.RESOURCE_NOT_FOUND, "'" + fullyQualifiedClassName
+                                    + "' declares no member named '" + wanted
+                                    + "'. getClassOutline lists the members it does declare." ) );
+                }
+
+                Javadocs.Rendered typeJavadoc = Javadocs.render( type, javadoc, true );
+                boolean documented = typeJavadoc != null || members.stream().anyMatch( member -> member.javadoc() != null );
+                return JavaDocResponse.of(
+                        documented ? JavaDocResponse.Status.OK : JavaDocResponse.Status.NO_JAVADOC,
+                        fullyQualifiedClassName, projectName, typeJavadoc == null ? null : typeJavadoc.markdown(), members );
+            }
+            catch ( JavaModelException e )
+            {
+                throw new RuntimeException( "Could not read the members of " + fullyQualifiedClassName, e );
+            }
         }
 
         return JavaDocResponse.notFound( fullyQualifiedClassName,
@@ -101,14 +134,30 @@ public class JavaDocService
                         + " match its compilation unit name to be found." ) );
     }
 
-    /**
-     * The rendered documentation of a type, and whether any of it is documentation.
-     *
-     * @param documented false when every member contributed only its declaration -
-     *            which is what tells "this type has no Javadoc" from "no such type"
-     */
-    private record JavaDocText( String markdown, boolean documented )
+    private static JavaDocResponse.MemberJavadoc describe( IMember member, Javadocs.Detail javadoc ) throws JavaModelException
     {
+        Javadocs.Rendered rendered = Javadocs.render( member, javadoc, true );
+        return new JavaDocResponse.MemberJavadoc( member.getElementName(), label( member ),
+                rendered == null ? null : rendered.markdown(), rendered != null && rendered.inherited() );
+    }
+
+    /** The declaration as getClassOutline prints it, so the two tools agree on how a member reads. */
+    private static String label( IMember member ) throws JavaModelException
+    {
+        if ( member instanceof IMethod method )
+        {
+            return CodeAnalysisService.formatMethodSignature( method );
+        }
+        if ( member instanceof IField field )
+        {
+            return CodeAnalysisService.formatFieldDeclaration( field );
+        }
+        if ( member instanceof IType type )
+        {
+            return CodeAnalysisService.formatTypeDeclaration( type );
+        }
+        // An initializer block has no declaration to print.
+        return member.getElementName();
     }
 
     /**
@@ -147,78 +196,6 @@ public class JavaDocService
 
         return javaProjects;
     }
-
-    /**
-     * Gathers the documentation of a type and of every member it declares, and
-     * converts the HTML JDT produces into Markdown.
-     *
-     * @return the Markdown, and whether anything in it was actually documentation
-     */
-    private JavaDocText collectJavaDoc( IType type )
-    {
-        StringBuilder html = new StringBuilder();
-        boolean documented = false;
-        try
-        {
-            documented |= appendMemberJavaDoc( type, html );
-
-            for ( IJavaElement child : type.getChildren() )
-            {
-                if ( child instanceof IMember member )
-                {
-                    documented |= appendMemberJavaDoc( member, html );
-                }
-            }
-        }
-        catch ( JavaModelException e )
-        {
-            logger.error( e.getMessage(), e );
-        }
-
-        return new JavaDocText( FlexmarkHtmlConverter.builder().build().convert( html.toString() ), documented );
-    }
-
-    /**
-     * Appends one member's documentation, taken from its attached Javadoc if a
-     * documentation location is configured and from the source buffer otherwise, and
-     * then the member's own declaration.
-     * <p>
-     * The declaration is appended either way, which is why the returned flag exists:
-     * the text is never empty for a type that resolves, so its emptiness cannot be
-     * used to mean "undocumented".
-     *
-     * @return whether this member contributed documentation rather than only its
-     *         declaration
-     * @throws JavaModelException
-     *             if an error occurs while retrieving the JavaDoc.
-     */
-    private boolean appendMemberJavaDoc( IMember member, StringBuilder out ) throws JavaModelException
-    {
-        boolean documented = false;
-        String attachedJavaDoc = member.getAttachedJavadoc( null );
-        if ( attachedJavaDoc != null )
-        {
-            out.append( attachedJavaDoc );
-            documented = true;
-        }
-        else
-        {
-            ISourceRange range = member.getJavadocRange();
-            if ( range != null )
-            {
-                ICompilationUnit unit = member.getCompilationUnit();
-                if ( unit != null )
-                {
-                    IBuffer buffer = unit.getBuffer();
-                    out.append( buffer.getText( range.getOffset(), range.getLength() ) ).append( "\n" );
-                    documented = true;
-                }
-            }
-        }
-        out.append( member.toString() ).append( "\n" );
-        return documented;
-    }
-
 
     /**
      * How a Java type resolves on one project's classpath.

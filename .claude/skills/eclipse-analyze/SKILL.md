@@ -13,7 +13,7 @@ Analyze Java code using Eclipse's JDT (Java Development Tools) infrastructure. T
 
 These tools are designed to minimize context window usage. Follow the **outline-first** pattern:
 
-1. **getClassOutline** — Start here. Returns class declaration, field declarations, method signatures (no bodies), and inner types — all with line numbers. A 500-line class becomes ~30 lines. Provide `fullyQualifiedClassName`. Set `includeFields=false` to omit fields.
+1. **getClassOutline** — Start here. Returns class declaration, field declarations, method signatures (no bodies), and inner types — all with line numbers and the first sentence of each member's Javadoc (an undocumented override reports its supertype's text, flagged `javadocInherited`). A 500-line class becomes ~30 lines. Provide `fullyQualifiedClassName`. Set `includeFields=false` to omit fields; `javadoc=FULL` renders whole comments, `javadoc=NONE` leaves them out.
 
 2. **getMethodSource** — After seeing the outline, read only the methods you need. Accepts comma-separated `methodNames` (e.g., `"save,findById,delete"`). Returns source with line numbers. Set `includeJavadoc=false` to skip doc comments. Use `methodSignature` to disambiguate overloads (e.g., `"String"` matches methods with a String parameter).
 
@@ -41,7 +41,7 @@ These tools are designed to minimize context window usage. Follow the **outline-
 - **getTypeHierarchy** — Show supertypes, implemented interfaces, and subtypes for a class.
 - **findReferences** — Find all usages of a type, method, or field across the workspace. Essential before renaming or deleting.
 - **getMethodCallHierarchy** — Show callers and callees of a method. Use `methodSignature` for overloaded methods.
-- **getJavaDoc** — Get JavaDoc for a compilation unit by fully qualified name.
+- **getJavaDoc** — Rendered Javadoc (Markdown) of a type and each of its members, as the IDE hover shows it, inherited text included. `memberName` narrows it to one member's overloads; `javadoc=SUMMARY` gives first sentences only. `getTypeHierarchy`, `searchTypes`, `searchMethods` and `getPackageSummary` take the same `javadoc` parameter.
 - **explainTypeResolution** — Explain source-vs-binary resolution in one project, including classpath root/entry, source attachment, class file, and whether `getSource` will decompile.
 - **gitReadFile** — Read a project-relative text file at a Git revision or from `INDEX` without modifying the working tree.
 - **gitDiff** — Limit diffs with project-relative `pathFilter` values and optionally set `ignoreWhitespace=true`.

@@ -33,6 +33,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.MethodSearchResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.PackageSummaryResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.TypeSearchResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.WorkspaceOverviewResponse;
+import com.github.gradusnikov.eclipse.assistai.tools.Javadocs;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -46,7 +47,11 @@ public class CodeDiscoveryService
     @Inject
     private ILog logger;
 
-    public TypeSearchResponse searchTypes( String pattern, Integer maxResults )
+    /**
+     * @param javadoc how much of each type's documentation to carry, for the types shown;
+     *            the matches past the limit are counted, not documented
+     */
+    public TypeSearchResponse searchTypes( String pattern, Integer maxResults, Javadocs.Detail javadoc )
     {
         int limit = maxResults != null && maxResults > 0 ? maxResults : DEFAULT_LIMIT;
         int collectLimit = limit * 2;
@@ -55,7 +60,7 @@ public class CodeDiscoveryService
         {
             var scope = SearchEngine.createWorkspaceScope();
             var engine = new SearchEngine();
-            var matches = new ArrayList<TypeSearchResponse.TypeMatch>();
+            var found = new ArrayList<TypeNameMatch>();
 
             int matchRule = determineMatchRule( pattern );
             char[] packagePattern = null;
@@ -80,28 +85,29 @@ public class CodeDiscoveryService
                         @Override
                         public void acceptTypeNameMatch( TypeNameMatch match )
                         {
-                            if ( matches.size() >= collectLimit )
+                            if ( found.size() < collectLimit && match.getType() != null )
                             {
-                                return;
+                                found.add( match );
                             }
-                            IType type = match.getType();
-                            if ( type == null )
-                            {
-                                return;
-                            }
-                            IJavaProject project = type.getJavaProject();
-                            String projectName = project != null ? project.getElementName() : null;
-
-                            matches.add( new TypeSearchResponse.TypeMatch(
-                                    match.getFullyQualifiedName(),
-                                    match.getSimpleTypeName(),
-                                    match.getPackageName(),
-                                    projectName,
-                                    typeKindLabel( type ) ) );
                         }
                     },
                     IJavaSearchConstants.WAIT_UNTIL_READY_TO_SEARCH,
                     new NullProgressMonitor() );
+
+            var matches = new ArrayList<TypeSearchResponse.TypeMatch>( found.size() );
+            for ( int i = 0; i < found.size(); i++ )
+            {
+                TypeNameMatch match = found.get( i );
+                IType type = match.getType();
+                IJavaProject project = type.getJavaProject();
+                matches.add( new TypeSearchResponse.TypeMatch(
+                        match.getFullyQualifiedName(),
+                        match.getSimpleTypeName(),
+                        match.getPackageName(),
+                        project != null ? project.getElementName() : null,
+                        typeKindLabel( type ),
+                        i < limit ? documentation( type, javadoc ) : null ) );
+            }
 
             return TypeSearchResponse.of( pattern, matches, limit );
         }
@@ -112,7 +118,12 @@ public class CodeDiscoveryService
         }
     }
 
-    public MethodSearchResponse searchMethods( String pattern, String declaringTypePattern, Integer maxResults )
+    /**
+     * @param javadoc how much of each method's documentation to carry, for the methods
+     *            shown; an undocumented override reports its supertype's text
+     */
+    public MethodSearchResponse searchMethods( String pattern, String declaringTypePattern, Integer maxResults,
+                                               Javadocs.Detail javadoc )
     {
         int limit = maxResults != null && maxResults > 0 ? maxResults : DEFAULT_LIMIT;
         int collectLimit = limit * 2;
@@ -121,7 +132,7 @@ public class CodeDiscoveryService
         {
             var scope = SearchEngine.createWorkspaceScope();
             var engine = new SearchEngine();
-            var matches = new ArrayList<MethodSearchResponse.MethodMatch>();
+            var found = new ArrayList<IMethod>();
 
             int matchRule = determineMatchRule( pattern );
             char[] methodPattern = pattern.toCharArray();
@@ -140,45 +151,49 @@ public class CodeDiscoveryService
                         @Override
                         public void acceptMethodNameMatch( org.eclipse.jdt.core.search.MethodNameMatch match )
                         {
-                            if ( matches.size() >= collectLimit )
+                            if ( found.size() < collectLimit && match.getMethod() != null )
                             {
-                                return;
+                                found.add( match.getMethod() );
                             }
-                            IMethod method = match.getMethod();
-                            if ( method == null )
-                            {
-                                return;
-                            }
-                            IType declaringType = method.getDeclaringType();
-                            IJavaProject project = method.getJavaProject();
-
-                            List<String> paramTypes = new ArrayList<>();
-                            for ( String paramSig : method.getParameterTypes() )
-                            {
-                                paramTypes.add( Signature.toString( paramSig ) );
-                            }
-
-                            String returnType = null;
-                            try
-                            {
-                                returnType = Signature.toString( method.getReturnType() );
-                            }
-                            catch ( JavaModelException e )
-                            {
-                                // ignore
-                            }
-
-                            matches.add( new MethodSearchResponse.MethodMatch(
-                                    method.getElementName(),
-                                    declaringType != null ? declaringType.getFullyQualifiedName() : null,
-                                    declaringType != null ? declaringType.getPackageFragment().getElementName() : null,
-                                    project != null ? project.getElementName() : null,
-                                    returnType,
-                                    paramTypes ) );
                         }
                     },
                     IJavaSearchConstants.WAIT_UNTIL_READY_TO_SEARCH,
                     new NullProgressMonitor() );
+
+            var matches = new ArrayList<MethodSearchResponse.MethodMatch>( found.size() );
+            for ( int i = 0; i < found.size(); i++ )
+            {
+                IMethod method = found.get( i );
+                IType declaringType = method.getDeclaringType();
+                IJavaProject project = method.getJavaProject();
+
+                List<String> paramTypes = new ArrayList<>();
+                for ( String paramSig : method.getParameterTypes() )
+                {
+                    paramTypes.add( Signature.toString( paramSig ) );
+                }
+
+                String returnType = null;
+                try
+                {
+                    returnType = Signature.toString( method.getReturnType() );
+                }
+                catch ( JavaModelException e )
+                {
+                    // ignore
+                }
+
+                Javadocs.Rendered rendered = i < limit ? Javadocs.render( method, javadoc, false ) : null;
+                matches.add( new MethodSearchResponse.MethodMatch(
+                        method.getElementName(),
+                        declaringType != null ? declaringType.getFullyQualifiedName() : null,
+                        declaringType != null ? declaringType.getPackageFragment().getElementName() : null,
+                        project != null ? project.getElementName() : null,
+                        returnType,
+                        paramTypes,
+                        rendered == null ? null : rendered.markdown(),
+                        rendered != null && rendered.inherited() ) );
+            }
 
             return MethodSearchResponse.of( pattern, matches, limit );
         }
@@ -189,7 +204,12 @@ public class CodeDiscoveryService
         }
     }
 
-    public PackageSummaryResponse getPackageSummary( String packageName, String projectName )
+    /**
+     * @param javadoc how much of each type's documentation to carry; the default of the
+     *            tool is the first sentence, which is what makes the listing a table of
+     *            contents rather than a list of names
+     */
+    public PackageSummaryResponse getPackageSummary( String packageName, String projectName, Javadocs.Detail javadoc )
     {
         try
         {
@@ -206,7 +226,6 @@ public class CodeDiscoveryService
             {
                 for ( IType type : cu.getTypes() )
                 {
-                    String javadocSummary = extractFirstSentence( type );
                     String typeKind = typeKindLabel( type );
 
                     int methodCount = type.getMethods().length;
@@ -221,7 +240,7 @@ public class CodeDiscoveryService
                     types.add( new PackageSummaryResponse.TypeSummary(
                             type.getElementName(),
                             typeKind,
-                            javadocSummary,
+                            documentation( type, javadoc ),
                             methodCount,
                             fieldCount,
                             superInterfaces ) );
@@ -376,74 +395,14 @@ public class CodeDiscoveryService
         return "class";
     }
 
-    private String extractFirstSentence( IType type )
+    /**
+     * Source only, attached or in the workspace: a listing can reach many library types,
+     * and a project's Javadoc location may be a URL.
+     */
+    private static String documentation( IType type, Javadocs.Detail javadoc )
     {
-        try
-        {
-            var javadocRange = type.getJavadocRange();
-            if ( javadocRange == null )
-            {
-                return null;
-            }
-
-            var cu = type.getCompilationUnit();
-            if ( cu == null )
-            {
-                return null;
-            }
-
-            String cuSource = cu.getSource();
-            if ( cuSource == null )
-            {
-                return null;
-            }
-
-            int offset = javadocRange.getOffset();
-            int length = javadocRange.getLength();
-            if ( offset + length > cuSource.length() )
-            {
-                return null;
-            }
-
-            String javadoc = cuSource.substring( offset, offset + length );
-            if ( javadoc.startsWith( "/**" ) )
-            {
-                javadoc = javadoc.substring( 3 );
-            }
-            if ( javadoc.endsWith( "*/" ) )
-            {
-                javadoc = javadoc.substring( 0, javadoc.length() - 2 );
-            }
-            javadoc = javadoc.replaceAll( "(?m)^\\s*\\*\\s?", "" ).trim();
-
-            if ( javadoc.startsWith( "@" ) )
-            {
-                return null;
-            }
-
-            int atIdx = javadoc.indexOf( "\n@" );
-            if ( atIdx > 0 )
-            {
-                javadoc = javadoc.substring( 0, atIdx ).trim();
-            }
-
-            int dotIdx = javadoc.indexOf( '.' );
-            if ( dotIdx > 0 && dotIdx < 200 )
-            {
-                return javadoc.substring( 0, dotIdx + 1 ).trim();
-            }
-
-            if ( javadoc.length() > 200 )
-            {
-                return javadoc.substring( 0, 200 ).trim() + "...";
-            }
-
-            return javadoc.isEmpty() ? null : javadoc;
-        }
-        catch ( JavaModelException e )
-        {
-            return null;
-        }
+        Javadocs.Rendered rendered = Javadocs.render( type, javadoc, false );
+        return rendered == null ? null : rendered.markdown();
     }
 
     private IPackageFragment findPackage( String packageName, String projectName ) throws JavaModelException

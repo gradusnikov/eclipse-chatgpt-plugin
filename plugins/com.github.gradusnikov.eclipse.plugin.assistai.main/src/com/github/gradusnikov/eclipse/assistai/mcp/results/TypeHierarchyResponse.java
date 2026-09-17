@@ -36,11 +36,14 @@ public record TypeHierarchyResponse(
      * @param fullyQualifiedName member types use {@code $} as the enclosing separator, as JDT reports them
      * @param projectName null when the type is not workspace source
      * @param filePath project-relative, null when the type is not workspace source
+     * @param javadoc the type's documentation as Markdown at the requested detail, or null
+     *            when none was requested or the type has no comment
      */
     public record HierarchyType(
         String fullyQualifiedName,
         String projectName,
-        String filePath
+        String filePath,
+        String javadoc
     )
     {
         /** Whether this type can be opened and edited, as opposed to living in a JAR. */
@@ -61,7 +64,6 @@ public record TypeHierarchyResponse(
     {
         String summary = typeName + ": " + superclasses.size() + " superclasses, "
                 + interfaces.size() + " interfaces, " + subtypes.size() + " subtypes.";
-
         return new TypeHierarchyResponse( typeName, Status.OK, superclasses, interfaces, subtypes, summary );
     }
 
