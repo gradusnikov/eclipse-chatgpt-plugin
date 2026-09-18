@@ -138,9 +138,20 @@ public class PDEMcpServer
                        description = "Optional name of a saved launch configuration to use as the base "
                            + "(use (eclipse-runner MCP server).listLaunchConfigurations with typeFilter='junit-plugin' to find it). "
                            + "When set, all settings from that config are reused (VM args, program args, bundle selection, etc.) "
-                           + "and only the test target is overridden. includeAllPlugins and additionalBundles are ignored when set.",
+                           + "and only the test target is overridden. includeAllPlugins and additionalBundles are ignored when set. "
+                           + "The named configuration itself is never modified: the override is applied to a throwaway "
+                           + "working copy that is launched directly.",
                        required = false)
-            String launcherName)
+            String launcherName,
+            @ToolParam(name = "junitVersion",
+                       description = "Which JUnit engine loader to launch with: 'auto' (detect from the project/class), "
+                           + "'fromLauncher' (keep whatever TEST_KIND launcherName's saved config already has - only "
+                           + "meaningful together with launcherName), or an explicit '3', '4', '5', or '6'. When omitted, "
+                           + "the default is 'auto' - except when launcherName is set and neither className nor "
+                           + "packageName is given (running whatever the launcher is already scoped to), where the "
+                           + "default is 'fromLauncher'.",
+                       required = false)
+            String junitVersion)
     {
         int timeoutSeconds = Optional.ofNullable(parseOptionalInt("timeout", timeout)).orElse(60);
         boolean coverage = Optional.ofNullable(withCoverage).map(Boolean::parseBoolean).orElse(false);
@@ -160,7 +171,7 @@ public class PDEMcpServer
             }
             return pdeService.runJUnitPluginTestMethod(
                 projectName, classes.get( 0 ), methodName,
-                timeoutSeconds, coverage, allPlugins, extras, launcherName );
+                timeoutSeconds, coverage, allPlugins, extras, launcherName, junitVersion );
         }
         else if ( className != null && !className.isBlank() )
         {
@@ -175,23 +186,24 @@ public class PDEMcpServer
             if ( classes.size() > 1 )
             {
                 response = pdeService.runJUnitPluginTestClasses(
-                    projectName, classes, timeoutSeconds, allPlugins, extras, launcherName );
+                    projectName, classes, timeoutSeconds, allPlugins, extras, launcherName, junitVersion );
             }
             else
             {
                 response = pdeService.runJUnitPluginTestClass(
-                    projectName, classes.get( 0 ), timeoutSeconds, coverage, allPlugins, extras, launcherName );
+                    projectName, classes.get( 0 ), timeoutSeconds, coverage, allPlugins, extras, launcherName,
+                    junitVersion );
             }
         }
         else if ( packageName != null && !packageName.isBlank() )
         {
             response = pdeService.runJUnitPluginTestPackage(
-                projectName, packageName, timeoutSeconds, coverage, allPlugins, extras, launcherName );
+                projectName, packageName, timeoutSeconds, coverage, allPlugins, extras, launcherName, junitVersion );
         }
         else
         {
             response = pdeService.runJUnitPluginTests(
-                projectName, timeoutSeconds, coverage, allPlugins, extras, launcherName );
+                projectName, timeoutSeconds, coverage, allPlugins, extras, launcherName, junitVersion );
         }
         return response;
     }

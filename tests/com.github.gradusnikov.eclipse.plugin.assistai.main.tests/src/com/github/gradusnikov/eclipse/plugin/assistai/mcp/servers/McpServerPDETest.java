@@ -296,7 +296,7 @@ public class McpServerPDETest
         {
             // no className/packageName → runs all tests in project
             assertProjectNotFound( server.runJUnitPluginTests(
-                "NonExistentProject_XYZ", null, null, null, null, null, null, null, null ) );
+                "NonExistentProject_XYZ", null, null, null, null, null, null, null, null, null ) );
         }
         catch ( IllegalStateException e )
         {
@@ -310,7 +310,7 @@ public class McpServerPDETest
         try
         {
             assertProjectNotFound( server.runJUnitPluginTests(
-                "NonExistentProject_XYZ", null, null, null, "30", null, null, null, null ) );
+                "NonExistentProject_XYZ", null, null, null, "30", null, null, null, null, null ) );
         }
         catch ( IllegalStateException e )
         {
@@ -324,7 +324,7 @@ public class McpServerPDETest
         try
         {
             assertProjectNotFound( server.runJUnitPluginTests(
-                "NonExistentProject_XYZ", null, null, null, "10", null, "true", null, null ) );
+                "NonExistentProject_XYZ", null, null, null, "10", null, "true", null, null, null ) );
         }
         catch ( IllegalStateException e )
         {
@@ -338,7 +338,7 @@ public class McpServerPDETest
         try
         {
             assertProjectNotFound( server.runJUnitPluginTests(
-                "NonExistentProject_XYZ", null, null, null, "10", null, "false", null, null ) );
+                "NonExistentProject_XYZ", null, null, null, "10", null, "false", null, null, null ) );
         }
         catch ( IllegalStateException e )
         {
@@ -353,7 +353,7 @@ public class McpServerPDETest
         {
             assertProjectNotFound( server.runJUnitPluginTests(
                 "NonExistentProject_XYZ", null, null, null, "10", null, "false",
-                "org.eclipse.core.runtime,org.eclipse.ui", null ) );
+                "org.eclipse.core.runtime,org.eclipse.ui", null, null ) );
         }
         catch ( IllegalStateException e )
         {
@@ -367,7 +367,7 @@ public class McpServerPDETest
         try
         {
             assertProjectNotFound( server.runJUnitPluginTests(
-                "NonExistentProject_XYZ", "com.example.MyTest", null, null, null, null, null, null, null ) );
+                "NonExistentProject_XYZ", "com.example.MyTest", null, null, null, null, null, null, null, null ) );
         }
         catch ( IllegalStateException e )
         {
@@ -381,7 +381,7 @@ public class McpServerPDETest
         try
         {
             assertProjectNotFound( server.runJUnitPluginTests(
-                "NonExistentProject_XYZ", "com.example.MyTest", null, null, "10", null, "true", null, null ) );
+                "NonExistentProject_XYZ", "com.example.MyTest", null, null, "10", null, "true", null, null, null ) );
         }
         catch ( IllegalStateException e )
         {
@@ -396,7 +396,7 @@ public class McpServerPDETest
         {
             assertProjectNotFound( server.runJUnitPluginTests(
                 "NonExistentProject_XYZ", "com.example.MyTest", null, null, "10", null, "false",
-                "org.eclipse.core.runtime, org.eclipse.ui", null ) );
+                "org.eclipse.core.runtime, org.eclipse.ui", null, null ) );
         }
         catch ( IllegalStateException e )
         {
@@ -410,7 +410,7 @@ public class McpServerPDETest
         // comma-only className → parseCommaSeparated returns empty list → rejected by PDEService
         assertThrows( IllegalArgumentException.class,
             () -> server.runJUnitPluginTests(
-                "SomeProject", " , ", null, null, null, null, null, null, null ) );
+                "SomeProject", " , ", null, null, null, null, null, null, null, null ) );
     }
 
     @Test
@@ -419,7 +419,7 @@ public class McpServerPDETest
         assertProjectNotFound( server.runJUnitPluginTests(
             "NonExistentProject_XYZ",
             " com.example.FirstPDETest, com.example.SecondPDETest ",
-            null, null, "10", null, "false", "org.eclipse.ui, org.eclipse.core.runtime", null ) );
+            null, null, "10", null, "false", "org.eclipse.ui, org.eclipse.core.runtime", null, null ) );
     }
 
     @Test
@@ -428,7 +428,7 @@ public class McpServerPDETest
         try
         {
             assertProjectNotFound( server.runJUnitPluginTests(
-                "NonExistentProject_XYZ", null, null, "com.example.tests", "10", null, null, null, null ) );
+                "NonExistentProject_XYZ", null, null, "com.example.tests", "10", null, null, null, null, null ) );
         }
         catch ( IllegalStateException e )
         {
@@ -449,7 +449,7 @@ public class McpServerPDETest
         {
             assertProjectNotFound( server.runJUnitPluginTests(
                 "NonExistentProject_XYZ", "com.example.MyTest", "testSomething",
-                null, "10", null, null, null, null ) );
+                null, "10", null, null, null, null, null ) );
         }
         catch ( IllegalStateException e )
         {
@@ -466,7 +466,7 @@ public class McpServerPDETest
             "NonExistentProject_XYZ",
             "com.example.FirstTest, com.example.SecondTest",
             "testSomething",
-            null, "10", null, null, null, null );
+            null, "10", null, null, null, null, null );
         assertNotNull( response );
         assertEquals( RunStatus.FAILED_TO_START, response.status(), response.summaryText() );
         assertEquals( List.of( DiagnosticCode.VALIDATION_ERROR ),
@@ -482,13 +482,14 @@ public class McpServerPDETest
         {
             assertProjectNotFound( server.runJUnitPluginTests(
                 "NonExistentProject_XYZ", null, "testSomething", "com.example.tests",
-                "10", null, null, null, null ) );
+                "10", null, null, null, null, null ) );
         }
         catch ( IllegalStateException e )
         {
             assumeTrue( false, "Skipping: workspace not available (" + e.getMessage() + ")" );
         }
     }
+
 
     /**
      * Whatever scope was asked for, naming a project that is not in the workspace is

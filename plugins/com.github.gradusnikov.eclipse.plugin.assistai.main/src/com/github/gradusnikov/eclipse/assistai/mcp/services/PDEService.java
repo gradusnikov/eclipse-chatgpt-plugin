@@ -301,6 +301,23 @@ public class PDEService
                                         boolean includeAllPlugins, List<String> additionalBundles,
                                         String launcherName )
     {
+        return runJUnitPluginTests( projectName, timeout, withCoverage, includeAllPlugins, additionalBundles,
+            launcherName, null );
+    }
+
+    /**
+     * Runs all JUnit Plug-in Tests in the given project, optionally using a saved launch
+     * configuration as a base and/or an explicit JUnit engine version.
+     *
+     * @param launcherName optional saved launch config name; when set all its settings are
+     *                     reused (VM args, bundle selection, etc.) and only the project/
+     *                     container targeting attributes are overridden
+     * @param junitVersion "auto", "fromLauncher", "3", "4", "5", or "6" - see {@link UnitTestService#resolveTestKind}
+     */
+    public TestRunResponse runJUnitPluginTests( String projectName, Integer timeout, boolean withCoverage,
+                                        boolean includeAllPlugins, List<String> additionalBundles,
+                                        String launcherName, String junitVersion )
+    {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         if ( projectName.isEmpty() )
         {
@@ -313,7 +330,7 @@ public class PDEService
         {
             IJavaProject javaProject = getJavaProject( projectName );
             return launchJUnitPluginTests( javaProject, null, List.of(), waitSeconds, withCoverage,
-                includeAllPlugins, additionalBundles, launcherName );
+                includeAllPlugins, additionalBundles, launcherName, junitVersion );
         }
         catch ( ProjectNotFoundException e )
         {
@@ -361,6 +378,23 @@ public class PDEService
                                             boolean withCoverage, boolean includeAllPlugins,
                                             List<String> additionalBundles, String launcherName )
     {
+        return runJUnitPluginTestClass( projectName, className, timeout, withCoverage, includeAllPlugins,
+            additionalBundles, launcherName, null );
+    }
+
+    /**
+     * Runs JUnit Plug-in Tests for a specific class, optionally using a saved launch
+     * configuration as a base and/or an explicit JUnit engine version.
+     *
+     * @param launcherName optional saved launch config name; when set all its settings are
+     *                     reused and only the project/class targeting attributes are overridden
+     * @param junitVersion "auto", "fromLauncher", "3", "4", "5", or "6" - see {@link UnitTestService#resolveTestKind}
+     */
+    public TestRunResponse runJUnitPluginTestClass( String projectName, String className, Integer timeout,
+                                            boolean withCoverage, boolean includeAllPlugins,
+                                            List<String> additionalBundles, String launcherName,
+                                            String junitVersion )
+    {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         Objects.requireNonNull( className, "Class name cannot be null" );
         int waitSeconds = normalizeTimeout( timeout );
@@ -378,7 +412,7 @@ public class PDEService
                     elapsed( startMillis ) );
             }
             return launchJUnitPluginTests( javaProject, null, List.of( type ), waitSeconds, withCoverage,
-                includeAllPlugins, additionalBundles, launcherName );
+                includeAllPlugins, additionalBundles, launcherName, junitVersion );
         }
         catch ( ProjectNotFoundException e )
         {
@@ -413,6 +447,23 @@ public class PDEService
                                                      boolean includeAllPlugins, List<String> additionalBundles,
                                                      String launcherName )
     {
+        return runJUnitPluginTestMethod( projectName, className, methodName, timeout, withCoverage,
+            includeAllPlugins, additionalBundles, launcherName, null );
+    }
+
+    /**
+     * Runs a single JUnit Plug-in Test method, optionally using a saved launch configuration as a
+     * base and/or an explicit JUnit engine version.
+     *
+     * @param launcherName optional saved launch config name; when set all its settings are
+     *                     reused and only the project/class/method targeting attributes are overridden
+     * @param junitVersion "auto", "fromLauncher", "3", "4", "5", or "6" - see {@link UnitTestService#resolveTestKind}
+     */
+    public TestRunResponse runJUnitPluginTestMethod( String projectName, String className, String methodName,
+                                                     Integer timeout, boolean withCoverage,
+                                                     boolean includeAllPlugins, List<String> additionalBundles,
+                                                     String launcherName, String junitVersion )
+    {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         Objects.requireNonNull( className, "Class name cannot be null" );
         Objects.requireNonNull( methodName, "Method name cannot be null" );
@@ -431,7 +482,7 @@ public class PDEService
                     elapsed( startMillis ) );
             }
             return launchJUnitPluginTests( javaProject, null, List.of( type ), methodName, waitSeconds,
-                withCoverage, includeAllPlugins, additionalBundles, launcherName );
+                withCoverage, includeAllPlugins, additionalBundles, launcherName, junitVersion );
         }
         catch ( ProjectNotFoundException e )
         {
@@ -472,6 +523,22 @@ public class PDEService
     public TestRunResponse runJUnitPluginTestClasses( String projectName, List<String> classNames,
                                              Integer timeout, boolean includeAllPlugins,
                                              List<String> additionalBundles, String launcherName )
+    {
+        return runJUnitPluginTestClasses( projectName, classNames, timeout, includeAllPlugins,
+            additionalBundles, launcherName, null );
+    }
+
+    /**
+     * Runs selected JUnit Plug-in Test classes in a single PDE launch, optionally using a saved
+     * launch configuration as a base and/or an explicit JUnit engine version.
+     *
+     * @param launcherName optional saved launch config name
+     * @param junitVersion "auto", "fromLauncher", "3", "4", "5", or "6" - see {@link UnitTestService#resolveTestKind}
+     */
+    public TestRunResponse runJUnitPluginTestClasses( String projectName, List<String> classNames,
+                                             Integer timeout, boolean includeAllPlugins,
+                                             List<String> additionalBundles, String launcherName,
+                                             String junitVersion )
     {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         Objects.requireNonNull( classNames, "Class names cannot be null" );
@@ -528,7 +595,7 @@ public class PDEService
             }
 
             return launchJUnitPluginTests( javaProject, null, testClasses, waitSeconds, false,
-                includeAllPlugins, additionalBundles, launcherName );
+                includeAllPlugins, additionalBundles, launcherName, junitVersion );
         }
         catch ( ProjectNotFoundException e )
         {
@@ -579,6 +646,23 @@ public class PDEService
                                               boolean includeAllPlugins, List<String> additionalBundles,
                                               String launcherName )
     {
+        return runJUnitPluginTestPackage( projectName, packageName, timeout, withCoverage,
+            includeAllPlugins, additionalBundles, launcherName, null );
+    }
+
+    /**
+     * Runs JUnit Plug-in Tests for all test classes in a specific package, optionally using a saved
+     * launch configuration as a base and/or an explicit JUnit engine version.
+     *
+     * @param launcherName optional saved launch config name; when set all its settings are reused
+     *                     and only the project/package targeting attributes are overridden
+     * @param junitVersion "auto", "fromLauncher", "3", "4", "5", or "6" - see {@link UnitTestService#resolveTestKind}
+     */
+    public TestRunResponse runJUnitPluginTestPackage( String projectName, String packageName,
+                                              Integer timeout, boolean withCoverage,
+                                              boolean includeAllPlugins, List<String> additionalBundles,
+                                              String launcherName, String junitVersion )
+    {
         Objects.requireNonNull( projectName, "Project name cannot be null" );
         Objects.requireNonNull( packageName, "Package name cannot be null" );
         if ( projectName.isEmpty() )
@@ -604,7 +688,7 @@ public class PDEService
                     elapsed( startMillis ) );
             }
             return launchJUnitPluginTests( javaProject, pkg, List.of(), waitSeconds, withCoverage,
-                includeAllPlugins, additionalBundles, launcherName );
+                includeAllPlugins, additionalBundles, launcherName, junitVersion );
         }
         catch ( ProjectNotFoundException e )
         {
@@ -651,7 +735,7 @@ public class PDEService
                                             boolean includeAllPlugins, List<String> additionalBundles )
     {
         return launchJUnitPluginTests( javaProject, packageFragment, testClasses, null, timeout,
-            withCoverage, includeAllPlugins, additionalBundles, null );
+            withCoverage, includeAllPlugins, additionalBundles, null, null, false );
     }
 
     /**
@@ -665,7 +749,23 @@ public class PDEService
                                             List<String> additionalBundles, String launcherName )
     {
         return launchJUnitPluginTests( javaProject, packageFragment, testClasses, methodName, timeout,
-            withCoverage, includeAllPlugins, additionalBundles, launcherName, true );
+            withCoverage, includeAllPlugins, additionalBundles, launcherName, null, true );
+    }
+
+    /**
+     * Core PDE JUnit launch. When {@code methodName} is non-null, only that single test method
+     * is executed via {@link SelectedJUnitPluginLaunchDelegate} for true single-method isolation.
+     * Delegates to the main overload with methodName forwarded through targeting and an explicit
+     * {@code junitVersion} override.
+     */
+    private TestRunResponse launchJUnitPluginTests( IJavaProject javaProject, IPackageFragment packageFragment,
+                                            List<IType> testClasses, String methodName, int timeout,
+                                            boolean withCoverage, boolean includeAllPlugins,
+                                            List<String> additionalBundles, String launcherName,
+                                            String junitVersion )
+    {
+        return launchJUnitPluginTests( javaProject, packageFragment, testClasses, methodName, timeout,
+            withCoverage, includeAllPlugins, additionalBundles, launcherName, junitVersion, true );
     }
 
     /**
@@ -675,10 +775,10 @@ public class PDEService
     private TestRunResponse launchJUnitPluginTests( IJavaProject javaProject, IPackageFragment packageFragment,
                                             List<IType> testClasses, int timeout, boolean withCoverage,
                                             boolean includeAllPlugins, List<String> additionalBundles,
-                                            String launcherName )
+                                            String launcherName, String junitVersion )
     {
         return launchJUnitPluginTests( javaProject, packageFragment, testClasses, null, timeout,
-            withCoverage, includeAllPlugins, additionalBundles, launcherName, false );
+            withCoverage, includeAllPlugins, additionalBundles, launcherName, junitVersion, false );
     }
 
     /**
@@ -691,7 +791,7 @@ public class PDEService
                                             List<IType> testClasses, String methodName, int timeout,
                                             boolean withCoverage, boolean includeAllPlugins,
                                             List<String> additionalBundles, String launcherName,
-                                            boolean singleMethod )
+                                            String junitVersion, boolean singleMethod )
     {
         CountDownLatch latch = new CountDownLatch( 1 );
         UnitTestService.TestRunResult[] testRunResults = new UnitTestService.TestRunResult[1];
@@ -757,8 +857,14 @@ public class PDEService
         {
             ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
             ILaunchConfigurationWorkingCopy workingCopy;
+            // A launcher's working copy is only ever launched, never saved: doSave() on a
+            // working copy whose original is the named configuration itself (not nested)
+            // would write the overridden test target straight back into that configuration's
+            // own .launch file, silently repointing it at whatever ran last. Only the
+            // deterministic AssistAI-owned configuration below is meant to persist.
+            boolean usingNamedLauncher = launcherName != null && !launcherName.isBlank();
 
-            if ( launcherName != null && !launcherName.isBlank() )
+            if ( usingNamedLauncher )
             {
                 // Use the named saved config as a base ΓÇö only override targeting attributes
                 ILaunchConfiguration base = findExistingLaunchConfig( launchManager, launcherName );
@@ -805,12 +911,27 @@ public class PDEService
             // Always override targeting attributes — everything else from the base config is kept
             applyTestTargeting( workingCopy, javaProject, packageFragment, testClasses, methodName );
 
-            // Only set TEST_KIND and workspace/bundle config when not using a named launcher
-            if ( launcherName == null || launcherName.isBlank() )
+            // TEST_KIND: an explicit junitVersion always wins. Absent one, default to AUTO unless
+            // a launcher is in play AND the caller named no target of its own - then the caller
+            // is running whatever the launcher already targets, so its TEST_KIND is left as
+            // configured (FROM_LAUNCHER).
+            boolean hasExplicitTarget = !testClasses.isEmpty() || packageFragment != null
+                || ( methodName != null && !methodName.isBlank() );
+            UnitTestService.ResolvedTestKind resolvedKind =
+                UnitTestService.resolveTestKind( junitVersion, usingNamedLauncher, hasExplicitTarget );
+            switch ( resolvedKind.mode() )
             {
-                workingCopy.setAttribute( "org.eclipse.jdt.junit.TEST_KIND",
+                case FROM_LAUNCHER -> { /* leave the base config's TEST_KIND untouched */ }
+                case EXPLICIT -> workingCopy.setAttribute( "org.eclipse.jdt.junit.TEST_KIND",
+                    resolvedKind.explicitLoaderId() );
+                case AUTO -> workingCopy.setAttribute( "org.eclipse.jdt.junit.TEST_KIND",
                     detectJUnitTestKind( javaProject ) );
+            }
 
+            // Only set workspace/bundle config when not using a named launcher (the base
+            // config already has its own bundle selection and workspace location)
+            if ( !usingNamedLauncher )
+            {
                 String launchName = buildLaunchName( javaProject, packageFragment, testClasses );
                 String testWorkspace = System.getProperty( "java.io.tmpdir" )
                     + java.io.File.separator + "pde-test-workspace-"
@@ -846,7 +967,10 @@ public class PDEService
                 }
             }
 
-            ILaunchConfiguration configuration = workingCopy.doSave();
+            // Only the AssistAI-owned deterministic configuration is persisted. A named
+            // launcher is launched directly off its working copy so the user's saved
+            // configuration is left exactly as they set it up.
+            ILaunchConfiguration configuration = usingNamedLauncher ? workingCopy : workingCopy.doSave();
 
             // Log workspace location so it's visible in test output and MCP tool results
             String wsLocation = configuration.getAttribute( IPDELauncherConstants.LOCATION, (String) null );

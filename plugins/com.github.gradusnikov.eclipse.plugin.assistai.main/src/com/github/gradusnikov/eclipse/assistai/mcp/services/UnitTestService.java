@@ -200,6 +200,17 @@ public class UnitTestService {
      * @param launcherName optional saved launch config name to reuse (VM args, classpath, env vars, etc.)
      */
     public TestRunResponse runAllTests(String projectName, Integer timeout, boolean withCoverage, String launcherName) {
+        return runAllTests(projectName, timeout, withCoverage, launcherName, null);
+    }
+
+    /**
+     * Runs all tests in a project, optionally using a saved launch configuration as a base and/or
+     * an explicit JUnit engine version.
+     *
+     * @param launcherName optional saved launch config name to reuse (VM args, classpath, env vars, etc.)
+     * @param junitVersion "auto", "fromLauncher", "3", "4", "5", or "6" - see {@link UnitTestService#resolveTestKind}
+     */
+    public TestRunResponse runAllTests(String projectName, Integer timeout, boolean withCoverage, String launcherName, String junitVersion) {
         Objects.requireNonNull(projectName, "Project name cannot be null");
         
         if (projectName.isEmpty()) {
@@ -211,7 +222,7 @@ public class UnitTestService {
 
         try {
             IJavaProject javaProject = getJavaProject( projectName );
-            return launchJUnitTests(javaProject, null, null, waitSeconds, null, withCoverage, launcherName);
+            return launchJUnitTests(javaProject, null, null, waitSeconds, null, withCoverage, launcherName, junitVersion);
         } catch (TestSetupException e) {
             return TestRunResponse.notStarted(projectName, List.of(), e.diagnostic(), elapsed(startMillis));
         } catch (CoreException e) {
@@ -243,6 +254,17 @@ public class UnitTestService {
      * @param launcherName optional saved launch config name to reuse
      */
     public TestRunResponse runPackageTests(String projectName, String packageName, Integer timeout, boolean withCoverage, String launcherName) {
+        return runPackageTests(projectName, packageName, timeout, withCoverage, launcherName, null);
+    }
+
+    /**
+     * Runs tests in a package, optionally using a saved launch configuration as a base and/or an
+     * explicit JUnit engine version.
+     *
+     * @param launcherName optional saved launch config name to reuse
+     * @param junitVersion "auto", "fromLauncher", "3", "4", "5", or "6" - see {@link UnitTestService#resolveTestKind}
+     */
+    public TestRunResponse runPackageTests(String projectName, String packageName, Integer timeout, boolean withCoverage, String launcherName, String junitVersion) {
         Objects.requireNonNull(projectName, "Project name cannot be null");
         Objects.requireNonNull(packageName, "Package name cannot be null");
         
@@ -266,7 +288,7 @@ public class UnitTestService {
                                 "Package '" + packageName + "' not found in project '" + projectName + "'."),
                         elapsed(startMillis));
             }
-            return launchJUnitTests(javaProject, pkg, null, waitSeconds, null, withCoverage, launcherName);
+            return launchJUnitTests(javaProject, pkg, null, waitSeconds, null, withCoverage, launcherName, junitVersion);
         } catch (TestSetupException e) {
             return TestRunResponse.notStarted(projectName, List.of(), e.diagnostic(), elapsed(startMillis));
         } catch (CoreException e) {
@@ -298,6 +320,17 @@ public class UnitTestService {
      * @param launcherName optional saved launch config name to reuse
      */
     public TestRunResponse runClassTests(String projectName, String className, Integer timeout, boolean withCoverage, String launcherName) {
+        return runClassTests(projectName, className, timeout, withCoverage, launcherName, null);
+    }
+
+    /**
+     * Runs tests for a class, optionally using a saved launch configuration as a base and/or an
+     * explicit JUnit engine version.
+     *
+     * @param launcherName optional saved launch config name to reuse
+     * @param junitVersion "auto", "fromLauncher", "3", "4", "5", or "6" - see {@link UnitTestService#resolveTestKind}
+     */
+    public TestRunResponse runClassTests(String projectName, String className, Integer timeout, boolean withCoverage, String launcherName, String junitVersion) {
         Objects.requireNonNull(projectName, "Project name cannot be null");
         Objects.requireNonNull(className, "Class name cannot be null");
         
@@ -321,7 +354,7 @@ public class UnitTestService {
                                 "Class '" + className + "' not found in project '" + projectName + "'."),
                         elapsed(startMillis));
             }
-            return launchJUnitTests(javaProject, null, type, waitSeconds, null, withCoverage, launcherName);
+            return launchJUnitTests(javaProject, null, type, waitSeconds, null, withCoverage, launcherName, junitVersion);
         } catch (TestSetupException e) {
             return TestRunResponse.notStarted(projectName, List.of(className), e.diagnostic(), elapsed(startMillis));
         } catch (CoreException e) {
@@ -354,6 +387,17 @@ public class UnitTestService {
      * @param launcherName optional saved launch config name to reuse
      */
     public TestRunResponse runTestMethod(String projectName, String className, String methodName, Integer timeout, boolean withCoverage, String launcherName) {
+        return runTestMethod(projectName, className, methodName, timeout, withCoverage, launcherName, null);
+    }
+
+    /**
+     * Runs a specific test method, optionally using a saved launch configuration as a base and/or
+     * an explicit JUnit engine version.
+     *
+     * @param launcherName optional saved launch config name to reuse
+     * @param junitVersion "auto", "fromLauncher", "3", "4", "5", or "6" - see {@link UnitTestService#resolveTestKind}
+     */
+    public TestRunResponse runTestMethod(String projectName, String className, String methodName, Integer timeout, boolean withCoverage, String launcherName, String junitVersion) {
         Objects.requireNonNull(projectName, "Project name cannot be null");
         Objects.requireNonNull(className, "Class name cannot be null");
         Objects.requireNonNull(methodName, "Method name cannot be null");
@@ -389,7 +433,7 @@ public class UnitTestService {
                                 "Method '" + methodName + "' not found in class '" + className + "'."),
                         elapsed(startMillis));
             }
-            return launchJUnitTests(javaProject, null, type, waitSeconds, methodName, withCoverage, launcherName);
+            return launchJUnitTests(javaProject, null, type, waitSeconds, methodName, withCoverage, launcherName, junitVersion);
         } catch (TestSetupException e) {
             return TestRunResponse.notStarted(projectName, List.of(className), e.diagnostic(), elapsed(startMillis));
         } catch (CoreException e) {
@@ -399,6 +443,74 @@ public class UnitTestService {
         }
     }
     
+    /** Sentinel meaning "detect the engine automatically". */
+    static final String JUNIT_VERSION_AUTO = "auto";
+
+    /**
+     * Sentinel meaning "keep whatever TEST_KIND the base launch configuration already has".
+     * Only meaningful together with a {@code launcherName}; without one there is nothing to
+     * keep, so it is treated as {@link #JUNIT_VERSION_AUTO} instead.
+     */
+    static final String JUNIT_VERSION_FROM_LAUNCHER = "fromLauncher";
+
+    /** What {@link #resolveTestKind} decided to do about TEST_KIND. */
+    enum TestKindMode {
+        /** Detect the engine from the project/class/package, same as with no launcher. */
+        AUTO,
+        /** Leave TEST_KIND untouched - the base launch configuration's value is kept. */
+        FROM_LAUNCHER,
+        /** Use the caller's explicit loader id. */
+        EXPLICIT
+    }
+
+    /** The outcome of {@link #resolveTestKind}: what to do, and the loader id when EXPLICIT. */
+    record ResolvedTestKind(TestKindMode mode, String explicitLoaderId) {}
+
+    /**
+     * Resolves the {@code junitVersion} argument into what to do about TEST_KIND, applying the
+     * default that depends on whether a launcher is in use and whether the caller asked for a
+     * specific test target (class, package, or method) rather than "whatever the launcher runs".
+     * <p>
+     * When {@code junitVersion} is {@code null} or blank - the caller did not ask for a specific
+     * engine - the default is:
+     * <ul>
+     *   <li>{@link TestKindMode#AUTO} when there is no launcher, or there is one but the caller
+     *       also named a target: detection is target-aware and a stale TEST_KIND on the base
+     *       config would otherwise silently misdetect a different class/package.</li>
+     *   <li>{@link TestKindMode#FROM_LAUNCHER} when there is a launcher and no target was named:
+     *       the caller is running whatever the launcher is already scoped to, so its TEST_KIND
+     *       is left as the caller configured it.</li>
+     * </ul>
+     * An explicit value always wins over that default: {@code "auto"} forces detection,
+     * {@code "fromLauncher"} forces keeping the base config's value (or is treated as
+     * {@code "auto"} when there is no launcher to keep it from), and {@code "3"}/{@code "4"}/
+     * {@code "5"}/{@code "6"} force that engine.
+     */
+    static ResolvedTestKind resolveTestKind(String junitVersion, boolean usingNamedLauncher,
+            boolean hasExplicitTarget) {
+        String normalized = junitVersion == null ? "" : junitVersion.trim();
+        if (normalized.isEmpty()) {
+            boolean defaultsToLauncher = usingNamedLauncher && !hasExplicitTarget;
+            return new ResolvedTestKind(defaultsToLauncher ? TestKindMode.FROM_LAUNCHER : TestKindMode.AUTO, null);
+        }
+        if (normalized.equalsIgnoreCase(JUNIT_VERSION_AUTO)) {
+            return new ResolvedTestKind(TestKindMode.AUTO, null);
+        }
+        if (normalized.equalsIgnoreCase(JUNIT_VERSION_FROM_LAUNCHER)) {
+            return new ResolvedTestKind(usingNamedLauncher ? TestKindMode.FROM_LAUNCHER : TestKindMode.AUTO, null);
+        }
+        String loaderId = switch (normalized) {
+            case "3" -> "org.eclipse.jdt.junit.loader.junit3";
+            case "4" -> "org.eclipse.jdt.junit.loader.junit4";
+            case "5" -> "org.eclipse.jdt.junit.loader.junit5";
+            case "6" -> "org.eclipse.jdt.junit.loader.junit6";
+            default -> throw new IllegalArgumentException(
+                    "Unsupported junitVersion '" + junitVersion
+                            + "'; expected 'auto', 'fromLauncher', '3', '4', '5', or '6'.");
+        };
+        return new ResolvedTestKind(TestKindMode.EXPLICIT, loaderId);
+    }
+
     /**
      * Detects the appropriate JUnit test kind loader. When a specific test class
      * is provided, inspects its annotations and superclass to determine the exact
@@ -759,11 +871,15 @@ public class UnitTestService {
      * <p>
      * When {@code launcherName} is non-null, the named saved launch configuration is used
      * as a base (reusing its VM args, classpath, env vars, etc.) and only the test
-     * targeting attributes are overridden.
+     * targeting attributes are overridden. The launched working copy is never saved back
+     * onto the named configuration - the base is a template, not a target, so the same
+     * launcher can be reused for a different class or method without mutating the user's
+     * saved {@code .launch} file. {@code junitVersion} ("auto", "3", "4", "5", "6") always
+     * sets TEST_KIND, including when a launcher is used.
      */
     private TestRunResponse launchJUnitTests(IJavaProject javaProject, IPackageFragment packageFragment,
                                     IType testClass, int timeout, String methodName,
-                                    boolean withCoverage, String launcherName) {
+                                    boolean withCoverage, String launcherName, String junitVersion) {
         final CountDownLatch latch = new CountDownLatch(1);
         final TestRunResult[] testRunResults = new TestRunResult[1];
         final Optional<Operation> operation = OperationContext.current();
@@ -826,8 +942,15 @@ public class UnitTestService {
             try {
                 ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
                 ILaunchConfigurationWorkingCopy workingCopy;
+                // A launcher's working copy is only ever launched, never saved: doSave() on a
+                // working copy whose original is the named configuration itself (not nested)
+                // would write the overridden test target straight back into that
+                // configuration's own .launch file, silently repointing it at whatever ran
+                // last. Only the deterministic AssistAI-owned configuration below is meant
+                // to persist.
+                boolean usingNamedLauncher = launcherName != null && !launcherName.isBlank();
 
-                if (launcherName != null && !launcherName.isBlank()) {
+                if (usingNamedLauncher) {
                     // Use the named saved config as a base — only override targeting attributes
                     ILaunchConfiguration base = findExistingLaunchConfig(launchManager, launcherName);
                     if (base == null) {
@@ -879,13 +1002,24 @@ public class UnitTestService {
                             javaProject.getHandleIdentifier());
                 }
 
-                // Only set TEST_KIND when not using a named launcher (the base config already has it)
-                if (launcherName == null || launcherName.isBlank()) {
-                    String testKind = detectJUnitTestKind(javaProject, testClass, packageFragment);
-                    workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND", testKind);
+                // TEST_KIND: an explicit junitVersion always wins. Absent one, default to AUTO
+                // unless a launcher is in play AND the caller named no target of its own - then
+                // the caller is running whatever the launcher already targets, so its TEST_KIND
+                // is left as configured (FROM_LAUNCHER).
+                boolean hasExplicitTarget = testClass != null || packageFragment != null;
+                ResolvedTestKind resolved = resolveTestKind(junitVersion, usingNamedLauncher, hasExplicitTarget);
+                switch (resolved.mode()) {
+                    case FROM_LAUNCHER -> { /* leave the base config's TEST_KIND untouched */ }
+                    case EXPLICIT -> workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND",
+                            resolved.explicitLoaderId());
+                    case AUTO -> workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND",
+                            detectJUnitTestKind(javaProject, testClass, packageFragment));
                 }
-                // Create the actual configuration
-                ILaunchConfiguration configuration = workingCopy.doSave();
+
+                // Only the AssistAI-owned deterministic configuration is persisted. A named
+                // launcher is launched directly off its working copy so the user's saved
+                // configuration is left exactly as they set it up.
+                ILaunchConfiguration configuration = usingNamedLauncher ? workingCopy : workingCopy.doSave();
                 
                 // Determine launch mode
                 boolean useCoverage = withCoverage && coverageService.isCoverageAvailable();
