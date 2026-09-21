@@ -364,7 +364,9 @@ public class EclipseIntegrationsMcpServer
                + "For PDE plug-in tests, use runJUnitPluginTests in the eclipse-pde server instead. "
                + "Publishes typed intermediate results while running: "
                + "'summary' (pass/fail counts) and 'results' (per-test details). "
-               + "getOperationStatus will show these automatically while the run is in progress.",
+               + "getOperationStatus will show these automatically while the run is in progress. "
+               + "Passing tests are counted, not listed. A failure carries the exception message, the frames in workspace source "
+               + "(JUnit, runner, reflection and library frames are collapsed to counts) and the source location of the test frame.",
            type = "object",
            longExecution = true,
            outputType = TestRunResponse.class )
