@@ -805,6 +805,13 @@ public class PDEService
             // Always override targeting attributes — everything else from the base config is kept
             applyTestTargeting( workingCopy, javaProject, packageFragment, testClasses, methodName );
 
+            // Never run the debug UI's pre-launch incremental build, and never let it prompt
+            // "Errors exist in required project(s) - Proceed with launch?". That dialog blocks a
+            // headless/automated run (and pops up in interactive Eclipse during tests). The
+            // key is org.eclipse.debug.ui.IDebugUIConstants.ATTR_BUILD_BEFORE_LAUNCH; it is
+            // referenced by its literal value so this service keeps no debug.ui dependency.
+            workingCopy.setAttribute( "org.eclipse.debug.ui.ATTR_BUILD_BEFORE_LAUNCH", false );
+
             // Only set TEST_KIND and workspace/bundle config when not using a named launcher
             if ( launcherName == null || launcherName.isBlank() )
             {
