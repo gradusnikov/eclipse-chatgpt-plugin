@@ -715,6 +715,145 @@ public class ApplicationNew {
         assertEquals( original, ResourceUtilities.readFileContent( file ) );
     }
 
+    @Test
+    public void testApplyPatchLocatesPlaceholderHeaderHunkFarFromHint() throws Exception
+    {
+        // A patch whose @@ header claims line 1, but whose unique context block is far past
+        // the +/-50 hint window, is located by the full-file fallback.
+        StringBuilder original = new StringBuilder();
+        for ( int i = 1; i <= 200; i++ )
+        {
+            original.append( "line" ).append( i ).append( "\n" );
+        }
+        IFile file = createFile( "src/placeholder.txt", original.toString() );
+        String patch = """
+                @@ -1 +1 @@
+                 line149
+                -line150
+                +LINE150
+                 line151
+                """;
+
+        EditResult result = applyPatch( "src/placeholder.txt", patch );
+
+        assertEquals( EditResult.EditStatus.APPLIED, result.status() );
+        String placeholderContent = ResourceUtilities.readFileContent( file );
+        assertTrue( placeholderContent.contains( "line149\nLINE150\nline151\n" ), placeholderContent );
+    }
+
+    @Test
+    public void testApplyPatchRejectsAmbiguousContextWithoutModifying() throws Exception
+    {
+        // "dup\ndup" occurs at more than one place. The @@ header points far past the
+        // +/-50 hint window (line 500), so the hint cannot disambiguate and the full-file
+        // scan finds multiple matches: the patch must be rejected and nothing written.
+        StringBuilder original = new StringBuilder();
+        original.append( "dup\ndup\nmiddle\n" );
+        for ( int i = 0; i < 300; i++ )
+        {
+            original.append( "filler" ).append( i ).append( "\n" );
+        }
+        original.append( "dup\ndup\n" );
+        IFile file = createFile( "src/ambiguous.txt", original.toString() );
+        String patch = """
+                @@ -500 +500 @@
+                 dup
+                -dup
+                +CHANGED
+                """;
+
+        EditResult result = applyPatch( "src/ambiguous.txt", patch );
+
+        assertEquals( EditResult.EditStatus.REJECTED, result.status() );
+        assertEquals( DiagnosticCode.TEXT_NOT_FOUND, result.diagnostics().get( 0 ).code() );
+        assertTrue( result.diagnostics().get( 0 ).message().contains( "matches" ),
+                () -> result.diagnostics().get( 0 ).message() );
+        assertEquals( original.toString(), ResourceUtilities.readFileContent( file ) );
+    }
+
+    @Test
+    public void testApplyPatchRejectsMalformedHunkHeaderNamingIt() throws Exception
+    {
+        String original = "one\ntwo\n";
+        IFile file = createFile( "src/malformedheader.txt", original );
+        String patch = """
+                @@ @@
+                 one
+                -two
+                +TWO
+                """;
+
+        EditResult result = applyPatch( "src/malformedheader.txt", patch );
+
+        assertEquals( EditResult.EditStatus.REJECTED, result.status() );
+        assertEquals( DiagnosticCode.INVALID_RANGE, result.diagnostics().get( 0 ).code() );
+        assertTrue( result.diagnostics().get( 0 ).message().contains( "@@ @@" ),
+                () -> result.diagnostics().get( 0 ).message() );
+        assertEquals( original, ResourceUtilities.readFileContent( file ) );
+    }
+
+    @Test
+    public void testApplyPatchAppliesWithTrailingWhitespaceFuzz() throws Exception
+    {
+        // The file's context line has trailing whitespace the patch omits; tier 2 still matches.
+        IFile file = createFile( "src/trailingws.txt", "alpha  \nbeta\ngamma\n" );
+        String patch = """
+                @@ -1,3 +1,3 @@
+                 alpha
+                -beta
+                +BETA
+                 gamma
+                """;
+
+        EditResult result = applyPatch( "src/trailingws.txt", patch );
+
+        assertEquals( EditResult.EditStatus.APPLIED_WITH_WARNINGS, result.status() );
+        assertEquals( "alpha  \nBETA\ngamma\n", ResourceUtilities.readFileContent( file ) );
+        assertTrue( result.diagnostics().stream().anyMatch( d -> d.message().contains( "fuzzy matching" ) ),
+                () -> result.diagnostics().toString() );
+    }
+
+    @Test
+    public void testApplyPatchReindentsAddedLineToFileIndentation() throws Exception
+    {
+        // File uses a tab indent; patch uses spaces. Tier 3 matches on content, retained context
+        // keeps the file's tab, and the added line is re-indented to the file's tab.
+        IFile file = createFile( "src/indent.txt", "\tif (x) {\n\t\tdoA();\n\t}\n" );
+        String patch = """
+                @@ -1,3 +1,4 @@
+                     if (x) {
+                         doA();
+                +        doB();
+                     }
+                """;
+
+        EditResult result = applyPatch( "src/indent.txt", patch );
+
+        assertEquals( EditResult.EditStatus.APPLIED_WITH_WARNINGS, result.status() );
+        assertEquals( "\tif (x) {\n\t\tdoA();\n\t\tdoB();\n\t}\n", ResourceUtilities.readFileContent( file ) );
+    }
+
+    @Test
+    public void testApplyPatchDoesNotMatchWhenRealTextDiffers() throws Exception
+    {
+        String original = "alpha\nbeta\ngamma\n";
+        IFile file = createFile( "src/realdiff.txt", original );
+        // The context's non-whitespace text differs from the file, so no tier should match.
+        String patch = """
+                @@ -1,3 +1,3 @@
+                 alpha
+                -DELTA
+                +DELTA2
+                 gamma
+                """;
+
+        EditResult result = applyPatch( "src/realdiff.txt", patch );
+
+        assertEquals( EditResult.EditStatus.REJECTED, result.status() );
+        assertEquals( DiagnosticCode.TEXT_NOT_FOUND, result.diagnostics().get( 0 ).code() );
+        assertEquals( original, ResourceUtilities.readFileContent( file ) );
+    }
+
     /** applyPatch with no wizard, no staleness check and no preview. */
     private EditResult applyPatch( String filePath, String patch )
     {
