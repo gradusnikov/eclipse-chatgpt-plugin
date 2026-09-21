@@ -857,7 +857,7 @@ Formats code according to the current Eclipse formatter settings.
 
 ### `getClassOutline`
 
-Returns the outline of a Java class: its declaration plus fields, method signatures (no bodies) and inner types, each with the first sentence of its Javadoc, so the outline says what the members do and not only how they are called. Every entry carries a 1-based startLine and endLine, so one member can be read with readProjectResource(projectName, filePath, startLine, endLine) instead of fetching the whole file. Much cheaper than getSource; use this first, then getMethodSource or readProjectResource for the member you want. javadoc=FULL renders each member's whole comment as Markdown and NONE leaves documentation out; a method with no comment of its own reports its supertype's text with javadocInherited=true. status reports TYPE_NOT_FOUND, NO_SOURCE or ACCESS_DENIED rather than an empty outline.
+Returns the outline of a Java class: its declaration plus fields, method signatures (no bodies) and inner types, each with the first sentence of its Javadoc, so the outline says what the members do and not only how they are called. Every entry carries a 1-based startLine and endLine, so one member can be read with readProjectResource(projectName, filePath, startLine, endLine) instead of fetching the whole file. Much cheaper than getSource; use this first, then getMethodSource or readProjectResource for the member you want. javadoc=FULL renders each member's whole comment as Markdown and NONE leaves documentation out; a method with no comment of its own reports its supertype's text with javadocInherited=true. The type may be a library class: with attached source the outline reads that, and without it the class is decompiled. sourceOrigin says which (WORKSPACE_SOURCE, ATTACHED_SOURCE or DECOMPILED_CLASS); for a library class projectName and filePath are null and its members are read with getMethodSource or getFilteredSource by class name instead. status reports TYPE_NOT_FOUND, NO_SOURCE (a class that could not be decompiled either) or ACCESS_DENIED rather than an empty outline.
 
 | Parameter | | Description |
 |---|---|---|
@@ -916,7 +916,7 @@ Gets the effective POM for a Maven project.
 
 ### `getFilteredSource`
 
-Returns one class's source with the import block and the bodies of the methods you did not ask for left out. The content is exact - no line-number prefixes and no '// ... collapsed' comments - and every omission is a range in omittedRanges, so a caller that wants one back reads it with readProjectResource(projectName, filePath, startLine, endLine). status is PARTIAL whenever anything was omitted.
+Returns one class's source with the import block and the bodies of the methods you did not ask for left out. The content is exact - no line-number prefixes and no '// ... collapsed' comments - and every omission is a range in omittedRanges, so a caller that wants one back reads it with readProjectResource(projectName, filePath, startLine, endLine). status is PARTIAL whenever anything was omitted. Works for library classes too - from attached source or a decompilation, with origin saying which - so a large library class can be read with only the methods of interest expanded instead of whole through getSource.
 
 | Parameter | | Description |
 |---|---|---|
@@ -988,7 +988,7 @@ Finds the callers of a method, and what that method calls, to understand how it 
 
 ### `getMethodSource`
 
-Returns the source of specific method(s) of one class. Accepts comma-separated method names to retrieve several in one call. Each method comes back as exact source with its own 1-based range, so its lines can be passed straight to the editing tools; a requested name that matches nothing is listed in notFound rather than mentioned in a comment. version.modificationStamp is the token an edit passes as expectedModificationStamp. Use after getClassOutline to read only the methods you need.
+Returns the source of specific method(s) of one class. Accepts comma-separated method names to retrieve several in one call. Each method comes back as exact source with its own 1-based range, so its lines can be passed straight to the editing tools; a requested name that matches nothing is listed in notFound rather than mentioned in a comment. version.modificationStamp is the token an edit passes as expectedModificationStamp. Use after getClassOutline to read only the methods you need. Works for library classes too, from attached source or a decompilation: sourceOrigin says which, and only WORKSPACE_SOURCE can be edited.
 
 | Parameter | | Description |
 |---|---|---|
@@ -2002,6 +2002,7 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `status` | [`ClassOutlineResponseStatus`](#classoutlineresponsestatus) |
 | `projectName` | `String` |
 | `filePath` | `String` |
+| `sourceOrigin` | [`SourceOrigin`](#sourceorigin) |
 | `declaration` | [`ClassOutlineResponseMember`](#classoutlineresponsemember) |
 | `fields` | [`ClassOutlineResponseMember`](#classoutlineresponsemember)[] |
 | `methods` | [`ClassOutlineResponseMember`](#classoutlineresponsemember)[] |
@@ -2087,6 +2088,7 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `className` | `String` |
 | `projectName` | `String` |
 | `filePath` | `String` |
+| `sourceOrigin` | [`SourceOrigin`](#sourceorigin) |
 | `version` | [`ResourceVersion`](#resourceversion) |
 | `methods` | [`MethodSourceResponseMethodSource`](#methodsourceresponsemethodsource)[] |
 | `notFound` | `String`[] |

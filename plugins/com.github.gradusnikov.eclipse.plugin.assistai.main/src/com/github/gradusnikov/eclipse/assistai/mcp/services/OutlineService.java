@@ -11,19 +11,16 @@ import java.util.stream.Collectors;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
-import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.e4.core.di.annotations.Creatable;
-import org.eclipse.jdt.core.ICompilationUnit;
-import org.eclipse.jdt.core.IImportContainer;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.ISourceRange;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
-import org.eclipse.jface.text.Document;
+import org.eclipse.jface.text.IDocument;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.results.Diagnostic;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.DiagnosticCode;
@@ -32,8 +29,6 @@ import com.github.gradusnikov.eclipse.assistai.resources.ContentRange;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceReadResult;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceVersion;
-import com.github.gradusnikov.eclipse.assistai.resources.SourceOrigin;
-import com.github.gradusnikov.eclipse.assistai.services.AiIgnoreService;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -47,6 +42,10 @@ import jakarta.inject.Singleton;
  * {@code // ... (lines 40-91)} comment, the line numbers are now ranges in the result
  * - {@code MethodSource.range} and {@code ResourceReadResult.omittedRanges} - so a
  * caller reads them as data rather than recovering them from the code it was given.
+ * <p>
+ * The type may be a library class as well as a workspace file. {@link TypeSourceResolver}
+ * supplies attached or decompiled text for it, and the result's {@code sourceOrigin}
+ * says which, so a caller knows the lines it is given cannot be written back.
  * <p>
  * The outline tool used to live here as well. It now returns a record from
  * {@link CodeAnalysisService#getClassOutline}, and the declaration, field and method
@@ -62,7 +61,7 @@ public class OutlineService
     ILog logger;
 
     @Inject
-    AiIgnoreService aiIgnoreService;
+    TypeSourceResolver typeSources;
 
     /**
      * Returns the source of the named methods of one type.
@@ -107,22 +106,20 @@ public class OutlineService
                     continue;
                 }
 
-                ICompilationUnit cu = type.getCompilationUnit();
-                if ( cu == null )
-                {
-                    continue;
-                }
-
-                IResource resource = cu.getResource();
-                if ( resource != null && aiIgnoreService.isExcluded( resource ) )
+                TypeSourceResolver.Resolution resolution = typeSources.resolve( type );
+                if ( resolution.status() == TypeSourceResolver.Status.EXCLUDED )
                 {
                     return MethodSourceResponse.failed( fullyQualifiedClassName, Diagnostic.fatal(
                             DiagnosticCode.RESOURCE_NOT_ACCESSIBLE,
                             "'" + fullyQualifiedClassName + "' is excluded from AI processing by .aiignore." ) );
                 }
-
-                String source = cu.getBuffer().getContents();
-                Document doc = new Document( source );
+                if ( !resolution.isResolved() )
+                {
+                    continue;
+                }
+                TypeSource typeSource = resolution.source();
+                String source = typeSource.content();
+                IDocument doc = typeSource.document();
 
                 List<MethodSourceResponse.MethodSource> found = new ArrayList<>();
                 List<String> notFound = new ArrayList<>( requestedMethods );
@@ -141,9 +138,16 @@ public class OutlineService
                         continue;
                     }
 
+                    ISourceRange range = typeSource.rangeOf( method );
+                    if ( range == null )
+                    {
+                        // Declared by the model but absent from the text - a decompiler
+                        // dropped or synthesized it - so there is nothing to show.
+                        continue;
+                    }
+
                     notFound.remove( method.getElementName() );
 
-                    ISourceRange range = method.getSourceRange();
                     int startOffset = range.getOffset();
                     int endOffset = startOffset + range.getLength();
 
@@ -152,7 +156,7 @@ public class OutlineService
                     // previous code did the opposite - min() with the Javadoc offset,
                     // which is inside the range it was compared against - so the flag
                     // had never had any effect at all.
-                    ISourceRange javadocRange = method.getJavadocRange();
+                    ISourceRange javadocRange = typeSource.javadocRangeOf( method );
                     if ( !includeJavadoc && javadocRange != null )
                     {
                         // Start at the line after the Javadoc rather than at the
@@ -186,12 +190,12 @@ public class OutlineService
                             source.substring( from, to ) ) );
                 }
 
-                IFile file = resource instanceof IFile f ? f : null;
                 return MethodSourceResponse.of(
                         fullyQualifiedClassName,
-                        file == null ? null : file.getProject().getName(),
-                        file == null ? null : file.getProjectRelativePath().toString(),
-                        ResourceVersion.of( file ),
+                        typeSource.projectName(),
+                        typeSource.filePath(),
+                        typeSource.origin(),
+                        typeSource.version(),
                         found,
                         notFound );
             }
@@ -214,7 +218,8 @@ public class OutlineService
      * {@link ResourceReadResult} describes: the content is exact, and every omission
      * is a range in {@code omittedRanges} rather than a {@code // ... (lines 40-91)}
      * comment spliced into the code. A caller that wants an omitted region reads it
-     * with {@code readProjectResource(projectName, filePath, startLine, endLine)}.
+     * with {@code readProjectResource(projectName, filePath, startLine, endLine)}, or
+     * for a library type with {@code getMethodSource}.
      *
      * @param methodNames comma-separated method names to expand; null or empty expands
      *            all of them, in which case only the imports can be omitted
@@ -242,33 +247,31 @@ public class OutlineService
                     continue;
                 }
 
-                ICompilationUnit cu = type.getCompilationUnit();
-                if ( cu == null )
+                TypeSourceResolver.Resolution resolution = typeSources.resolve( type );
+                if ( resolution.status() == TypeSourceResolver.Status.EXCLUDED )
                 {
-                    continue;
-                }
-
-                IResource resource = cu.getResource();
-                if ( resource != null && aiIgnoreService.isExcluded( resource ) )
-                {
-                    return ResourceReadResult.failed( projectNameOf( resource ), pathOf( resource ),
+                    IFile excluded = resolution.excludedFile();
+                    return ResourceReadResult.failed( projectNameOf( excluded ), pathOf( excluded ),
                             Diagnostic.fatal( DiagnosticCode.RESOURCE_NOT_ACCESSIBLE, "'"
                                     + fullyQualifiedClassName + "' is excluded from AI processing by .aiignore." ) );
                 }
-
-                String source = cu.getBuffer().getContents();
+                if ( !resolution.isResolved() )
+                {
+                    continue;
+                }
+                TypeSource typeSource = resolution.source();
+                String source = typeSource.content();
                 String[] lines = source.split( "\n", -1 );
-                Document doc = new Document( source );
+                IDocument doc = typeSource.document();
 
                 // Omitted ranges: startLine -> endLine, 1-based and inclusive.
                 TreeMap<Integer, Integer> omit = new TreeMap<>();
 
                 if ( excludeImports )
                 {
-                    IImportContainer importContainer = cu.getImportContainer();
-                    if ( importContainer != null && importContainer.exists() )
+                    ISourceRange importRange = typeSource.importsRange();
+                    if ( importRange != null )
                     {
-                        ISourceRange importRange = importContainer.getSourceRange();
                         omit.put( doc.getLineOfOffset( importRange.getOffset() ) + 1,
                                   doc.getLineOfOffset( importRange.getOffset() + importRange.getLength() - 1 ) + 1 );
                     }
@@ -283,12 +286,12 @@ public class OutlineService
                             continue;
                         }
 
-                        ISourceRange range = method.getSourceRange();
-                        String methodSource = method.getSource();
-                        if ( methodSource == null )
+                        ISourceRange range = typeSource.rangeOf( method );
+                        if ( range == null )
                         {
                             continue;
                         }
+                        String methodSource = typeSource.textOf( range );
 
                         int braceIndex = findOpeningBrace( methodSource );
                         if ( braceIndex < 0 )
@@ -332,20 +335,19 @@ public class OutlineService
                 }
 
                 int totalLines = lines.length;
-                IFile file = resource instanceof IFile f ? f : null;
 
                 return new ResourceReadResult(
                         omittedRanges.isEmpty() ? ResourceReadResult.ReadStatus.OK
                                                 : ResourceReadResult.ReadStatus.PARTIAL,
                         ResourceDescriptor.fromJavaType( type, toolName ).uri().toString(),
-                        projectNameOf( resource ),
-                        pathOf( resource ),
+                        typeSource.projectName(),
+                        typeSource.filePath(),
                         "java",
-                        ResourceVersion.of( file ),
+                        typeSource.version(),
                         new ContentRange( 1, 1, Math.max( 1, totalLines ), 1 ),
                         totalLines,
                         content.toString(),
-                        SourceOrigin.WORKSPACE_SOURCE,
+                        typeSource.origin(),
                         false,
                         // Nothing was cut off the end: the content runs to the last
                         // line, with holes. The holes are omittedRanges.
@@ -364,14 +366,14 @@ public class OutlineService
                 "No open Java project resolves the type '" + fullyQualifiedClassName + "' to source." ) );
     }
 
-    private static String projectNameOf( IResource resource )
+    private static String projectNameOf( IFile file )
     {
-        return resource == null ? null : resource.getProject().getName();
+        return file == null ? null : file.getProject().getName();
     }
 
-    private static String pathOf( IResource resource )
+    private static String pathOf( IFile file )
     {
-        return resource == null ? null : resource.getProjectRelativePath().toString();
+        return file == null ? null : file.getProjectRelativePath().toString();
     }
 
     private int findOpeningBrace(String methodSource)

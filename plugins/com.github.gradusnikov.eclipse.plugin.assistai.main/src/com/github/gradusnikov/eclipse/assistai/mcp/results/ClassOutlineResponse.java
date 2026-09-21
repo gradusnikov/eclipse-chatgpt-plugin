@@ -2,6 +2,8 @@ package com.github.gradusnikov.eclipse.assistai.mcp.results;
 
 import java.util.List;
 
+import com.github.gradusnikov.eclipse.assistai.resources.SourceOrigin;
+
 /**
  * The members of a Java type and where each one starts and ends.
  * <p>
@@ -14,7 +16,10 @@ import java.util.List;
  * {@code projectName} and {@code filePath} are the pair {@code readProjectResource} and
  * the editing tools take, so a member can be read with
  * {@code readProjectResource(projectName, filePath, startLine, endLine)} without a
- * second lookup.
+ * second lookup. They are null for a library type, whose text has no workspace file:
+ * {@code sourceOrigin} says so, and such a member is read with {@code getMethodSource}
+ * or {@code getFilteredSource} by class name instead. Line numbers then count lines of
+ * the attached or decompiled text those tools return.
  * <p>
  * Each entry also carries its Javadoc, rendered the way the IDE's hover renders it - by
  * default the first sentence, which is what turns a list of signatures into an overview
@@ -25,6 +30,7 @@ public record ClassOutlineResponse(
     Status status,
     String projectName,
     String filePath,
+    SourceOrigin sourceOrigin,
     Member declaration,
     List<Member> fields,
     List<Member> methods,
@@ -38,7 +44,7 @@ public record ClassOutlineResponse(
         OK,
         /** No open Java project knows this type. */
         TYPE_NOT_FOUND,
-        /** The type is a class file with no attached source; use getSource, which decompiles. */
+        /** The type is a class file with no attached source that could not be decompiled either. */
         NO_SOURCE,
         /** The file is excluded from AI processing by .aiignore. */
         ACCESS_DENIED
@@ -78,18 +84,29 @@ public record ClassOutlineResponse(
 
     public static ClassOutlineResponse failed( String typeName, Status status, String summary )
     {
-        return new ClassOutlineResponse( typeName, status, null, null, null,
+        return new ClassOutlineResponse( typeName, status, null, null, null, null,
                 List.of(), List.of(), List.of(), summary );
     }
 
     public static ClassOutlineResponse of( String typeName, String projectName, String filePath,
             Member declaration, List<Member> fields, List<Member> methods, List<Member> innerTypes )
     {
+        return of( typeName, projectName, filePath, SourceOrigin.WORKSPACE_SOURCE, declaration, fields, methods,
+                innerTypes );
+    }
+
+    public static ClassOutlineResponse of( String typeName, String projectName, String filePath,
+            SourceOrigin sourceOrigin, Member declaration, List<Member> fields, List<Member> methods,
+            List<Member> innerTypes )
+    {
         String summary = typeName + ": " + fields.size() + " fields, " + methods.size() + " methods, "
                 + innerTypes.size() + " inner types, lines " + declaration.startLine() + "-"
-                + declaration.endLine() + ".";
+                + declaration.endLine() + "."
+                + ( sourceOrigin == SourceOrigin.WORKSPACE_SOURCE ? ""
+                        : " Lines count the " + ( sourceOrigin == SourceOrigin.DECOMPILED_CLASS ? "decompiled" : "attached" )
+                                + " text; read members with getMethodSource or getFilteredSource." );
 
-        return new ClassOutlineResponse( typeName, Status.OK, projectName, filePath, declaration,
+        return new ClassOutlineResponse( typeName, Status.OK, projectName, filePath, sourceOrigin, declaration,
                 fields, methods, innerTypes, summary );
     }
 }

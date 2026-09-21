@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.github.gradusnikov.eclipse.assistai.resources.ContentRange;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceVersion;
+import com.github.gradusnikov.eclipse.assistai.resources.SourceOrigin;
 
 /**
  * The source of one or more named methods of a single Java type.
@@ -24,6 +25,9 @@ import com.github.gradusnikov.eclipse.assistai.resources.ResourceVersion;
  * used to be a trailing {@code // Not found: a, b} comment appended to the source,
  * which meant the only way to discover it was to read the code the tool returned.
  *
+ * @param sourceOrigin where the text came from. Only {@code WORKSPACE_SOURCE} can be
+ *            edited; a library type's attached or decompiled text has no
+ *            {@code projectName}, {@code filePath} or known version
  * @param version the version the source was taken at; its {@code modificationStamp} is
  *            what an edit built from this read passes as
  *            {@code expectedModificationStamp}
@@ -35,6 +39,7 @@ public record MethodSourceResponse(
     String className,
     String projectName,
     String filePath,
+    SourceOrigin sourceOrigin,
     ResourceVersion version,
     List<MethodSource> methods,
     List<String> notFound,
@@ -80,22 +85,29 @@ public record MethodSourceResponse(
     /** Nothing could be read; the reason is a code rather than a sentence. */
     public static MethodSourceResponse failed( String className, Diagnostic diagnostic )
     {
-        return new MethodSourceResponse( Status.FAILED, className, null, null,
+        return new MethodSourceResponse( Status.FAILED, className, null, null, null,
                 ResourceVersion.UNKNOWN, List.of(), List.of(), List.of( diagnostic ) );
     }
 
     /**
-     * A successful lookup. The status follows from {@code notFound}: a caller that
-     * asked for three methods and got two has a partial answer, and should not have to
-     * compare two list sizes to notice.
+     * A successful lookup of workspace source. The status follows from
+     * {@code notFound}: a caller that asked for three methods and got two has a partial
+     * answer, and should not have to compare two list sizes to notice.
      */
     public static MethodSourceResponse of( String className, String projectName, String filePath,
                                            ResourceVersion version, List<MethodSource> methods,
                                            List<String> notFound )
     {
+        return of( className, projectName, filePath, SourceOrigin.WORKSPACE_SOURCE, version, methods, notFound );
+    }
+
+    public static MethodSourceResponse of( String className, String projectName, String filePath,
+                                           SourceOrigin sourceOrigin, ResourceVersion version,
+                                           List<MethodSource> methods, List<String> notFound )
+    {
         return new MethodSourceResponse(
                 notFound.isEmpty() ? Status.OK : Status.PARTIAL,
-                className, projectName, filePath, version,
+                className, projectName, filePath, sourceOrigin, version,
                 List.copyOf( methods ), List.copyOf( notFound ), Diagnostic.none() );
     }
 }

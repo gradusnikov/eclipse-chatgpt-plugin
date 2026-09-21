@@ -77,6 +77,9 @@ public class CodeAnalysisService
 
     @Inject
     AiIgnoreService aiIgnoreService;
+
+    @Inject
+    TypeSourceResolver typeSources;
     
     /**
      * Who calls a method, and what it calls.
@@ -542,7 +545,7 @@ public class CodeAnalysisService
      *
      * @return the first matching type, or null when no project knows the name
      */
-    private IType findType( String fullyQualifiedClassName ) throws JavaModelException
+    IType findType( String fullyQualifiedClassName ) throws JavaModelException
     {
         for ( IJavaProject project : getAvailableJavaProjects() )
         {
@@ -644,49 +647,56 @@ public class CodeAnalysisService
                         "Type '" + fullyQualifiedClassName + "' was not found in any open Java project." );
             }
 
-            ICompilationUnit unit = type.getCompilationUnit();
-            if ( unit == null )
-            {
-                return ClassOutlineResponse.failed( fullyQualifiedClassName, ClassOutlineResponse.Status.NO_SOURCE,
-                        "Type '" + fullyQualifiedClassName + "' has no attached source. Use getSource, which decompiles." );
-            }
-
-            IResource resource = unit.getResource();
-            if ( resource != null && aiIgnoreService.isExcluded( resource ) )
+            TypeSourceResolver.Resolution resolution = typeSources.resolve( type );
+            if ( resolution.status() == TypeSourceResolver.Status.EXCLUDED )
             {
                 return ClassOutlineResponse.failed( fullyQualifiedClassName, ClassOutlineResponse.Status.ACCESS_DENIED,
                         "Type '" + fullyQualifiedClassName + "' is excluded from AI processing by .aiignore." );
             }
-
-            // The platform's line tracker, so a CRLF file reports the same lines as an LF one.
-            IDocument document = new Document( unit.getBuffer().getContents() );
+            if ( !resolution.isResolved() )
+            {
+                return ClassOutlineResponse.failed( fullyQualifiedClassName, ClassOutlineResponse.Status.NO_SOURCE,
+                        "Type '" + fullyQualifiedClassName + "' is a class file with no attached source, and it could not be decompiled." );
+            }
+            TypeSource typeSource = resolution.source();
 
             List<ClassOutlineResponse.Member> fields = new ArrayList<>();
             if ( includeFields )
             {
                 for ( IField field : type.getFields() )
                 {
-                    fields.add( toMember( document, field, formatFieldDeclaration( field ), javadoc ) );
+                    addMember( fields, typeSource, field, formatFieldDeclaration( field ), javadoc );
                 }
             }
 
             List<ClassOutlineResponse.Member> methods = new ArrayList<>();
             for ( IMethod method : type.getMethods() )
             {
-                methods.add( toMember( document, method, formatMethodSignature( method ), javadoc ) );
+                addMember( methods, typeSource, method, formatMethodSignature( method ), javadoc );
             }
 
             List<ClassOutlineResponse.Member> innerTypes = new ArrayList<>();
             for ( IType innerType : type.getTypes() )
             {
-                innerTypes.add( toMember( document, innerType, formatTypeDeclaration( innerType ), javadoc ) );
+                addMember( innerTypes, typeSource, innerType, formatTypeDeclaration( innerType ), javadoc );
             }
 
-            ClassOutlineResponse.Member declaration = toMember( document, type, formatTypeDeclaration( type ), javadoc );
+            ClassOutlineResponse.Member declaration = toMember( typeSource, type, formatTypeDeclaration( type ), javadoc );
+            if ( declaration == null )
+            {
+                // The text exists but the type cannot be found in it - a decompiler
+                // that renamed or reshaped it. Its extent is then the whole text.
+                IDocument document = typeSource.document();
+                Javadocs.Rendered rendered = Javadocs.render( type, javadoc, false );
+                declaration = new ClassOutlineResponse.Member( type.getElementName(), formatTypeDeclaration( type ), 1,
+                        Math.max( 1, document.getNumberOfLines() ), rendered == null ? null : rendered.markdown(),
+                        rendered != null && rendered.inherited() );
+            }
 
             return ClassOutlineResponse.of( fullyQualifiedClassName,
-                    resource == null ? null : resource.getProject().getName(),
-                    resource == null ? null : resource.getProjectRelativePath().toString(),
+                    typeSource.projectName(),
+                    typeSource.filePath(),
+                    typeSource.origin(),
                     declaration, fields, methods, innerTypes );
         }
         catch ( Exception e )
@@ -697,12 +707,32 @@ public class CodeAnalysisService
         }
     }
 
+    /**
+     * Adds the member's entry, unless the member has no declaration in the text - which
+     * a decompiler can cause - in which case there is no line to point a caller at and
+     * the member is left out rather than given a made-up range.
+     */
+    private static void addMember( List<ClassOutlineResponse.Member> members, TypeSource typeSource, IMember member,
+            String label, Javadocs.Detail javadoc ) throws JavaModelException, BadLocationException
+    {
+        ClassOutlineResponse.Member entry = toMember( typeSource, member, label, javadoc );
+        if ( entry != null )
+        {
+            members.add( entry );
+        }
+    }
+
     /** Both line numbers are 1-based and inclusive, as the reading tools take them. */
-    /** An outline is workspace source, so the attached-Javadoc lookup never applies. */
-    private static ClassOutlineResponse.Member toMember( IDocument document, IMember member, String label,
+    private static ClassOutlineResponse.Member toMember( TypeSource typeSource, IMember member, String label,
             Javadocs.Detail javadoc ) throws JavaModelException, BadLocationException
     {
-        ISourceRange range = member.getSourceRange();
+        ISourceRange range = typeSource.rangeOf( member );
+        if ( range == null )
+        {
+            return null;
+        }
+        // The platform's line tracker, so a CRLF file reports the same lines as an LF one.
+        IDocument document = typeSource.document();
         int startLine = document.getLineOfOffset( range.getOffset() ) + 1;
         int endLine = document.getLineOfOffset( range.getOffset() + Math.max( range.getLength() - 1, 0 ) ) + 1;
         Javadocs.Rendered rendered = Javadocs.render( member, javadoc, false );
