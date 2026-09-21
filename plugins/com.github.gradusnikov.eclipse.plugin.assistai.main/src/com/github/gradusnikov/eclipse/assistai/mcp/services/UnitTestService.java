@@ -4,8 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.eclipse.debug.core.ILaunch;
 
@@ -24,6 +27,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.TestRunResponse.Sourc
 import com.github.gradusnikov.eclipse.assistai.mcp.results.TestRunResponse.TestCaseResult;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.TestRunResponse.TestStatus;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.TestRunResponse.TestSummary;
+import com.github.gradusnikov.eclipse.assistai.tools.StackTraces;
 
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -82,8 +86,9 @@ public class UnitTestService {
      * actionable: previously a failed test named a class and a method and nothing
      * more, so the caller could not open where it broke.
      *
-     * @param message the assertion message - the trace's first line
-     * @param failureTrace the full trace, already cut to a publishable size
+     * @param message the exception and its message, all header lines of the trace
+     * @param failureTrace the workspace-source frames of the trace, other frames counted;
+     *            see {@link StackTraces}
      * @param source where the failure is, or null when the trace named no workspace type
      */
     public record TestResult (String className, String testName, TestStatus status, String message,
@@ -1147,15 +1152,44 @@ public class UnitTestService {
         // Only a test that did not pass has anywhere worth pointing at, and resolving a
         // location costs a JDT type lookup per test - not something to do 400 times for
         // results nobody will open.
-        SourceLocation source = status == TestStatus.FAILED || status == TestStatus.ERROR
-                ? resolveSourceLocation( javaProject, className, trace )
-                : null;
+        boolean notPassing = status == TestStatus.FAILED || status == TestStatus.ERROR;
+        SourceLocation source = notPassing ? resolveSourceLocation( javaProject, className, trace ) : null;
+        StackTraces.Abridged abridged = notPassing ? abridgeTrace( javaProject, trace ) : StackTraces.abridge( trace, name -> true );
 
-        return new TestResult( className, testName, status,
-                TestRunResponse.firstTraceLine( trace ),
-                TestRunResponse.truncateTrace( trace ),
-                TestRunResponse.isTraceTruncated( trace ),
-                source, time );
+        // Milliseconds are as fine as JUnit measures; the raw double prints fifteen digits of noise.
+        return new TestResult( className, testName, status, abridged.message(), abridged.frames(),
+                abridged.truncated(), source, Math.round( time * 1000 ) / 1000.0 );
+    }
+
+    /**
+     * Abridges a trace to the frames in workspace source - the test and whatever it
+     * calls in this project or the projects it depends on. Library, JUnit, runner and
+     * reflection frames are counted, not listed.
+     * <p>
+     * "Workspace source" is decided by JDT, not by package prefix: a type is own code
+     * when {@code findType} on this project's classpath resolves it to a compilation
+     * unit. The lookup is cached per class within one trace, since a trace names the same
+     * few classes many times.
+     */
+    public static StackTraces.Abridged abridgeTrace( IJavaProject javaProject, String trace )
+    {
+        Map<String, Boolean> known = new HashMap<>();
+        Predicate<String> workspaceSource = className -> known.computeIfAbsent( className, name -> {
+            if ( javaProject == null )
+            {
+                return false;
+            }
+            try
+            {
+                IType type = javaProject.findType( name.replace( '$', '.' ) );
+                return type != null && type.getCompilationUnit() != null;
+            }
+            catch ( JavaModelException e )
+            {
+                return false;
+            }
+        } );
+        return StackTraces.abridge( trace, workspaceSource );
     }
 
     private static TestStatus toTestStatus( Result result )

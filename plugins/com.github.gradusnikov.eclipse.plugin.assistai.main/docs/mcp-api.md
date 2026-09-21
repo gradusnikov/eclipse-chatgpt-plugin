@@ -1124,7 +1124,7 @@ Read the content of a text resource from a specified project. Returns the exact 
 
 ### `runJUnitTests` *(long)*
 
-Starts a JUnit test run asynchronously and returns an operationId for polling. Scope is inferred from parameters: className+methodName=single method, className=single class, packageName=package, none=all tests in project. Use getOperationStatus to poll progress and results. For PDE plug-in tests, use runJUnitPluginTests in the eclipse-pde server instead. Publishes typed intermediate results while running: 'summary' (pass/fail counts) and 'results' (per-test details). getOperationStatus will show these automatically while the run is in progress.
+Starts a JUnit test run asynchronously and returns an operationId for polling. Scope is inferred from parameters: className+methodName=single method, className=single class, packageName=package, none=all tests in project. Use getOperationStatus to poll progress and results. For PDE plug-in tests, use runJUnitPluginTests in the eclipse-pde server instead. Publishes typed intermediate results while running: 'summary' (pass/fail counts) and 'results' (per-test details). getOperationStatus will show these automatically while the run is in progress. Passing tests are counted, not listed. A failure carries the exception message, the frames in workspace source (JUnit, runner, reflection and library frames are collapsed to counts) and the source location of the test frame.
 
 | Parameter | | Description |
 |---|---|---|

@@ -43,13 +43,6 @@ public record TestRunResponse(
 )
 {
     /**
-     * A failure trace longer than this is cut. A single stack overflow trace can run to
-     * hundreds of kilobytes, and a run with twenty of them would produce a response no
-     * client can use - while the first few frames are what locates the fault.
-     */
-    public static final int MAX_TRACE_CHARS = 4000;
-
-    /**
      * How the run itself ended.
      * <p>
      * {@code RUNNING} is not decoration: results are published while the run is still
@@ -122,11 +115,21 @@ public record TestRunResponse(
 
     /**
      * One test that did not pass.
+     * <p>
+     * The trace is abridged, not copied: a raw JUnit trace is mostly assertion-library,
+     * runner, reflection and third-party frames nobody acts on, and a run with twenty
+     * failures carrying forty lines each is a response nobody reads. See
+     * {@code StackTraces}.
      *
-     * @param message the first line of the trace - the assertion message - so a caller
-     *            can report the failure without holding the whole trace
-     * @param failureTrace the full trace, cut at {@link #MAX_TRACE_CHARS}
-     * @param traceTruncated whether the trace above is the whole one
+     * @param message the exception and its message, every header line before the first
+     *            frame, so a multi-line assertion message stays whole. It is not
+     *            repeated in {@code failureTrace}
+     * @param failureTrace the frames in workspace source, one per line, with each run of
+     *            other frames collapsed to {@code ... N frames in <package> omitted};
+     *            {@code Caused by:} chains keep their headers and are cut the same way.
+     *            Null when the trace has no frames
+     * @param traceTruncated whether own-code frames past {@code StackTraces.MAX_FRAMES}
+     *            were dropped - a stack overflow, in practice
      * @param source null when the trace named no frame in a workspace type
      */
     public record TestCaseResult(
@@ -267,45 +270,4 @@ public record TestRunResponse(
         return sb.append( "." ).toString();
     }
 
-    /**
-     * Cuts a trace to {@link #MAX_TRACE_CHARS}, keeping the head - the exception and the
-     * frames nearest the fault - because that is the part that locates it.
-     *
-     * @return the trace and whether it was cut, or {@code {null, false}} for no trace
-     */
-    public static String truncateTrace( String trace )
-    {
-        if ( trace == null || trace.isEmpty() )
-        {
-            return null;
-        }
-        return trace.length() <= MAX_TRACE_CHARS ? trace : trace.substring( 0, MAX_TRACE_CHARS );
-    }
-
-    /** Whether {@link #truncateTrace(String)} would cut this trace. */
-    public static boolean isTraceTruncated( String trace )
-    {
-        return trace != null && trace.length() > MAX_TRACE_CHARS;
-    }
-
-    /**
-     * The assertion message - the first non-blank line of the trace. A caller reporting
-     * "1 failed: expected 201 but got 500" should not have to hold 4 kB to say it.
-     */
-    public static String firstTraceLine( String trace )
-    {
-        if ( trace == null || trace.isBlank() )
-        {
-            return null;
-        }
-        for ( String line : trace.split( "\\R" ) )
-        {
-            String trimmed = line.trim();
-            if ( !trimmed.isEmpty() )
-            {
-                return trimmed;
-            }
-        }
-        return null;
-    }
 }

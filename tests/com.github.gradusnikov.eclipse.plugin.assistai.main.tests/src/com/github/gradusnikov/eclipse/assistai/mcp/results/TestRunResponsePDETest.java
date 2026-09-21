@@ -39,6 +39,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.TestRunResponse.TestS
 import com.github.gradusnikov.eclipse.assistai.mcp.services.UnitTestService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.UnitTestService.TestResult;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.UnitTestService.TestRunResult;
+import com.github.gradusnikov.eclipse.assistai.tools.StackTraces;
 
 /**
  * The response the JUnit tools return, and the collection behind it.
@@ -279,32 +280,41 @@ public class TestRunResponsePDETest
     // ---- trace handling --------------------------------------------------
 
     @Test
-    public void theMessageIsTheAssertionLineAndTheTraceIsKeptSeparately()
+    public void theTraceKeepsWorkspaceFramesAndCountsTheRest()
     {
-        String trace = "org.opentest4j.AssertionFailedError: expected: <201> but was: <500>\n\tat sample.FixtureTest.check(FixtureTest.java:8)";
+        // Which frames are "own code" is decided by JDT: sample.FixtureTest is a compilation
+        // unit in the fixture project, org.junit and java.lang are not.
+        String trace = """
+                org.opentest4j.AssertionFailedError: expected: <201> but was: <500>
+                \tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+                \tat org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:145)
+                \tat sample.FixtureTest.check(FixtureTest.java:8)
+                \tat java.base/java.lang.reflect.Method.invoke(Method.java:565)
+                """;
 
-        assertEquals( "org.opentest4j.AssertionFailedError: expected: <201> but was: <500>",
-                TestRunResponse.firstTraceLine( trace ) );
-        assertEquals( trace, TestRunResponse.truncateTrace( trace ) );
-        assertFalse( TestRunResponse.isTraceTruncated( trace ) );
+        StackTraces.Abridged abridged = UnitTestService.abridgeTrace( javaProject, trace );
+
+        assertEquals( "org.opentest4j.AssertionFailedError: expected: <201> but was: <500>", abridged.message() );
+        assertEquals( """
+                ... 2 frames in org.junit.jupiter.api omitted
+                sample.FixtureTest.check(FixtureTest.java:8)
+                ... 1 frame in java.lang.reflect omitted""", abridged.frames() );
+        assertFalse( abridged.truncated() );
     }
 
     @Test
-    public void aHugeTraceIsCutAndSaysSo()
+    public void aTypeOutsideTheWorkspaceIsNotOwnCodeEvenInTheSamePackage()
     {
-        String trace = "x".repeat( TestRunResponse.MAX_TRACE_CHARS + 500 );
+        String trace = "java.lang.AssertionError: boom\n\tat sample.NotHere.x(NotHere.java:1)\n";
 
-        assertEquals( TestRunResponse.MAX_TRACE_CHARS, TestRunResponse.truncateTrace( trace ).length() );
-        assertTrue( TestRunResponse.isTraceTruncated( trace ) );
+        assertEquals( "... 1 frame in sample omitted", UnitTestService.abridgeTrace( javaProject, trace ).frames() );
     }
 
     @Test
     public void noTraceIsNullNotAnEmptyString()
     {
-        assertNull( TestRunResponse.truncateTrace( null ) );
-        assertNull( TestRunResponse.truncateTrace( "" ) );
-        assertNull( TestRunResponse.firstTraceLine( "   " ) );
-        assertFalse( TestRunResponse.isTraceTruncated( null ) );
+        assertEquals( StackTraces.Abridged.NONE, UnitTestService.abridgeTrace( javaProject, null ) );
+        assertEquals( StackTraces.Abridged.NONE, UnitTestService.abridgeTrace( javaProject, "   " ) );
     }
 
     // ---- coverage --------------------------------------------------------
