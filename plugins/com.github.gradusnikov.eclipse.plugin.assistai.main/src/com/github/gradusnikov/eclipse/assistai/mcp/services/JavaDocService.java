@@ -273,8 +273,9 @@ public class JavaDocService
                     type.getFullyQualifiedName( '.' ),
                     projectName,
                     origin,
-                    resource == null || resource.getProject() == null ? null : resource.getProject().getName(),
-                    resource == null ? null : resource.getProjectRelativePath().toString(),
+                    // The pair the reading and editing tools take: only a compilation unit is one, a JAR is not.
+                    compilationUnit == null || resource == null || resource.getProject() == null ? null : resource.getProject().getName(),
+                    compilationUnit == null || resource == null ? null : resource.getProjectRelativePath().toString(),
                     rootKindOf( root ),
                     root == null ? null : root.getPath().toString(),
                     root == null || root.getSourceAttachmentPath() == null
@@ -348,7 +349,9 @@ public class JavaDocService
                     continue;
                 }
 
-                IResource resource = getTypeResource( type );
+                // A binary type's resource is the JAR it lives in, and a JAR read as text is not source:
+                // only a type with a compilation unit has a workspace file worth reading.
+                IResource resource = type.getCompilationUnit() == null ? null : getTypeResource( type );
                 if ( resource instanceof IFile file )
                 {
                     if ( aiIgnoreService.isExcluded( file ) )
