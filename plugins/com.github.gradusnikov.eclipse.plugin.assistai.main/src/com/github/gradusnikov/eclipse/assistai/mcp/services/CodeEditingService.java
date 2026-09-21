@@ -60,6 +60,13 @@ import org.eclipse.jdt.core.manipulation.OrganizeImportsOperation.IChooseImportQ
 import org.eclipse.jdt.core.refactoring.IJavaRefactorings;
 import org.eclipse.jdt.core.refactoring.descriptors.MoveDescriptor;
 import org.eclipse.jdt.core.refactoring.descriptors.RenameJavaElementDescriptor;
+import org.eclipse.jdt.core.Signature;
+import org.eclipse.jdt.core.dom.Modifier;
+import org.eclipse.jdt.internal.corext.refactoring.ExceptionInfo;
+import org.eclipse.jdt.internal.corext.refactoring.ParameterInfo;
+import org.eclipse.jdt.internal.corext.refactoring.structure.ChangeSignatureProcessor;
+import org.eclipse.ltk.core.refactoring.participants.ProcessorBasedRefactoring;
+import com.github.gradusnikov.eclipse.assistai.resources.MethodSignatureChange;
 import org.eclipse.jdt.core.search.TypeNameMatch;
 import org.eclipse.jface.bindings.Binding;
 import org.eclipse.jface.bindings.keys.KeySequence;
@@ -1577,6 +1584,338 @@ public class CodeEditingService
      * An element as a message names it: its kind and name, plus the type that holds
      * it when there is one, so a wrong-position message says what was found there.
      */
+    /**
+     * Changes a method's signature with JDT's Change Method Signature refactoring, so
+     * every call site and every overriding method in the workspace follows (issue 165).
+     * <p>
+     * The method is named the way {@code getMethodSource} names it - by class, name and
+     * an optional parameter-list hint - so a caller that has just read a method can
+     * change it without translating to a position first. What the signature should
+     * become is a {@link MethodSignatureChange}: a whole new parameter list when the
+     * parameters change, and independent optional parts for everything else.
+     * <p>
+     * Two refusals are the caller's to fix and are reported as {@code VALIDATION_ERROR}
+     * with nothing changed: a parameter list this method cannot map onto the current
+     * one, and a change that asks for the signature the method already has. What JDT
+     * refuses - an invalid type, a method that overrides another, a clash with an
+     * existing overload - is {@code REFACTORING_PRECONDITION_FAILED}, with JDT's own
+     * message.
+     */
+    public EditResult refactorChangeMethodSignature( String fullyQualifiedClassName, String methodName,
+                                                     String methodSignature, MethodSignatureChange change )
+    {
+        Objects.requireNonNull( fullyQualifiedClassName );
+        Objects.requireNonNull( methodName );
+        Objects.requireNonNull( change );
+
+        if ( fullyQualifiedClassName.isBlank() )
+        {
+            throw new IllegalArgumentException( "Error: Class name cannot be empty." );
+        }
+        if ( methodName.isBlank() )
+        {
+            throw new IllegalArgumentException( "Error: Method name cannot be empty." );
+        }
+
+        try
+        {
+            IType type = codeAnalysisService.findType( fullyQualifiedClassName.trim() );
+            if ( type == null )
+            {
+                throw new RuntimeException( "Error: Type '" + fullyQualifiedClassName
+                        + "' was not found in any open Java project." );
+            }
+            ICompilationUnit unit = type.getCompilationUnit();
+            IFile file = unit != null && unit.getResource() instanceof IFile f ? f : null;
+            if ( file == null )
+            {
+                throw new RuntimeException( "Error: Type '" + fullyQualifiedClassName
+                        + "' is not defined in workspace source, so its methods cannot be refactored." );
+            }
+
+            // Pick the method the way getMethodSource does, so the same hint means the
+            // same overload to both tools.
+            String wantedName = methodName.trim();
+            String hint = methodSignature == null ? "" : methodSignature.trim();
+            List<IMethod> candidates = new ArrayList<>();
+            List<String> overloads = new ArrayList<>();
+            for ( IMethod declared : type.getMethods() )
+            {
+                if ( !declared.getElementName().equals( wantedName ) )
+                {
+                    continue;
+                }
+                String parameters = CodeAnalysisService.formatMethodParameters( declared );
+                overloads.add( wantedName + "(" + parameters + ")" );
+                if ( hint.isEmpty() || parameters.contains( hint ) )
+                {
+                    candidates.add( declared );
+                }
+            }
+            if ( candidates.isEmpty() )
+            {
+                String message = overloads.isEmpty()
+                        ? "Type '" + fullyQualifiedClassName + "' declares no method named '" + wantedName
+                                + "'. Use getClassOutline to list its methods."
+                        : "No overload of '" + wantedName + "' in '" + fullyQualifiedClassName
+                                + "' matches the methodSignature hint '" + hint + "'. The overloads are: "
+                                + String.join( ", ", overloads ) + ".";
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR, message ) );
+            }
+            if ( candidates.size() > 1 )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.AMBIGUOUS_MATCH, "'" + wantedName + "' is overloaded in '"
+                                + fullyQualifiedClassName + "'. Pass methodSignature to say which one: "
+                                + String.join( ", ", overloads ) + "." ) );
+            }
+            IMethod method = candidates.get( 0 );
+
+            if ( change.isEmpty() )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR,
+                                "Nothing to change: pass parameters, returnType, visibility, newMethodName, "
+                                        + "addExceptions or removeExceptions." ) );
+            }
+
+            IDocument document = new Document( unit.getSource() );
+            int line = document.getLineOfOffset( method.getNameRange().getOffset() ) + 1;
+
+            // Close the editor if the file is open (to avoid conflicts)
+            sync.syncExec( () -> {
+                // Off the UI thread - a test's inline UISynchronize - there is no active window.
+                IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+                IWorkbenchPage page = window == null ? null : window.getActivePage();
+                if ( page != null )
+                {
+                    IEditorPart editor = page.findEditor( new FileEditorInput( file ) );
+                    if ( editor != null )
+                    {
+                        page.closeEditor( editor, true ); // save before closing
+                    }
+                }
+            } );
+
+            ChangeSignatureProcessor processor = new ChangeSignatureProcessor( method );
+            Refactoring refactoring = new ProcessorBasedRefactoring( processor );
+            IProgressMonitor monitor = new NullProgressMonitor();
+
+            // The processor only reads the method's throws clause during this check, so
+            // it has to run before the exceptions can be edited - and it is also where
+            // JDT refuses a method that overrides or implements another.
+            EditResult precondition = refusedPrecondition( file, refactoring.checkInitialConditions( monitor ) );
+            if ( precondition != null )
+            {
+                return precondition;
+            }
+
+            EditResult invalid = applySignatureChange( processor, method, change, file );
+            if ( invalid != null )
+            {
+                return invalid;
+            }
+
+            if ( processor.isSignatureSameAsInitial() )
+            {
+                return EditResult.rejected( file, ResourceVersion.of( file ),
+                        Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR,
+                                "The requested signature is the one the method already has: "
+                                        + processor.getOldMethodSignature() + ". Nothing was changed." ) );
+            }
+
+            precondition = refusedPrecondition( file, processor.checkSignature() );
+            if ( precondition != null )
+            {
+                return precondition;
+            }
+            precondition = refusedPrecondition( file, refactoring.checkFinalConditions( monitor ) );
+            if ( precondition != null )
+            {
+                return precondition;
+            }
+
+            ResourceVersion before = ResourceVersion.of( file );
+
+            Change performed = refactoring.createChange( monitor );
+            // Read the change set before performing it: afterwards the tree is the undo.
+            PendingChanges pending = pendingChanges( performed );
+            performed.perform( monitor );
+            file.getProject().refreshLocal( IResource.DEPTH_INFINITE, monitor );
+
+            // The declaring file stays where it is; every call site the refactoring
+            // rewrote, in any project, is listed in affectedResources.
+            resourceCache.resourceChanged( file.getFullPath() );
+            EditSynchronization synchronization = synchronizeAfterEdit( file, line, null );
+            List<Diagnostic> diagnostics = new ArrayList<>();
+            EditorReveal reveal = describeReveal( file, new ContentRange( line, 1, line, 1 ), diagnostics );
+
+            return resourceRelocated( file, before, affectedBy( pending, file, ChangeKind.MODIFIED ),
+                    reveal, synchronization.workspaceState(), diagnostics );
+        }
+        catch ( CoreException | BadLocationException e )
+        {
+            throw new RuntimeException( "Error during refactoring: " + ExceptionUtils.getRootCauseMessage( e ), e );
+        }
+    }
+
+    /**
+     * Applies a {@link MethodSignatureChange} to the processor, or reports the first
+     * part of it that does not fit the method as a rejected result.
+     */
+    private static EditResult applySignatureChange( ChangeSignatureProcessor processor, IMethod method,
+                                                    MethodSignatureChange change, IFile file )
+            throws JavaModelException
+    {
+        if ( change.parameters() != null )
+        {
+            List<ParameterInfo> current = processor.getParameterInfos();
+            List<ParameterInfo> arranged = new ArrayList<>();
+            Set<ParameterInfo> continued = new HashSet<>();
+            for ( MethodSignatureChange.ParameterSpec spec : change.parameters() )
+            {
+                if ( spec.name() == null || spec.name().isBlank() )
+                {
+                    return invalidSignatureChange( file, "Every entry of parameters needs a name." );
+                }
+                ParameterInfo info = null;
+                for ( ParameterInfo candidate : current )
+                {
+                    if ( !continued.contains( candidate ) && candidate.getOldName().equals( spec.continuedName() ) )
+                    {
+                        info = candidate;
+                        break;
+                    }
+                }
+                if ( info == null && spec.oldName() != null && !spec.oldName().isBlank() )
+                {
+                    return invalidSignatureChange( file, "No current parameter is named '" + spec.oldName()
+                            + "'. The method's parameters are: " + currentParameterNames( current ) + "." );
+                }
+                if ( info == null )
+                {
+                    if ( spec.type() == null || spec.type().isBlank() )
+                    {
+                        return invalidSignatureChange( file, "Parameter '" + spec.name() + "' is new, so it needs a type." );
+                    }
+                    if ( spec.defaultValue() == null || spec.defaultValue().isBlank() )
+                    {
+                        return invalidSignatureChange( file, "Parameter '" + spec.name()
+                                + "' is new, so it needs a defaultValue: the expression every existing call site will pass for it." );
+                    }
+                    info = ParameterInfo.createInfoForAddedParameter( spec.type().trim(), spec.name().trim(),
+                            spec.defaultValue().trim() );
+                }
+                else
+                {
+                    info.setNewName( spec.name().trim() );
+                    if ( spec.type() != null && !spec.type().isBlank() )
+                    {
+                        info.setNewTypeName( spec.type().trim() );
+                    }
+                }
+                continued.add( info );
+                arranged.add( info );
+            }
+            for ( ParameterInfo info : current )
+            {
+                if ( !continued.contains( info ) )
+                {
+                    info.markAsDeleted();
+                    arranged.add( info );
+                }
+            }
+            current.clear();
+            current.addAll( arranged );
+        }
+
+        if ( change.returnType() != null && !change.returnType().isBlank() )
+        {
+            processor.setNewReturnTypeName( change.returnType().trim() );
+        }
+        if ( change.newMethodName() != null && !change.newMethodName().isBlank() )
+        {
+            processor.setNewMethodName( change.newMethodName().trim() );
+        }
+        if ( change.visibility() != null && !change.visibility().isBlank() )
+        {
+            Integer visibility = switch ( change.visibility().trim().toLowerCase( Locale.ROOT ) )
+            {
+                case "public" -> Modifier.PUBLIC;
+                case "protected" -> Modifier.PROTECTED;
+                case "private" -> Modifier.PRIVATE;
+                case "package", "package-private", "default", "none" -> Modifier.NONE;
+                default -> null;
+            };
+            if ( visibility == null )
+            {
+                return invalidSignatureChange( file, "visibility must be public, protected, package or private, not '"
+                        + change.visibility() + "'." );
+            }
+            processor.setVisibility( visibility );
+        }
+
+        for ( String name : change.removeExceptions() )
+        {
+            ExceptionInfo found = null;
+            for ( ExceptionInfo info : processor.getExceptionInfos() )
+            {
+                String qualified = info.getFullyQualifiedName();
+                if ( qualified.equals( name.trim() ) || Signature.getSimpleName( qualified ).equals( name.trim() ) )
+                {
+                    found = info;
+                    break;
+                }
+            }
+            if ( found == null )
+            {
+                return invalidSignatureChange( file, "The method does not declare '" + name + "' in its throws clause." );
+            }
+            if ( found.isAdded() )
+            {
+                processor.getExceptionInfos().remove( found );
+            }
+            else
+            {
+                found.markAsDeleted();
+            }
+        }
+        for ( String name : change.addExceptions() )
+        {
+            IType exceptionType = method.getJavaProject().findType( name.trim() );
+            if ( exceptionType == null )
+            {
+                return invalidSignatureChange( file, "Exception type '" + name
+                        + "' was not found on the project's classpath; give its fully qualified name." );
+            }
+            processor.getExceptionInfos().add( ExceptionInfo.createInfoForAddedException( exceptionType ) );
+        }
+
+        if ( change.keepOriginalAsDelegate() )
+        {
+            processor.setDelegateUpdating( true );
+            processor.setDeprecateDelegates( true );
+        }
+        return null;
+    }
+
+    private static String currentParameterNames( List<ParameterInfo> parameters )
+    {
+        List<String> names = new ArrayList<>();
+        for ( ParameterInfo info : parameters )
+        {
+            names.add( info.getOldTypeName() + " " + info.getOldName() );
+        }
+        return names.isEmpty() ? "(none)" : String.join( ", ", names );
+    }
+
+    private static EditResult invalidSignatureChange( IFile file, String message )
+    {
+        return EditResult.rejected( file, ResourceVersion.of( file ),
+                Diagnostic.fatal( DiagnosticCode.VALIDATION_ERROR, message + " Nothing was changed." ) );
+    }
+
     private static String describeElement( IJavaElement element )
     {
         String kind = switch ( element.getElementType() )

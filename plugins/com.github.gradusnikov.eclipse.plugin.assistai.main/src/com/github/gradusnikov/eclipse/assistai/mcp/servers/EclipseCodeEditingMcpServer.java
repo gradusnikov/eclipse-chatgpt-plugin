@@ -20,6 +20,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.LineDelimiterPreferen
 import com.github.gradusnikov.eclipse.assistai.mcp.services.CodeEditingService;
 import com.github.gradusnikov.eclipse.assistai.resources.ContentRange;
 import com.github.gradusnikov.eclipse.assistai.resources.EditResult;
+import com.github.gradusnikov.eclipse.assistai.resources.MethodSignatureChange;
 
 import com.github.gradusnikov.eclipse.assistai.resources.Occurrence;
 import com.github.gradusnikov.eclipse.assistai.resources.TextEditRequest;
@@ -262,6 +263,78 @@ public class EclipseCodeEditingMcpServer
         @ToolParam(name="newPackageName", description="The new package name - can be fully qualified (e.g., 'com.example.newpackage') or just the last segment to rename", required=true) String newPackageName) 
     {
         return codeEditingService.refactorRenamePackage(projectName, packageName, newPackageName);
+    }
+
+    @Tool(name="refactorChangeMethodSignature", longExecution=true, description="Changes the signature of a Java method with Eclipse's Change Method Signature refactoring, so every call site and every overriding method in the workspace follows: add, remove, reorder, rename or retype parameters, change the return type, visibility or name, and add or remove thrown exceptions. The method is named the way getMethodSource names it - fully qualified class, method name and an optional methodSignature hint for overloads. parameters, when given, is the WHOLE new list in order: an entry continues the current parameter with the same name (or the one named by its oldName, when renaming), a current parameter no entry continues is removed, and an entry that continues none is added and must carry type and defaultValue - the expression every existing call site will pass for it. Leave a part out to keep it as it is. The result is addressed to the declaring file, and affectedResources lists every file the refactoring rewrote, in any project, with the version each one now has. A change Eclipse refuses - an invalid type, a clash with an existing overload, a method that overrides another (change the topmost declaration instead) - is reported as REFACTORING_PRECONDITION_FAILED with Eclipse's reason; a parameter list this tool cannot map onto the current one, or a signature identical to the current one, as VALIDATION_ERROR. Either way nothing is changed. Prefer this over editing the declaration by hand: a hand edit leaves every caller to be found and fixed one by one.", type="object", outputType=EditResult.class)
+    public EditResult refactorChangeMethodSignature(
+        @ToolParam(name="fullyQualifiedClassName", description="The fully qualified name of the class declaring the method (e.g. 'com.example.Account')", required=true) String fullyQualifiedClassName,
+        @ToolParam(name="methodName", description="The method's current name", required=true) String methodName,
+        @ToolParam(name="methodSignature", description="Optional parameter type hint to pick one overload, matched against the parameter list as getMethodSource renders it (e.g. 'String' or 'int amount'). Required when the name is overloaded.", required=false) String methodSignature,
+        @ToolParam(name="parameters", description="Optional JSON array holding the COMPLETE new parameter list in order, each {\"name\":\"...\",\"type\":\"...\",\"oldName\":\"...\",\"defaultValue\":\"...\"}. name is required. type is the type as written in source: required for a new parameter, optional for a continued one (omit it to keep the type). oldName names the current parameter this entry continues when it is being renamed. defaultValue is the expression existing call sites will pass and is required for a new parameter. Example: [{\"name\":\"amount\"},{\"name\":\"note\",\"type\":\"String\",\"defaultValue\":\"\\\"cash\\\"\"}] keeps amount and adds note. Omit to leave the parameters alone; pass [] to remove them all.", required=false) String parameters,
+        @ToolParam(name="returnType", description="Optional new return type as written in source (e.g. 'long', 'List<String>', 'void')", required=false) String returnType,
+        @ToolParam(name="visibility", description="Optional new visibility: public, protected, package or private", required=false) String visibility,
+        @ToolParam(name="newMethodName", description="Optional new name for the method; renaming alone is better done with refactorRenameJavaElement", required=false) String newMethodName,
+        @ToolParam(name="addExceptions", description="Optional comma-separated fully qualified exception types to add to the throws clause (e.g. 'java.io.IOException')", required=false) String addExceptions,
+        @ToolParam(name="removeExceptions", description="Optional comma-separated exception types to remove from the throws clause, simple or fully qualified", required=false) String removeExceptions,
+        @ToolParam(name="keepOriginalAsDelegate", description="If 'true', keep a deprecated method with the old signature that delegates to the new one, so callers outside the workspace keep compiling. Default: false", required=false) String keepOriginalAsDelegate)
+    {
+        MethodSignatureChange change = new MethodSignatureChange(
+                parseParameterSpecs(parameters), returnType, visibility, newMethodName,
+                commaSeparated(addExceptions), commaSeparated(removeExceptions), parseBoolean(keepOriginalAsDelegate));
+        return codeEditingService.refactorChangeMethodSignature(fullyQualifiedClassName, methodName, methodSignature, change);
+    }
+
+    private static List<MethodSignatureChange.ParameterSpec> parseParameterSpecs(String parameters)
+    {
+        if (parameters == null || parameters.isBlank())
+        {
+            return null;
+        }
+        try
+        {
+            JsonNode array = EDIT_MAPPER.readTree(parameters);
+            if (!array.isArray())
+            {
+                throw new IllegalArgumentException("Error: 'parameters' must be a JSON array.");
+            }
+            List<MethodSignatureChange.ParameterSpec> specs = new ArrayList<>();
+            for (JsonNode node : array)
+            {
+                if (!node.isObject())
+                {
+                    throw new IllegalArgumentException("Error: every entry of 'parameters' must be an object with at least a name.");
+                }
+                specs.add(new MethodSignatureChange.ParameterSpec(
+                        textOrNull(node, "name"), textOrNull(node, "type"),
+                        textOrNull(node, "oldName"), textOrNull(node, "defaultValue")));
+            }
+            return specs;
+        }
+        catch (JsonProcessingException e)
+        {
+            throw new IllegalArgumentException("Error: 'parameters' is not valid JSON: " + e.getOriginalMessage());
+        }
+    }
+
+    private static String textOrNull(JsonNode node, String field)
+    {
+        return node.hasNonNull(field) ? node.get(field).asText() : null;
+    }
+
+    private static List<String> commaSeparated(String value)
+    {
+        List<String> items = new ArrayList<>();
+        if (value != null)
+        {
+            for (String item : value.split(","))
+            {
+                if (!item.isBlank())
+                {
+                    items.add(item.trim());
+                }
+            }
+        }
+        return items;
     }
 
     @Tool(name="moveResource", description="Moves a file or folder to a different location within the project. The result names the destination, and affectedResources lists the source as DELETED beside the destination as MOVED. For Java files, prefer using refactorMoveJavaType instead to ensure all references are updated.", type="object", outputType=EditResult.class)

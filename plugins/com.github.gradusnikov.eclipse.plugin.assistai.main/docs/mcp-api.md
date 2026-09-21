@@ -42,7 +42,7 @@ a `status` a caller can branch on, and `diagnostics` carrying a coded
 | Server | Tools |
 |---|---|
 | [duck-duck-search](#duck-duck-search) | 1 |
-| [eclipse-coder](#eclipse-coder) | 22 |
+| [eclipse-coder](#eclipse-coder) | 23 |
 | [eclipse-context](#eclipse-context) | 7 |
 | [eclipse-git](#eclipse-git) | 29 |
 | [eclipse-ide](#eclipse-ide) | 39 |
@@ -224,6 +224,25 @@ Cleans up existing imports in all Java files within a package by removing unused
 |---|---|---|
 | `projectName` | \* | The name of the project containing the package |
 | `packageName` | \* | The fully qualified package name (e.g., 'com.example.mypackage') |
+
+**Returns** [`EditResult`](#editresult)
+
+### `refactorChangeMethodSignature` *(long)*
+
+Changes the signature of a Java method with Eclipse's Change Method Signature refactoring, so every call site and every overriding method in the workspace follows: add, remove, reorder, rename or retype parameters, change the return type, visibility or name, and add or remove thrown exceptions. The method is named the way getMethodSource names it - fully qualified class, method name and an optional methodSignature hint for overloads. parameters, when given, is the WHOLE new list in order: an entry continues the current parameter with the same name (or the one named by its oldName, when renaming), a current parameter no entry continues is removed, and an entry that continues none is added and must carry type and defaultValue - the expression every existing call site will pass for it. Leave a part out to keep it as it is. The result is addressed to the declaring file, and affectedResources lists every file the refactoring rewrote, in any project, with the version each one now has. A change Eclipse refuses - an invalid type, a clash with an existing overload, a method that overrides another (change the topmost declaration instead) - is reported as REFACTORING_PRECONDITION_FAILED with Eclipse's reason; a parameter list this tool cannot map onto the current one, or a signature identical to the current one, as VALIDATION_ERROR. Either way nothing is changed. Prefer this over editing the declaration by hand: a hand edit leaves every caller to be found and fixed one by one.
+
+| Parameter | | Description |
+|---|---|---|
+| `fullyQualifiedClassName` | \* | The fully qualified name of the class declaring the method (e.g. 'com.example.Account') |
+| `methodName` | \* | The method's current name |
+| `methodSignature` |  | Optional parameter type hint to pick one overload, matched against the parameter list as getMethodSource renders it (e.g. 'String' or 'int amount'). Required when the name is overloaded. |
+| `parameters` |  | Optional JSON array holding the COMPLETE new parameter list in order, each {"name":"...","type":"...","oldName":"...","defaultValue":"..."}. name is required. type is the type as written in source: required for a new parameter, optional for a continued one (omit it to keep the type). oldName names the current parameter this entry continues when it is being renamed. defaultValue is the expression existing call sites will pass and is required for a new parameter. Example: [{"name":"amount"},{"name":"note","type":"String","defaultValue":"\"cash\""}] keeps amount and adds note. Omit to leave the parameters alone; pass [] to remove them all. |
+| `returnType` |  | Optional new return type as written in source (e.g. 'long', 'List<String>', 'void') |
+| `visibility` |  | Optional new visibility: public, protected, package or private |
+| `newMethodName` |  | Optional new name for the method; renaming alone is better done with refactorRenameJavaElement |
+| `addExceptions` |  | Optional comma-separated fully qualified exception types to add to the throws clause (e.g. 'java.io.IOException') |
+| `removeExceptions` |  | Optional comma-separated exception types to remove from the throws clause, simple or fully qualified |
+| `keepOriginalAsDelegate` |  | If 'true', keep a deprecated method with the old signature that delegates to the new one, so callers outside the workspace keep compiling. Default: false |
 
 **Returns** [`EditResult`](#editresult)
 
