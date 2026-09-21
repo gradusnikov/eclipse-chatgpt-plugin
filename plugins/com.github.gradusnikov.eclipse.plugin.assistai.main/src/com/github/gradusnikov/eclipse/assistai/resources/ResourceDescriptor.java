@@ -81,10 +81,11 @@ public record ResourceDescriptor(
         String fqn = type.getFullyQualifiedName();
         URI uri = URI.create("jdt:///" + fqn);
         
-        // Try to get workspace path if source is available
+        // The workspace path is what the editing tools write to, so it is only ever the
+        // compilation unit: a binary type's resource is its JAR, which must not be offered as a file to edit.
         IPath workspacePath = null;
         try {
-            IResource resource = type.getResource();
+            IResource resource = type.getCompilationUnit() == null ? null : type.getResource();
             if (resource != null) {
                 workspacePath = resource.getFullPath();
             }
@@ -111,9 +112,10 @@ public record ResourceDescriptor(
         String methodName = method.getElementName();
         URI uri = URI.create("jdt:///" + fqn + "%23" + encode(methodName));
         
+        // As in fromJavaType: a binary type's resource is its JAR, not a file to edit.
         IPath workspacePath = null;
         try {
-            IResource resource = declaringType.getResource();
+            IResource resource = declaringType.getCompilationUnit() == null ? null : declaringType.getResource();
             if (resource != null) {
                 workspacePath = resource.getFullPath();
             }
