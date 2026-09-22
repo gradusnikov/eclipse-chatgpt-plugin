@@ -103,4 +103,36 @@ public class JavadocsTest
         assertEquals( Javadocs.Detail.FULL, Javadocs.Detail.parse( "full", Javadocs.Detail.NONE ) );
         assertThrows( IllegalArgumentException.class, () -> Javadocs.Detail.parse( "brief", Javadocs.Detail.NONE ) );
     }
+
+    @Test
+    public void attachedJavadocLosesThePageHeadingAndSignature()
+    {
+        // A member read from a Javadoc archive is that member's section of the generated page, which
+        // opens with its name and signature; the description a summary wants comes after them.
+        String page = "### setPrettyPrinting\n"
+                + "\n"
+                + "[@CanIgnoreReturnValue](https://errorprone.info/x.html) public [GsonBuilder](GsonBuilder.html) setPrettyPrinting()  \n"
+                + "Configures Gson to output JSON that fits in a page for pretty printing."
+                + " This option only affects JSON serialization.";
+
+        assertEquals( "Configures Gson to output JSON that fits in a page for pretty printing.",
+                Javadocs.firstSentence( Javadocs.descriptionOf( page ) ) );
+    }
+
+    @Test
+    public void aSourceCommentIsLeftAlone()
+    {
+        String comment = "Says hello. And then some more.";
+
+        assertEquals( comment, Javadocs.descriptionOf( comment ) );
+        assertNull( Javadocs.descriptionOf( null ) );
+    }
+
+    @Test
+    public void aPageWithNoSignatureBreakKeepsWhatItHas()
+    {
+        // The signature goes only when the hard break that ends it is found, so a differently shaped
+        // page loses its heading and keeps its text rather than coming back empty.
+        assertEquals( "Some description.", Javadocs.descriptionOf( "### name\n\nSome description." ) );
+    }
 }

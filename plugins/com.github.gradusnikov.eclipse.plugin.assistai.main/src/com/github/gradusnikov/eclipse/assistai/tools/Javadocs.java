@@ -125,7 +125,7 @@ public final class Javadocs
         {
             return null;
         }
-        String markdown = detail == Detail.SUMMARY ? summary( html ) : toMarkdown( html );
+        String markdown = detail == Detail.SUMMARY ? summary( html ) : descriptionOf( toMarkdown( html ) );
         if ( markdown == null || markdown.isBlank() )
         {
             return null;
@@ -152,7 +152,37 @@ public final class Javadocs
      */
     public static String summary( String html )
     {
-        return firstSentence( toMarkdown( mainDescription( html ) ) );
+        return firstSentence( descriptionOf( toMarkdown( mainDescription( html ) ) ) );
+    }
+
+    /**
+     * The description, without the heading and signature a rendered Javadoc page puts in front of it.
+     * <p>
+     * Documentation read from an attached Javadoc archive is a member's own section of the generated
+     * page, and that section opens with the member's name as a heading and its signature - neither of
+     * which a source comment has. The first sentence of that is the heading, so a summary taken from
+     * it says nothing, and the signature it repeats is already the outline's label.
+     * <p>
+     * Text that does not begin with a heading came from a source comment and is returned untouched.
+     * The signature is dropped only when the hard line break that ends it is there to be found, so a
+     * page shaped differently keeps what it had rather than losing its description to this.
+     */
+    static String descriptionOf( String markdown )
+    {
+        if ( markdown == null || !markdown.stripLeading().startsWith( "#" ) )
+        {
+            return markdown;
+        }
+        String text = markdown.stripLeading();
+        int endOfHeading = text.indexOf( '\n' );
+        if ( endOfHeading < 0 )
+        {
+            return "";
+        }
+        text = text.substring( endOfHeading + 1 ).stripLeading();
+
+        int endOfSignature = text.indexOf( "  \n" );
+        return endOfSignature < 0 ? text : text.substring( endOfSignature + 3 ).stripLeading();
     }
 
     /**
