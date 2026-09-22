@@ -79,7 +79,11 @@ public class BinaryTypeSourcePDETest
             + "    public List<String> names() {\n"               // 15
             + "        return List.of(\"a\");\n"                  // 16
             + "    }\n"                                           // 17
-            + "}\n";                                              // 18
+            + "\n"                                                // 18
+            + "    public String join(String... parts) {\n"       // 19
+            + "        return String.join(\",\", parts);\n"       // 20
+            + "    }\n"                                           // 21
+            + "}\n";                                              // 22
 
     private final NullProgressMonitor monitor = new NullProgressMonitor();
 
@@ -117,7 +121,7 @@ public class BinaryTypeSourcePDETest
         assertEquals( SourceOrigin.ATTACHED_SOURCE, outline.sourceOrigin() );
         assertNull( outline.filePath(), "a library type has no workspace file to read it from" );
         assertEquals( 5, outline.declaration().startLine(), "the type's range starts at its Javadoc" );
-        assertEquals( 18, outline.declaration().endLine() );
+        assertEquals( 22, outline.declaration().endLine() );
         assertEquals( 7, member( outline.fields(), "size" ).startLine() );
         assertEquals( 9, member( outline.methods(), "grow" ).startLine() );
         assertEquals( 13, member( outline.methods(), "grow" ).endLine() );
@@ -163,6 +167,20 @@ public class BinaryTypeSourcePDETest
     // ---- decompiled class --------------------------------------------------
 
     @Test
+    public void varargsReadAsVarargsRatherThanTransient() throws Exception
+    {
+        setUp( true );
+
+        ClassOutlineResponse outline = codeAnalysisService.getClassOutline( "lib.Widget", false, Javadocs.Detail.NONE );
+
+        // ACC_VARARGS is the bit that means "transient" on a field, so Flags.toString printed the
+        // method as "transient ... (String[] parts)" - wrong in both halves of the signature.
+        String label = member( outline.methods(), "join" ).label();
+        assertTrue( label.contains( "String... parts" ), label );
+        assertFalse( label.contains( "transient" ), label );
+    }
+
+    @Test
     public void aClassWithoutSourceIsDecompiledAndOutlined() throws Exception
     {
         setUp( false );
@@ -172,6 +190,8 @@ public class BinaryTypeSourcePDETest
         assertEquals( ClassOutlineResponse.Status.OK, outline.status(), outline.summaryText() );
         assertEquals( SourceOrigin.DECOMPILED_CLASS, outline.sourceOrigin() );
         assertNull( outline.filePath() );
+        assertEquals( "public class Widget", outline.declaration().label(),
+                "a class file spells out the superclass the language gives every type anyway" );
         ClassOutlineResponse.Member grow = member( outline.methods(), "grow" );
         ClassOutlineResponse.Member names = member( outline.methods(), "names" );
         assertTrue( grow.startLine() >= 1 && grow.endLine() >= grow.startLine(), grow.toString() );

@@ -31,6 +31,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.ImportSuggestionsResp
 import com.github.gradusnikov.eclipse.assistai.mcp.results.QuickFixResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.ReferencesResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.TypeHierarchyResponse;
+import com.github.gradusnikov.eclipse.assistai.resources.SourceOrigin;
 import com.github.gradusnikov.eclipse.assistai.tools.Javadocs;
 import com.github.gradusnikov.eclipse.assistai.tools.LineOffsets;
 import org.eclipse.e4.core.di.annotations.Creatable;
@@ -687,7 +688,7 @@ public class CodeAnalysisService
                 // The text exists but the type cannot be found in it - a decompiler
                 // that renamed or reshaped it. Its extent is then the whole text.
                 IDocument document = typeSource.document();
-                Javadocs.Rendered rendered = Javadocs.render( type, javadoc, false );
+                Javadocs.Rendered rendered = Javadocs.render( type, javadoc, usesAttachedJavadoc( typeSource ) );
                 declaration = new ClassOutlineResponse.Member( type.getElementName(), formatTypeDeclaration( type ), 1,
                         Math.max( 1, document.getNumberOfLines() ), rendered == null ? null : rendered.markdown(),
                         rendered != null && rendered.inherited() );
@@ -735,9 +736,46 @@ public class CodeAnalysisService
         IDocument document = typeSource.document();
         int startLine = document.getLineOfOffset( range.getOffset() ) + 1;
         int endLine = document.getLineOfOffset( range.getOffset() + Math.max( range.getLength() - 1, 0 ) ) + 1;
-        Javadocs.Rendered rendered = Javadocs.render( member, javadoc, false );
+        Javadocs.Rendered rendered = Javadocs.render( member, javadoc, usesAttachedJavadoc( typeSource ) );
         return new ClassOutlineResponse.Member( member.getElementName(), label, startLine, endLine,
                 rendered == null ? null : rendered.markdown(), rendered != null && rendered.inherited() );
+    }
+
+    /**
+     * Whether the classpath's Javadoc location is worth asking for.
+     * <p>
+     * Decompiled text carries no comments, so that location is the only documentation there is and is
+     * worth the lookup - which may be a URL, once per member. Where real source was read the comments
+     * came with it and the lookup would buy nothing.
+     */
+    private static boolean usesAttachedJavadoc( TypeSource typeSource )
+    {
+        return typeSource.origin() == SourceOrigin.DECOMPILED_CLASS;
+    }
+
+    /**
+     * Whether a superclass is the one the language gives the type anyway.
+     * <p>
+     * Source never writes these and a class file always does, so an outline that printed them would
+     * read differently for the same type depending on whether its source happened to be attached. A
+     * source type names it {@code Object} and a binary one {@code java.lang.Object}; an enum's is
+     * {@code java.lang.Enum}, carrying its own type argument when the class file spells the generic out.
+     */
+    private static boolean isImplicitSuperclass( IType type, String superclass ) throws JavaModelException
+    {
+        if ( "Object".equals( superclass ) || "java.lang.Object".equals( superclass ) )
+        {
+            return true;
+        }
+        if ( type.isEnum() )
+        {
+            return superclass.equals( "Enum" ) || superclass.startsWith( "java.lang.Enum" );
+        }
+        if ( type.isRecord() )
+        {
+            return superclass.equals( "Record" ) || superclass.equals( "java.lang.Record" );
+        }
+        return false;
     }
 
     static String formatTypeDeclaration( IType type ) throws JavaModelException
@@ -750,6 +788,12 @@ public class CodeAnalysisService
         {
             // JDT reports every interface as abstract; printing it back adds nothing.
             flags &= ~Flags.AccAbstract;
+        }
+        if ( type.isEnum() || type.isRecord() )
+        {
+            // An enum is final, or abstract when a constant has a body, and a record is always final.
+            // None of that is written in source, so none of it belongs in a declaration read back from one.
+            flags &= ~( Flags.AccFinal | Flags.AccAbstract );
         }
         appendModifiers( declaration, flags );
 
@@ -796,7 +840,7 @@ public class CodeAnalysisService
         }
 
         String superclass = type.getSuperclassName();
-        if ( superclass != null && !"Object".equals( superclass ) )
+        if ( superclass != null && !isImplicitSuperclass( type, superclass ) )
         {
             declaration.append( " extends " ).append( superclass );
         }
@@ -842,7 +886,9 @@ public class CodeAnalysisService
     {
         StringBuilder signature = new StringBuilder();
         appendAnnotations( signature, method.getAnnotations() );
-        appendModifiers( signature, method.getFlags() );
+        // A varargs method carries the bit that means "transient" on a field, and Flags.toString prints
+        // it as such; the varargs itself belongs in the parameter list, which is where it is rendered.
+        appendModifiers( signature, method.getFlags() & ~Flags.AccVarargs );
 
         if ( !method.isConstructor() )
         {
@@ -885,13 +931,19 @@ public class CodeAnalysisService
 
         String[] parameterTypes = method.getParameterTypes();
         String[] parameterNames = method.getParameterNames();
+        boolean varargs = Flags.isVarargs( method.getFlags() );
         for ( int i = 0; i < parameterTypes.length; i++ )
         {
             if ( i > 0 )
             {
                 parameters.append( ", " );
             }
-            parameters.append( Signature.toString( parameterTypes[i] ) );
+            String parameterType = Signature.toString( parameterTypes[i] );
+            if ( varargs && i == parameterTypes.length - 1 && parameterType.endsWith( "[]" ) )
+            {
+                parameterType = parameterType.substring( 0, parameterType.length() - 2 ) + "...";
+            }
+            parameters.append( parameterType );
             if ( i < parameterNames.length )
             {
                 parameters.append( " " ).append( parameterNames[i] );
