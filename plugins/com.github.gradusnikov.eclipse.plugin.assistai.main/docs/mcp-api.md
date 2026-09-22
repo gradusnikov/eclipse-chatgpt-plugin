@@ -1069,6 +1069,8 @@ Get source for a workspace or referenced-library class. Prefers original/attache
 | Parameter | | Description |
 |---|---|---|
 | `fullyQualifiedClassName` | \* | A fully qualified class name of the Java class |
+| `startLine` |  | 1-based first line to return; omit for the beginning of the file |
+| `endLine` |  | 1-based last line to return, inclusive; omit for the end of the file |
 
 **Returns** [`ResourceReadResult`](#resourcereadresult)
 

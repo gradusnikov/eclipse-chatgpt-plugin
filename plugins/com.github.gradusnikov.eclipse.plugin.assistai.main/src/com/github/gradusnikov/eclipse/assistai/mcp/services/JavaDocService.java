@@ -337,7 +337,26 @@ public class JavaDocService
      */
     public ResourceReadResult getSourceWithResource( String fullyQualifiedClassName )
     {
+        return getSourceWithResource( fullyQualifiedClassName, 0, 0 );
+    }
+
+    /**
+     * Retrieves whole lines {@code startLine} to {@code endLine} of a class's source.
+     * <p>
+     * A range by type name is the only way to read part of a library class: attached source and a
+     * decompilation have no project and no file, so {@code readProjectResource} cannot be pointed
+     * at either, and without this the only way to see one method of a large library class is to
+     * fetch the whole of it.
+     *
+     * @param startLine 1-based, 0 for the beginning
+     * @param endLine 1-based inclusive, 0 for the end
+     */
+    public ResourceReadResult getSourceWithResource( String fullyQualifiedClassName, int startLine, int endLine )
+    {
         final String toolName = "getSource";
+
+        // The first copy that can only be decompiled, kept for the second pass below.
+        IType binaryWithoutSource = null;
 
         for ( IJavaProject javaProject : getAvailableJavaProjects() )
         {
@@ -365,9 +384,10 @@ public class JavaDocService
                     String workspaceSource = readWorkspaceSource( file );
                     if ( workspaceSource != null && !workspaceSource.isBlank() )
                     {
-                        return ResourceReadResult.of(
+                        return ResourceReadResult.ofLines(
                                 ResourceDescriptor.fromJavaType( type, toolName ), workspaceSource,
-                                SourceOrigin.WORKSPACE_SOURCE, ResourceVersion.of( file ), Diagnostic.none() );
+                                SourceOrigin.WORKSPACE_SOURCE, ResourceVersion.of( file ),
+                                startLine, endLine, Diagnostic.none() );
                     }
                 }
 
@@ -379,22 +399,44 @@ public class JavaDocService
                 }
                 if ( attachedSource != null && !attachedSource.isBlank() )
                 {
-                    return ResourceReadResult.of(
+                    return ResourceReadResult.ofLines(
                             ResourceDescriptor.fromJavaType( type, toolName ), attachedSource,
-                            SourceOrigin.ATTACHED_SOURCE, ResourceVersion.UNKNOWN, Diagnostic.none() );
+                            SourceOrigin.ATTACHED_SOURCE, ResourceVersion.UNKNOWN,
+                            startLine, endLine, Diagnostic.none() );
                 }
 
-                Optional<String> decompiledSource = classFileDecompiler.decompile( classFile );
-                if ( decompiledSource.isPresent() )
+                if ( classFile != null && binaryWithoutSource == null )
                 {
-                    return ResourceReadResult.of(
-                            ResourceDescriptor.fromJavaType( type, toolName ), decompiledSource.get(),
-                            SourceOrigin.DECOMPILED_CLASS, ResourceVersion.UNKNOWN, Diagnostic.none() );
+                    binaryWithoutSource = type;
                 }
             }
             catch ( Exception e )
             {
                 logger.error( "Could not retrieve source for " + fullyQualifiedClassName, e );
+            }
+        }
+
+        // Decompiling only once every project has been asked. One name can resolve to several copies -
+        // a bare JAR in one project, the same library with a source attachment in another - and
+        // decompiling the first of them would hand back a rendering of bytecode while real source sat
+        // one project further down the list.
+        if ( binaryWithoutSource != null )
+        {
+            try
+            {
+                Optional<String> decompiledSource =
+                        classFileDecompiler.decompile( binaryWithoutSource.getClassFile() );
+                if ( decompiledSource.isPresent() )
+                {
+                    return ResourceReadResult.ofLines(
+                            ResourceDescriptor.fromJavaType( binaryWithoutSource, toolName ), decompiledSource.get(),
+                            SourceOrigin.DECOMPILED_CLASS, ResourceVersion.UNKNOWN,
+                            startLine, endLine, Diagnostic.none() );
+                }
+            }
+            catch ( Exception e )
+            {
+                logger.error( "Could not decompile " + fullyQualifiedClassName, e );
             }
         }
 

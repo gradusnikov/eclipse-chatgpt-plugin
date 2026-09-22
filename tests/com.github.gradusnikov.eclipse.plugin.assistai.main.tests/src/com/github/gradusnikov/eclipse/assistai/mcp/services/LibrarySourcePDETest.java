@@ -127,6 +127,24 @@ public class LibrarySourcePDETest
         assertNull( response.projectName() );
     }
 
+    @Test
+    public void getSourceReturnsOnlyTheLinesAsked()
+    {
+        ResourceReadResult whole = service.getSourceWithResource( "lib.Thing" );
+        int sizeLine = whole.content().lines().toList().indexOf( "    public int size()" ) + 1;
+        assertTrue( sizeLine > 0, whole.content() );
+
+        ResourceReadResult part = service.getSourceWithResource( "lib.Thing", sizeLine, sizeLine + 3 );
+
+        assertEquals( ResourceReadResult.ReadStatus.PARTIAL, part.status(), part.toString() );
+        assertEquals( SourceOrigin.ATTACHED_SOURCE, part.origin() );
+        assertEquals( sizeLine, part.returnedRange().startLine() );
+        assertTrue( part.content().contains( "return 42;" ), part.content() );
+        assertFalse( part.content().contains( "public class Thing" ),
+                "a range is what makes reading one member of a library class cheap" );
+        assertFalse( part.truncated(), "a range that was honoured in full is not a truncation" );
+    }
+
     // ---- fixture ---------------------------------------------------------
 
     /** Compiles {@code lib.Thing} in a throwaway project and returns its class file. */

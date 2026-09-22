@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.eclipse.core.runtime.IPath;
+import org.eclipse.jface.text.BadLocationException;
+import org.eclipse.jface.text.Document;
+import org.eclipse.jface.text.IDocument;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpJson;
@@ -96,6 +99,72 @@ public record ResourceReadResult(
                 origin,
                 !origin.isEditable(),
                 false,
+                List.of(),
+                diagnostics );
+    }
+
+    /**
+     * A read of whole lines {@code startLine} to {@code endLine} of content already in hand.
+     * <p>
+     * The slice is taken by the platform's line tracker and returned as the exact characters
+     * between the two line boundaries, terminators included, so a CRLF resource is not silently
+     * rewritten to LF on the way out.
+     * <p>
+     * This exists for the resources {@code readProjectResource} cannot reach: source attached to
+     * a JAR, and a decompilation, have no project and no file, so a range of either can only be
+     * asked for by type name. Without a range the whole content is returned and this is
+     * {@link #of} exactly.
+     *
+     * @param startLine 1-based, 0 for the beginning
+     * @param endLine 1-based inclusive, 0 for the end
+     */
+    public static ResourceReadResult ofLines( ResourceDescriptor descriptor, String content, SourceOrigin origin,
+                                              ResourceVersion version, int startLine, int endLine,
+                                              List<Diagnostic> diagnostics )
+    {
+        if ( startLine <= 0 && endLine <= 0 )
+        {
+            return of( descriptor, content, origin, version, diagnostics );
+        }
+
+        String text = content == null ? "" : content;
+        IDocument document = new Document( text );
+        // The same counter of() uses, or one resource would report two different lengths.
+        int totalLines = LineOffsets.countLines( text );
+        int lastLine = Math.max( 1, totalLines );
+        int effectiveStart = startLine > 0 ? Math.min( startLine, lastLine ) : 1;
+        int effectiveEnd = endLine > 0 ? Math.min( endLine, lastLine ) : lastLine;
+
+        String slice;
+        try
+        {
+            int from = document.getLineOffset( effectiveStart - 1 );
+            int to = effectiveEnd < effectiveStart ? from
+                    : Math.min( text.length(),
+                            document.getLineOffset( effectiveEnd - 1 ) + document.getLineLength( effectiveEnd - 1 ) );
+            slice = text.substring( from, to );
+        }
+        catch ( BadLocationException e )
+        {
+            // The clamps above rule this out; a range that still does not resolve is not worth failing a read over.
+            return of( descriptor, text, origin, version, diagnostics );
+        }
+
+        IPath path = descriptor.workspacePath();
+        return new ResourceReadResult(
+                effectiveStart > 1 || effectiveEnd < totalLines ? ReadStatus.PARTIAL : ReadStatus.OK,
+                descriptor.uri() == null ? null : descriptor.uri().toString(),
+                path != null && path.segmentCount() > 0 ? path.segment( 0 ) : null,
+                path != null && path.segmentCount() > 1 ? path.removeFirstSegments( 1 ).toString() : null,
+                languageOf( descriptor ),
+                version,
+                new ContentRange( effectiveStart, 1, effectiveEnd, 1 ),
+                totalLines,
+                slice,
+                origin,
+                !origin.isEditable(),
+                // "less than you asked for", as in readProjectResource: an honoured range is not a truncation.
+                endLine > 0 && effectiveEnd < endLine,
                 List.of(),
                 diagnostics );
     }
