@@ -798,7 +798,7 @@ Applies one quick fix proposal to a compilation problem. Use getCompilationError
 
 ### `explainTypeResolution`
 
-Explains how a Java type resolves on one Eclipse project's classpath: which classpath root and entry supplied it, whether that root is a workspace folder or an external archive, whether source is attached, and where its class file is. sourceOrigin is the same enum getSource and readProjectResource report - WORKSPACE_SOURCE, ATTACHED_SOURCE or DECOMPILED_CLASS - and says what getSource would return. A type backed by a workspace file also reports projectName and a project-relative filePath the reading and editing tools take. status separates a type that is not on the classpath from a project name that does not exist.
+Explains how a Java type resolves on one Eclipse project's classpath: which classpath root and entry supplied it, whether that root is a workspace folder or an external archive, whether source is attached, and where its class file is. sourceOrigin is the same enum getSource and readProjectResource report - WORKSPACE_SOURCE, ATTACHED_SOURCE or DECOMPILED_CLASS - and says what getSource would return. A type whose source is in the workspace also reports projectName and a project-relative filePath the reading and editing tools take; a type from a JAR reports neither, even when the JAR is inside a project. status separates a type that is not on the classpath from a project name that does not exist.
 
 | Parameter | | Description |
 |---|---|---|
@@ -1069,6 +1069,8 @@ Get source for a workspace or referenced-library class. Prefers original/attache
 | Parameter | | Description |
 |---|---|---|
 | `fullyQualifiedClassName` | \* | A fully qualified class name of the Java class |
+| `startLine` |  | 1-based first line to return; omit for the beginning of the file |
+| `endLine` |  | 1-based last line to return, inclusive; omit for the end of the file |
 
 **Returns** [`ResourceReadResult`](#resourcereadresult)
 

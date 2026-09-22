@@ -130,16 +130,36 @@ public class EclipseIntegrationsMcpServer
     @Tool( name = "getSource", description = "Get source for a workspace or referenced-library class. Prefers original/attached source and decompiles binary classes when source is unavailable. "
             + "origin says which of the three it is: only WORKSPACE_SOURCE can be edited, and version.modificationStamp is the token an edit passes as expectedModificationStamp.",
             type = "object", outputType = ResourceReadResult.class )
-    public ResourceReadResult getSource( @ToolParam( name = "fullyQualifiedClassName", description = "A fully qualified class name of the Java class", required = true )
-    String fullyQualifiedClassName )
+    public ResourceReadResult getSource(
+            @ToolParam( name = "fullyQualifiedClassName", description = "A fully qualified class name of the Java class", required = true )
+            String fullyQualifiedClassName,
+            @ToolParam( name = "startLine", description = "1-based first line to return; omit for the beginning of the file", required = false )
+            String startLine,
+            @ToolParam( name = "endLine", description = "1-based last line to return, inclusive; omit for the end of the file", required = false )
+            String endLine )
     {
-        return javaDocService.getSourceWithResource( fullyQualifiedClassName );
+        return javaDocService.getSourceWithResource( fullyQualifiedClassName,
+                parseLine( startLine ), parseLine( endLine ) );
+    }
+
+    /** A line-number argument arrives as text; anything that is not a number means "unbounded". */
+    private static int parseLine( String value )
+    {
+        try
+        {
+            return value == null || value.isBlank() ? 0 : Integer.parseInt( value.trim() );
+        }
+        catch ( NumberFormatException e )
+        {
+            return 0;
+        }
     }
 
     @Tool( name = "explainTypeResolution", description = "Explains how a Java type resolves on one Eclipse project's classpath: which classpath root and entry supplied it, "
             + "whether that root is a workspace folder or an external archive, whether source is attached, and where its class file is. "
             + "sourceOrigin is the same enum getSource and readProjectResource report - WORKSPACE_SOURCE, ATTACHED_SOURCE or DECOMPILED_CLASS - and says what getSource would return. "
-            + "A type backed by a workspace file also reports projectName and a project-relative filePath the reading and editing tools take. "
+            + "A type whose source is in the workspace also reports projectName and a project-relative filePath the reading and editing tools take; "
+            + "a type from a JAR reports neither, even when the JAR is inside a project. "
             + "status separates a type that is not on the classpath from a project name that does not exist.",
             type = "object", outputType = TypeResolutionResponse.class )
     public TypeResolutionResponse explainTypeResolution(
