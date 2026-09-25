@@ -1134,7 +1134,8 @@ Starts a JUnit test run asynchronously and returns an operationId for polling. S
 | `packageName` |  | The fully qualified package name (e.g. 'com.example.service'). Ignored if className is set. |
 | `timeout` |  | Maximum time in seconds to wait for test completion (default: 60) |
 | `withCoverage` |  | If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false |
-| `launcherName` |  | Optional name of a saved launch configuration to use as the base (use (eclipse-runner MCP server).listLaunchConfigurations with typeFilter='junit' to find it). When set, all settings from that config are reused (VM args, classpath, env vars, etc.) and only the test target is overridden. |
+| `launcherName` |  | Optional name of a saved launch configuration to use as the base (use (eclipse-runner MCP server).listLaunchConfigurations with typeFilter='junit' to find it). When set, all settings from that config are reused (VM args, classpath, env vars, etc.) and only the test target is overridden. The named configuration itself is never modified: the override is applied to a throwaway working copy that is launched directly. |
+| `junitVersion` |  | Which JUnit engine loader to launch with: 'auto' (detect from the project/class), 'fromLauncher' (keep whatever TEST_KIND launcherName's saved config already has - only meaningful together with launcherName), or an explicit '3', '4', '5', or '6'. When omitted, the default is 'auto' - except when launcherName is set and the test target is not changed via the other arguments (running whatever the launcher is already scoped to), where the default is 'fromLauncher'. |
 
 **Returns** [`TestRunResponse`](#testrunresponse)
 
@@ -1255,7 +1256,8 @@ Starts a JUnit Plug-in Test run asynchronously using the PDE launcher and return
 | `withCoverage` |  | If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false |
 | `includeAllPlugins` |  | If 'true', launches with all workspace and target platform plug-ins (USE_DEFAULT mode). If 'false' (default), auto-resolves required dependencies. |
 | `additionalBundles` |  | Comma-separated additional bundle/plug-in symbolic names to include (only used when includeAllPlugins is false). |
-| `launcherName` |  | Optional name of a saved launch configuration to use as the base (use (eclipse-runner MCP server).listLaunchConfigurations with typeFilter='junit-plugin' to find it). When set, all settings from that config are reused (VM args, program args, bundle selection, etc.) and only the test target is overridden. includeAllPlugins and additionalBundles are ignored when set. |
+| `launcherName` |  | Optional name of a saved launch configuration to use as the base (use (eclipse-runner MCP server).listLaunchConfigurations with typeFilter='junit-plugin' to find it). When set, all settings from that config are reused (VM args, program args, bundle selection, etc.) and only the test target is overridden. includeAllPlugins and additionalBundles are ignored when set. The named configuration itself is never modified: the override is applied to a throwaway working copy that is launched directly. |
+| `junitVersion` |  | Which JUnit engine loader to launch with: 'auto' (detect from the project/class), 'fromLauncher' (keep whatever TEST_KIND launcherName's saved config already has - only meaningful together with launcherName), or an explicit '3', '4', '5', or '6'. When omitted, the default is 'auto' - except when launcherName is set and the test target is not changed via the other arguments (running whatever the launcher is already scoped to), where the default is 'fromLauncher'. |
 
 **Returns** [`TestRunResponse`](#testrunresponse)
 

@@ -147,8 +147,8 @@ public class PDEMcpServer
                        description = "Which JUnit engine loader to launch with: 'auto' (detect from the project/class), "
                            + "'fromLauncher' (keep whatever TEST_KIND launcherName's saved config already has - only "
                            + "meaningful together with launcherName), or an explicit '3', '4', '5', or '6'. When omitted, "
-                           + "the default is 'auto' - except when launcherName is set and neither className nor "
-                           + "packageName is given (running whatever the launcher is already scoped to), where the "
+                           + "the default is 'auto' - except when launcherName is set and the test target is not changed"
+                           + " via the other arguments (running whatever the launcher is already scoped to), where the "
                            + "default is 'fromLauncher'.",
                        required = false)
             String junitVersion)
