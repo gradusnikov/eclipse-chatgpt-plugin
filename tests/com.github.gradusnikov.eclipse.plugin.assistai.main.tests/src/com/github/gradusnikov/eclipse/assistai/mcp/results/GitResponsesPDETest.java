@@ -144,6 +144,10 @@ public class GitResponsesPDETest
         }
         if ( project != null && project.exists() )
         {
+            // Let whatever EGit/resource-change jobs the unmap or earlier operations
+            // queued actually finish before the project disappears underneath them.
+            waitForPendingJobsAndUnmapToAvoidExceptions(project);
+
             for ( int attempt = 0; attempt < 5; attempt++ )
             {
                 try
@@ -161,6 +165,36 @@ public class GitResponsesPDETest
                 }
             }
         }
+    }
+
+    /**
+     * Unmaps the Team provider and waits for the workspace's build and change-notification
+     * jobs to drain. Teardown that deletes a project out from under a still-running job
+     * (EGit's index diff cache, PDE's classpath container updater, etc.) turns that job's
+     * next step into a spurious failure logged against a project that, by then, no longer exists.
+     * @param projectToUnmap 
+     */
+    public static void waitForPendingJobsAndUnmapToAvoidExceptions(IProject projectToUnmap) throws InterruptedException
+    {
+        // Disconnect the Team provider first so EGit drops its GitProjectData for this
+        // project synchronously, on this thread. Without this, EGit's resource-change
+        // listener (IndexDiffCacheEntry) can still be reacting - asynchronously, on a
+        // job - to the delete below when it goes looking for GitProjectData.properties
+        // that the delete already removed, logging a NoSuchFileException that has
+        // nothing to do with this test and everything to do with its teardown racing
+        // EGit's own bookkeeping.
+        try
+        {
+            if (projectToUnmap != null) org.eclipse.team.core.RepositoryProvider.unmap( projectToUnmap );
+        }
+        catch ( Exception e )
+        {
+            // Best effort - the delete below is still attempted either way.
+        }
+        
+        org.eclipse.core.runtime.jobs.IJobManager jobManager = org.eclipse.core.runtime.jobs.Job.getJobManager();
+        jobManager.join( org.eclipse.core.resources.ResourcesPlugin.FAMILY_AUTO_BUILD, monitor );
+        jobManager.join( org.eclipse.core.resources.ResourcesPlugin.FAMILY_MANUAL_BUILD, monitor );
     }
 
     private void commitEverything( String message ) throws Exception

@@ -46,6 +46,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.GitDiffResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitDiffResponse.FileChangeType;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitDiffResponse.GitFileDiff;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitLogResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitResponsesPDETest;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitStagePatchResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitStagePatchResponse.PatchStatus;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitStageResponse;
@@ -143,7 +144,11 @@ public class GitServicePDETest
         }
         if (project != null && project.exists())
         {
-            for (int attempt = 0; attempt < 5; attempt++)
+            // Let whatever EGit/resource-change jobs the unmap or earlier operations
+            // queued actually finish before the project disappears underneath them.
+        	GitResponsesPDETest.waitForPendingJobsAndUnmapToAvoidExceptions(project);
+
+        	for (int attempt = 0; attempt < 5; attempt++)
             {
                 try
                 {

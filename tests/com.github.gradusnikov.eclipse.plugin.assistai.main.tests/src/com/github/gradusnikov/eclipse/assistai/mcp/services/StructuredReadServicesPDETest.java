@@ -154,7 +154,10 @@ public class StructuredReadServicesPDETest
         javaProject.setOption( JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, "21" );
 
         IFolder bin = project.getFolder( "bin" );
-        bin.create( true, true, monitor );
+        // Adding the Java nature above can trigger a build that creates the default "bin"
+        // output folder before we get here, so guard like the other PDE tests that create
+        // one of these ad-hoc projects do.
+        if ( !bin.exists() ) bin.create( true, true, monitor );
         javaProject.setOutputLocation( bin.getFullPath(), monitor );
 
         IFolder src = project.getFolder( "src" );
