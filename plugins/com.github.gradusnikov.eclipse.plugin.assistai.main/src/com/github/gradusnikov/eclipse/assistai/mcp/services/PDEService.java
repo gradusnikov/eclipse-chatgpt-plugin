@@ -31,6 +31,7 @@ import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.IJobChangeEvent;
 import org.eclipse.core.runtime.jobs.JobChangeAdapter;
 import org.eclipse.debug.core.DebugPlugin;
@@ -192,6 +193,9 @@ public class PDEService
         try
         {
             completed = latch.await( TARGET_LOAD_TIMEOUT_SECONDS, TimeUnit.SECONDS );
+            // TODO in one case LoadTargetDefinitionJob can schedule another async LoadTargetDefinitionJob
+            // so we could maybe join by it's job family? So Job.getJobManager().join( "LoadTargetDefinitionJob", null );
+            // but that does not provide a way to timeout on the remaining timeout value
         }
         catch ( InterruptedException e )
         {
@@ -860,13 +864,13 @@ public class PDEService
             // A launcher's working copy is only ever launched, never saved: doSave() on a
             // working copy whose original is the named configuration itself (not nested)
             // would write the overridden test target straight back into that configuration's
-            // own .launch file, silently repointing it at whatever ran last. Only the
+            // own .launch file, silently re-pointing it at whatever ran last. Only the
             // deterministic AssistAI-owned configuration below is meant to persist.
             boolean usingNamedLauncher = launcherName != null && !launcherName.isBlank();
 
             if ( usingNamedLauncher )
             {
-                // Use the named saved config as a base ΓÇö only override targeting attributes
+                // Use the named saved config as a base; only override targeting attributes
                 ILaunchConfiguration base = findExistingLaunchConfig( launchManager, launcherName );
                 if ( base == null )
                 {
@@ -1062,41 +1066,56 @@ public class PDEService
                         operation.ifPresent( op -> ProcessOutputSource.attach( op, launched ) );
                     }
                     completed = latch.await( 100, TimeUnit.MILLISECONDS );
-                    if ( !completed && launchRef[0] != null && launchRef[0].isTerminated() )
+                    if ( !completed && launchRef[0] != null && ( launchRef[0].isTerminated() || !launchManagerForListener.isRegistered(launchRef[0]) ) )
                     {
-                        // When Equinox needs to rewire bundles it exits with code 23 and PDE's
-                        // LaunchListener launches the same configuration again with RESTART=true.
-                        // It does that from the process's TERMINATE debug event, which is
-                        // dispatched asynchronously - so the launch can already report itself
-                        // terminated here while the restart launch does not exist yet. Concluding
-                        // at that instant reported "no test results, exit code 23" for a run that
-                        // was about to succeed. Give the listener a bounded grace period instead.
-                        if ( testRunResults[0] == null
-                            && getRawExitCode( launchRef[0] ) == org.eclipse.equinox.app.IApplication.EXIT_RESTART )
+                        if (!launchRef[0].isTerminated() && !launchManagerForListener.isRegistered(launchRef[0]))
                         {
-                            if ( restartLaunchRef[0] != null )
-                            {
-                                String msg = "[PDEService] Equinox requested restart (exit 23) —"
-                                    + " bundle cache is now warm, following auto-restarted launch";
-                                System.out.println( msg );
-                                operation.ifPresent( op -> op.setProgress( msg ) );
-                                launchRef[0] = restartLaunchRef[0];
-                                restartLaunchRef[0] = null;
-                                attached = false; // re-attach process output to the new launch
-                                restartGraceDeadline = 0;
-                            }
-                            else if ( restartGraceDeadline == 0 )
-                            {
-                                restartGraceDeadline = System.currentTimeMillis() + RESTART_GRACE_MILLIS;
-                            }
-                            else if ( System.currentTimeMillis() >= restartGraceDeadline )
-                            {
-                                completed = true;
-                            }
-                        }
-                        else
-                        {
+                        	// can happen, for example, when launching, if a dialog appears like "Errors exist in required project(s) (...) Proceed with launch?"
+                        	// if the user dismisses that or says no then nothing happens; the launch is not actually launched at all
+                        	
+                        	// the lines in this if can be commented out when debugging failing unit tests due to error markers on launch
                             completed = true;
+
+                            Status status = new Status(IStatus.CANCEL, getClass(), "Error launching plug-in tests. Launch was not registered to run at all. (error markers maybe? and it was dismissed by user?)");
+                            launchError[0] = new CoreException(status);
+                            logger.log( status );
+                        }
+                        else // it is launchRef[0].isTerminated() ; see parent if
+                        {
+	                        // When Equinox needs to rewire bundles it exits with code 23 and PDE's
+	                        // LaunchListener launches the same configuration again with RESTART=true.
+	                        // It does that from the process's TERMINATE debug event, which is
+	                        // dispatched asynchronously - so the launch can already report itself
+	                        // terminated here while the restart launch does not exist yet. Concluding
+	                        // at that instant reported "no test results, exit code 23" for a run that
+	                        // was about to succeed. Give the listener a bounded grace period instead.
+	                        if ( testRunResults[0] == null
+	                            && getRawExitCode( launchRef[0] ) == org.eclipse.equinox.app.IApplication.EXIT_RESTART )
+	                        {
+	                            if ( restartLaunchRef[0] != null )
+	                            {
+	                                String msg = "[PDEService] Equinox requested restart (exit 23) —"
+	                                    + " bundle cache is now warm, following auto-restarted launch";
+	                                System.out.println( msg );
+	                                operation.ifPresent( op -> op.setProgress( msg ) );
+	                                launchRef[0] = restartLaunchRef[0];
+	                                restartLaunchRef[0] = null;
+	                                attached = false; // re-attach process output to the new launch
+	                                restartGraceDeadline = 0;
+	                            }
+	                            else if ( restartGraceDeadline == 0 )
+	                            {
+	                                restartGraceDeadline = System.currentTimeMillis() + RESTART_GRACE_MILLIS;
+	                            }
+	                            else if ( System.currentTimeMillis() >= restartGraceDeadline )
+	                            {
+	                                completed = true;
+	                            }
+	                        }
+	                        else
+	                        {
+	                            completed = true;
+	                        }
                         }
                     }
                 }

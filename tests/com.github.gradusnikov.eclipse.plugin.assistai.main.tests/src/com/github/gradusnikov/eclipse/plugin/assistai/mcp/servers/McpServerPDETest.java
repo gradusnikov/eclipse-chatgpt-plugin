@@ -16,30 +16,37 @@ import java.util.concurrent.TimeUnit;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
-import org.eclipse.core.runtime.jobs.IJobChangeEvent;
-import org.eclipse.core.runtime.jobs.JobChangeAdapter;
-import org.eclipse.pde.core.target.ITargetDefinition;
-import org.eclipse.pde.core.target.ITargetHandle;
-import org.eclipse.pde.core.target.ITargetPlatformService;
-import org.eclipse.pde.core.target.LoadTargetDefinitionJob;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.FrameworkUtil;
-import org.osgi.framework.ServiceReference;
-
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.ILogListener;
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.jobs.IJobChangeEvent;
+import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.core.runtime.jobs.JobChangeAdapter;
 import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.EclipseContextFactory;
 import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.e4.ui.di.UISynchronize;
+import org.eclipse.pde.core.target.ITargetDefinition;
+import org.eclipse.pde.core.target.ITargetHandle;
+import org.eclipse.pde.core.target.ITargetPlatformService;
+import org.eclipse.pde.core.target.LoadTargetDefinitionJob;
+import org.eclipse.pde.internal.core.EclipseHomeInitializer;
+import org.eclipse.pde.internal.core.ICoreConstants;
+import org.eclipse.pde.internal.core.PDECore;
+import org.eclipse.pde.internal.core.PDEPreferencesManager;
+import org.eclipse.pde.internal.core.target.TargetPlatformService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.osgi.framework.Bundle;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.FrameworkUtil;
+import org.osgi.framework.ServiceReference;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.McpJson;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpOutputSchemas;
-import com.github.gradusnikov.eclipse.assistai.mcp.StructuredToolResult;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.ActiveTargetResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.ActiveTargetResponse.TargetStatus;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.Diagnostic;
@@ -166,6 +173,8 @@ public class McpServerPDETest
         ITargetPlatformService targets = targetPlatformService();
         assumeTrue( targets != null, "Skipping: PDE target platform service not available" );
         ITargetHandle previous = targets.getWorkspaceTargetHandle();
+		PDEPreferencesManager preferences = PDECore.getDefault().getPreferencesManager();
+		String memento = preferences.getString(ICoreConstants.WORKSPACE_TARGET_HANDLE);
 
         IProject project = ResourcesPlugin.getWorkspace().getRoot()
             .getProject( "target-reporting-" + System.nanoTime() );
@@ -197,7 +206,7 @@ public class McpServerPDETest
         }
         finally
         {
-            restoreTarget( previous );
+            restoreTarget( previous, memento, targets );
             project.delete( true, true, null );
         }
     }
@@ -210,21 +219,97 @@ public class McpServerPDETest
         return reference == null ? null : context.getService( reference );
     }
 
-    /** Puts back whatever target the harness workspace had, so later tests build against it. */
-    private static void restoreTarget( ITargetHandle previous ) throws Exception
+    /** Puts back whatever target the harness workspace had, so later tests build against it. 
+     * @param memento 
+     * @param targets */
+    private static void restoreTarget( ITargetHandle previous, String memento, ITargetPlatformService targets ) throws Exception
     {
-        ITargetDefinition definition = previous == null ? null : previous.getTargetDefinition();
-        CountDownLatch done = new CountDownLatch( 1 );
-        LoadTargetDefinitionJob.load( definition, new JobChangeAdapter()
-        {
-            @Override
-            public void done( IJobChangeEvent event )
-            {
-                done.countDown();
-            }
-        } );
-        assertTrue( done.await( 2, TimeUnit.MINUTES ), "restoring the previous target platform timed out" );
+    	if (previous != null || memento == null)
+    	{
+	        ITargetDefinition definition = previous == null ? targets.newDefaultTarget() : previous.getTargetDefinition();
+	        CountDownLatch done = new CountDownLatch( 1 );
+	        IStatus[] jobResult = new IStatus[1];
+	        LoadTargetDefinitionJob.load( definition, new JobChangeAdapter()
+	        {
+	            @Override
+	            public void done( IJobChangeEvent event )
+	            {
+	                jobResult[0] = event.getResult();
+	                done.countDown();
+	            }
+	        } );
+	        assertTrue( done.await( 2, TimeUnit.MINUTES ), "restoring the previous target platform timed out" );
+	        // A silently failed or cancelled restore leaves the workspace target in whatever
+	        // half-loaded state the job stopped in - every test that runs after this one would
+	        // then build against that broken target instead of the running platform, with no
+	        // sign of why beyond "Target Platform is not set" surfacing somewhere downstream.
+	        assertNotNull( jobResult[0], "restoring the previous target platform reported no result" );
+	        assertTrue( jobResult[0].isOK(),
+	            () -> "restoring the previous target platform failed: " + jobResult[0] );
+	
+	        waitForLoadTargetJobsToSettle();
+    	} else {
+    		// LoadTargetDefinitionJob is not able to restore a clean null target;
+    		// if given null - it will create a target instance with memento ICoreConstants.NO_TARGET
+    		// that makes the java projects compile differently for other tests, thus breaking them
+    		
+    		// so here we 'manually' try to reset it to the initial null state, inspired by the
+    		// code of that class
+    		
+    		Job.getJobManager().cancel("LoadTargetDefinitionJob");
+    		
+    		Job job = new LoadTargetDefinitionJob(null) {
+    			@Override
+    			public IStatus runInWorkspace(IProgressMonitor monitor) throws CoreException {
+    	    		ITargetPlatformService service = targetPlatformService();
+    	    		if (service instanceof TargetPlatformService) {
+    	    		    // Calling an internal lifecycle/reset or simply letting it re-evaluate
+    	    		    // will force it back to null because the preference is gone.
+    	    		    ((TargetPlatformService) service).setWorkspaceTargetDefinition(null, false);
+    	    		}
+
+    				PDEPreferencesManager preferences = PDECore.getDefault().getPreferencesManager();
+
+    				// If the same target has been modified, clear the preference so listeners can react to the change
+    				if (memento.equals(preferences.getString(ICoreConstants.WORKSPACE_TARGET_HANDLE))) {
+    					preferences.setValue(ICoreConstants.WORKSPACE_TARGET_HANDLE, ""); //$NON-NLS-1$
+    				}
+    				preferences.setValue(ICoreConstants.WORKSPACE_TARGET_HANDLE, memento);
+
+    	    		EclipseHomeInitializer.resetEclipseHomeVariable();
+    	    		PDECore.getDefault().getSourceLocationManager().reset();
+    	    		PDECore.getDefault().getJavadocLocationManager().reset();
+    	    		PDECore.getDefault().getExtensionsRegistry().targetReloaded();
+    	    		PDECore.getDefault().getModelManager().targetReloaded(null); // PluginModelManager should be reloaded first to reset isCancelled() flag
+    	    		PDECore.getDefault().getFeatureModelManager().targetReloaded();
+    	    		
+    	    		return Status.OK_STATUS;
+    			}
+    		};
+    		job.setUser(true);
+    		CountDownLatch done = new CountDownLatch( 1 );
+
+			job.addJobChangeListener(new JobChangeAdapter()
+	        {
+	            @Override
+	            public void done( IJobChangeEvent event )
+	            {
+	                done.countDown();
+	            }
+	        });
+    		job.schedule();
+	        assertTrue( done.await( 2, TimeUnit.MINUTES ), "restoring the previous (null) target platform timed out" );
+    	}
     }
+
+	private static void waitForLoadTargetJobsToSettle() throws InterruptedException {
+		// load() itself is asynchronous beyond the job it returns: the job schedules
+        // resetPlatform(), which touches the model/extension/feature managers that other
+        // tests' project builds depend on. it can also schedule another LoadTargetDefinitionJob
+        // async in one scenario; so wait for it to settle
+        org.eclipse.core.runtime.jobs.Job.getJobManager()
+            .join( "LoadTargetDefinitionJob", null );
+	}
 
     /**
      * A count of zero would say the target resolved to nothing, which is a far worse
