@@ -425,28 +425,38 @@ public class EclipseIntegrationsMcpServer
                         description = "Optional name of a saved launch configuration to use as the base "
                             + "(use (eclipse-runner MCP server).listLaunchConfigurations with typeFilter='junit' to find it). "
                             + "When set, all settings from that config are reused (VM args, classpath, env vars, etc.) "
-                            + "and only the test target is overridden.",
+                            + "and only the test target is overridden. The named configuration itself is never modified: "
+                            + "the override is applied to a throwaway working copy that is launched directly.",
                         required = false )
-            String launcherName )
+            String launcherName,
+            @ToolParam( name = "junitVersion",
+                        description = "Which JUnit engine loader to launch with: 'auto' (detect from the project/class), "
+                            + "'fromLauncher' (keep whatever TEST_KIND launcherName's saved config already has - only "
+                            + "meaningful together with launcherName), or an explicit '3', '4', '5', or '6'. When "
+                            + "omitted, the default is 'auto' - except when launcherName is set and the test target is not "
+                            + "changed via the other arguments (running whatever the launcher is already scoped to), where the default is "
+                            + "'fromLauncher'.",
+                        required = false )
+            String junitVersion )
     {
         boolean coverage = Optional.ofNullable( withCoverage ).map( Boolean::parseBoolean ).orElse( false );
         int timeoutSeconds = Optional.ofNullable( timeout ).map( Integer::parseInt ).orElse( 60 );
 
         if ( className != null && !className.isBlank() && methodName != null && !methodName.isBlank() )
         {
-            return unitTestService.runTestMethod( projectName, className, methodName, timeoutSeconds, coverage, launcherName );
+            return unitTestService.runTestMethod( projectName, className, methodName, timeoutSeconds, coverage, launcherName, junitVersion );
         }
         else if ( className != null && !className.isBlank() )
         {
-            return unitTestService.runClassTests( projectName, className, timeoutSeconds, coverage, launcherName );
+            return unitTestService.runClassTests( projectName, className, timeoutSeconds, coverage, launcherName, junitVersion );
         }
         else if ( packageName != null && !packageName.isBlank() )
         {
-            return unitTestService.runPackageTests( projectName, packageName, timeoutSeconds, coverage, launcherName );
+            return unitTestService.runPackageTests( projectName, packageName, timeoutSeconds, coverage, launcherName, junitVersion );
         }
         else
         {
-            return unitTestService.runAllTests( projectName, timeoutSeconds, coverage, launcherName );
+            return unitTestService.runAllTests( projectName, timeoutSeconds, coverage, launcherName, junitVersion );
         }
     }
 

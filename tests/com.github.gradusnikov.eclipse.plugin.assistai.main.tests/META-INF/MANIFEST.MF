@@ -18,6 +18,8 @@ Require-Bundle: junit-jupiter-api,
  org.eclipse.jdt.core,
  org.eclipse.jdt.launching,
  org.eclipse.pde.core,
+ org.eclipse.swt,
+ org.eclipse.team.core,
  slf4j.api
 Automatic-Module-Name: com.github.gradusnikov.eclipse.plugin.assistai.main.tests
 Bundle-RequiredExecutionEnvironment: JavaSE-21

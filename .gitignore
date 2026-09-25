@@ -7,3 +7,4 @@ bin/
 /opencode.json
 # Tycho 5 writes one of these beside every module's pom during a build
 .tycho-consumer-pom.xml
+/.opencode/

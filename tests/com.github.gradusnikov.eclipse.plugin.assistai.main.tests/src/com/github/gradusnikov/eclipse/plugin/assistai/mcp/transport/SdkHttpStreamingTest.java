@@ -81,6 +81,8 @@ public class SdkHttpStreamingTest
     private McpSyncServer mcpServer;
     private HttpServletStreamableServerTransportProvider transportProvider;
 
+	private JacksonMcpJsonMapperSupplier jsonMapperSupplier;
+
     @BeforeEach
     public void beforeEach() throws Exception
     {
@@ -103,7 +105,7 @@ public class SdkHttpStreamingTest
                     }
                     """;
         
-        var jsonMapperSupplier = new JacksonMcpJsonMapperSupplier();
+        jsonMapperSupplier = new JacksonMcpJsonMapperSupplier();
         var tool = McpSchema.Tool.builder("calculator", jsonMapperSupplier.get(), schema)
                 .description("Basic calculator")
                 .build();
@@ -175,7 +177,15 @@ public class SdkHttpStreamingTest
         // Start Tomcat with the transport provider as servlet (with authentication and HTTPS if enabled)
         tomcat = createTomcatServer("", PORT, transportProvider, true, USE_HTTPS);
         tomcat.start();
-        assertTrue(tomcat.getServer().getState().isAvailable());
+        
+        long tomcatStartTimeoutMS = System.currentTimeMillis() + (300_000); // it should start much faster then 5 min
+        while (tomcat.getServer().getState() != org.apache.catalina.LifecycleState.STARTED
+        		&& System.currentTimeMillis() < tomcatStartTimeoutMS) {
+            Thread.sleep(50); // Small back-off pause to prevent CPU pegging
+        }
+        
+        assertTrue(tomcat.getServer().getState() == org.apache.catalina.LifecycleState.STARTED, "Tomcat startup timed out or failed.");
+        assertTrue(tomcat.getServer().getState().isAvailable(), "Tomcat startup timed out or failed.");
         String protocol = USE_HTTPS ? "https" : "http";
         logger.info( "Tomcat MCP Server started at {}://{}:{}{}", protocol, HOST, PORT, MCP_ENDPOINT );
         logger.info( "Access from Windows: {}://localhost:{}{}", protocol, PORT, MCP_ENDPOINT );
@@ -203,6 +213,7 @@ public class SdkHttpStreamingTest
         // Create MCP client with Bearer token authentication
         var clientTransport = HttpClientStreamableHttpTransport.builder(getBaseUrl())
                 .endpoint(MCP_ENDPOINT)
+                .jsonMapper(jsonMapperSupplier.get())
                 .httpRequestCustomizer((requestBuilder, method, uri, body, context) -> {
                     requestBuilder.header("Authorization", "Bearer " + BEARER_TOKEN);
                 })
@@ -262,6 +273,7 @@ public class SdkHttpStreamingTest
     {
         // Create MCP client WITHOUT authorization header
         var clientTransport = HttpClientStreamableHttpTransport.builder(getBaseUrl())
+                .jsonMapper(jsonMapperSupplier.get())
                 .endpoint(MCP_ENDPOINT)
                 .build();
         
@@ -290,6 +302,7 @@ public class SdkHttpStreamingTest
         // Create MCP client with WRONG token
         var clientTransport = HttpClientStreamableHttpTransport.builder(getBaseUrl())
                 .endpoint(MCP_ENDPOINT)
+                .jsonMapper(jsonMapperSupplier.get())
                 .httpRequestCustomizer((requestBuilder, method, uri, body, context) -> {
                     requestBuilder.header("Authorization", "Bearer wrong-token-12345");
                 })
@@ -440,7 +453,7 @@ public class SdkHttpStreamingTest
         context.addServletMappingDecoded("/*", "mcpServlet");
 
         var connector = tomcat.getConnector();
-        connector.setAsyncTimeout(3000);
+        connector.setAsyncTimeout(10000);
 
         return tomcat;
     }

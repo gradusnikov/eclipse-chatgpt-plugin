@@ -43,6 +43,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.GitPullResponse.PullS
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitPushResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitPushResponse.PushStatus;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitRemoteListResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.GitResponsesPDETest;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitStageResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.GitStatusResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.EditorService;
@@ -153,7 +154,11 @@ public class GitServiceRemoteAndLayoutPDETest
         }
         if ( project != null && project.exists() )
         {
-            project.delete( true, true, monitor );
+            // Let whatever EGit/resource-change jobs the unmap or earlier operations
+            // queued actually finish before the project disappears underneath them.
+        	GitResponsesPDETest.waitForPendingJobsAndUnmapToAvoidExceptions(project);
+
+        	project.delete( true, true, monitor );
         }
         if ( root != null )
         {
