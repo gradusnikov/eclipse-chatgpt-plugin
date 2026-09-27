@@ -202,7 +202,6 @@ public class StreamingCompletionClient
         }
         
         AtomicBoolean hasFunctionCall = new AtomicBoolean( false );
-        AtomicBoolean markdownTruncated = new AtomicBoolean( false );
         
         LanguageModelClient client = clientProvider.get( context, onContinue );
         client.setCancelProvider( completionFuture::isCancelled );
@@ -233,7 +232,7 @@ public class StreamingCompletionClient
 
                 if ( item.type() == Incoming.Type.CONTENT )
                 {
-                    String chunk = sanitizeMarkdownChunk( item.payload().toString(), markdownTruncated );
+                    String chunk = item.payload().toString();
                     fullResponse.append( chunk );
 
                     if ( onChunk != null )
@@ -328,29 +327,4 @@ public class StreamingCompletionClient
         }
     }
     
-    /**
-     * Sanitizes markdown code fences from completion chunks.
-     */
-    private static String sanitizeMarkdownChunk( String rawChunk, AtomicBoolean markdownTruncated )
-    {
-        if ( rawChunk == null || rawChunk.isEmpty() )
-        {
-            return "";
-        }
-
-        String chunk = rawChunk;
-
-        // Drop common markdown code fences. If the fence is encountered, truncate the rest of the stream.
-        int fenceIndex = chunk.indexOf( "```" );
-        if ( fenceIndex >= 0 )
-        {
-            markdownTruncated.set( true );
-            chunk = chunk.substring( 0, fenceIndex );
-        }
-
-        // Remove standalone fence markers that could arrive split across chunks.
-        chunk = chunk.replace( "~~~", "" );
-
-        return chunk;
-    }
 }
