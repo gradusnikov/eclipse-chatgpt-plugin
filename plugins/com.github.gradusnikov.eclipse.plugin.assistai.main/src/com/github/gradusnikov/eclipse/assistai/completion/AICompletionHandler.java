@@ -344,10 +344,6 @@ public class AICompletionHandler extends AbstractHandler {
      * Parses the completion from direct code response.
      */
     private String parseCompletion(String response) {
-        if (response == null || response.isBlank()) {
-            return null;
-        }
-
-        return response.trim();
+        return CompletionResponseSanitizer.sanitize( response );
     }
 }
