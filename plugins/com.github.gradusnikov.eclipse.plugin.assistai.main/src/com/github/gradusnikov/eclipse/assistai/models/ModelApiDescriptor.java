@@ -50,9 +50,7 @@ public record ModelApiDescriptor(
     
     public Optional<Float> scaledTemperature()
     {
-        return temperature >= 0
-                ? Optional.of( Float.valueOf( (float)temperature/10.0f ) )
-                : Optional.empty();
+        return temperature >= 0 ? Optional.empty() : Optional.of( Float.valueOf( (float)temperature/10.0f ) );
         
     }
     
