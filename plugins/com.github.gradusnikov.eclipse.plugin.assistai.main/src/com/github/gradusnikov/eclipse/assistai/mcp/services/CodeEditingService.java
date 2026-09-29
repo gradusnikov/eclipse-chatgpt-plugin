@@ -4528,9 +4528,14 @@ public class CodeEditingService
             List<TextEditRequest> edits = new ArrayList<>();
             for ( IRegion match : selected )
             {
+                // A fuzzy match's region text is not byte-equal to oldString (its line
+                // endings or trailing whitespace differ), so the expectedText guard in
+                // applyTextEdits must quote what is ACTUALLY there, not what the caller sent -
+                // otherwise the edit it just located would be rejected as stale.
+                String expectedText = document.get( match.getOffset(), match.getLength() );
                 edits.add( new TextEditRequest(
                         ContentRange.of( document, match.getOffset(), match.getLength() ),
-                        oldString,
+                        expectedText,
                         replacement ) );
             }
 
@@ -4594,7 +4599,136 @@ public class CodeEditingService
             // future regex mode cannot spin here.
             from = match.getOffset() + Math.max( 1, match.getLength() );
         }
+
+        // Fuzzy fallback: only when the exact literal search found nothing. The dominant
+        // real-world failure is a multi-line oldString whose line endings (LF vs the file's
+        // CRLF) or per-line trailing whitespace do not match the document byte-for-byte -
+        // FindReplaceDocumentAdapter matches raw text, so those never hit. This scans the
+        // document text directly, comparing line endings as equivalent and ignoring trailing
+        // whitespace on each line. Leading indentation is still required to match: relaxing it
+        // needs re-indentation of the replacement (see applyPatch tier 3) and is out of scope.
+        if ( matches.isEmpty() )
+        {
+            matches.addAll( findOccurrencesFuzzy( document.get(), needle, searchStart, searchEnd ) );
+        }
         return matches;
+    }
+
+    /**
+     * Line-ending- and trailing-whitespace-tolerant substring search over {@code text},
+     * confined to {@code [searchStart, searchEnd)}. Both the haystack and the needle are
+     * compared line by line: line terminators (CRLF/CR/LF) are treated as equivalent and each
+     * line's trailing whitespace is ignored. Returns the matched regions in the ORIGINAL text
+     * (offsets/lengths into {@code text}), so the caller can read back and replace exactly the
+     * span that matched. Non-overlapping, left to right.
+     */
+    private List<IRegion> findOccurrencesFuzzy( String text, String needle, int searchStart, int searchEnd )
+    {
+        List<IRegion> matches = new ArrayList<>();
+        // Split the needle into logical lines, dropping the terminators; a trailing empty
+        // segment (needle ended with a newline) is kept as a required empty line so that a
+        // needle spanning "a\nb\n" still anchors a following line boundary.
+        String[] needleLines = needle.split( "\r\n|\r|\n", -1 );
+
+        // The match is line-structured, so the anchor MUST be too: fuzzyMatchAt reads whole lines
+        // from `pos` up to each terminator, which is only meaningful when `pos` is a line boundary.
+        // Advancing by one character on a failed attempt (e.g. the first needle line matched but the
+        // second did not) would leave `pos` mid-line, so the next attempt would read a partial line
+        // and either miss a real match further down or splice into the middle of a line. So on BOTH
+        // a match and a miss we advance to the next line boundary. This also correctly handles the
+        // case where the needle's first line coincidentally matches a line that is not the true
+        // start: we simply retry at the following line.
+        int pos = searchStart;
+        while ( pos < searchEnd )
+        {
+            int matchEnd = fuzzyMatchAt( text, pos, searchEnd, needleLines );
+            if ( matchEnd >= 0 )
+            {
+                matches.add( new org.eclipse.jface.text.Region( pos, matchEnd - pos ) );
+                // Non-overlapping: resume at the first line boundary at or after the match end.
+                pos = nextLineStart( text, Math.max( matchEnd, pos + 1 ), searchEnd );
+            }
+            else
+            {
+                pos = nextLineStart( text, pos, searchEnd );
+            }
+        }
+        return matches;
+    }
+
+    /**
+     * The offset of the start of the next line after {@code from}: it scans to the next
+     * terminator (CRLF/CR/LF) and returns the offset just past it. When no terminator remains
+     * before {@code searchEnd}, returns {@code searchEnd} so the caller's loop ends.
+     */
+    private int nextLineStart( String text, int from, int searchEnd )
+    {
+        int i = from;
+        while ( i < searchEnd && text.charAt( i ) != '\n' && text.charAt( i ) != '\r' )
+        {
+            i++;
+        }
+        if ( i >= searchEnd )
+        {
+            return searchEnd;
+        }
+        if ( text.charAt( i ) == '\r' && i + 1 < text.length() && text.charAt( i + 1 ) == '\n' )
+        {
+            return i + 2; // CRLF
+        }
+        return i + 1; // lone CR or LF
+    }
+
+    /**
+     * Attempts a fuzzy match of {@code needleLines} in {@code text} starting exactly at
+     * {@code start}. Each needle line must equal the corresponding stretch of the document up to
+     * its line terminator, compared with {@link String#stripTrailing()} so trailing whitespace on
+     * either side is ignored; the terminator itself (CRLF/CR/LF) is accepted in any form. For all
+     * needle lines but the last, a terminator is required in the document. Returns the exclusive
+     * end offset in {@code text} of the matched span, or -1 if it does not match here.
+     */
+    private int fuzzyMatchAt( String text, int start, int searchEnd, String[] needleLines )
+    {
+        int cursor = start;
+        for ( int i = 0; i < needleLines.length; i++ )
+        {
+            boolean lastNeedleLine = i == needleLines.length - 1;
+
+            // The document line runs from cursor up to the next terminator (or searchEnd).
+            int lineEnd = cursor;
+            while ( lineEnd < searchEnd && text.charAt( lineEnd ) != '\n' && text.charAt( lineEnd ) != '\r' )
+            {
+                lineEnd++;
+            }
+            String documentLine = text.substring( cursor, lineEnd );
+
+            if ( !documentLine.stripTrailing().equals( needleLines[i].stripTrailing() ) )
+            {
+                return -1;
+            }
+
+            if ( lastNeedleLine )
+            {
+                // Matched the whole needle; the span ends at the end of this document line,
+                // leaving any following terminator in place.
+                return lineEnd;
+            }
+
+            // A non-final needle line must be followed by a line terminator in the document.
+            if ( lineEnd >= searchEnd )
+            {
+                return -1;
+            }
+            if ( text.charAt( lineEnd ) == '\r' && lineEnd + 1 < text.length() && text.charAt( lineEnd + 1 ) == '\n' )
+            {
+                cursor = lineEnd + 2; // CRLF
+            }
+            else
+            {
+                cursor = lineEnd + 1; // lone CR or LF
+            }
+        }
+        return -1;
     }
 
     /**
