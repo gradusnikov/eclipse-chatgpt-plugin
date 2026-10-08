@@ -69,6 +69,8 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
 
     private Scale      withTemperature;
 
+    private Label      temperatureLabel;
+
     private Group      form;
 
     private Button     addButton;
@@ -207,8 +209,37 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         scale.setMaximum( 10 );
         scale.setIncrement( 1 );
         scale.setPageIncrement( 1 );
-        addFormControl( scale, form, labelText);
+        scale.setToolTipText( "Default, or 0.0 through 1.0" );
+        temperatureLabel = addFormControl( scale, form, labelText );
+        updateTemperatureLabel( scale );
+        scale.addSelectionListener( new SelectionAdapter()
+        {
+            @Override
+            public void widgetSelected( SelectionEvent e )
+            {
+                updateTemperatureLabel( scale );
+            }
+        } );
         return scale;
+    }
+
+    private void updateTemperatureLabel( Scale scale )
+    {
+        if ( temperatureLabel == null || temperatureLabel.isDisposed()
+                || scale == null || scale.isDisposed() )
+        {
+            return;
+        }
+
+        temperatureLabel.setText( temperatureLabelText( scale.getSelection() ) );
+        temperatureLabel.getParent().layout();
+    }
+
+    static String temperatureLabelText( int selection )
+    {
+        return selection < 0
+                ? "Temperature: Default"
+                : "Temperature: " + Float.toString( selection / 10.0f );
     }
 
     private Button addCheckField( Composite form, String labelText)
@@ -346,7 +377,7 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         return text.substring( 0, maxLength ) + "...";
     }
 
-    private Control addFormControl( Control control, Composite form, String labelText)
+    private Label addFormControl( Control control, Composite form, String labelText)
     {
         Label label = new Label( form, SWT.NONE );
         label.setText( labelText );
@@ -371,7 +402,7 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         textData.right = new FormAttachment( 100, -10 );
         textData.top = new FormAttachment( label, -2, SWT.TOP );
         control.setLayoutData( textData );
-        return control;
+        return label;
     }
 
     public void showModels( java.util.List<ModelApiDescriptor> models )
@@ -403,6 +434,7 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
             requestTimeout.setText( String.valueOf(modelApiDescriptor.requestTimeoutSeconds()) );
             modelName.setText( modelApiDescriptor.modelName() );
             withTemperature.setSelection( modelApiDescriptor.temperature() );
+            updateTemperatureLabel( withTemperature );
             withVision.setSelection( modelApiDescriptor.vision() );
             withFunctionCalls.setSelection( modelApiDescriptor.functionCalling() );
         } );
@@ -418,6 +450,7 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
             requestTimeout.setText( "30" );
             modelName.setText( "" );
             withTemperature.setSelection( 0 );
+            updateTemperatureLabel( withTemperature );
             withVision.setSelection( false );
             withFunctionCalls.setSelection( false );
         } );
