@@ -177,6 +177,7 @@ public class TestDialogInterceptor
     private static void registerDefaultIgnores()
     {
         ignoreAlways( DialogExpectation.withTitleContaining( "User Operation is Waiting" ) );
+		ignoreAlways( DialogExpectation.withTitleContaining( "Progress Information" ) );
     }
 
     private static void doInstall( Display display )
