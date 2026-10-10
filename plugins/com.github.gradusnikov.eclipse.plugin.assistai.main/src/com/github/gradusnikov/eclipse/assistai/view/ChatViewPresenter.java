@@ -355,6 +355,18 @@ public class ChatViewPresenter implements IResourceCacheListener
         } );
     }
 
+    public void showError( String message )
+    {
+        ChatMessage errorMessage = chatMessageFactory.createAssistantChatMessage(
+                "**Error:** " + message );
+        applyToView( view -> {
+            view.appendMessage( errorMessage.getId(), errorMessage.getRole() );
+            view.setMessageHtml( errorMessage.getId(), errorMessage.getContent() );
+            view.setInputEnabled( true );
+            view.setFocus();
+        } );
+    }
+
     public void onImageSelected( Image image )
     {
         System.out.println( "selected" );

@@ -396,6 +396,8 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
             String eventType = Optional.ofNullable( jsonNode.get( "type" ) )
                                        .map( JsonNode::asText )
                                        .orElse( "" );
+
+            throwIfFailedResponse( jsonNode );
             
             // this is a state machine
             // State 1: processing response created 
@@ -434,8 +436,51 @@ public class OpenAIResponsesJavaHttpClient extends AbstractLanguageModelClient
                 default -> state;
             };
             
+        } catch (OpenAIResponseException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error processing response event: " + data, e);
+        }
+    }
+
+    static void throwIfFailedResponse( JsonNode event )
+    {
+        if ( !"response.failed".equals( event.path( "type" ).asText() ) )
+        {
+            return;
+        }
+
+        JsonNode response = event.path( "response" );
+        JsonNode error = response.path( "error" );
+        String responseId = response.path( "id" ).asText( "" );
+        String code = error.path( "code" ).asText( "" );
+        String message = error.path( "message" ).asText( "OpenAI response failed." );
+
+        throw new OpenAIResponseException( responseId, code, message );
+    }
+
+    static final class OpenAIResponseException extends RuntimeException
+    {
+        private static final long serialVersionUID = 1L;
+
+        private final String responseId;
+        private final String code;
+
+        OpenAIResponseException( String responseId, String code, String message )
+        {
+            super( code == null || code.isBlank() ? message : message + " (" + code + ")" );
+            this.responseId = responseId;
+            this.code = code;
+        }
+
+        String responseId()
+        {
+            return responseId;
+        }
+
+        String code()
+        {
+            return code;
         }
     }
 

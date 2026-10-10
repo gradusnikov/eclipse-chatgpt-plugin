@@ -112,12 +112,27 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
     public void onError(Throwable throwable)
     {
         logger.error(throwable.getMessage(), throwable);
+        finishCurrentMessages();
+        subscription = null;
+
+        String message = throwable.getMessage();
+        if ( message == null || message.isBlank() )
+        {
+            message = throwable.getClass().getSimpleName();
+        }
+        presenter.showError( message );
     }
 
     @Override
     public void onComplete()
     {
         Objects.requireNonNull( presenter );
+        finishCurrentMessages();
+        subscription = null;
+    }
+
+    private void finishCurrentMessages()
+    {
         if ( Objects.nonNull(currentMessage))
         {
         	presenter.endMessageFromAssistant( currentMessage );
@@ -128,7 +143,6 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
         	presenter.endMessageFromAssistant( currentFunctionCallMessage );
         	currentFunctionCallMessage = null;
         }
-    	subscription = null;
     }
     
 
