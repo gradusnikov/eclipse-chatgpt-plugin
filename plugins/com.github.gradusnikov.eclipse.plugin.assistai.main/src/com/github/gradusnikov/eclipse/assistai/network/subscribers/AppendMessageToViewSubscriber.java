@@ -115,6 +115,11 @@ public class AppendMessageToViewSubscriber implements Flow.Subscriber<Incoming>
         finishCurrentMessages();
         subscription = null;
 
+        if ( throwable instanceof java.util.concurrent.CancellationException )
+        {
+            return;
+        }
+
         String message = throwable.getMessage();
         if ( message == null || message.isBlank() )
         {
