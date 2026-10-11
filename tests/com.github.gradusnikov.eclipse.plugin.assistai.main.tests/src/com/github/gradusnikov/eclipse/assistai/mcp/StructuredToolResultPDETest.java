@@ -125,12 +125,12 @@ public class StructuredToolResultPDETest
     }
 
     @Test
-    public void plainFormatOnlySendsTextContent()
+    public void plainFormatKeepsStructuredContentForInternalConsumers()
     {
         CallToolResult result = convert( StructuredToolResult.of( conflictingEdit(), TEXT ), ToolResponseFormat.PLAIN );
 
         assertEquals( TEXT, text( result ) );
-        assertNull( result.structuredContent() );
+        assertNotNull( result.structuredContent() );
     }
 
     @Test

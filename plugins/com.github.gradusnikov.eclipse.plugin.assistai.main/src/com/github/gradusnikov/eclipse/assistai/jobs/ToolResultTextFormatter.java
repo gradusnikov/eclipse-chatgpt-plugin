@@ -1,6 +1,8 @@
 package com.github.gradusnikov.eclipse.assistai.jobs;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.McpJson;
@@ -34,7 +36,8 @@ final class ToolResultTextFormatter
     {
         ToolResponseFormat selectedFormat = format == null ? ToolResponseFormat.PLAIN : format;
         String plain = plainText( result, cachedReference );
-        String json = result.structuredContent() == null ? "" : McpJson.toJson( result.structuredContent() );
+        Object structuredContent = cachedStructuredContent( result.structuredContent(), cachedReference );
+        String json = structuredContent == null ? "" : McpJson.toJson( structuredContent );
 
         String text = switch ( selectedFormat )
         {
@@ -44,6 +47,25 @@ final class ToolResultTextFormatter
         };
 
         return result.isError() ? "Error: " + text : text;
+    }
+
+    /**
+     * Replaces the large content of a cached resource without mutating the MCP result.
+     * The remaining metadata stays available to JSON consumers.
+     */
+    private static Object cachedStructuredContent( Object structuredContent, String cachedReference )
+    {
+        if ( cachedReference == null )
+        {
+            return structuredContent;
+        }
+        if ( structuredContent instanceof Map<?, ?> map )
+        {
+            Map<Object, Object> cached = new LinkedHashMap<>( map );
+            cached.put( "content", cachedReference );
+            return cached;
+        }
+        return Map.of( "cachedReference", cachedReference );
     }
 
     /**

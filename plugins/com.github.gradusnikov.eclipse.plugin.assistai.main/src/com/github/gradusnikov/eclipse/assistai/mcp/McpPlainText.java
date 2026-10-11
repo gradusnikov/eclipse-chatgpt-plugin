@@ -6,7 +6,7 @@ import java.util.Map;
 /**
  * Renders structured MCP data as complete, human-readable text rather than JSON.
  */
-final class McpPlainText
+public final class McpPlainText
 {
     /**
      * Prevents instantiation of this utility class.
@@ -22,7 +22,7 @@ final class McpPlainText
      *
      * @return The plain-text representation
      */
-    static String render( Map<String, Object> payload )
+    public static String render( Map<String, Object> payload )
     {
         StringBuilder text = new StringBuilder();
         Object summary = payload.get( "summaryText" );

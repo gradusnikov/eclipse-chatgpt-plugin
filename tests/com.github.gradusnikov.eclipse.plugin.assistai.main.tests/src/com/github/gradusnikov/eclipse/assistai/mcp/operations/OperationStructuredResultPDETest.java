@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.McpJson;
-import com.github.gradusnikov.eclipse.assistai.mcp.McpText;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpPlainText;
 import com.github.gradusnikov.eclipse.assistai.mcp.StructuredToolResult;
 import com.github.gradusnikov.eclipse.assistai.resources.EditResult;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceVersion;
@@ -93,7 +93,7 @@ public class OperationStructuredResultPDETest
 
         assertSame( edit, operation.getStructuredResult(),
                 "a record needs no wrapper to be carried forward" );
-        assertEquals( McpText.render( McpJson.toMap( edit ) ), operation.getResultText(),
+        assertEquals( McpPlainText.render( McpJson.toMap( edit ) ), operation.getResultText(),
                 "the text is the same rendering the immediate path emits" );
     }
 }

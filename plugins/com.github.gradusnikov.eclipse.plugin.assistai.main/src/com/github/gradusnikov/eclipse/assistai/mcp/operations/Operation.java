@@ -13,7 +13,7 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.McpJson;
-import com.github.gradusnikov.eclipse.assistai.mcp.McpText;
+import com.github.gradusnikov.eclipse.assistai.mcp.McpPlainText;
 import com.github.gradusnikov.eclipse.assistai.mcp.StructuredToolResult;
 
 /**
@@ -277,7 +277,7 @@ public class Operation
         }
         if ( result instanceof Record payload )
         {
-            return McpText.render( McpJson.toMap( payload ) );
+            return McpPlainText.render( McpJson.toMap( payload ) );
         }
         return Optional.ofNullable( result ).map( Object::toString ).orElse( "" );
     }
