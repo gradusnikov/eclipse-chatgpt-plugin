@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.results.Diagnostic;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.DiagnosticCode;
+import com.github.gradusnikov.eclipse.assistai.models.ToolResponseFormat;
 import com.github.gradusnikov.eclipse.assistai.resources.EditResult;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceVersion;
 
@@ -20,8 +21,8 @@ import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
 
 /**
- * End-to-end check that a structured tool result reaches the wire as both an object
- * and readable text.
+ * End-to-end check that a structured tool result reaches the wire in the selected
+ * response format.
  * <p>
  * This is the guarantee the whole structured-output change rests on: before it, every
  * non-String return value went through {@code toString()}, so a record arrived as
@@ -36,7 +37,12 @@ public class StructuredToolResultPDETest
     {
         // operationRegistry is only consulted for long-running tools, so this path
         // needs neither it nor a logger.
-        return new McpServerFactory( null, null ).createCallToolResult( toolReturnValue );
+        return new McpServerFactory( null, null, ToolResponseFormat.BOTH ).createCallToolResult( toolReturnValue );
+    }
+
+    private static CallToolResult convert( Object toolReturnValue, ToolResponseFormat responseFormat )
+    {
+        return new McpServerFactory( null, null, responseFormat ).createCallToolResult( toolReturnValue );
     }
 
     private static EditResult conflictingEdit()
@@ -116,6 +122,33 @@ public class StructuredToolResultPDETest
     {
         // A rejected edit is a normal outcome the caller acts on, not a protocol error.
         assertFalse( convert( StructuredToolResult.of( conflictingEdit(), TEXT ) ).isError() );
+    }
+
+    @Test
+    public void plainFormatOnlySendsTextContent()
+    {
+        CallToolResult result = convert( StructuredToolResult.of( conflictingEdit(), TEXT ), ToolResponseFormat.PLAIN );
+
+        assertEquals( TEXT, text( result ) );
+        assertNull( result.structuredContent() );
+    }
+
+    @Test
+    public void jsonFormatOnlySendsStructuredContent()
+    {
+        CallToolResult result = convert( StructuredToolResult.of( conflictingEdit(), TEXT ), ToolResponseFormat.JSON );
+
+        assertNotNull( result.structuredContent() );
+        assertTrue( result.content().isEmpty() );
+    }
+
+    @Test
+    public void bothFormatSendsTextAndStructuredContent()
+    {
+        CallToolResult result = convert( StructuredToolResult.of( conflictingEdit(), TEXT ), ToolResponseFormat.BOTH );
+
+        assertEquals( TEXT, text( result ) );
+        assertNotNull( result.structuredContent() );
     }
 
     // ---- unchanged behaviour for text tools ------------------------------

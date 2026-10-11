@@ -1,6 +1,7 @@
 package com.github.gradusnikov.eclipse.assistai.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -15,11 +16,22 @@ import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationRegistry;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.OperationStatusResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.EclipseIntegrationsMcpServer;
 import com.github.gradusnikov.eclipse.assistai.mcp.servers.PDEMcpServer;
+import com.github.gradusnikov.eclipse.assistai.models.ToolResponseFormat;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
 public class McpServerFactoryPDETest
 {
+    static final class StructuredTools
+    {
+        @com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool(
+                name = "structured", description = "Returns structured data.", outputType = OperationStatusResponse.class )
+        public OperationStatusResponse structured()
+        {
+            return null;
+        }
+    }
+
     @Test
     public void operationToolsUseAnnotationDrivenDiscoveryAndExecution() throws Exception
     {
@@ -88,5 +100,20 @@ public class McpServerFactoryPDETest
         McpSchema.CallToolResult original = McpSchema.CallToolResult.builder().addTextContent( "failure" ).isError( true ).build();
 
         assertSame( original, factory.createCallToolResult( original ) );
+    }
+
+    @Test
+    public void onlyBothAdvertisesAnOutputSchema()
+    {
+        McpServerFactory factory = new McpServerFactory( null, new OperationRegistry() );
+        var methods = StructuredTools.class.getDeclaredMethods();
+
+        var plain = factory.extractAnnotatedTools( ToolResponseFormat.PLAIN, methods ).get( 0 );
+        var json = factory.extractAnnotatedTools( ToolResponseFormat.JSON, methods ).get( 0 );
+        var both = factory.extractAnnotatedTools( ToolResponseFormat.BOTH, methods ).get( 0 );
+
+        assertNull( plain.outputSchema() );
+        assertNull( json.outputSchema(), "Otherwise the MCP SDK adds compatibility text to JSON-only responses." );
+        assertNotNull( both.outputSchema() );
     }
 }

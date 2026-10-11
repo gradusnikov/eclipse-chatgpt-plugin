@@ -16,10 +16,21 @@ public record ModelApiDescriptor(
          String modelName,
          int temperature,
          boolean vision,
-         boolean functionCalling
+         boolean functionCalling,
+         ToolResponseFormat toolResponseFormat
          ) {
    
     public static final int TEMPERATURE_NOT_SUPPORTED = -1;
+
+    /**
+     * Normalizes model definitions loaded from preferences that predate the
+     * response-format setting.
+     */
+    public ModelApiDescriptor
+    {
+        // Existing persisted model definitions predate this property.
+        toolResponseFormat = toolResponseFormat == null ? ToolResponseFormat.PLAIN : toolResponseFormat;
+    }
     
     public static ModelApiDescriptor copyWithUid( String uid, ModelApiDescriptor stub) {
         return new ModelApiDescriptor(
@@ -32,7 +43,8 @@ public record ModelApiDescriptor(
                     stub.modelName(),
                     stub.temperature(),
                     stub.vision(),
-                    stub.functionCalling()
+                    stub.functionCalling(),
+                    stub.toolResponseFormat()
                 );
     };
 

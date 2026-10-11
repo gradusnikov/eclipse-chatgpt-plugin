@@ -4,13 +4,16 @@ package com.github.gradusnikov.eclipse.assistai.jobs;
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.ILog;
+import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -24,12 +27,9 @@ import com.github.gradusnikov.eclipse.assistai.chat.ChatMessage;
 import com.github.gradusnikov.eclipse.assistai.chat.ConversationContext;
 import com.github.gradusnikov.eclipse.assistai.chat.FunctionCall;
 import com.github.gradusnikov.eclipse.assistai.mcp.local.InMemoryMcpClientRetistry;
+import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptorRepository;
+import com.github.gradusnikov.eclipse.assistai.models.ToolResponseFormat;
 import com.github.gradusnikov.eclipse.assistai.resources.CachedResource;
-import org.eclipse.core.resources.IFile;
-import org.eclipse.core.resources.IProject;
-import org.eclipse.core.resources.ResourcesPlugin;
-import org.eclipse.core.runtime.IPath;
-
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceCache;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceDescriptor;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceReadResult;
@@ -59,6 +59,9 @@ public class ExecuteFunctionCallJob extends Job
 
     @Inject
     private ResourceCache             resourceCache;
+
+    @Inject
+    private ModelApiDescriptorRepository modelApiDescriptorRepository;
 
     private FunctionCall              functionCall;
 
@@ -199,36 +202,27 @@ public class ExecuteFunctionCallJob extends Job
     {
         ChatMessage resultMessage = new ChatMessage( UUID.randomUUID().toString(), functionCall.name(), "function" );
 
-        StringBuilder textContent = new StringBuilder();
         List<Attachment> attachments = new ArrayList<Attachment>();
-        if ( result.isError() )
-        {
-            textContent.append( "Error: " );
-        }
+
         // A structured read is recognised from structuredContent, and only from there.
-        // The __resourceCache__ envelope this used to sniff out of the tool's text is
-        // gone along with ResourceToolResult, so there is one recognition path rather
-        // than two that could disagree about what a read is.
         String cachedReference = cacheStructuredRead( result.structuredContent() );
 
-        var contentParts = Optional.ofNullable( result.content() ).orElse( Collections.emptyList() );
-        for ( McpSchema.Content content : contentParts )
+        for ( McpSchema.Content content : Optional.ofNullable( result.content() ).orElse( List.of() ) )
         {
-            switch ( content.type() )
+            if ( content instanceof McpSchema.ImageContent imageContent )
             {
-                case "text" -> {
-                    String text = ( (McpSchema.TextContent) content ).text();
-                    // Sending the content again would double the tokens the caching
-                    // exists to save.
-                    textContent.append( cachedReference != null ? cachedReference : text ).append( "\n" );
-                }
-                case "image" -> attachments.add( createImageAttachment( (McpSchema.ImageContent) content ) );
-                default -> logger.error( "Unsupported result content type: " + content.type() );
-
+                attachments.add( createImageAttachment( imageContent ) );
+            }
+            else if ( !( content instanceof McpSchema.TextContent ) )
+            {
+                logger.error( "Unsupported result content type: " + content.type() );
             }
         }
+
+        var model = modelApiDescriptorRepository.getChatModelInUse();
+        ToolResponseFormat responseFormat = model == null ? ToolResponseFormat.PLAIN : model.toolResponseFormat();
         resultMessage.setAttachments( attachments );
-        resultMessage.setContent( textContent.toString() );
+        resultMessage.setContent( ToolResultTextFormatter.format( result, responseFormat, cachedReference ) );
         resultMessage.setFunctionCall( functionCall );
 
         return resultMessage;
