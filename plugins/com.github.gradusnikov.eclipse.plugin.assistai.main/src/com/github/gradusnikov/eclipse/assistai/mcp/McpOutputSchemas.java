@@ -20,10 +20,11 @@ import java.util.Optional;
  * - which is the whole reason structured results exist. Writing those schemas by hand
  * beside the records they describe would guarantee they drift apart.
  * <p>
- * A field that can be absent is advertised as admitting null. Getting that wrong is not
- * cosmetic - a strict client validates the payload against this schema and discards a
- * response that violates it, so a bare type made every tool with an absent optional
- * field return nothing at all.
+ * A field whose Java value can be {@code null} is advertised as nullable. Nullability
+ * is independent of optionality: omitting a property is not the same contract as
+ * returning that property with a null value. Getting this wrong is not cosmetic - a
+ * strict client validates the payload against this schema and discards a response that
+ * violates it.
  * <p>
  * Three groups, by what the codebase actually does rather than by what Java permits:
  * <ul>
@@ -70,10 +71,9 @@ public final class McpOutputSchemas
         Map<String, Object> schema = describe( type, new ArrayDeque<>(), 0 );
 
         // MCP structuredContent is a JSON object, so a payload that is not one has to
-        // be wrapped rather than advertised as a bare array or scalar. The declared type
-        // may be either "object" or ["object","null"], so membership is the test rather
-        // than equality.
-        if ( !describesAnObject( schema ) )
+        // be wrapped rather than advertised as a bare array or scalar.
+        Map<String, Object> objectBranch = branchWithType( schema, "object" );
+        if ( objectBranch == null )
         {
             Map<String, Object> wrapper = new LinkedHashMap<>();
             wrapper.put( "type", "object" );
@@ -85,15 +85,31 @@ public final class McpOutputSchemas
         // be: a tool either sends structuredContent or omits it, so "sometimes null"
         // has no meaning here and would only invite a client to handle a case that
         // cannot arise.
-        schema.put( "type", "object" );
-        return schema;
+        return new LinkedHashMap<>( objectBranch );
     }
 
-    /** Whether a schema's declared type includes {@code object}, boxed or not. */
-    private static boolean describesAnObject( Map<String, Object> schema )
+    /**
+     * Finds the direct schema or {@code anyOf} branch for a single JSON type.
+     */
+    @SuppressWarnings( "unchecked" )
+    private static Map<String, Object> branchWithType( Map<String, Object> schema, String jsonType )
     {
-        Object declared = schema.get( "type" );
-        return declared instanceof Collection<?> types ? types.contains( "object" ) : "object".equals( declared );
+        if ( jsonType.equals( schema.get( "type" ) ) )
+        {
+            return schema;
+        }
+        Object alternatives = schema.get( "anyOf" );
+        if ( alternatives instanceof Collection<?> branches )
+        {
+            for ( Object branch : branches )
+            {
+                if ( branch instanceof Map<?, ?> candidate && jsonType.equals( candidate.get( "type" ) ) )
+                {
+                    return (Map<String, Object>) candidate;
+                }
+            }
+        }
+        return null;
     }
 
     private static Map<String, Object> describe( Type type, Deque<Class<?>> inProgress, int depth )
@@ -150,18 +166,15 @@ public final class McpOutputSchemas
         }
         if ( raw.isEnum() )
         {
-            Map<String, Object> schema = typeSchema( "string", true );
+            Map<String, Object> schema = new LinkedHashMap<>();
+            schema.put( "type", "string" );
             List<String> constants = new ArrayList<>();
             for ( Object constant : raw.getEnumConstants() )
             {
                 constants.add( ( (Enum<?>) constant ).name() );
             }
-            // null is listed alongside the constants because "enum" is checked
-            // independently of "type": permitting null in one and omitting it from the
-            // other rejects exactly the values the type says are allowed.
-            constants.add( null );
             schema.put( "enum", constants );
-            return schema;
+            return nullableSchema( schema );
         }
         if ( raw.isArray() )
         {
@@ -194,9 +207,9 @@ public final class McpOutputSchemas
                             describe( component.getGenericType(), inProgress, depth + 1 ) );
                 }
                 Map<String, Object> schema = new LinkedHashMap<>();
-                schema.put( "type", nullableType( "object" ) );
+                schema.put( "type", "object" );
                 schema.put( "properties", properties );
-                return schema;
+                return nullableSchema( schema );
             }
             finally
             {
@@ -219,15 +232,20 @@ public final class McpOutputSchemas
     private static Map<String, Object> typeSchema( String jsonType, boolean nullable )
     {
         Map<String, Object> schema = new LinkedHashMap<>();
-        schema.put( "type", nullable ? nullableType( jsonType ) : jsonType );
-        return schema;
+        schema.put( "type", jsonType );
+        return nullable ? nullableSchema( schema ) : schema;
     }
 
     /**
-     * A type that also admits null. See the class javadoc for which types get one.
+     * Wraps a non-null schema in portable {@code anyOf} branches. Although JSON Schema
+     * permits {@code "type": ["object", "null"]}, several MCP clients only accept a
+     * string-valued {@code type} and otherwise reject the tool or ignore the constraint.
      */
-    private static List<Object> nullableType( String jsonType )
+    private static Map<String, Object> nullableSchema( Map<String, Object> nonNullSchema )
     {
-        return List.of( jsonType, "null" );
+        Map<String, Object> nullSchema = Map.of( "type", "null" );
+        Map<String, Object> nullableSchema = new LinkedHashMap<>();
+        nullableSchema.put( "anyOf", List.of( nonNullSchema, nullSchema ) );
+        return nullableSchema;
     }
 }

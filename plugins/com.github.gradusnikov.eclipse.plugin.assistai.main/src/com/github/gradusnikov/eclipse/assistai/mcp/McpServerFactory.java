@@ -289,7 +289,9 @@ public class McpServerFactory
      * @param text              The plain-text result payload
      * @param responseFormat    The representation to include
      */
-    private void addStructuredResult( McpSchema.CallToolResult.Builder builder, Map<String, Object> structuredContent, String text,
+    private void addStructuredResult( McpSchema.CallToolResult.Builder builder,
+            Map<String, Object> structuredContent,
+            String text,
             ToolResponseFormat responseFormat )
     {
     	// PLAIN & BOTH
