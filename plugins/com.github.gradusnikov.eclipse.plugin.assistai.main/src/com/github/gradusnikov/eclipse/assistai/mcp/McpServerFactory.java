@@ -268,8 +268,8 @@ public class McpServerFactory
         else if ( result instanceof Record payload )
         {
             // When text is requested it is rendered rather than escaped: a multi-line
-            // string is fenced instead of collapsed into one line of \n. McpText is
-            // applied to the same map used for structuredContent, so Both cannot
+            // string is fenced instead of collapsed into one line of \n. McpPlainText
+            // is applied to the same map used for structuredContent, so Both cannot
             // describe two different outcomes.
             Map<String, Object> content = McpJson.toMap( payload );
             addStructuredResult( builder, content, McpPlainText.render( content ), responseFormat );
@@ -289,7 +289,9 @@ public class McpServerFactory
      * @param text              The plain-text result payload
      * @param responseFormat    The representation to include
      */
-    private void addStructuredResult( McpSchema.CallToolResult.Builder builder, Map<String, Object> structuredContent, String text,
+    private void addStructuredResult( McpSchema.CallToolResult.Builder builder,
+            Map<String, Object> structuredContent,
+            String text,
             ToolResponseFormat responseFormat )
     {
     	// PLAIN & BOTH
@@ -297,11 +299,10 @@ public class McpServerFactory
         {
             builder.addContent( createTextContent( text ) );
         }
-        // JSON & BOTH
-        if ( responseFormat != ToolResponseFormat.PLAIN )
-        {
-            builder.structuredContent( structuredContent );
-        }
+        // Keep the canonical payload available for in-process consumers such as the
+        // resource cache. ToolResultTextFormatter controls what enters the model
+        // conversation, so retaining it here does not duplicate conversation tokens.
+        builder.structuredContent( structuredContent );
     }
 
     /**

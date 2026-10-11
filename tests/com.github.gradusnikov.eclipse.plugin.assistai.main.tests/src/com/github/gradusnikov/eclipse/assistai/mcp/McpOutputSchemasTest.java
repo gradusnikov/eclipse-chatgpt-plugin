@@ -6,7 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -52,16 +53,66 @@ public class McpOutputSchemasTest
     {
     }
 
-    @SuppressWarnings( "unchecked" )
     private static Map<String, Object> properties( Map<String, Object> schema )
     {
-        return (Map<String, Object>) schema.get( "properties" );
+        return schemaValue( branchWithType( schema, "object" ), "properties" );
     }
 
-    @SuppressWarnings( "unchecked" )
     private static Map<String, Object> property( Map<String, Object> schema, String name )
     {
-        return (Map<String, Object>) properties( schema ).get( name );
+        return schemaValue( properties( schema ), name );
+    }
+
+    private static Map<String, Object> schemaValue( Map<String, Object> schema, String name )
+    {
+        return schema( schema.get( name ) );
+    }
+
+    private static List<String> stringValues( Map<String, Object> schema, String name )
+    {
+        return ( (Collection<?>) schema.get( name ) ).stream().map( String::valueOf ).toList();
+    }
+
+    private static Map<String, Object> branchWithType( Map<String, Object> schema, String jsonType )
+    {
+        if ( jsonType.equals( schema.get( "type" ) ) )
+        {
+            return schema;
+        }
+        return ( (Collection<?>) schema.get( "anyOf" ) ).stream()
+                .map( McpOutputSchemasTest::schema )
+                .filter( branch -> jsonType.equals( branch.get( "type" ) ) )
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static List<Object> alternativeTypes( Map<String, Object> schema )
+    {
+        return ( (Collection<?>) schema.get( "anyOf" ) ).stream()
+                .map( McpOutputSchemasTest::schema )
+                .map( branch -> branch.get( "type" ) )
+                .toList();
+    }
+
+    private static Map<String, Object> schema( Object value )
+    {
+        Map<String, Object> result = new LinkedHashMap<>();
+        ( (Map<?, ?>) value ).forEach( ( key, entryValue ) -> result.put( String.valueOf( key ), entryValue ) );
+        return result;
+    }
+
+    private static void assertOnlyStringValuedTypes( Object node )
+    {
+        if ( node instanceof Map<?, ?> map )
+        {
+            Object type = map.get( "type" );
+            assertTrue( type == null || type instanceof String, () -> "Non-portable type declaration: " + type );
+            map.values().forEach( McpOutputSchemasTest::assertOnlyStringValuedTypes );
+        }
+        else if ( node instanceof Collection<?> collection )
+        {
+            collection.forEach( McpOutputSchemasTest::assertOnlyStringValuedTypes );
+        }
     }
 
     // ---- types that carry no structure -----------------------------------
@@ -90,7 +141,7 @@ public class McpOutputSchemasTest
         Map<String, Object> schema = McpOutputSchemas.forType( Leaf.class );
 
         assertEquals( "object", schema.get( "type" ) );
-        assertEquals( NULLABLE_STRING, property( schema, "name" ).get( "type" ) );
+        assertEquals( NULLABLE_STRING, alternativeTypes( property( schema, "name" ) ) );
         assertEquals( "integer", property( schema, "count" ).get( "type" ) );
     }
 
@@ -108,8 +159,8 @@ public class McpOutputSchemasTest
         Map<String, Object> schema = McpOutputSchemas.forType( Branch.class );
         Map<String, Object> leaf = property( schema, "leaf" );
 
-        assertEquals( NULLABLE_OBJECT, leaf.get( "type" ) );
-        assertEquals( NULLABLE_STRING, ( (Map<String, Object>) properties( leaf ).get( "name" ) ).get( "type" ) );
+        assertEquals( NULLABLE_OBJECT, alternativeTypes( leaf ) );
+        assertEquals( NULLABLE_STRING, alternativeTypes( property( leaf, "name" ) ) );
     }
 
     @Test
@@ -118,9 +169,9 @@ public class McpOutputSchemasTest
         Map<String, Object> leaves = property( McpOutputSchemas.forType( Branch.class ), "leaves" );
 
         assertEquals( "array", leaves.get( "type" ) );
-        Map<String, Object> items = (Map<String, Object>) leaves.get( "items" );
-        assertEquals( NULLABLE_OBJECT, items.get( "type" ) );
-        assertTrue( ( (Map<String, Object>) items.get( "properties" ) ).containsKey( "count" ) );
+        Map<String, Object> items = schemaValue( leaves, "items" );
+        assertEquals( NULLABLE_OBJECT, alternativeTypes( items ) );
+        assertTrue( properties( items ).containsKey( "count" ) );
     }
 
     @Test
@@ -128,11 +179,8 @@ public class McpOutputSchemasTest
     {
         Map<String, Object> colour = property( McpOutputSchemas.forType( Branch.class ), "colour" );
 
-        assertEquals( NULLABLE_STRING, colour.get( "type" ) );
-        // null belongs among the constants too. A validator checks "enum" independently
-        // of "type", so a nullable enum whose constant list omits null rejects exactly
-        // the value the type says is allowed.
-        assertEquals( Arrays.asList( "RED", "GREEN", null ), colour.get( "enum" ) );
+        assertEquals( NULLABLE_STRING, alternativeTypes( colour ) );
+        assertEquals( List.of( "RED", "GREEN" ), branchWithType( colour, "string" ).get( "enum" ) );
     }
 
     @Test
@@ -151,7 +199,7 @@ public class McpOutputSchemasTest
         Map<String, Object> schema = McpOutputSchemas.forType( SelfReferencing.class );
 
         assertEquals( "object", schema.get( "type" ) );
-        assertEquals( NULLABLE_OBJECT, property( schema, "child" ).get( "type" ) );
+        assertEquals( NULLABLE_OBJECT, alternativeTypes( property( schema, "child" ) ) );
     }
 
     // ---- the shape actually shipped --------------------------------------
@@ -178,7 +226,7 @@ public class McpOutputSchemasTest
     {
         Map<String, Object> status = property( McpOutputSchemas.forType( EditResult.class ), "status" );
 
-        List<String> values = (List<String>) status.get( "enum" );
+        List<String> values = stringValues( branchWithType( status, "string" ), "enum" );
         assertTrue( values.contains( "APPLIED" ), values.toString() );
         assertTrue( values.contains( "REJECTED" ), values.toString() );
         assertTrue( values.contains( "PREVIEW" ), values.toString() );
@@ -191,7 +239,7 @@ public class McpOutputSchemasTest
                 property( McpOutputSchemas.forType( EditResult.class ), "versionAfter" );
 
         assertEquals( NULLABLE_INTEGER,
-                ( (Map<String, Object>) properties( versionAfter ).get( "modificationStamp" ) ).get( "type" ) );
+                alternativeTypes( property( versionAfter, "modificationStamp" ) ) );
     }
 
     @Test
@@ -201,9 +249,9 @@ public class McpOutputSchemasTest
                 property( McpOutputSchemas.forType( EditResult.class ), "diagnostics" );
 
         assertEquals( "array", diagnostics.get( "type" ) );
-        Map<String, Object> item = (Map<String, Object>) diagnostics.get( "items" );
-        Map<String, Object> code = (Map<String, Object>) properties( item ).get( "code" );
-        assertTrue( ( (List<String>) code.get( "enum" ) ).contains( "VERSION_CONFLICT" ) );
+        Map<String, Object> item = schemaValue( diagnostics, "items" );
+        Map<String, Object> code = property( item, "code" );
+        assertTrue( stringValues( branchWithType( code, "string" ), "enum" ).contains( "VERSION_CONFLICT" ) );
     }
 
     @Test
@@ -212,5 +260,12 @@ public class McpOutputSchemasTest
         // Optional sections are routinely null; declaring them required would make a
         // validating client reject responses that are perfectly correct.
         assertFalse( McpOutputSchemas.forType( EditResult.class ).containsKey( "required" ) );
+    }
+
+    @Test
+    public void alwaysUsesAStringValuedTypeForMcpClientCompatibility()
+    {
+        assertOnlyStringValuedTypes( McpOutputSchemas.forType( Branch.class ) );
+        assertOnlyStringValuedTypes( McpOutputSchemas.forType( EditResult.class ) );
     }
 }

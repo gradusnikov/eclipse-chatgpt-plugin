@@ -1,6 +1,7 @@
 package com.github.gradusnikov.eclipse.assistai.jobs;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
@@ -53,5 +54,36 @@ public class ToolResultTextFormatterPDETest
 
         assertEquals( "plain only",
                 ToolResultTextFormatter.format( plainOnly, ToolResponseFormat.JSON, null ) );
+    }
+
+    @Test
+    public void cachedContentIsReplacedInEveryFormat()
+    {
+        String fileContent = "large file content that must not be repeated";
+        String cachedReference = "[Resource cached: workspace:///Demo/File.java]";
+        CallToolResult cached = CallToolResult.builder()
+                .addTextContent( fileContent )
+                .structuredContent( Map.of( "filePath", "File.java", "content", fileContent ) )
+                .isError( false )
+                .build();
+
+        for ( ToolResponseFormat format : ToolResponseFormat.values() )
+        {
+            String formatted = ToolResultTextFormatter.format( cached, format, cachedReference );
+
+            assertTrue( formatted.contains( cachedReference ), format.name() );
+            assertFalse( formatted.contains( fileContent ), format.name() );
+        }
+    }
+
+    @Test
+    public void cachedJsonKeepsStructuredMetadata()
+    {
+        String cachedReference = "[Resource cached: workspace:///Demo/File.java]";
+
+        String formatted = ToolResultTextFormatter.format( result, ToolResponseFormat.JSON, cachedReference );
+
+        assertTrue( formatted.contains( "\"value\" : 42" ) );
+        assertTrue( formatted.contains( "\"content\" : \"[Resource cached:" ) );
     }
 }
