@@ -24,6 +24,9 @@ import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
 import com.github.gradusnikov.eclipse.assistai.mcp.operations.Operation;
 import com.github.gradusnikov.eclipse.assistai.mcp.operations.OperationRegistry;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.OperationStatusResponse;
+import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptorRepository;
+import com.github.gradusnikov.eclipse.assistai.models.ToolResponseFormat;
 
 import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapperSupplier;
 import io.modelcontextprotocol.json.schema.JsonSchemaValidator;
@@ -45,11 +48,50 @@ public class McpServerFactory
 
     private final OperationRegistry operationRegistry;
 
+    private final ModelApiDescriptorRepository modelApiDescriptorRepository;
+
+    private final ToolResponseFormat fallbackResponseFormat;
+
+    /**
+     * Creates a factory that obtains the response format from the active model.
+     *
+     * @param logger                       The plug-in logger
+     * @param operationRegistry            The registry for long-running operations
+     * @param modelApiDescriptorRepository The repository containing the active model configuration
+     */
     @Inject
-    public McpServerFactory( ILog logger, OperationRegistry operationRegistry )
+    public McpServerFactory( ILog logger, OperationRegistry operationRegistry, ModelApiDescriptorRepository modelApiDescriptorRepository )
     {
         this.logger = logger;
         this.operationRegistry = operationRegistry;
+        this.modelApiDescriptorRepository = modelApiDescriptorRepository;
+        this.fallbackResponseFormat = ToolResponseFormat.PLAIN;
+    }
+
+    /**
+     * Creates a factory with plain-text responses as its fallback format.
+     *
+     * @param logger            The plug-in logger
+     * @param operationRegistry The registry for long-running operations
+     */
+    public McpServerFactory( ILog logger, OperationRegistry operationRegistry )
+    {
+        this( logger, operationRegistry, ToolResponseFormat.PLAIN );
+    }
+
+    /**
+     * Creates a factory with a fixed response format, primarily for tests.
+     *
+     * @param logger            The plug-in logger
+     * @param operationRegistry The registry for long-running operations
+     * @param responseFormat    The response format to use
+     */
+    McpServerFactory( ILog logger, OperationRegistry operationRegistry, ToolResponseFormat responseFormat )
+    {
+        this.logger = logger;
+        this.operationRegistry = operationRegistry;
+        this.modelApiDescriptorRepository = null;
+        this.fallbackResponseFormat = responseFormat == null ? ToolResponseFormat.PLAIN : responseFormat;
     }
 
     private McpSchema.Implementation createImplementationInfo( Object serverImplementation )
@@ -64,12 +106,19 @@ public class McpServerFactory
 
     public String getVersionNumber()
     {
-        return Optional.ofNullable( FrameworkUtil.getBundle( McpServerFactory.class ) ).map( Bundle::getVersion ).map( Object::toString ).orElse( "1.0.0" );
+        return Optional.ofNullable( FrameworkUtil.getBundle( McpServerFactory.class ) )
+        		.map( Bundle::getVersion )
+        		.map( Object::toString )
+        		.orElse( "1.0.0" );
     }
 
     private McpSchema.ServerCapabilities createCapabilities()
     {
-        McpSchema.ServerCapabilities capabilities = McpSchema.ServerCapabilities.builder().logging().prompts( false ).resources( false, false ).tools( true )
+        McpSchema.ServerCapabilities capabilities = McpSchema.ServerCapabilities.builder()
+        		.logging()
+        		.prompts( false )
+        		.resources( false, false )
+        		.tools( true )
                 .build();
         return capabilities;
     }
@@ -77,15 +126,14 @@ public class McpServerFactory
     /**
      * Executes a tool call with the provided arguments.
      * 
-     * @param executor
-     *            The tool executor
-     * @param tool
-     *            The tool definition
-     * @param args
-     *            The arguments for the tool call
+     * @param executor       The tool executor
+     * @param tool           The tool definition
+     * @param args           The arguments for the tool call
+     * @param responseFormat The representation to include in the result
+     *
      * @return The result of the tool call
      */
-    private CallToolResult executeCallTool( ToolExecutor executor, McpSchema.Tool tool, Map<String, Object> args )
+    private CallToolResult executeCallTool( ToolExecutor executor, McpSchema.Tool tool, Map<String, Object> args, ToolResponseFormat responseFormat )
     {
         try
         {
@@ -94,10 +142,10 @@ public class McpServerFactory
             boolean longExecution = annotation.map( com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool::longExecution ).orElse( Boolean.FALSE );
             if ( longExecution )
             {
-                return executeLongTool( executor, tool, args, annotation.get() );
+                return executeLongTool( executor, tool, args, annotation.get(), responseFormat );
             }
             var result = executor.call( tool.name(), args ).get();
-            return createCallToolResult( result );
+            return createCallToolResult( result, responseFormat );
         }
         catch ( Exception e )
         {
@@ -115,16 +163,24 @@ public class McpServerFactory
      * which is the whole difference from the old behaviour, where a slow tool
      * was abandoned by the client while still running invisibly, and its result
      * was thrown away.
+     *
+     * @param executor       The tool executor
+     * @param tool           The tool definition
+     * @param args           The arguments for the tool call
+     * @param annotation     The annotation defining the long-running behavior
+     * @param responseFormat The representation to include in the result
+     *
+     * @return The inline result or an operation hand-off
      */
     private CallToolResult executeLongTool( ToolExecutor executor, McpSchema.Tool tool, Map<String, Object> args,
-            com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool annotation )
+            com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool annotation, ToolResponseFormat responseFormat )
     {
         Operation operation = operationRegistry.register( tool.name(), describeArguments( args ) );
         var future = executor.call( tool.name(), args, operation );
         operationRegistry.attachFuture( operation, future );
 
         int inlineWait = resolveInlineWait( args, annotation );
-        return createCallToolResult( operationRegistry.awaitOrHandOff( operation, inlineWait ) );
+        return createCallToolResult( operationRegistry.awaitOrHandOff( operation, inlineWait ), responseFormat );
     }
 
     /**
@@ -164,8 +220,10 @@ public class McpServerFactory
         {
             return "";
         }
-        String description = args.entrySet().stream().filter( entry -> entry.getValue() != null && !String.valueOf( entry.getValue() ).isBlank() )
-                .map( entry -> entry.getKey() + "=" + String.valueOf( entry.getValue() ) ).collect( Collectors.joining( ", " ) );
+        String description = args.entrySet().stream()
+        		.filter( entry -> entry.getValue() != null && !String.valueOf( entry.getValue() ).isBlank() )
+                .map( entry -> entry.getKey() + "=" + String.valueOf( entry.getValue() ) )
+                .collect( Collectors.joining( ", " ) );
         return description.length() > 120 ? description.substring( 0, 117 ) + "..." : description;
     }
 
@@ -175,11 +233,24 @@ public class McpServerFactory
      * conversion. Collections allow a tool to return mixed text, image and
      * resource content in a stable order.
      *
-     * @param result
-     *            The result object from tool execution
+     * @param result The result object from tool execution
+     *
      * @return A content-aware MCP tool result
      */
     CallToolResult createCallToolResult( Object result )
+    {
+        return createCallToolResult( result, currentResponseFormat() );
+    }
+
+    /**
+     * Adapts a Java return value to the requested MCP result representation.
+     *
+     * @param result         The result object from tool execution
+     * @param responseFormat The representation to include in the result
+     *
+     * @return The content-aware MCP tool result
+     */
+    private CallToolResult createCallToolResult( Object result, ToolResponseFormat responseFormat )
     {
         if ( result instanceof CallToolResult callToolResult )
         {
@@ -192,27 +263,60 @@ public class McpServerFactory
         {
             // A tool only wraps its payload when the text has to say something the
             // payload does not - paged console output, say.
-            builder.structuredContent( McpJson.toMap( structured.data() ) );
-            builder.addContent( createTextContent( structured.text() ) );
-            return builder.build();
-        }
-
-        if ( result instanceof Record payload )
+            addStructuredResult( builder, McpJson.toMap( structured.data() ), structured.text(), responseFormat );
+        } 
+        else if ( result instanceof Record payload )
         {
-            // The text block carries the same data, per the MCP specification's
-            // backwards-compatibility guidance, but rendered rather than escaped: a
-            // multi-line string is fenced instead of collapsed into one line of \n.
-            // There is still no second, hand-written rendering - McpText is one rule
-            // over whatever the record holds, applied to the very map being sent as
-            // structuredContent, so the two cannot describe different outcomes.
+            // When text is requested it is rendered rather than escaped: a multi-line
+            // string is fenced instead of collapsed into one line of \n. McpText is
+            // applied to the same map used for structuredContent, so Both cannot
+            // describe two different outcomes.
             Map<String, Object> content = McpJson.toMap( payload );
-            builder.structuredContent( content );
-            builder.addContent( createTextContent( McpText.render( content ) ) );
-            return builder.build();
+            addStructuredResult( builder, content, McpPlainText.render( content ), responseFormat );
+        } 
+        else {        	
+        	addResultContent( builder, result );
         }
 
-        addResultContent( builder, result );
         return builder.build();
+    }
+
+    /**
+     * Adds plain text, structured JSON, or both representations to a result builder.
+     *
+     * @param builder           The result builder to update
+     * @param structuredContent The structured result payload
+     * @param text              The plain-text result payload
+     * @param responseFormat    The representation to include
+     */
+    private void addStructuredResult( McpSchema.CallToolResult.Builder builder, Map<String, Object> structuredContent, String text,
+            ToolResponseFormat responseFormat )
+    {
+    	// PLAIN & BOTH
+        if ( responseFormat != ToolResponseFormat.JSON )
+        {
+            builder.addContent( createTextContent( text ) );
+        }
+        // JSON & BOTH
+        if ( responseFormat != ToolResponseFormat.PLAIN )
+        {
+            builder.structuredContent( structuredContent );
+        }
+    }
+
+    /**
+     * Resolves the response format configured for the active model.
+     *
+     * @return The active model's format, or the configured fallback
+     */
+    private ToolResponseFormat currentResponseFormat()
+    {
+        if ( modelApiDescriptorRepository == null )
+        {
+            return fallbackResponseFormat;
+        }
+        ModelApiDescriptor model = modelApiDescriptorRepository.getChatModelInUse();
+        return model == null ? fallbackResponseFormat : model.toolResponseFormat();
     }
 
     private void addResultContent( McpSchema.CallToolResult.Builder builder, Object result )
@@ -228,7 +332,8 @@ public class McpServerFactory
 
     private McpSchema.TextContent createTextContent( String text )
     {
-        return McpSchema.TextContent.builder( text ).annotations( McpSchema.Annotations.builder().audience( List.of( McpSchema.Role.ASSISTANT ) ).build() )
+        return McpSchema.TextContent.builder( text )
+        		.annotations( McpSchema.Annotations.builder().audience( List.of( McpSchema.Role.ASSISTANT ) ).build() )
                 .build();
     }
 
@@ -246,11 +351,12 @@ public class McpServerFactory
      * This method processes the annotations on methods and their parameters to
      * create MCP tool definitions that can be registered with an MCP server.
      * 
-     * @param methods
-     *            The methods to extract tool definitions from
+     * @param responseFormat The representation advertised and returned by the tools
+     * @param methods        The methods to extract tool definitions from
+     *
      * @return List of tool definitions
      */
-    private List<McpSchema.Tool> extractAnnotatedTools( Method... methods )
+    List<McpSchema.Tool> extractAnnotatedTools( ToolResponseFormat responseFormat, Method... methods )
     {
         var tools = new ArrayList<McpSchema.Tool>();
 
@@ -284,10 +390,12 @@ public class McpServerFactory
                 var toolBuilder = McpSchema.Tool.builder( toolAnnotation.name(), schema ).title( toolAnnotation.name() )
                         .description( describeTool( toolAnnotation ) );
 
-                // Only advertised when the tool declares a payload type: a schema on a
-                // tool that returns prose would promise structure that never arrives.
+                // The MCP SDK automatically adds serialized structuredContent as text
+                // whenever outputSchema is present and content is empty. Therefore JSON
+                // deliberately omits the schema so it remains JSON-only on the wire.
+                // Both advertises the schema and already supplies explicit text.
                 Map<String, Object> outputSchema = McpOutputSchemas.forType( toolAnnotation.outputType() );
-                if ( outputSchema != null )
+                if ( outputSchema != null && responseFormat == ToolResponseFormat.BOTH )
                 {
                     toolBuilder.outputSchema( outputSchema );
                 }
@@ -318,10 +426,15 @@ public class McpServerFactory
      * Adds the shared operation tools to any server that declares a long
      * execution tool. The handler uses the same annotation-driven discovery and
      * schema generation as regular MCP server tools.
+     *
+     * @param prefix         The optional tool-name prefix
+     * @param responseFormat The representation returned by the operation tools
+     *
+     * @return The shared operation tool specifications
      */
-    private List<SyncToolSpecification> createOperationToolSpecifications( String prefix )
+    private List<SyncToolSpecification> createOperationToolSpecifications( String prefix, ToolResponseFormat responseFormat )
     {
-        return createToolSpecifications( new OperationTools( operationRegistry ), Collections.emptySet(), prefix );
+        return createToolSpecifications( new OperationTools( operationRegistry ), Collections.emptySet(), prefix, responseFormat );
     }
 
     static final class OperationTools
@@ -484,10 +597,26 @@ public class McpServerFactory
 
     private List<SyncToolSpecification> createToolSpecifications( Object serverImplementation, Collection<String> excludedTools, String toolPrefix )
     {
+        return createToolSpecifications( serverImplementation, excludedTools, toolPrefix, currentResponseFormat() );
+    }
+
+    /**
+     * Creates MCP tool specifications using a fixed response representation.
+     *
+     * @param serverImplementation The object containing annotated tool methods
+     * @param excludedTools        Tool names that must not be registered
+     * @param toolPrefix           The optional prefix added to registered tool names
+     * @param responseFormat       The representation returned by the registered handlers
+     *
+     * @return The tool specifications to register with the server
+     */
+    private List<SyncToolSpecification> createToolSpecifications( Object serverImplementation, Collection<String> excludedTools, String toolPrefix,
+            ToolResponseFormat responseFormat )
+    {
         var excluded = Set.copyOf( excludedTools );
         var prefix = ( toolPrefix != null && !toolPrefix.isBlank() ) ? toolPrefix : "";
         var executor = new ToolExecutor( serverImplementation );
-        var tools = extractAnnotatedTools( executor.getFunctions() );
+        var tools = extractAnnotatedTools( responseFormat, executor.getFunctions() );
         if ( tools.isEmpty() )
         {
             logger.warn( "No tools found in " + serverImplementation.getClass() );
@@ -497,7 +626,7 @@ public class McpServerFactory
                     : McpSchema.Tool.builder( prefix + tool.name(), tool.inputSchema() ).title( prefix + tool.name() ).description( tool.description() )
                             .outputSchema( tool.outputSchema() ).annotations( tool.annotations() ).meta( tool.meta() ).build();
             return McpServerFeatures.SyncToolSpecification.builder().tool( prefixedTool )
-                    .callHandler( ( exchange, request ) -> executeCallTool( executor, tool, request.arguments() ) ).build();
+                    .callHandler( ( exchange, request ) -> executeCallTool( executor, tool, request.arguments(), responseFormat ) ).build();
         } ).collect( Collectors.toList() );
 
         boolean hasLongExecutionTool = Arrays.stream( executor.getFunctions() )
@@ -506,7 +635,8 @@ public class McpServerFactory
         if ( hasLongExecutionTool )
         {
             var withOperationTools = new ArrayList<>( toolSpecifications );
-            createOperationToolSpecifications( prefix ).stream().filter( spec -> !excluded.contains( spec.tool().name() ) ).forEach( withOperationTools::add );
+            createOperationToolSpecifications( prefix, responseFormat ).stream().filter( spec -> !excluded.contains( spec.tool().name() ) )
+                    .forEach( withOperationTools::add );
             return withOperationTools;
         }
         return toolSpecifications;
@@ -515,7 +645,7 @@ public class McpServerFactory
     public List<String> listToolNames( Object serverImplementation )
     {
         var executor = new ToolExecutor( serverImplementation );
-        return extractAnnotatedTools( executor.getFunctions() ).stream().map( McpSchema.Tool::name ).collect( Collectors.toList() );
+        return extractAnnotatedTools( currentResponseFormat(), executor.getFunctions() ).stream().map( McpSchema.Tool::name ).collect( Collectors.toList() );
     }
 
     private void requireMcpServerAnnotation( Object serverImplementation )

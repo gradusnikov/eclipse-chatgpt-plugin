@@ -41,6 +41,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.gradusnikov.eclipse.assistai.Activator;
 import com.github.gradusnikov.eclipse.assistai.models.ModelApiDescriptor;
+import com.github.gradusnikov.eclipse.assistai.models.ToolResponseFormat;
 
 
 public class ModelListPreferencePage extends PreferencePage implements IWorkbenchPreferencePage
@@ -66,6 +67,8 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
     private Button     withVision;
 
     private Button     withFunctionCalls;
+
+    private Combo      responseFormat;
 
     private Scale      withTemperature;
 
@@ -149,7 +152,8 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
                 modelName.getText(),
                 withTemperature.getSelection(), 
                 withVision.getSelection(), 
-                withFunctionCalls.getSelection() );
+                withFunctionCalls.getSelection(),
+                ToolResponseFormat.fromDisplayName( responseFormat.getText() ) );
         presenter.saveModel( selectedIndex, updatedModel );
         super.performApply();
     }
@@ -196,7 +200,13 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
         queryModelsButton.setText( "Query available models" );
         addFormControl( queryModelsButton, form, "" );
         withVision = addCheckField( form, "With Vision:");
-        withFunctionCalls = addCheckField( form, "With Function Calls:");
+        withFunctionCalls = addCheckField( form, "With Function Calls:" );
+        responseFormat = new Combo( form, SWT.DROP_DOWN | SWT.READ_ONLY );
+        responseFormat.setItems( Stream.of( ToolResponseFormat.values() )
+                .map( ToolResponseFormat::displayName )
+                .toArray( String[]::new ) );
+        responseFormat.setText( ToolResponseFormat.PLAIN.displayName() );
+        addFormControl( responseFormat, form, "Response Format:" );
         withTemperature = addScaleField( form, "Temperature");
 
         return form;
@@ -437,6 +447,7 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
             updateTemperatureLabel( withTemperature );
             withVision.setSelection( modelApiDescriptor.vision() );
             withFunctionCalls.setSelection( modelApiDescriptor.functionCalling() );
+            responseFormat.setText( modelApiDescriptor.toolResponseFormat().displayName() );
         } );
         setDetailsEditable( true );
     }
@@ -453,6 +464,7 @@ public class ModelListPreferencePage extends PreferencePage implements IWorkbenc
             updateTemperatureLabel( withTemperature );
             withVision.setSelection( false );
             withFunctionCalls.setSelection( false );
+            responseFormat.setText( ToolResponseFormat.PLAIN.displayName() );
         } );
         setDetailsEditable( false );
     }
