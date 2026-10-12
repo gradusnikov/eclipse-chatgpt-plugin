@@ -44,7 +44,7 @@ public class CacheResponsesPDETest
     {
         Map<String, Object> array = (Map<String, Object>) properties.get( field );
         assertEquals( "array", array.get( "type" ), field + " should be an array" );
-        return (Map<String, Object>) ( (Map<String, Object>) array.get( "items" ) ).get( "properties" );
+        return SchemaTypes.propertiesOf( array.get( "items" ) );
     }
 
     private static String typeOf( Map<String, Object> properties, String field )
@@ -137,7 +137,7 @@ public class CacheResponsesPDETest
     public void listingAdvertisesTheResourceTypesItCanReport()
     {
         Map<String, Object> entry = itemsOf( properties( CachedResourcesResponse.class ), "resources" );
-        List<String> types = (List<String>) ( (Map<String, Object>) entry.get( "type" ) ).get( "enum" );
+        List<String> types = SchemaTypes.enumOf( entry.get( "type" ) );
 
         assertNotNull( types, "type should be advertised as an enumeration" );
         assertTrue( types.contains( ResourceType.WORKSPACE_FILE.name() ), types.toString() );

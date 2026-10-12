@@ -38,13 +38,13 @@ public class ProjectToolResponsesPDETest
     {
         Map<String, Object> array = (Map<String, Object>) properties.get( field );
         assertEquals( "array", array.get( "type" ), field + " should be an array" );
-        return (Map<String, Object>) array.get( "items" );
+        return SchemaTypes.nonNull( array.get( "items" ) );
     }
 
     @SuppressWarnings( "unchecked" )
     private static Map<String, Object> propertiesOf( Map<String, Object> objectSchema )
     {
-        return (Map<String, Object>) objectSchema.get( "properties" );
+        return SchemaTypes.propertiesOf( objectSchema );
     }
 
     @SuppressWarnings( "unchecked" )
@@ -53,10 +53,9 @@ public class ProjectToolResponsesPDETest
         return (Map<String, Object>) properties.get( field );
     }
 
-    @SuppressWarnings( "unchecked" )
     private static List<String> enumOf( Class<?> type, String field )
     {
-        return (List<String>) property( properties( type ), field ).get( "enum" );
+        return SchemaTypes.enumOf( property( properties( type ), field ) );
     }
 
     // ---- openProject -----------------------------------------------------
@@ -378,7 +377,7 @@ public class ProjectToolResponsesPDETest
         // own reports null, rather than an empty string that a caller would have to tell
         // apart from documentation that is genuinely blank.
         assertEquals( List.of( "string", "null" ),
-                property( properties( JavaDocResponse.class ), "javadoc" ).get( "type" ),
+                SchemaTypes.alternatives( property( properties( JavaDocResponse.class ), "javadoc" ) ),
                 "rendered Markdown is one piece of text, the trade DiffResponse also makes" );
     }
 

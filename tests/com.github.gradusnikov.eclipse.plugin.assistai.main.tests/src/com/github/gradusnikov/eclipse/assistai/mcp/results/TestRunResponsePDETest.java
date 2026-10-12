@@ -383,13 +383,13 @@ public class TestRunResponsePDETest
     {
         Map<String, Object> array = (Map<String, Object>) properties.get( field );
         assertEquals( "array", array.get( "type" ), field + " should be an array" );
-        return (Map<String, Object>) array.get( "items" );
+        return SchemaTypes.nonNull( array.get( "items" ) );
     }
 
     @SuppressWarnings( "unchecked" )
     private static Map<String, Object> propertiesOf( Map<String, Object> objectSchema )
     {
-        return (Map<String, Object>) objectSchema.get( "properties" );
+        return SchemaTypes.propertiesOf( objectSchema );
     }
 
     @SuppressWarnings( "unchecked" )
@@ -397,7 +397,7 @@ public class TestRunResponsePDETest
     public void theSchemaAdvertisesRunningAlongsideTheTerminalStates()
     {
         List<String> statuses =
-                (List<String>) ( (Map<String, Object>) properties( TestRunResponse.class ).get( "status" ) ).get( "enum" );
+                SchemaTypes.enumOf( properties( TestRunResponse.class ).get( "status" ) );
 
         assertTrue( statuses.contains( "RUNNING" ),
                 "results are published mid-run, and a client is told that shape exists: " + statuses );
@@ -439,7 +439,7 @@ public class TestRunResponsePDETest
         assertEquals( "integer", ( (Map<String, Object>) summary.get( "skipped" ) ).get( "type" ) );
 
         Map<String, Object> diagnostic = propertiesOf( itemsOf( fields, "diagnostics" ) );
-        List<String> codes = (List<String>) ( (Map<String, Object>) diagnostic.get( "code" ) ).get( "enum" );
+        List<String> codes = SchemaTypes.enumOf( diagnostic.get( "code" ) );
         assertTrue( codes.contains( "PROJECT_NOT_FOUND" ), codes.toString() );
         assertTrue( codes.contains( "TEST_CLASS_NOT_FOUND" ), codes.toString() );
         assertTrue( codes.contains( "PDE_LAUNCH_TYPE_MISSING" ), codes.toString() );

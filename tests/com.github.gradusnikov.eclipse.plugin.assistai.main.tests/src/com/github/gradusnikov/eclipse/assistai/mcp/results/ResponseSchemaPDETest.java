@@ -38,13 +38,13 @@ public class ResponseSchemaPDETest
     {
         Map<String, Object> array = (Map<String, Object>) properties.get( field );
         assertEquals( "array", array.get( "type" ), field + " should be an array" );
-        return (Map<String, Object>) array.get( "items" );
+        return SchemaTypes.nonNull( array.get( "items" ) );
     }
 
     @SuppressWarnings( "unchecked" )
     private static Map<String, Object> propertiesOf( Map<String, Object> objectSchema )
     {
-        return (Map<String, Object>) objectSchema.get( "properties" );
+        return SchemaTypes.propertiesOf( objectSchema );
     }
 
     // ---- search ----------------------------------------------------------
@@ -247,7 +247,7 @@ public class ResponseSchemaPDETest
         assertEquals( "integer", ( (Map<String, Object>) problem.get( "markerId" ) ).get( "type" ),
                 "markerId is what executeQuickFix takes" );
 
-        List<String> severities = (List<String>) ( (Map<String, Object>) problem.get( "severity" ) ).get( "enum" );
+        List<String> severities = SchemaTypes.enumOf( problem.get( "severity" ) );
         assertTrue( severities.contains( "ERROR" ), severities.toString() );
         assertTrue( severities.contains( "WARNING" ) );
     }
@@ -330,8 +330,7 @@ public class ResponseSchemaPDETest
     @Test
     public void quickFixAdvertisesTheFourWaysTheLoopCanEnd()
     {
-        List<String> statuses = (List<String>) ( (Map<String, Object>) properties( QuickFixResponse.class )
-                .get( "status" ) ).get( "enum" );
+        List<String> statuses = SchemaTypes.enumOf( properties( QuickFixResponse.class ).get( "status" ) );
 
         // Each of these needs a different next move, which is why they are not one
         // "Error: ..." sentence with five wordings.
@@ -410,8 +409,7 @@ public class ResponseSchemaPDETest
     @Test
     public void callHierarchySeparatesAnUnknownTypeFromAnUnknownMethod()
     {
-        List<String> statuses = (List<String>) ( (Map<String, Object>) properties( CallHierarchyResponse.class )
-                .get( "status" ) ).get( "enum" );
+        List<String> statuses = SchemaTypes.enumOf( properties( CallHierarchyResponse.class ).get( "status" ) );
 
         assertTrue( statuses.contains( "TYPE_NOT_FOUND" ), statuses.toString() );
         assertTrue( statuses.contains( "METHOD_NOT_FOUND" ), statuses.toString() );
@@ -481,8 +479,7 @@ public class ResponseSchemaPDETest
     @Test
     public void importSuggestionsSeparateAMissingProjectFromAClosedOne()
     {
-        List<String> statuses = (List<String>) ( (Map<String, Object>) properties( ImportSuggestionsResponse.class )
-                .get( "status" ) ).get( "enum" );
+        List<String> statuses = SchemaTypes.enumOf( properties( ImportSuggestionsResponse.class ).get( "status" ) );
 
         assertTrue( statuses.contains( "PROJECT_NOT_FOUND" ), statuses.toString() );
         assertTrue( statuses.contains( "PROJECT_CLOSED" ), statuses.toString() );

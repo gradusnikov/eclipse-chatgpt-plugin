@@ -81,7 +81,7 @@ public class WebSearchResponsePDETest
     {
         Map<String, Object> array = (Map<String, Object>) properties.get( field );
         assertEquals( "array", array.get( "type" ), field + " should be an array" );
-        return (Map<String, Object>) ( (Map<String, Object>) array.get( "items" ) ).get( "properties" );
+        return SchemaTypes.propertiesOf( array.get( "items" ) );
     }
 
     // ---- the schema ------------------------------------------------------

@@ -14,6 +14,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.McpJson;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpOutputSchemas;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.Diagnostic;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.DiagnosticCode;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.SchemaTypes;
 import com.github.gradusnikov.eclipse.assistai.resources.EditResult.AffectedResource;
 import com.github.gradusnikov.eclipse.assistai.resources.EditResult.ChangeKind;
 
@@ -72,7 +73,7 @@ public class EditResultPDETest
                 McpOutputSchemas.forType( EditResult.class ) ).get( "affectedResources" );
 
         assertEquals( "array", affected.get( "type" ) );
-        assertEquals( properties( (Map<String, Object>) affected.get( "items" ) ).keySet(),
+        assertEquals( properties( SchemaTypes.nonNull( affected.get( "items" ) ) ).keySet(),
                 McpJson.toMap( MODIFIED ).keySet() );
     }
 

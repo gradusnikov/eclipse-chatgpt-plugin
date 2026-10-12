@@ -229,7 +229,7 @@ public class GitResponsesPDETest
         Map<String, Object> array = (Map<String, Object>) properties.get( field );
         assertNotNull( array, field + " should be advertised" );
         assertEquals( "array", array.get( "type" ), field + " should be an array" );
-        return (Map<String, Object>) ( (Map<String, Object>) array.get( "items" ) ).get( "properties" );
+        return SchemaTypes.propertiesOf( array.get( "items" ) );
     }
 
     @SuppressWarnings( "unchecked" )
@@ -255,8 +255,7 @@ public class GitResponsesPDETest
             assertTrue( change.containsKey( "filePath" ), list + ": " + change.keySet() );
             assertTrue( change.containsKey( "repoPath" ), list + ": " + change.keySet() );
 
-            @SuppressWarnings( "unchecked" )
-            List<String> changeTypes = (List<String>) field( change, "changeType" ).get( "enum" );
+            List<String> changeTypes = SchemaTypes.enumOf( field( change, "changeType" ) );
             assertTrue( changeTypes.contains( "MODIFIED" ), changeTypes.toString() );
             assertTrue( changeTypes.contains( "DELETED" ), changeTypes.toString() );
         }

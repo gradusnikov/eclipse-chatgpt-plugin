@@ -19,6 +19,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.McpJson;
 import com.github.gradusnikov.eclipse.assistai.mcp.McpOutputSchemas;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.Diagnostic;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.DiagnosticCode;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.SchemaTypes;
 
 /**
  * The read result, and the recognition the in-IDE chat depends on.
@@ -60,13 +61,12 @@ public class ResourceReadResultPDETest
                 .forType( ResourceReadResult.class ).get( "properties" ) ).get( "version" );
 
         @SuppressWarnings( "unchecked" )
-        Map<String, Object> stamp = (Map<String, Object>) ( (Map<String, Object>) version.get( "properties" ) )
-                .get( "modificationStamp" );
+        Map<String, Object> stamp = (Map<String, Object>) SchemaTypes.propertiesOf( version ).get( "modificationStamp" );
 
         // Nullable, and that is the point: a resource with no stamp reports null rather
         // than NULL_STAMP, which matches() would read as "no check requested". The
         // schema has to admit the null or a validating client discards the whole read.
-        assertEquals( List.of( "integer", "null" ), stamp.get( "type" ),
+        assertEquals( List.of( "integer", "null" ), SchemaTypes.alternatives( stamp ),
                 "modificationStamp is what an edit passes as expectedModificationStamp" );
     }
 

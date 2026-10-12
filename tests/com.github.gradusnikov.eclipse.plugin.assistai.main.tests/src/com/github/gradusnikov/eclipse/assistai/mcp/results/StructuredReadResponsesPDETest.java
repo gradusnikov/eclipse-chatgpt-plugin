@@ -40,13 +40,13 @@ public class StructuredReadResponsesPDETest
     {
         Map<String, Object> array = (Map<String, Object>) properties.get( field );
         assertEquals( "array", array.get( "type" ), field + " should be an array" );
-        return (Map<String, Object>) array.get( "items" );
+        return SchemaTypes.nonNull( array.get( "items" ) );
     }
 
     @SuppressWarnings( "unchecked" )
     private static Map<String, Object> propertiesOf( Map<String, Object> objectSchema )
     {
-        return (Map<String, Object>) objectSchema.get( "properties" );
+        return SchemaTypes.propertiesOf( objectSchema );
     }
 
     /**

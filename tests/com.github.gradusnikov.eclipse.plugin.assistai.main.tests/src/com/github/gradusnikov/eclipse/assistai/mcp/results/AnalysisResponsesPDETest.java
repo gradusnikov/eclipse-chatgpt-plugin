@@ -162,13 +162,13 @@ public class AnalysisResponsesPDETest
     {
         Map<String, Object> array = (Map<String, Object>) properties.get( field );
         assertEquals( "array", array.get( "type" ), field + " should be an array" );
-        return (Map<String, Object>) array.get( "items" );
+        return SchemaTypes.nonNull( array.get( "items" ) );
     }
 
     @SuppressWarnings( "unchecked" )
     private static Map<String, Object> propertiesOf( Map<String, Object> objectSchema )
     {
-        return (Map<String, Object>) objectSchema.get( "properties" );
+        return SchemaTypes.propertiesOf( objectSchema );
     }
 
     @SuppressWarnings( "unchecked" )
@@ -224,7 +224,7 @@ public class AnalysisResponsesPDETest
         assertTrue( member.containsKey( "label" ) );
         assertTrue( member.containsKey( "name" ) );
 
-        List<String> statuses = (List<String>) property( properties( ClassOutlineResponse.class ), "status" ).get( "enum" );
+        List<String> statuses = SchemaTypes.enumOf( property( properties( ClassOutlineResponse.class ), "status" ) );
         assertTrue( statuses.contains( "TYPE_NOT_FOUND" ), statuses.toString() );
         assertTrue( statuses.contains( "NO_SOURCE" ), statuses.toString() );
         assertTrue( statuses.contains( "ACCESS_DENIED" ), statuses.toString() );
