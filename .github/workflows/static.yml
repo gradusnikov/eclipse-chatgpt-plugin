@@ -35,7 +35,9 @@ jobs:
           echo "DISPLAY=:99" >> $GITHUB_ENV
 
       - name: Build with Tycho
-        run: mvn --batch-mode --no-transfer-progress clean verify
+        # The Maven Wrapper pins Maven 3.9.16: the runner image's Maven 3.10 rejects
+        # the classifiers Tycho gives Bundle-ClassPath jars (eclipse-tycho/tycho#6399)
+        run: ./mvnw --batch-mode --no-transfer-progress clean verify
 
       - name: Upload test logs on failure
         if: failure()

@@ -80,12 +80,15 @@ Any test that uses Eclipse workspace, JDT, UI, platform, or OSGi runtime service
 - `com.github.gradusnikov.eclipse.plugin.assistai.resources.ResourceUriSpacesPDETest`
 
 ## Build
-Eclipse PDE project — for a full build, run `mvn clean verify` from the repo root via the shell (do not use Eclipse MCP tools for full builds).
+Eclipse PDE project — for a full build, run `./mvnw clean verify` from the repo root via the shell (do not use Eclipse MCP tools for full builds).
 
 Two prerequisites, each of which fails the build in a way that does not name them:
 
-- **Maven 3.9+.** Tycho 5.0.2 on Maven 3.8 dies with `No implementation for
-  org.eclipse.tycho.targetplatform.TargetPlatformArtifactResolver was bound`.
+- **Maven 3.9.x — use `./mvnw`, which pins 3.9.16.** Tycho 5.0.2 on Maven 3.8 dies with
+  `No implementation for org.eclipse.tycho.targetplatform.TargetPlatformArtifactResolver
+  was bound`; on Maven 3.10 it dies with `Invalid Collect Request: null`, because the
+  resolver rejects the `lib/...jar` classifiers Tycho gives `Bundle-ClassPath` jars
+  (eclipse-tycho/tycho#6399).
 - **A registered `JavaSE-21` toolchain.** The parent pom sets `<useJDK>BREE</useJDK>`, so
   Tycho compiles each bundle against a JDK matching its declared execution environment
   rather than whatever Maven runs on. Without a `toolchains.xml` entry whose id is
