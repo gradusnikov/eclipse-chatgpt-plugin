@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<fragment>
+   <!-- A fake pessimistic team provider: its validateEdit makes files writable the way
+        a Perforce checkout would. Used by WriteAccessValidatorPDETest only. -->
+   <extension
+         point="org.eclipse.team.core.repository">
+      <repository
+            class="com.github.gradusnikov.eclipse.assistai.testsupport.FakeCheckoutRepositoryProvider"
+            id="com.github.gradusnikov.eclipse.assistai.testsupport.fakeCheckoutProvider">
+      </repository>
+   </extension>
+</fragment>

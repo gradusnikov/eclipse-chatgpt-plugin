@@ -18,6 +18,7 @@ import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.search.core.text.TextSearchEngine;
@@ -165,16 +166,37 @@ public class SearchService
                 return List.of();
             }
 
-            List<SearchAndReplaceResult> results = new ArrayList<>();
+            List<PendingReplacement> pending = new ArrayList<>();
             for (Map.Entry<IFile, List<LineMatch>> entry : matchesByFile.entrySet())
             {
                 IFile file = entry.getKey();
 
                 // ensure deterministic
                 int matchesFound = entry.getValue().size();
-                int replacements = replaceInFile(file, containingText, replacementText);
+                pending.add(computeReplacement(file, matchesFound, containingText, replacementText));
+            }
 
-                results.add(new SearchAndReplaceResult(file, matchesFound, replacements));
+            // Every file about to be written is validated in one call, and nothing is
+            // written unless all of them may be.
+            List<IFile> toWrite = pending.stream()
+                    .filter(p -> p.replacements() > 0)
+                    .map(PendingReplacement::file)
+                    .toList();
+            IStatus writable = WriteAccessValidator.ensureWritable(toWrite);
+            if (!writable.isOK())
+            {
+                logger.warn("searchAndReplace wrote nothing: " + writable.getMessage());
+            }
+
+            List<SearchAndReplaceResult> results = new ArrayList<>();
+            for (PendingReplacement p : pending)
+            {
+                if (writable.isOK() && p.replacements() > 0)
+                {
+                    writeFile(p.file(), p.modified());
+                }
+                results.add(new SearchAndReplaceResult(p.file(), p.matchesFound(),
+                        writable.isOK() ? p.replacements() : 0));
             }
 
             return results;
@@ -186,24 +208,29 @@ public class SearchService
         }
     }
 
-    private static int replaceInFile(IFile file, String containingText, String replacementText)
-            throws CoreException, IOException
+    private static PendingReplacement computeReplacement(IFile file, int matchesFound, String containingText,
+            String replacementText) throws CoreException, IOException
     {
         if (file == null || !file.exists())
         {
-            return 0;
+            return new PendingReplacement(file, matchesFound, 0, null);
         }
 
-        Charset charset = Charset.forName(file.getCharset());
         String original = ResourceUtilities.readFileContent(file);
 
         int replacements = countOccurrences(original, containingText);
         if (replacements == 0)
         {
-            return 0;
+            return new PendingReplacement(file, matchesFound, 0, null);
         }
 
-        String modified = original.replace(containingText, replacementText);
+        return new PendingReplacement(file, matchesFound, replacements,
+                original.replace(containingText, replacementText));
+    }
+
+    private static void writeFile(IFile file, String modified) throws CoreException, IOException
+    {
+        Charset charset = Charset.forName(file.getCharset());
         byte[] bytes = modified.getBytes(charset);
         try (ByteArrayInputStream in = new ByteArrayInputStream(bytes))
         {
@@ -211,7 +238,6 @@ public class SearchService
         }
 
         file.refreshLocal(IResource.DEPTH_ZERO, null);
-        return replacements;
     }
 
     private static int countOccurrences(String text, String needle)
@@ -232,6 +258,12 @@ public class SearchService
     }
 
     private record LineMatch(int lineNumber, int offset, int length)
+    {
+
+    }
+
+    /** A file's replacement, computed but not yet written. */
+    private record PendingReplacement(IFile file, int matchesFound, int replacements, String modified)
     {
 
     }
