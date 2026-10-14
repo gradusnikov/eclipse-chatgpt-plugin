@@ -1,5 +1,6 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.results;
 
+import java.io.InputStream;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -72,9 +73,9 @@ public record FileHistoryResponse(
             boolean exists = state.exists();
             if ( exists )
             {
-                try
+                try ( InputStream contents = state.getContents() )
                 {
-                    size = state.getContents().available();
+                    size = contents.available();
                 }
                 catch ( Exception e )
                 {

@@ -1289,8 +1289,11 @@ public class CodeAnalysisService
             if (proposal instanceof org.eclipse.jdt.core.manipulation.ICUCorrectionProposal icp)
             {
                 org.eclipse.ltk.core.refactoring.TextChange change = icp.getTextChange();
-                String currentContent = new String(file.getContents(true).readAllBytes(),
-                        java.nio.charset.StandardCharsets.UTF_8);
+                String currentContent;
+                try (java.io.InputStream in = file.getContents(true))
+                {
+                    currentContent = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                }
                 org.eclipse.jface.text.Document doc = new org.eclipse.jface.text.Document(currentContent);
                 org.eclipse.text.edits.TextEdit edit = change.getEdit();
                 if (edit != null)
