@@ -75,6 +75,9 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer
         store.setDefault(PreferenceConstants.ASSISTAI_IGNORE_FILENAME, ".aiignore");
         store.setDefault(PreferenceConstants.ASSISTAI_GLOBAL_EXCLUDE_PATTERNS, "*.pem\n*.key\n*.env\n.env.*\ncredentials.json\nsecrets.properties");
 
+        // Memory store defaults
+        store.setDefault(PreferenceConstants.ASSISTAI_MEMORY_STORE_PROJECT, "");
+
         PromptLoader promptLoader = new PromptLoader();
         for ( Prompts prompt : Prompts.values() )
         {

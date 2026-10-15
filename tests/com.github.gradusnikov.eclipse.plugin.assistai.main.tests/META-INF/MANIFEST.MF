@@ -6,6 +6,7 @@ Bundle-Version: 1.0.7.qualifier
 Export-Package: com.github.gradusnikov.eclipse.plugin.assistai.main,
  com.github.gradusnikov.eclipse.assistai.mcp.services,
  com.github.gradusnikov.eclipse.assistai.mcp.servers,
+ com.github.gradusnikov.eclipse.plugin.assistai.mcp.services,
  com.github.gradusnikov.eclipse.plugin.assistai.mcp.transport,
  com.github.gradusnikov.eclipse.assistai.chat,
  com.github.gradusnikov.eclipse.assistai.prompt,

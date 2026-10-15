@@ -6,7 +6,9 @@ import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.jface.preference.BooleanFieldEditor;
 import org.eclipse.jface.preference.ComboFieldEditor;
+import org.eclipse.jface.preference.DirectoryFieldEditor;
 import org.eclipse.jface.preference.FieldEditorPreferencePage;
+import org.eclipse.jface.preference.FileFieldEditor;
 import org.eclipse.jface.preference.IntegerFieldEditor;
 import org.eclipse.jface.preference.StringFieldEditor;
 import org.eclipse.swt.SWT;
@@ -131,9 +133,23 @@ public class ModelPreferencePage extends FieldEditorPreferencePage implements IW
         hotkeyEditor.setEmptyStringAllowed(false);
         addField( hotkeyEditor );
         
+        // --- Memory Store Section ---
+        Group memoryGroup = createGroup(parent, "Memory Store");
+        Composite memoryComposite = createGroupComposite(memoryGroup);
+        
+        FileFieldEditor memoryFileEditor = new FileFieldEditor(
+            PreferenceConstants.ASSISTAI_MEMORY_STORE_PROJECT,
+            "&File:",
+            memoryComposite
+        );
+        memoryFileEditor.setEmptyStringAllowed(true);
+        memoryFileEditor.setFileExtensions( new String[] { "*.json", "*.*" } );
+        addField( memoryFileEditor );
+        
         // Adjust layout for the groups
         adjustGroupLayout(chatGroup);
         adjustGroupLayout(completionGroup);
+        adjustGroupLayout(memoryGroup);
     }
     
     /**
