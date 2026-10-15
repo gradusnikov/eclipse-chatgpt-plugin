@@ -48,7 +48,7 @@ a `status` a caller can branch on, and `diagnostics` carrying a coded
 | [eclipse-ide](#eclipse-ide) | 41 |
 | [eclipse-pde](#eclipse-pde) | 6 |
 | [eclipse-runner](#eclipse-runner) | 17 |
-| [memory](#memory) | 2 |
+| [memory](#memory) | 6 |
 | [time](#time) | 2 |
 | [webpage-reader](#webpage-reader) | 1 |
 
@@ -1511,6 +1511,43 @@ Internal sink for code completion. Use this tool to output any non-code text (ma
 | Parameter | | Description |
 |---|---|---|
 | `text` | \* | Non-code meta text that should not appear in the completion output |
+
+**Returns** `String`
+
+### `forget`
+
+Remove a memory entry by key. Returns whether the key existed. Use to clean up outdated or incorrect entries from persistent memory.
+
+| Parameter | | Description |
+|---|---|---|
+| `key` | \* | The key to remove |
+
+**Returns** `String`
+
+### `listMemories`
+
+List all stored memory keys with a short preview of each value (max 80 chars). Use recall(key) to retrieve the full value. Call this at the start of every session to load cross-project, cross-session context that is not captured in project-specific configuration files. This is the persistent, global instruction store — equivalent to reading a global AGENTS.md but dynamic and editable at runtime.
+
+**Returns** `String`
+
+### `recall`
+
+Retrieve a previously stored memory entry by its exact key. Returns the stored value, or a message if the key does not exist. Use after listMemories to fetch the full value of a specific entry.
+
+| Parameter | | Description |
+|---|---|---|
+| `key` | \* | The key to look up |
+
+**Returns** `String`
+
+### `remember`
+
+Persist a key-value pair to long-term memory. The value is stored permanently across all sessions and projects in the workspace — similar to a global ~/.config/opencode/AGENTS.md but editable by the assistant at runtime. Use a descriptive, unique key so you can recall or list it later. Use this for cross-project knowledge, user preferences, and learned conventions that don't belong in a project-specific configuration file.
+
+| Parameter | | Description |
+|---|---|---|
+| `key` | \* | A descriptive identifier for the memory entry |
+| `value` | \* | The information to store |
 
 **Returns** `String`
 

@@ -79,6 +79,19 @@ Any test that uses Eclipse workspace, JDT, UI, platform, or OSGi runtime service
 - `com.github.gradusnikov.eclipse.assistai.tools.ResourceUtilitiesPDETest`
 - `com.github.gradusnikov.eclipse.plugin.assistai.resources.ResourceUriSpacesPDETest`
 
+## Adding or changing MCP tools
+
+When you add, rename, or remove a `@Tool` method in any `@McpServer` class, the generated
+API reference must be updated:
+
+1. Edit `docs/mcp-api.md` in the main plugin:
+   - Update the tool count in the **Servers** table for the affected server.
+   - Add/remove/update the tool entry in the server's section (tools are alphabetically sorted).
+   - Each entry has: heading (`### \`toolName\``), description, parameter table (if any), and `**Returns**` line.
+2. Run `McpApiDocPDETest` (PDE harness) to verify the doc matches the annotations.
+   If it fails, the committed doc doesn't match what the annotations generate.
+   Alternatively, run `tools/generate-mcp-api.sh` (requires Maven + full build) to regenerate from scratch.
+
 ## Build
 Eclipse PDE project — for a full build, run `./mvnw clean verify` from the repo root via the shell (do not use Eclipse MCP tools for full builds).
 

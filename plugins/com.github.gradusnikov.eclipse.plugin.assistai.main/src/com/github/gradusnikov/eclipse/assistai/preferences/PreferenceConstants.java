@@ -34,4 +34,7 @@ public class PreferenceConstants
     // AI Ignore preferences
     public static final String ASSISTAI_IGNORE_FILENAME = "AssistAIIgnoreFilename";
     public static final String ASSISTAI_GLOBAL_EXCLUDE_PATTERNS = "AssistAIGlobalExcludePatterns";
+
+    // Memory store preferences
+    public static final String ASSISTAI_MEMORY_STORE_PROJECT = "AssistAIMemoryStoreProject";
 }
