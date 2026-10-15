@@ -861,6 +861,121 @@ public class ApplicationNew {
     }
 
     @Test
+    public void testReplaceStringMatchesAcrossLineEndingMismatch() throws Exception
+    {
+        // The file is CRLF; the oldString the caller sends is LF-only. A literal search never
+        // matches, but the line-ending-tolerant fallback locates it and the replacement is written
+        // with the file's own CRLF preserved on the untouched lines.
+        IFile file = createFile( "src/eol.txt", "one\r\ntwo\r\nthree\r\nfour\r\n" );
+
+        EditResult result = service.replaceString( TEST_PROJECT_NAME, "src/eol.txt",
+                "two\nthree", "TWO\nTHREE", null, null, IResource.NULL_STAMP, Occurrence.UNIQUE, null, false );
+
+        assertEquals( EditResult.EditStatus.APPLIED, result.status(),
+                () -> result.diagnostics().toString() );
+        assertEquals( "one\r\nTWO\nTHREE\r\nfour\r\n", ResourceUtilities.readFileContent( file ) );
+    }
+
+    @Test
+    public void testReplaceStringMatchesIgnoringTrailingWhitespace() throws Exception
+    {
+        // The file's lines carry trailing whitespace the caller's oldString omits. The literal
+        // search misses; the trailing-whitespace-tolerant fallback matches the block.
+        IFile file = createFile( "src/trailws-replace.txt", "keep\nalpha   \nbeta\t\ngamma\n" );
+
+        EditResult result = service.replaceString( TEST_PROJECT_NAME, "src/trailws-replace.txt",
+                "alpha\nbeta", "ALPHA\nBETA", null, null, IResource.NULL_STAMP, Occurrence.UNIQUE, null, false );
+
+        assertEquals( EditResult.EditStatus.APPLIED, result.status(),
+                () -> result.diagnostics().toString() );
+        assertEquals( "keep\nALPHA\nBETA\ngamma\n", ResourceUtilities.readFileContent( file ) );
+    }
+
+    @Test
+    public void testReplaceStringExactMatchStillPreferredOverFuzzy() throws Exception
+    {
+        // When the literal search finds the string, the fuzzy fallback must not run - the exact
+        // region is used verbatim, trailing whitespace and all.
+        IFile file = createFile( "src/exact.txt", "alpha\nbeta\ngamma\n" );
+
+        EditResult result = service.replaceString( TEST_PROJECT_NAME, "src/exact.txt",
+                "beta", "BETA", null, null, IResource.NULL_STAMP, Occurrence.UNIQUE, null, false );
+
+        assertEquals( EditResult.EditStatus.APPLIED, result.status() );
+        assertEquals( "alpha\nBETA\ngamma\n", ResourceUtilities.readFileContent( file ) );
+    }
+
+    @Test
+    public void testReplaceStringStillRejectsWhenRealTextDiffers() throws Exception
+    {
+        // The fuzzy fallback tolerates whitespace and line endings only - a genuine text
+        // difference must still be reported as not found, leaving the file untouched.
+        String original = "alpha\nbeta\ngamma\n";
+        IFile file = createFile( "src/nofuzzy.txt", original );
+
+        EditResult result = service.replaceString( TEST_PROJECT_NAME, "src/nofuzzy.txt",
+                "alpha\nDELTA", "X\nY", null, null, IResource.NULL_STAMP, Occurrence.UNIQUE, null, false );
+
+        assertEquals( EditResult.EditStatus.REJECTED, result.status() );
+        assertEquals( DiagnosticCode.TEXT_NOT_FOUND, result.diagnostics().get( 0 ).code() );
+        assertEquals( original, ResourceUtilities.readFileContent( file ) );
+    }
+
+    @Test
+    public void testReplaceStringFuzzyRecoversAfterAPartialLineOverlap() throws Exception
+    {
+        // The needle's first line ("A") also appears at a spot where the SECOND line does not
+        // follow ("A\nX\n..."), and the true match sits later ("A\nB\nC"). The line-aligned scan
+        // must abandon the false start and locate the real block - not step one char into the
+        // middle of a line and mis-splice. The file is CRLF while the needle is LF, so only the
+        // fuzzy fallback runs.
+        IFile file = createFile( "src/partial.txt", "A\r\nX\r\nA\r\nB\r\nC\r\nD\r\n" );
+
+        EditResult result = service.replaceString( TEST_PROJECT_NAME, "src/partial.txt",
+                "A\nB\nC", "A\nBEE\nCEE", null, null, IResource.NULL_STAMP, Occurrence.UNIQUE, null, false );
+
+        assertEquals( EditResult.EditStatus.APPLIED, result.status(),
+                () -> result.diagnostics().toString() );
+        // Only the real A/B/C block (starting at line 3) is rewritten; the leading A/X is untouched.
+        assertEquals( "A\r\nX\r\nA\nBEE\nCEE\r\nD\r\n", ResourceUtilities.readFileContent( file ) );
+    }
+
+    @Test
+    public void testReplaceStringFuzzyReplacesMultipleSectionsWithWhitespaceVariance() throws Exception
+    {
+        // Two separate blocks match the needle only after tolerating CRLF-vs-LF and trailing
+        // whitespace. Occurrence.ALL must locate and rewrite both via the fuzzy fallback.
+        IFile file = createFile( "src/multifuzzy.txt",
+                "start\r\nfoo  \r\nbar\t\r\nmiddle\r\nfoo\r\nbar   \r\nend\r\n" );
+
+        EditResult result = service.replaceString( TEST_PROJECT_NAME, "src/multifuzzy.txt",
+                "foo\nbar", "FOO\nBAR", null, null, IResource.NULL_STAMP, Occurrence.ALL, null, false );
+
+        assertEquals( EditResult.EditStatus.APPLIED, result.status(),
+                () -> result.diagnostics().toString() );
+        assertEquals( "start\r\nFOO\nBAR\r\nmiddle\r\nFOO\nBAR\r\nend\r\n",
+                ResourceUtilities.readFileContent( file ) );
+    }
+
+    @Test
+    public void testReplaceStringExactMultipleSectionsAreUnaffectedByTheFuzzyFallback() throws Exception
+    {
+        // A multi-line block that matches byte-for-byte twice is still handled by the exact path
+        // (the fuzzy fallback only runs when the exact search finds nothing). Occurrence.ALL
+        // rewrites both, with no whitespace variance involved.
+        IFile file = createFile( "src/multiexact.txt",
+                "head\nfoo\nbar\nsep\nfoo\nbar\ntail\n" );
+
+        EditResult result = service.replaceString( TEST_PROJECT_NAME, "src/multiexact.txt",
+                "foo\nbar", "FOO\nBAR", null, null, IResource.NULL_STAMP, Occurrence.ALL, null, false );
+
+        assertEquals( EditResult.EditStatus.APPLIED, result.status(),
+                () -> result.diagnostics().toString() );
+        assertEquals( "head\nFOO\nBAR\nsep\nFOO\nBAR\ntail\n",
+                ResourceUtilities.readFileContent( file ) );
+    }
+
+    @Test
     public void testReplaceFileContentSynchronizesJdtModel() throws Exception
     {
         IFile file = createFile( "src/SynchronizedType.java",
