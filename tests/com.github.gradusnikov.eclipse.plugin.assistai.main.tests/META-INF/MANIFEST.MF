@@ -1,7 +1,7 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Tests
-Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.main.tests
+Bundle-SymbolicName: com.github.gradusnikov.eclipse.plugin.assistai.main.tests;singleton:=true
 Bundle-Version: 1.0.7.qualifier
 Export-Package: com.github.gradusnikov.eclipse.plugin.assistai.main,
  com.github.gradusnikov.eclipse.assistai.mcp.services,

@@ -18,6 +18,7 @@ import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 
 import com.github.gradusnikov.eclipse.assistai.mcp.operations.Operation;
@@ -1151,6 +1152,19 @@ public class CodeAnalysisService
             }
 
             QuickFix fix = fixes.get(proposalIndex);
+
+            // Before either kind of proposal runs: both write the marker's file, one
+            // through setContents and one through whatever the resolution uses.
+            if (resource instanceof IFile file)
+            {
+                IStatus writable = WriteAccessValidator.ensureWritable(file);
+                if (!writable.isOK())
+                {
+                    return QuickFixResponse.applyFailed(markerId, projectName, filePath, proposalIndex, fix.label(),
+                            available, Diagnostic.fatal(DiagnosticCode.READ_ONLY_RESOURCE, writable.getMessage()));
+                }
+            }
+
             try
             {
                 fix.apply(marker);
@@ -1289,8 +1303,11 @@ public class CodeAnalysisService
             if (proposal instanceof org.eclipse.jdt.core.manipulation.ICUCorrectionProposal icp)
             {
                 org.eclipse.ltk.core.refactoring.TextChange change = icp.getTextChange();
-                String currentContent = new String(file.getContents(true).readAllBytes(),
-                        java.nio.charset.StandardCharsets.UTF_8);
+                String currentContent;
+                try (java.io.InputStream in = file.getContents(true))
+                {
+                    currentContent = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                }
                 org.eclipse.jface.text.Document doc = new org.eclipse.jface.text.Document(currentContent);
                 org.eclipse.text.edits.TextEdit edit = change.getEdit();
                 if (edit != null)

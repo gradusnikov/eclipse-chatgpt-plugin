@@ -37,6 +37,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
@@ -973,6 +974,13 @@ public class CodeEditingService
             if ( newFile.exists() )
             {
                 throw new RuntimeException( "Error: A file named '" + newFileName + "' already exists in the same directory." );
+            }
+
+            IStatus writable = WriteAccessValidator.ensureWritable( file );
+            if ( !writable.isOK() )
+            {
+                return EditResult.rejected( file, before, Diagnostic.fatal(
+                        DiagnosticCode.READ_ONLY_RESOURCE, writable.getMessage() ) );
             }
 
             IPath previousPath = file.getFullPath();
@@ -2693,6 +2701,22 @@ public class CodeEditingService
             if ( sourceResource instanceof IFile && sourcePath.endsWith( ".java" ) )
             {
                 logger.warn( "Moving Java file without refactoring - references will not be updated. Consider using refactorMoveJavaType instead." );
+            }
+
+            // A folder moves every file in it, so all of them are validated in one call.
+            List<IFile> movedFiles = new ArrayList<>();
+            sourceResource.accept( member -> {
+                if ( member instanceof IFile memberFile )
+                {
+                    movedFiles.add( memberFile );
+                }
+                return true;
+            } );
+            IStatus writable = WriteAccessValidator.ensureWritable( movedFiles );
+            if ( !writable.isOK() )
+            {
+                return EditResult.rejected( sourceResource, ResourceVersion.of( sourceResource ), Diagnostic.fatal(
+                        DiagnosticCode.READ_ONLY_RESOURCE, writable.getMessage() ) );
             }
 
             IFolder targetFolder = project.getFolder( normalizedTarget );
@@ -4428,6 +4452,13 @@ public class CodeEditingService
                         file.getProject().getName(), file.getProjectRelativePath().toString(),
                         before, before, applied, diff, List.of(),
                         EditorReveal.none(), EditResult.NO_UNDO_STATE, null, Diagnostic.none() );
+            }
+
+            IStatus writable = WriteAccessValidator.ensureWritable( file );
+            if ( !writable.isOK() )
+            {
+                return EditResult.rejected( file, before, Diagnostic.fatal(
+                        DiagnosticCode.READ_ONLY_RESOURCE, writable.getMessage() ) );
             }
 
             try ( ByteArrayInputStream source = new ByteArrayInputStream(

@@ -103,16 +103,24 @@ public class ResourceUtilities
         }
     }
 
+    /**
+     * Reads the stream to its end and closes it. Callers hand over a stream they just
+     * opened, such as {@code IFile.getContents()}; on Windows an unclosed one keeps the
+     * file locked until the stream is garbage collected.
+     */
     public static byte[] readInputStream(InputStream inputStream) throws IOException
     {
-        ByteArrayOutputStream result = new ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        int length;
-        while ((length = inputStream.read(buffer)) != -1)
+        try (inputStream)
         {
-            result.write(buffer, 0, length);
+            ByteArrayOutputStream result = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = inputStream.read(buffer)) != -1)
+            {
+                result.write(buffer, 0, length);
+            }
+            return result.toByteArray();
         }
-        return result.toByteArray();
     }
 
     public static String readFileContent(IFile file) throws IOException, CoreException

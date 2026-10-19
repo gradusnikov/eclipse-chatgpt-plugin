@@ -16,6 +16,7 @@ import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
 
@@ -140,6 +141,13 @@ public class LocalHistoryService
             String displaced = new String( ResourceUtilities.readInputStream( file.getContents() ), charset );
 
             ResourceVersion versionBefore = ResourceVersion.of( file );
+
+            IStatus writable = WriteAccessValidator.ensureWritable( file );
+            if ( !writable.isOK() )
+            {
+                return EditResult.rejected( file, versionBefore, Diagnostic.fatal(
+                        DiagnosticCode.READ_ONLY_RESOURCE, writable.getMessage() ) );
+            }
 
             try ( ByteArrayInputStream source = new ByteArrayInputStream( restored.getBytes( charset ) ) )
             {
