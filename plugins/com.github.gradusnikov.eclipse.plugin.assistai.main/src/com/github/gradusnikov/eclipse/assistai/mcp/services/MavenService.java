@@ -212,7 +212,7 @@ public class MavenService
                         : ExceptionUtils.getRootCauseMessage( refused.get() );
                 logger.error( "Maven launch '" + launchName + "' failed to start", refused.get() );
                 return MavenBuildResponse.notStarted( project.getName(), pomDirPath, mavenCommand,
-                        Diagnostic.fatal( DiagnosticCode.INTERNAL_ERROR,
+                        Diagnostic.fatal( DiagnosticCode.LAUNCH_FAILED,
                                 "Eclipse could not launch '" + launchName + "': " + reason ),
                         elapsed( started ) );
             }

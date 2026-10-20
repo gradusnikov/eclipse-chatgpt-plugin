@@ -379,6 +379,7 @@ public class JavaLaunchService
                 IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME );
 
         final ILaunch[] launchHolder = new ILaunch[1];
+        final CoreException[] launchError = new CoreException[1];
         sync.syncExec(() ->
         {
             try
@@ -387,16 +388,24 @@ public class JavaLaunchService
             }
             catch (CoreException e)
             {
+                // Carry the launcher's own message out of the UI thread. Logging it and
+                // returning only a generic "Eclipse refused to launch" left the caller -
+                // and the AI driving it - to guess at a cause the launcher had already
+                // spelled out (a bad classpath, an unmet build-path requirement, ...).
                 logger.error("Error launching application", e);
+                launchError[0] = e;
             }
         });
 
         ILaunch launch = launchHolder[0];
         if (launch == null)
         {
+            String cause = launchError[0] != null
+                    ? launchError[0].getMessage()
+                    : "see the error log for the cause";
             return LaunchResponse.failedToStart( launchName, modeLabel, projectName, mainClass,
-                    Diagnostic.fatal( DiagnosticCode.INTERNAL_ERROR,
-                            "Eclipse refused to launch '" + launchName + "'; see the error log for the cause." ) );
+                    Diagnostic.fatal( DiagnosticCode.LAUNCH_FAILED,
+                            "Could not launch '" + launchName + "': " + cause ) );
         }
 
         // Attach stream listeners to capture output
