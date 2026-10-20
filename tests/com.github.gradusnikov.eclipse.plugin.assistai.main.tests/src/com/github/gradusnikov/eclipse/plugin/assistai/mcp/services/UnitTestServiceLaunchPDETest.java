@@ -1,7 +1,9 @@
 package com.github.gradusnikov.eclipse.plugin.assistai.mcp.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.ByteArrayInputStream;
@@ -34,6 +36,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.github.gradusnikov.eclipse.assistai.Activator;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.DiagnosticCode;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.TestRunResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.TestRunResponse.RunStatus;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.UnitTestService;
@@ -196,6 +199,77 @@ public class UnitTestServiceLaunchPDETest
         assertEquals( 1, single.summary().total(), single.summaryText() );
         TestRunResponse whole = service.runClassTests( PROJECT, "sample.TwoTests", 120 );
         assertEquals( 2, whole.summary().total(), whole.summaryText() );
+    }
+
+    /**
+     * The failure from the bug report: a JUnit 5 test on a project that does NOT have
+     * JUnit 5 on its build path. The JUnit launcher's preLaunchCheck aborts with a
+     * CoreException ("Cannot find 'org.junit.platform.commons.annotation.Testable' on
+     * project build path") before any JVM starts. That exception used to be caught and
+     * only logged, so the caller - the AI - saw nothing but a vague "no results"
+     * timeout. It must now come back as a fatal LAUNCH_FAILED diagnostic carrying the
+     * launcher's own message.
+     */
+    @Test
+    public void aLaunchThatTheJUnitLauncherRefusesComesBackAsADiagnostic() throws Exception
+    {
+        IProject bare = ResourcesPlugin.getWorkspace().getRoot().getProject( "NoJUnitOnPathProject" );
+        if ( bare.exists() )
+        {
+            bare.delete( true, true, monitor );
+        }
+        try
+        {
+            IProjectDescription description = bare.getWorkspace().newProjectDescription( bare.getName() );
+            description.setNatureIds( new String[] { JavaCore.NATURE_ID } );
+            bare.create( description, monitor );
+            bare.open( monitor );
+
+            IFolder source = bare.getFolder( "src" );
+            source.create( IResource.NONE, true, monitor );
+            IFolder sample = source.getFolder( "sample" );
+            sample.create( IResource.NONE, true, monitor );
+
+            IJavaProject bareJava = JavaCore.create( bare );
+            // Deliberately NO JUnit container on the classpath - only the JRE.
+            bareJava.setRawClasspath( new IClasspathEntry[] {
+                JavaCore.newSourceEntry( source.getFullPath() ),
+                JavaCore.newContainerEntry( IPath.fromOSString( JavaRuntime.JRE_CONTAINER ) )
+            }, bare.getFullPath().append( "bin" ), monitor );
+
+            write( sample.getFile( "NeedsJUnit5.java" ), """
+                    package sample;
+
+                    import org.junit.jupiter.api.Test;
+
+                    public class NeedsJUnit5 {
+                        @Test
+                        public void t() {
+                        }
+                    }
+                    """ );
+            bare.refreshLocal( IResource.DEPTH_INFINITE, monitor );
+            bare.build( IncrementalProjectBuilder.FULL_BUILD, monitor );
+
+            TestRunResponse response = service.runClassTests( bare.getName(), "sample.NeedsJUnit5", 30 );
+
+            // The run never started - and it is reported as such, not as an empty or
+            // timed-out run. The caller can tell "could not launch" from "launched and
+            // found nothing".
+            assertEquals( RunStatus.FAILED_TO_START, response.status(), response.summaryText() );
+            assertTrue( response.hasDiagnostics(), "a refused launch must carry a diagnostic" );
+            assertEquals( DiagnosticCode.LAUNCH_FAILED, response.diagnostics().get( 0 ).code(),
+                response.summaryText() );
+            assertFalse( response.diagnostics().get( 0 ).retryable(),
+                "the same call will fail the same way until the build path is fixed" );
+        }
+        finally
+        {
+            if ( bare.exists() )
+            {
+                bare.delete( true, true, monitor );
+            }
+        }
     }
 
     private static ILaunchConfiguration savedLaunchConfiguration( String name ) throws CoreException

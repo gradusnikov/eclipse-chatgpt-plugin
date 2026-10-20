@@ -923,13 +923,23 @@ public class PDEService
                 || ( methodName != null && !methodName.isBlank() );
             UnitTestService.ResolvedTestKind resolvedKind =
                 UnitTestService.resolveTestKind( junitVersion, usingNamedLauncher, hasExplicitTarget );
+            // The engine the run is launched with, and whether it was detected rather than
+            // asked for - carried into the launch-failure message so a refused plug-in test
+            // can tell the caller which engine was tried and point at junitVersion.
+            String launchedKind = null;
+            boolean kindWasDetected = false;
             switch ( resolvedKind.mode() )
             {
                 case FROM_LAUNCHER -> { /* leave the base config's TEST_KIND untouched */ }
-                case EXPLICIT -> workingCopy.setAttribute( "org.eclipse.jdt.junit.TEST_KIND",
-                    resolvedKind.explicitLoaderId() );
-                case AUTO -> workingCopy.setAttribute( "org.eclipse.jdt.junit.TEST_KIND",
-                    detectJUnitTestKind( javaProject ) );
+                case EXPLICIT -> {
+                    launchedKind = resolvedKind.explicitLoaderId();
+                    workingCopy.setAttribute( "org.eclipse.jdt.junit.TEST_KIND", launchedKind );
+                }
+                case AUTO -> {
+                    launchedKind = detectJUnitTestKind( javaProject );
+                    kindWasDetected = true;
+                    workingCopy.setAttribute( "org.eclipse.jdt.junit.TEST_KIND", launchedKind );
+                }
             }
 
             // Only set workspace/bundle config when not using a named launcher (the base
@@ -1123,8 +1133,10 @@ public class PDEService
                 if ( launchError[0] != null )
                 {
                     return TestRunResponse.notStarted( projectName, requestedClasses,
-                        Diagnostic.fatal( DiagnosticCode.DEPENDENCY_RESOLUTION_FAILED,
-                            "Error launching plug-in tests: " + launchError[0].getMessage() ),
+                        Diagnostic.fatal( DiagnosticCode.LAUNCH_FAILED,
+                            UnitTestService.launchFailureMessage(
+                                "Error launching plug-in tests: " + launchError[0].getMessage(),
+                                launchedKind, kindWasDetected ) ),
                         elapsed( runStartMillis ) );
                 }
                 if ( !completed )
@@ -1493,22 +1505,15 @@ public class PDEService
 
     private String detectJUnitTestKind( IJavaProject javaProject ) throws JavaModelException
     {
-        IType jupiterTest = javaProject.findType( "org.junit.jupiter.api.Test" );
-        if ( jupiterTest != null )
+        // Jupiter 5-vs-6 detection lives in UnitTestService, which handles the several
+        // shapes the resolved classpath entry can take (Maven jar, OSGi bundle folder,
+        // JUNIT_CONTAINER/6). A PDE project resolves Jupiter from a bundle folder such as
+        // org.junit.jupiter.api_6.0.0, which the old file-name-only check here missed -
+        // so a JUnit 6 plug-in test was launched as 5 and refused.
+        String jupiter = UnitTestService.detectJupiterLoaderId( javaProject );
+        if ( jupiter != null )
         {
-            for ( var entry : javaProject.getResolvedClasspath( true ) )
-            {
-                String path = entry.getPath().toString();
-                if ( path.contains( "junit-jupiter-api" ) )
-                {
-                    if ( path.matches( ".*junit-jupiter-api[_-]6\\..*" ) )
-                    {
-                        return "org.eclipse.jdt.junit.loader.junit6";
-                    }
-                    break;
-                }
-            }
-            return "org.eclipse.jdt.junit.loader.junit5";
+            return jupiter;
         }
         if ( javaProject.findType( "org.junit.Test" ) != null )
         {

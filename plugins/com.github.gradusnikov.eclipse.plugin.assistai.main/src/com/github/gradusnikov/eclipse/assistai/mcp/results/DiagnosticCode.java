@@ -156,6 +156,15 @@ public enum DiagnosticCode
     DEPENDENCY_RESOLUTION_FAILED,
 
     /**
+     * The launcher refused to start the run before any test executed - a misconfigured
+     * launch or an unsatisfied build-path requirement, such as JUnit 5 not being on the
+     * project's build path. The launcher's own message carries the specifics. Distinct
+     * from {@link #TEST_RESULTS_NOT_REPORTED}: no JVM was ever started, so there is
+     * nothing to wait for and retrying unchanged will fail the same way.
+     */
+    LAUNCH_FAILED,
+
+    /**
      * The run ended - or was abandoned - without the JUnit session reporting results.
      * A crashed test JVM and a hung one both land here.
      */

@@ -448,6 +448,55 @@ public class UnitTestService {
         }
     }
     
+    /**
+     * The message for a {@link DiagnosticCode#LAUNCH_FAILED}, carrying what the JUnit
+     * launcher said plus which engine the run was launched with and how that engine was
+     * chosen. A refused launch is most often a JUnit version mismatch - the launcher
+     * complains "JUnit 5 tests can only be run if JUnit 5 is on the build path" when the
+     * run was launched as 5 but the project is a 4 or 6 project - so the caller needs to
+     * know the attempted engine to know what to retry. When the engine was detected (not
+     * asked for), the message points at the {@code junitVersion} argument as the fix.
+     *
+     * @param launcherMessage the JUnit launcher's own message, or a stand-in when it gave none
+     * @param launchedKind the TEST_KIND loader id the run used, or {@code null} when the base
+     *            launcher's own kind was kept
+     * @param kindWasDetected whether {@code launchedKind} was auto-detected rather than asked for
+     */
+    static String launchFailureMessage( String launcherMessage, String launchedKind, boolean kindWasDetected )
+    {
+        StringBuilder sb = new StringBuilder( "Could not launch the test run: " )
+                .append( launcherMessage == null ? "no message" : launcherMessage );
+        String version = junitVersionLabel( launchedKind );
+        if ( version != null )
+        {
+            sb.append( "\nThe run was launched with the JUnit " ).append( version ).append( " engine" );
+            sb.append( kindWasDetected ? " (auto-detected from the project)." : " (as requested)." );
+            if ( kindWasDetected )
+            {
+                // The one mismatch the caller can fix without touching the project: the
+                // detected engine was wrong. Naming the argument and its values turns a
+                // dead end into a retry.
+                sb.append( " If this is actually a JUnit 3, 4, 5 or 6 project, re-run and pass" )
+                  .append( " junitVersion ('3', '4', '5' or '6') to override the detected engine." );
+            }
+        }
+        return sb.toString();
+    }
+
+    /** The human version number for a TEST_KIND loader id, or {@code null} if unrecognised. */
+    private static String junitVersionLabel( String loaderId )
+    {
+        if ( loaderId == null ) return null;
+        return switch ( loaderId )
+        {
+            case "org.eclipse.jdt.junit.loader.junit3" -> "3";
+            case "org.eclipse.jdt.junit.loader.junit4" -> "4";
+            case "org.eclipse.jdt.junit.loader.junit5" -> "5";
+            case "org.eclipse.jdt.junit.loader.junit6" -> "6";
+            default -> null;
+        };
+    }
+
     /** Sentinel meaning "detect the engine automatically". */
     static final String JUNIT_VERSION_AUTO = "auto";
 
@@ -586,24 +635,70 @@ public class UnitTestService {
         return null;
     }
 
+    /**
+     * Having established that the Jupiter engine is on the classpath, decides whether it
+     * is JUnit 5 or JUnit 6. JUnit 6 ships {@code junit-jupiter-api} at major version 6+,
+     * but the resolved classpath entry can take several shapes - a Maven jar
+     * ({@code junit-jupiter-api-6.0.0.jar}), an OSGi bundle folder
+     * ({@code org.junit.jupiter.api_6.0.0}), a {@code JUNIT_CONTAINER/6} entry, or a p2
+     * bundle whose file name carries no version at all. Matching one hard-coded file-name
+     * shape missed the rest, so a JUnit 6 project was launched as 5 and the launcher
+     * refused. This reads the major version wherever it can be found and defaults to 5
+     * only when nothing says 6.
+     *
+     * @return the JUnit 6 loader id when the Jupiter major version is 6 or higher, the
+     *         JUnit 5 loader id when Jupiter is present but not 6, or {@code null} when
+     *         no Jupiter engine is on the classpath at all
+     */
     private String detectJupiterVersion(IJavaProject javaProject) throws JavaModelException {
+        return detectJupiterLoaderId(javaProject);
+    }
+
+    /**
+     * Package-visible, project-only form of {@link #detectJupiterVersion} so PDEService
+     * shares one JUnit 5-vs-6 detection instead of keeping its own, narrower copy.
+     *
+     * @return the JUnit 6 loader id when the Jupiter major version is 6 or higher, the
+     *         JUnit 5 loader id when Jupiter is present but not 6, or {@code null} when
+     *         no Jupiter engine is on the classpath at all
+     */
+    static String detectJupiterLoaderId(IJavaProject javaProject) throws JavaModelException {
+        boolean jupiterSeen = false;
         for (var entry : javaProject.getResolvedClasspath(true)) {
             String entryPath = entry.getPath().toString();
-            if (entryPath.contains("junit-jupiter-api")) {
-                if (entryPath.matches(".*junit-jupiter-api[_-]6\\..*")) {
+            // The explicit "JUnit 6" classpath container, as added from the IDE.
+            if (entryPath.matches(".*JUNIT_CONTAINER/6\\b.*")) {
+                return "org.eclipse.jdt.junit.loader.junit6";
+            }
+            if (entryPath.contains("junit-jupiter-api") || entryPath.contains("org.junit.jupiter.api")) {
+                jupiterSeen = true;
+                if (isJupiterSix(entryPath)) {
                     return "org.eclipse.jdt.junit.loader.junit6";
                 }
-                return "org.eclipse.jdt.junit.loader.junit5";
             }
         }
+        // The resolved classpath does not always surface the version in the path (p2
+        // bundles, for one). The type's own location is a second place to look.
         IType jupiterTest = javaProject.findType("org.junit.jupiter.api.Test");
         if (jupiterTest != null) {
-            String typePath = jupiterTest.getPath().toString();
-            if (typePath.matches(".*junit-jupiter-api[_-]6\\..*")) {
+            jupiterSeen = true;
+            if (isJupiterSix(jupiterTest.getPath().toString())) {
                 return "org.eclipse.jdt.junit.loader.junit6";
             }
         }
+        if (jupiterSeen) {
+            return "org.eclipse.jdt.junit.loader.junit5";
+        }
         return null;
+    }
+
+    /**
+     * Whether a classpath path points at a {@code junit-jupiter-api} / {@code
+     * org.junit.jupiter.api} artefact at major version 6 or higher. Accepts the Maven
+     * ({@code -6.0.0}) and OSGi ({@code _6.0.0}) version separators, and any major 6, 7, ...
+     */
+    static boolean isJupiterSix(String path) {
+        return path != null && path.matches(".*junit[._-]jupiter[._-]api[_-]([6-9]|\\d{2,})\\..*");
     }
 
     private String detectJUnitTestKindFromClass(IType testClass) throws JavaModelException {
@@ -707,22 +802,12 @@ public class UnitTestService {
     }
 
     private String detectJUnitTestKindFromProject(IJavaProject javaProject) throws JavaModelException {
-        IType jupiterTest = javaProject.findType("org.junit.jupiter.api.Test");
-        if (jupiterTest != null) {
-            for (var entry : javaProject.getResolvedClasspath(true)) {
-                String entryPath = entry.getPath().toString();
-                if (entryPath.contains("junit-jupiter-api")) {
-                    if (entryPath.matches(".*junit-jupiter-api[_-]6\\..*")) {
-                        return "org.eclipse.jdt.junit.loader.junit6";
-                    }
-                    break;
-                }
-            }
-            String typePath = jupiterTest.getPath().toString();
-            if (typePath.matches(".*junit-jupiter-api[_-]6\\..*")) {
-                return "org.eclipse.jdt.junit.loader.junit6";
-            }
-            return "org.eclipse.jdt.junit.loader.junit5";
+        // detectJupiterVersion returns the 5-vs-6 loader when Jupiter is present, and
+        // null when it is not - the same version-aware check used for a single class,
+        // so a JUnit 6 project is recognised here too.
+        String jupiter = detectJupiterVersion(javaProject);
+        if (jupiter != null) {
+            return jupiter;
         }
         if (javaProject.findType("org.junit.Test") != null) {
             return "org.eclipse.jdt.junit.loader.junit4";
@@ -1013,12 +1098,23 @@ public class UnitTestService {
                 // is left as configured (FROM_LAUNCHER).
                 boolean hasExplicitTarget = testClass != null || packageFragment != null;
                 ResolvedTestKind resolved = resolveTestKind(junitVersion, usingNamedLauncher, hasExplicitTarget);
+                // The engine the run is actually launched with, remembered so that a launch
+                // the JUnit launcher then refuses can tell the caller which engine was tried
+                // and how it was chosen - the difference between "retry with junitVersion='6'"
+                // and "this is not a version problem".
+                String launchedKind = null;
+                boolean kindWasDetected = false;
                 switch (resolved.mode()) {
                     case FROM_LAUNCHER -> { /* leave the base config's TEST_KIND untouched */ }
-                    case EXPLICIT -> workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND",
-                            resolved.explicitLoaderId());
-                    case AUTO -> workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND",
-                            detectJUnitTestKind(javaProject, testClass, packageFragment));
+                    case EXPLICIT -> {
+                        launchedKind = resolved.explicitLoaderId();
+                        workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND", launchedKind);
+                    }
+                    case AUTO -> {
+                        launchedKind = detectJUnitTestKind(javaProject, testClass, packageFragment);
+                        kindWasDetected = true;
+                        workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND", launchedKind);
+                    }
                 }
 
                 // Only the AssistAI-owned deterministic configuration is persisted. A named
@@ -1032,15 +1128,41 @@ public class UnitTestService {
                 
                 long launchStartTime = System.currentTimeMillis();
                 final ILaunch[] launchRef = new ILaunch[1];
+                final CoreException[] launchError = new CoreException[1];
                 // Launch the tests
                 sync.syncExec(() -> {
                     try {
                         launchRef[0] = configuration.launch(launchMode, new NullProgressMonitor());
                     } catch (CoreException e) {
+                        // The launcher refused before any JVM started - a misconfigured launch
+                        // or an unmet build-path requirement (e.g. JUnit 5 not on the build
+                        // path). Carry it out of the UI thread so it reaches the caller instead
+                        // of being swallowed here, where it would only ever surface as a vague
+                        // "no results" timeout.
                         logger.error("Error launching tests", e);
+                        launchError[0] = e;
                     }
                 });
-                
+
+                // A launch that threw never produced a session to wait for. Report the
+                // launcher's own message now rather than waiting out the timeout and
+                // returning TEST_RESULTS_NOT_REPORTED, which hides the cause and reads as
+                // retryable when the same call will fail the same way.
+                if ( launchError[0] != null ) {
+                    return TestRunResponse.notStarted( projectName, requestedClasses,
+                            Diagnostic.fatal( DiagnosticCode.LAUNCH_FAILED,
+                                    launchFailureMessage( launchError[0].getMessage(), launchedKind,
+                                            kindWasDetected ) ),
+                            elapsed( runStartMillis ) );
+                }
+                if ( launchRef[0] == null ) {
+                    return TestRunResponse.notStarted( projectName, requestedClasses,
+                            Diagnostic.fatal( DiagnosticCode.LAUNCH_FAILED,
+                                    launchFailureMessage( "the launch did not start and reported no error",
+                                            launchedKind, kindWasDetected ) ),
+                            elapsed( runStartMillis ) );
+                }
+
                 // Streams the test JVM's output into the operation and makes cancelling it
                 // terminate the JVM: interrupting this thread alone would leave it running.
                 operation.ifPresent( op -> ProcessOutputSource.attach( op, launchRef[0] ) );
