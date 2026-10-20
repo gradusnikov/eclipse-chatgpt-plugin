@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.TreeSet;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
@@ -22,15 +23,22 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.EclipseContextFactory;
 import org.eclipse.e4.core.contexts.IEclipseContext;
+import org.eclipse.debug.core.DebugPlugin;
+import org.eclipse.debug.core.ILaunchConfiguration;
+import org.eclipse.debug.core.ILaunchConfigurationType;
+import org.eclipse.debug.core.ILaunchConfigurationWorkingCopy;
+import org.eclipse.debug.core.ILaunchManager;
 import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jdt.core.IClasspathEntry;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IPackageFragment;
 import org.eclipse.jdt.core.IPackageFragmentRoot;
 import org.eclipse.jdt.core.JavaCore;
+import org.eclipse.jdt.launching.IJavaLaunchConfigurationConstants;
 import org.eclipse.pde.core.target.ITargetDefinition;
 import org.eclipse.pde.core.target.ITargetHandle;
 import org.eclipse.pde.core.target.ITargetPlatformService;
+import org.eclipse.pde.launching.IPDELauncherConstants;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
@@ -492,6 +500,73 @@ public class ServicePluginPDETest extends AbstractOperationPDETest
             assertEquals( 2, result.summary().total(), result.summaryText() );
             assertEquals( 2, result.summary().passed(), result.summaryText() );
         } );
+    }
+
+    /**
+     * Regression for the silent drop: several classes together with a saved stock PDE
+     * launcher used to run only the class that launcher's MAIN_TYPE_NAME named, because the
+     * stock delegate ignores the multi-class attribute. The saved launcher here is scoped
+     * to {@code SimplePluginTest} alone, so a run that honours only the launcher would
+     * report one test; both classes must run.
+     */
+    @Test
+    @Order( 23 )
+    public void testRunJUnitPluginTestClasses_withSavedStockLauncher_runsEveryClass() throws Exception
+    {
+        ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
+        ILaunchConfigurationType stockType = launchManager.getLaunchConfigurationType( "org.eclipse.pde.ui.JunitLaunchConfig" );
+        assertNotNull( stockType, "stock PDE JUnit launch type is missing" );
+
+        String launcherName = "ServicePluginPDETest-savedStockLauncher";
+        ILaunchConfigurationWorkingCopy draft = stockType.newInstance( null, launcherName );
+        draft.setAttribute( IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, TEST_PLUGIN_PROJECT );
+        draft.setAttribute( IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "com.example.pdetest.SimplePluginTest" );
+        draft.setAttribute( IPDELauncherConstants.LOCATION, System.getProperty( "java.io.tmpdir" )
+            + java.io.File.separator + "pde-test-workspace-savedStockLauncher" );
+        draft.setAttribute( IPDELauncherConstants.DOCLEAR, false );
+        draft.setAttribute( IPDELauncherConstants.USE_DEFAULT, false );
+        draft.setAttribute( IPDELauncherConstants.AUTOMATIC_ADD, false );
+        draft.setAttribute( IPDELauncherConstants.INCLUDE_OPTIONAL, true );
+        draft.setAttribute( IPDELauncherConstants.AUTOMATIC_INCLUDE_REQUIREMENTS, true );
+        draft.setAttribute( IPDELauncherConstants.AUTOMATIC_VALIDATE, true );
+        draft.setAttribute( IPDELauncherConstants.SELECTED_WORKSPACE_BUNDLES,
+            new TreeSet<>( List.of( TEST_PLUGIN_PROJECT + "@default:false" ) ) );
+        draft.setAttribute( IPDELauncherConstants.SELECTED_TARGET_BUNDLES, new TreeSet<String>() );
+        ILaunchConfiguration saved = draft.doSave();
+        try
+        {
+            runWithOperationAndPrintConsoleOnProblems(
+                "testRunJUnitPluginTestClasses_withSavedStockLauncher_runsEveryClass", () -> {
+                TestRunResponse result = service.runJUnitPluginTestClasses(
+                    TEST_PLUGIN_PROJECT,
+                    List.of( "com.example.pdetest.SimplePluginTest",
+                             "com.example.pdetest.SecondPluginTest" ),
+                    120, false, List.of(), launcherName );
+                System.out.println( "runJUnitPluginTestClasses (saved launcher) result: " + result );
+                assertLaunched( result );
+                assertEquals( 2, result.summary().total(),
+                    "both classes must run, not only the launcher's own class: " + result.summaryText() );
+                assertEquals( 2, result.summary().passed(), result.summaryText() );
+            } );
+
+            // The user's saved launcher is launched through a copy and left as it was.
+            ILaunchConfiguration after = null;
+            for ( ILaunchConfiguration candidate : launchManager.getLaunchConfigurations() )
+            {
+                if ( candidate.getName().equals( launcherName ) )
+                {
+                    after = candidate;
+                }
+            }
+            assertNotNull( after );
+            assertEquals( "org.eclipse.pde.ui.JunitLaunchConfig", after.getType().getIdentifier() );
+            assertEquals( "com.example.pdetest.SimplePluginTest",
+                after.getAttribute( IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "" ) );
+        }
+        finally
+        {
+            saved.delete();
+        }
     }
 
     private static void assertLaunched( TestRunResponse result )
