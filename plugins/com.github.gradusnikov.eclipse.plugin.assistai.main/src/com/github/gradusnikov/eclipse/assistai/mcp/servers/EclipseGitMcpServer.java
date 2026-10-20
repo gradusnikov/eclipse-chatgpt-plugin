@@ -160,6 +160,20 @@ public class EclipseGitMcpServer
         return gitService.resetFiles(projectName, filePattern);
     }
 
+    @Tool(name = "gitRemove", description = "Removes files from the index only ('git rm --cached <file>'), so Git stops tracking them "
+            + "while the files stay on disk as untracked. The working tree is never touched; to delete a file use the file tools and "
+            + "gitAdd the deletion. Paths are relative to the Eclipse project and may be comma-separated; '.' covers every tracked file "
+            + "under the project. Reports the index entries that were dropped, each naming its Eclipse projectName, project-relative "
+            + "filePath and repoPath; changeType is DELETED for a file HEAD contains - the removal is now staged - and otherwise what "
+            + "the dropped entry had been staged as. A pattern matching no index entry is totalFiles=0.", type = "object",
+            outputType = GitStageResponse.class)
+    public GitStageResponse gitRemove(
+            @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
+            @ToolParam(name = "filePattern", description = "Comma-separated files or folders relative to the Eclipse project, or '.' for the whole project", required = true) String filePattern)
+    {
+        return gitService.removeFromIndex(projectName, filePattern);
+    }
+
     @Tool(name = "gitStagePatch", description = "Stages specific changes from a unified diff patch into the index without modifying the working tree. "
             + "Use this to stage partial file changes for selective commits. The patch must be in standard unified diff format with file headers "
             + "(--- a/path and +++ b/path) and @@ hunk headers. IMPORTANT: patch paths are relative to the REPOSITORY root, not to the Eclipse "

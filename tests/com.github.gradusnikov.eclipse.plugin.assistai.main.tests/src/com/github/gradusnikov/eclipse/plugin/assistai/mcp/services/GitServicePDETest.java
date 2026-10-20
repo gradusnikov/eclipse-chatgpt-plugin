@@ -426,6 +426,58 @@ public class GitServicePDETest
     }
 
     @Test
+    public void testRemoveFromIndexKeepsTheFileOnDisk() throws Exception
+    {
+        File readme = new File(repoDir, "README.md");
+
+        GitStageResponse result = service.removeFromIndex(TEST_PROJECT_NAME, "README.md");
+        assertEquals(StageOperation.REMOVE, result.operation());
+        assertEquals(1, result.totalFiles(), result.summaryText());
+        assertEquals(ChangeType.DELETED, result.files().get(0).changeType(),
+                "a file HEAD contains is staged as deleted once its entry is gone");
+
+        assertTrue(readme.exists(), "an index-only remove must leave the working tree alone");
+        assertEquals("# Test Project\n", Files.readString(readme.toPath(), StandardCharsets.UTF_8));
+
+        GitStatusResponse status = service.getStatus(TEST_PROJECT_NAME);
+        assertTrue(status.staged().stream()
+                .anyMatch(f -> f.filePath().equals("README.md") && f.changeType() == ChangeType.DELETED),
+                "the removal should be staged: " + status.staged());
+        assertTrue(status.untracked().stream().anyMatch(f -> f.filePath().equals("README.md")),
+                "the file should now be untracked: " + status.untracked());
+    }
+
+    @Test
+    public void testRemoveFromIndexOfANewlyAddedFileUnstagesIt() throws Exception
+    {
+        File newFile = new File(repoDir, "added.txt");
+        Files.writeString(newFile.toPath(), "added\n", StandardCharsets.UTF_8);
+        project.refreshLocal(IResource.DEPTH_INFINITE, monitor);
+        service.addFiles(TEST_PROJECT_NAME, "added.txt");
+
+        GitStageResponse result = service.removeFromIndex(TEST_PROJECT_NAME, "added.txt");
+        assertEquals(1, result.totalFiles(), result.summaryText());
+        assertEquals(ChangeType.ADDED, result.files().get(0).changeType(),
+                "an entry HEAD lacks reports what it had been staged as");
+        assertTrue(newFile.exists());
+
+        GitStatusResponse status = service.getStatus(TEST_PROJECT_NAME);
+        assertTrue(status.staged().isEmpty(), "nothing should remain staged: " + status.staged());
+    }
+
+    @Test
+    public void testRemoveFromIndexOfAnUnmatchedPatternRemovesNothing() throws Exception
+    {
+        GitStageResponse result = service.removeFromIndex(TEST_PROJECT_NAME, "nope.txt");
+        assertEquals(0, result.totalFiles());
+        assertTrue(result.summaryText().contains("matched no index entry"), result.summaryText());
+
+        GitStageResponse directory = service.removeFromIndex(TEST_PROJECT_NAME, "src");
+        assertEquals(1, directory.totalFiles(), "a folder covers the entries under it: " + directory.summaryText());
+        assertEquals("src/Hello.java", directory.files().get(0).filePath());
+    }
+
+    @Test
     public void testStashAndPop() throws Exception
     {
         File srcFile = new File(repoDir, "src/Hello.java");

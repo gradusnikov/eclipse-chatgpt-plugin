@@ -44,7 +44,7 @@ a `status` a caller can branch on, and `diagnostics` carrying a coded
 | [duck-duck-search](#duck-duck-search) | 1 |
 | [eclipse-coder](#eclipse-coder) | 23 |
 | [eclipse-context](#eclipse-context) | 7 |
-| [eclipse-git](#eclipse-git) | 29 |
+| [eclipse-git](#eclipse-git) | 30 |
 | [eclipse-ide](#eclipse-ide) | 41 |
 | [eclipse-pde](#eclipse-pde) | 6 |
 | [eclipse-runner](#eclipse-runner) | 17 |
@@ -661,6 +661,17 @@ Lists the remotes configured for the repository, each with its name - what gitFe
 | `projectName` | \* | The Eclipse project name |
 
 **Returns** [`GitRemoteListResponse`](#gitremotelistresponse)
+
+### `gitRemove`
+
+Removes files from the index only ('git rm --cached <file>'), so Git stops tracking them while the files stay on disk as untracked. The working tree is never touched; to delete a file use the file tools and gitAdd the deletion. Paths are relative to the Eclipse project and may be comma-separated; '.' covers every tracked file under the project. Reports the index entries that were dropped, each naming its Eclipse projectName, project-relative filePath and repoPath; changeType is DELETED for a file HEAD contains - the removal is now staged - and otherwise what the dropped entry had been staged as. A pattern matching no index entry is totalFiles=0.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project name |
+| `filePattern` | \* | Comma-separated files or folders relative to the Eclipse project, or '.' for the whole project |
+
+**Returns** [`GitStageResponse`](#gitstageresponse)
 
 ### `gitReset`
 
@@ -2636,7 +2647,7 @@ Reads the content of the given web page and returns it as markdown, together wit
 
 ### `GitStageResponseStageOperation`
 
-`STAGE` \| `UNSTAGE`
+`STAGE` \| `UNSTAGE` \| `REMOVE`
 
 ### `GitStatusResponseGitFileChange`
 

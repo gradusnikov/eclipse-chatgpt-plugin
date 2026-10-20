@@ -18,7 +18,9 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.GitStatusResponse.Git
  * <p>
  * Each entry's {@code changeType} is the staged change relative to HEAD - the same
  * meaning it has in {@code gitStatus}'s staged list. For an unstage that is what the
- * file <em>was</em> staged as before the entry was dropped.
+ * file <em>was</em> staged as before the entry was dropped. For an index-only removal
+ * it is {@code DELETED} when the file is in HEAD, since the removal is now what is
+ * staged, and otherwise what the dropped entry had been staged as.
  *
  * @param pathspec the pattern the caller passed, echoed so a result can be matched back
  *            to the request that produced it
@@ -39,7 +41,9 @@ public record GitStageResponse(
         /** Files were added to the index. */
         STAGE,
         /** Index entries were reset to HEAD. */
-        UNSTAGE
+        UNSTAGE,
+        /** Index entries were removed, leaving the working tree alone ('git rm --cached'). */
+        REMOVE
     }
 
     public static GitStageResponse of( String projectName, StageOperation operation, String pathspec,
@@ -52,10 +56,16 @@ public record GitStageResponse(
 
     private static String summarize( StageOperation operation, String pathspec, int count )
     {
-        String verb = operation == StageOperation.STAGE ? "staged" : "unstaged";
+        String verb = switch ( operation )
+        {
+            case STAGE -> "staged";
+            case UNSTAGE -> "unstaged";
+            case REMOVE -> "removed from the index";
+        };
         if ( count == 0 )
         {
-            return "Nothing was " + verb + ": '" + pathspec + "' matched no changed file.";
+            String matched = operation == StageOperation.REMOVE ? "matched no index entry" : "matched no changed file";
+            return "Nothing was " + verb + ": '" + pathspec + "' " + matched + ".";
         }
         return count + ( count == 1 ? " file " : " files " ) + verb + ".";
     }

@@ -1106,6 +1106,59 @@ public class GitService
     }
 
     /**
+     * Drops index entries while leaving the files on disk ('git rm --cached').
+     * <p>
+     * Neither {@link #addFiles} nor {@link #resetFiles} can stop Git tracking a file that
+     * HEAD contains: staging puts the file back and resetting restores HEAD's entry. The
+     * entries are removed from the DirCache directly rather than through JGit's
+     * {@code RmCommand}, whose path filter cannot express "." for a project at the
+     * repository root. Every stage of a conflicted path goes with it.
+     */
+    public GitStageResponse removeFromIndex(String projectName, String filePattern)
+    {
+        Repository repository = getRepository(projectName);
+        List<String> pathspecs = resolvePathspecs(projectName, filePattern);
+        ReentrantLock lock = getRepositoryLock(repository);
+        lock.lock();
+
+        List<GitFileChange> removed;
+        try
+        {
+            IndexSnapshot before = indexSnapshot(repository);
+            DirCache dirCache = repository.lockDirCache();
+            try
+            {
+                DirCacheEditor editor = dirCache.editor();
+                Set<String> paths = new TreeSet<>();
+                for (int i = 0; i < dirCache.getEntryCount(); i++)
+                {
+                    String path = dirCache.getEntry(i).getPathString();
+                    if (matchesPathspec(path, pathspecs) && paths.add(path))
+                    {
+                        editor.add(new DirCacheEditor.DeletePath(path));
+                    }
+                }
+                editor.commit();
+            }
+            finally
+            {
+                dirCache.unlock();
+            }
+            removed = indexDelta(before, indexSnapshot(repository), mappedProjects(repository));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to remove files from the index: " + e.getMessage(), e);
+        }
+        finally
+        {
+            lock.unlock();
+        }
+        refreshProject(projectName);
+        return GitStageResponse.of(projectName, StageOperation.REMOVE, filePattern, removed);
+    }
+
+    /**
      * Stashes the working tree.
      * <p>
      * The stash commit - the only durable handle on the work just taken off the working
