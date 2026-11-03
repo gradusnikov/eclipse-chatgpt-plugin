@@ -10,4 +10,9 @@
             id="com.github.gradusnikov.eclipse.assistai.testsupport.fakeCheckoutProvider">
       </repository>
    </extension>
+   <extension point="org.eclipse.core.resources.builders" id="com.github.gradusnikov.eclipse.plugin.assistai.main.tests.workspaceBuildTestBuilder" name="Workspace build test builder">
+      <builder hasNature="false">
+         <run class="com.github.gradusnikov.eclipse.assistai.mcp.services.WorkspaceBuildServicePDETest$ControlledBuilder"/>
+      </builder>
+   </extension>
 </fragment>

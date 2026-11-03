@@ -45,7 +45,7 @@ a `status` a caller can branch on, and `diagnostics` carrying a coded
 | [eclipse-coder](#eclipse-coder) | 23 |
 | [eclipse-context](#eclipse-context) | 7 |
 | [eclipse-git](#eclipse-git) | 30 |
-| [eclipse-ide](#eclipse-ide) | 41 |
+| [eclipse-ide](#eclipse-ide) | 42 |
 | [eclipse-pde](#eclipse-pde) | 6 |
 | [eclipse-runner](#eclipse-runner) | 17 |
 | [memory](#memory) | 6 |
@@ -796,6 +796,18 @@ Lists the repository's tags. Each reports name (what every revision parameter an
 
 ## eclipse-ide
 
+### `buildWorkspace` *(long)*
+
+Runs Eclipse's configured workspace builders in dependency order, like Project > Build All. Defaults to INCREMENTAL with refresh-before-build enabled; FULL is a full build, not a clean. Builds saved workspace resources and does not save dirty editors. SUCCESS means the build finished without error markers; COMPLETED_WITH_ERRORS means builders finished but errors remain. FAILED and CANCELLED are not success. buildCompleted records whether the build itself returned normally; phase identifies where the call stopped. problems is a post-build snapshot with total error/warning counts and bounded, errors-first details, or null when unavailable. Use getCompilationErrors for source context and quick fixes. If this call hands back an operationId, the build is still running: poll getOperationStatus for completion and its structured result, or use cancelOperation to request cancellation.
+
+| Parameter | | Description |
+|---|---|---|
+| `buildKind` |  | INCREMENTAL (default) or FULL; CLEAN is not supported |
+| `refreshBeforeBuild` |  | Refresh saved resources from disk before building: true (default) or false |
+| `maxProblems` |  | Maximum problem details, 0 to 1000 (default: 100). Counts always include all problems |
+
+**Returns** [`WorkspaceBuildResponse`](#workspacebuildresponse)
+
 ### `executeQuickFix` *(long)*
 
 Applies one quick fix proposal to a compilation problem. Use getCompilationErrors first for the markerId and the proposal index. status is APPLIED, MARKER_NOT_FOUND (the id is stale - re-run getCompilationErrors), NO_PROPOSALS, INVALID_PROPOSAL_INDEX (pick from availableProposals) or APPLY_FAILED. On APPLIED, markerResolved says whether the problem actually went away.
@@ -910,7 +922,7 @@ Returns the outline of a Java class: its declaration plus fields, method signatu
 
 ### `getCompilationErrors`
 
-Retrieves compilation errors and problems from the current workspace, a specific project, or one folder or file within it. Reports errorCount/warningCount for everything that matched, before any truncation, so 'are there errors?' is answerable even from a shortened listing. Each problem carries its markerId and quick-fix indices for executeQuickFix.
+Retrieves compilation errors and problems from the current workspace, a specific project, or one folder or file within it. Reads existing markers without refreshing or building; use buildWorkspace to compile saved changes first. Reports errorCount/warningCount for everything that matched, before any truncation, so 'are there errors?' is answerable even from a shortened listing. Each problem carries its markerId and quick-fix indices for executeQuickFix.
 
 | Parameter | | Description |
 |---|---|---|
@@ -2013,6 +2025,21 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `tags` | [`GitTagListResponseGitTag`](#gittaglistresponsegittag)[] |
 | `summaryText` | `String` |
 
+### `WorkspaceBuildResponse`
+
+| Field | Type |
+|---|---|
+| `status` | [`WorkspaceBuildResponseStatus`](#workspacebuildresponsestatus) |
+| `buildKind` | [`WorkspaceBuildResponseBuildKind`](#workspacebuildresponsebuildkind) |
+| `scope` | `String` |
+| `refreshBeforeBuild` | `boolean` |
+| `buildCompleted` | `boolean` |
+| `phase` | [`WorkspaceBuildResponsePhase`](#workspacebuildresponsephase) |
+| `durationMillis` | `long` |
+| `problems` | [`CompilationProblemsResponse`](#compilationproblemsresponse) |
+| `diagnostics` | [`Diagnostic`](#diagnostic)[] |
+| `summaryText` | `String` |
+
 ### `QuickFixResponse`
 
 | Field | Type |
@@ -2790,6 +2817,18 @@ Reads the content of the given web page and returns it as markdown, together wit
 ### `GitStashPopResponsePopStatus`
 
 `APPLIED` \| `CONFLICTED` \| `NOTHING_TO_APPLY`
+
+### `WorkspaceBuildResponseStatus`
+
+`SUCCESS` \| `COMPLETED_WITH_ERRORS` \| `FAILED` \| `CANCELLED`
+
+### `WorkspaceBuildResponseBuildKind`
+
+`INCREMENTAL` \| `FULL`
+
+### `WorkspaceBuildResponsePhase`
+
+`VALIDATION` \| `WAITING` \| `REFRESH` \| `BUILD` \| `DIAGNOSTICS` \| `COMPLETED`
 
 ### `QuickFixResponseStatus`
 

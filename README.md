@@ -153,7 +153,7 @@ With the MCP tools, an external agent can:
 - **Read and navigate code** -- project layout, class outlines, method source, type hierarchies, call hierarchies, find references
 - **Edit code** -- create files, apply unified diffs, replace strings, delete lines, replace entire files
 - **Refactor** -- rename types/packages, move types, organize imports -- all through Eclipse's refactoring engine
-- **Build and test** -- run Maven builds, execute JUnit tests (all, by package, class, or method), read compilation errors, get quick-fix suggestions
+- **Build and test** -- refresh and build the Eclipse workspace, run Maven builds, execute JUnit tests (all, by package, class, or method), read compilation errors, get quick-fix suggestions
 - **Search** -- text search, regex search, file glob search, search-and-replace across the workspace
 - **Run and debug** -- launch Java applications, set breakpoints (including conditional), step through code, inspect stack traces, evaluate expressions, hot-swap code
 - **Access context** -- read JavaDoc, console output, editor selection, effective POM, project dependencies
@@ -249,6 +249,7 @@ Direct file-editing tools complete a workspace synchronization barrier before re
 | runClassTests | Run tests for a specific class |
 | runTestMethod | Run a specific test method |
 | findTestClasses | Classify plain JUnit and `*PDETest` harness tests; warns about likely PDE-dependent tests that violate the naming convention |
+| buildWorkspace | Refresh saved resources and run Eclipse Build All (incremental or full), with observable completion, cancellation and post-build problem counts |
 | runMavenBuild | Run a Maven build the way Run As > Maven build does, with the full Maven log in the console; reports exit code, `[ERROR]` lines and the log tail |
 | getEffectivePom | Effective POM for a Maven project |
 | getProjectDependencies | Maven project dependencies |

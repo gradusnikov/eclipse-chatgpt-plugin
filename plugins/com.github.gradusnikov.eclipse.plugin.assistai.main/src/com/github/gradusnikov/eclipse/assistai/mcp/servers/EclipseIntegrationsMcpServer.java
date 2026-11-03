@@ -36,6 +36,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.TestRunResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.TypeHierarchyResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.TypeResolutionResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.TypeSearchResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.WorkspaceBuildResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.WorkspaceOverviewResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.Tool;
 import com.github.gradusnikov.eclipse.assistai.mcp.annotations.ToolParam;
@@ -53,6 +54,7 @@ import com.github.gradusnikov.eclipse.assistai.mcp.services.ProjectService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.ResourceService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.SearchService;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.UnitTestService;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.WorkspaceBuildService;
 import com.github.gradusnikov.eclipse.assistai.resources.ResourceReadResult;
 import com.github.gradusnikov.eclipse.assistai.tools.Javadocs;
 
@@ -92,6 +94,9 @@ public class EclipseIntegrationsMcpServer
 
     @Inject
     private MavenService        mavenService;
+
+    @Inject
+    private WorkspaceBuildService workspaceBuildService;
 
     @Inject
     private OutlineService      outlineService;
@@ -322,6 +327,7 @@ public class EclipseIntegrationsMcpServer
     }
 
     @Tool( name = "getCompilationErrors", description = "Retrieves compilation errors and problems from the current workspace, a specific project, or one folder or file within it. "
+            + "Reads existing markers without refreshing or building; use buildWorkspace to compile saved changes first. "
             + "Reports errorCount/warningCount for everything that matched, before any truncation, so 'are there errors?' is answerable "
             + "even from a shortened listing. Each problem carries its markerId and quick-fix indices for executeQuickFix.",
             type = "object", outputType = CompilationProblemsResponse.class )
@@ -519,6 +525,27 @@ public class EclipseIntegrationsMcpServer
     }
 
     // Maven Service Tools
+
+    @Tool( name = "buildWorkspace", longExecution = true, type = "object", outputType = WorkspaceBuildResponse.class,
+            description = "Runs Eclipse's configured workspace builders in dependency order, like Project > Build All. "
+                    + "Defaults to INCREMENTAL with refresh-before-build enabled; FULL is a full build, not a clean. "
+                    + "Builds saved workspace resources and does not save dirty editors. "
+                    + "SUCCESS means the build finished without error markers; COMPLETED_WITH_ERRORS means builders finished but errors remain. "
+                    + "FAILED and CANCELLED are not success. buildCompleted records whether the build itself returned normally; phase identifies where the call stopped. "
+                    + "problems is a post-build snapshot with total error/warning counts and bounded, errors-first details, or null when unavailable. "
+                    + "Use getCompilationErrors for source context and quick fixes. "
+                    + "If this call hands back an operationId, the build is still running: poll getOperationStatus for completion and its structured result, "
+                    + "or use cancelOperation to request cancellation." )
+    public WorkspaceBuildResponse buildWorkspace(
+            @ToolParam( name = "buildKind", description = "INCREMENTAL (default) or FULL; CLEAN is not supported", required = false )
+            final String buildKind,
+            @ToolParam( name = "refreshBeforeBuild", description = "Refresh saved resources from disk before building: true (default) or false", required = false )
+            final String refreshBeforeBuild,
+            @ToolParam( name = "maxProblems", description = "Maximum problem details, 0 to 1000 (default: 100). Counts always include all problems", required = false )
+            final String maxProblems )
+    {
+        return workspaceBuildService.buildWorkspace( buildKind, refreshBeforeBuild, maxProblems );
+    }
 
     @Tool( name = "runMavenBuild", longExecution = true, type = "object", outputType = MavenBuildResponse.class,
            description = "Runs a Maven build on a project exactly the way the IDE's Run As > Maven build does: through m2e's Maven launch "
