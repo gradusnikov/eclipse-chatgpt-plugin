@@ -1,9 +1,11 @@
 package com.github.gradusnikov.eclipse.assistai.mcp.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
 import java.util.List;
@@ -202,6 +204,133 @@ public class SelectedJUnitPluginLaunchDelegatePDETest
         assertEquals( List.of( "example.selected.FirstPDETest", "example.selected.SecondPDETest" ),
             delegate.resolved,
             "the launch must run every selected class, not just the one named as the input type" );
+    }
+
+    private static final String STOCK_PDE_TYPE = "org.eclipse.pde.ui.JunitLaunchConfig";
+
+    @Test
+    public void testNeedsSelectedDelegate_dependsOnClassCountAndMethod() throws Exception
+    {
+        IJavaProject javaProject = JavaCore.create( project );
+        IType first = javaProject.findType( "example.selected.FirstPDETest" );
+        IType second = javaProject.findType( "example.selected.SecondPDETest" );
+
+        assertTrue( PDEService.needsSelectedDelegate( List.of( first, second ), null, false ) );
+        assertTrue( PDEService.needsSelectedDelegate( List.of( first ), "testAlpha", true ) );
+        assertFalse( PDEService.needsSelectedDelegate( List.of( first ), null, false ) );
+        assertFalse( PDEService.needsSelectedDelegate( List.of( first ), "  ", true ) );
+        assertFalse( PDEService.needsSelectedDelegate( List.of( first ), "testAlpha", false ) );
+        assertFalse( PDEService.needsSelectedDelegate( List.of(), null, false ) );
+    }
+
+    /**
+     * The reported defect: a saved stock PDE launcher plus several classes ran only the
+     * first class, because the stock delegate ignores the multi-class attribute.
+     */
+    @Test
+    public void testNamedLauncher_stockPdeConfig_isRehostedOnSelectedType_andRunsEveryClass() throws Exception
+    {
+        IJavaProject javaProject = JavaCore.create( project );
+        ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
+        ILaunchConfigurationType stockType = launchManager.getLaunchConfigurationType( STOCK_PDE_TYPE );
+        ILaunchConfigurationType selectedType = launchManager
+            .getLaunchConfigurationType( SelectedJUnitPluginLaunchDelegate.LAUNCH_CONFIGURATION_TYPE );
+        assertNotNull( stockType );
+        assertNotNull( selectedType );
+
+        ILaunchConfigurationWorkingCopy draft = stockType.newInstance( null,
+            "SelectedJUnitPluginLaunchDelegatePDETest_namedLauncher" );
+        draft.setAttribute( IJavaLaunchConfigurationConstants.ATTR_VM_ARGUMENTS, "-Dsaved.vm.arg=1" );
+        draft.setAttribute( IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, "SomeOtherProject" );
+        draft.setAttribute( IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "some.Other" );
+        ILaunchConfiguration saved = draft.doSave();
+        try
+        {
+            assertFalse( PDEService.isSelectedLaunchType( saved ) );
+
+            ILaunchConfigurationWorkingCopy copy =
+                PDEService.namedLauncherWorkingCopy( saved, selectedType, saved.getName() );
+            assertEquals( SelectedJUnitPluginLaunchDelegate.LAUNCH_CONFIGURATION_TYPE,
+                copy.getType().getIdentifier() );
+            assertEquals( "-Dsaved.vm.arg=1",
+                copy.getAttribute( IJavaLaunchConfigurationConstants.ATTR_VM_ARGUMENTS, "" ),
+                "settings of the saved launcher must carry over" );
+
+            PDEService.applyTestTargeting( copy, javaProject, null,
+                List.of( javaProject.findType( "example.selected.FirstPDETest" ),
+                         javaProject.findType( "example.selected.SecondPDETest" ) ) );
+
+            IMember[] selected = new SelectedJUnitPluginLaunchDelegate().evaluateTests(
+                copy, new NullProgressMonitor() );
+            assertEquals( 2, selected.length, "both classes must be selected, not just the first" );
+
+            // The user's saved launcher is left exactly as it was.
+            assertEquals( STOCK_PDE_TYPE, saved.getType().getIdentifier() );
+            assertEquals( "SomeOtherProject",
+                saved.getAttribute( IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, "" ) );
+            assertEquals( "some.Other",
+                saved.getAttribute( IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "" ) );
+            assertTrue( saved.getAttribute( SelectedJUnitPluginLaunchDelegate.ATTR_TEST_CLASSES,
+                List.<String>of() ).isEmpty() );
+            assertFalse( copy.isWorkingCopy() && copy.getOriginal() != null,
+                "the re-hosted configuration must not be tied to the saved one" );
+            assertTrue( findByName( launchManager, saved.getName() + " (AssistAI selected tests)" ) == null,
+                "the re-hosted configuration must not be persisted" );
+        }
+        finally
+        {
+            saved.delete();
+        }
+    }
+
+    @Test
+    public void testNamedLauncher_noSelectedTypeNeeded_keepsSavedConfigType() throws Exception
+    {
+        ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
+        ILaunchConfigurationType stockType = launchManager.getLaunchConfigurationType( STOCK_PDE_TYPE );
+        ILaunchConfigurationWorkingCopy draft = stockType.newInstance( null,
+            "SelectedJUnitPluginLaunchDelegatePDETest_namedLauncherSingle" );
+        ILaunchConfiguration saved = draft.doSave();
+        try
+        {
+            ILaunchConfigurationWorkingCopy copy =
+                PDEService.namedLauncherWorkingCopy( saved, null, saved.getName() );
+            assertEquals( STOCK_PDE_TYPE, copy.getType().getIdentifier() );
+            assertEquals( saved.getName(), copy.getName() );
+        }
+        finally
+        {
+            saved.delete();
+        }
+    }
+
+    @Test
+    public void testNamedLauncher_alreadySelectedType_isDetected() throws Exception
+    {
+        ILaunchConfigurationType selectedType = DebugPlugin.getDefault().getLaunchManager()
+            .getLaunchConfigurationType( SelectedJUnitPluginLaunchDelegate.LAUNCH_CONFIGURATION_TYPE );
+        ILaunchConfiguration saved = selectedType.newInstance( null,
+            "SelectedJUnitPluginLaunchDelegatePDETest_alreadySelected" ).doSave();
+        try
+        {
+            assertTrue( PDEService.isSelectedLaunchType( saved ) );
+        }
+        finally
+        {
+            saved.delete();
+        }
+    }
+
+    private static ILaunchConfiguration findByName( ILaunchManager launchManager, String name ) throws CoreException
+    {
+        for ( ILaunchConfiguration configuration : launchManager.getLaunchConfigurations() )
+        {
+            if ( configuration.getName().equals( name ) )
+            {
+                return configuration;
+            }
+        }
+        return null;
     }
 
     /**

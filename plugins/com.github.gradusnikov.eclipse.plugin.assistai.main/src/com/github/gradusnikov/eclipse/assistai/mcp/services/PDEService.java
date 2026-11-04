@@ -879,7 +879,23 @@ public class PDEService
                             "Launch configuration not found: " + launcherName ),
                         elapsed( runStartMillis ) );
                 }
-                workingCopy = base.getWorkingCopy();
+                ILaunchConfigurationType selectedType = null;
+                if ( needsSelectedDelegate( testClasses, methodName, singleMethod )
+                     && !isSelectedLaunchType( base ) )
+                {
+                    selectedType = launchManager.getLaunchConfigurationType(
+                        SelectedJUnitPluginLaunchDelegate.LAUNCH_CONFIGURATION_TYPE );
+                    if ( selectedType == null )
+                    {
+                        return TestRunResponse.notStarted( projectName, requestedClasses,
+                            Diagnostic.fatal( DiagnosticCode.PDE_LAUNCH_TYPE_MISSING,
+                                "PDE JUnit Plug-in Test launch configuration type '"
+                                    + SelectedJUnitPluginLaunchDelegate.LAUNCH_CONFIGURATION_TYPE
+                                    + "' not found. Ensure the required PDE launcher is available." ),
+                            elapsed( runStartMillis ) );
+                    }
+                }
+                workingCopy = namedLauncherWorkingCopy( base, selectedType, launcherName );
             }
             else
             {
@@ -1219,6 +1235,45 @@ public class PDEService
         {
             JUnitCore.removeTestRunListener( listener );
         }
+    }
+
+    /**
+     * Whether the target needs {@link SelectedJUnitPluginLaunchDelegate}: several classes,
+     * or one class narrowed to a method. Only that delegate reads
+     * {@code ATTR_TEST_CLASSES} / {@code ATTR_TEST_METHOD}.
+     */
+    static boolean needsSelectedDelegate( List<IType> testClasses, String methodName, boolean singleMethod )
+    {
+        return testClasses.size() > 1
+            || ( singleMethod && testClasses.size() == 1 && methodName != null && !methodName.isBlank() );
+    }
+
+    static boolean isSelectedLaunchType( ILaunchConfiguration configuration ) throws CoreException
+    {
+        return SelectedJUnitPluginLaunchDelegate.LAUNCH_CONFIGURATION_TYPE
+            .equals( configuration.getType().getIdentifier() );
+    }
+
+    /**
+     * The working copy to launch for a named launcher. The saved configuration itself is
+     * never modified. When {@code selectedType} is non-null the saved configuration is a
+     * different type (normally the stock PDE one), whose delegate ignores the multi-class
+     * and single-method attributes and would run only the class in {@code MAIN_TYPE_NAME},
+     * silently dropping the rest. Its attributes are then copied onto a new, unsaved
+     * configuration of {@code selectedType}, so VM arguments, bundle selection and so on
+     * are kept and the right delegate runs.
+     */
+    static ILaunchConfigurationWorkingCopy namedLauncherWorkingCopy( ILaunchConfiguration base,
+            ILaunchConfigurationType selectedType, String launcherName ) throws CoreException
+    {
+        if ( selectedType == null )
+        {
+            return base.getWorkingCopy();
+        }
+        ILaunchConfigurationWorkingCopy copy =
+            selectedType.newInstance( null, launcherName + " (AssistAI selected tests)" );
+        copy.setAttributes( base.getAttributes() );
+        return copy;
     }
 
     /**
