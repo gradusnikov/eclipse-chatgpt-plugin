@@ -981,7 +981,11 @@ public class PDEService
                     workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_ADD, false );
                     workingCopy.setAttribute( IPDELauncherConstants.INCLUDE_OPTIONAL, true );
                     workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_INCLUDE_REQUIREMENTS, true );
-                    workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_VALIDATE, true );
+                    // Headless: pre-launch validation pops a modal dialog about optional target
+                    // fragments that do not resolve on this OS (e.g. equo chromium win32, servoy
+                    // nodejs win32, m2e jdt) - warnings only, but nobody is there to dismiss them,
+                    // so the launch would park. An MCP launch is always headless, so never validate.
+                    workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_VALIDATE, false );
 
                     Set<String> workspaceBundles = new TreeSet<>();
                     workspaceBundles.add( javaProject.getElementName() + "@default:false" );
