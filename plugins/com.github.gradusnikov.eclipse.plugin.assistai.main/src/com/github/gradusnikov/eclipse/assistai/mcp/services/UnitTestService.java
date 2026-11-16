@@ -45,6 +45,8 @@ import org.eclipse.debug.core.ILaunchConfiguration;
 import org.eclipse.debug.core.ILaunchConfigurationType;
 import org.eclipse.debug.core.ILaunchConfigurationWorkingCopy;
 import org.eclipse.debug.core.ILaunchManager;
+import org.eclipse.core.runtime.preferences.IEclipsePreferences;
+import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.e4.core.di.annotations.Creatable;
 import org.eclipse.e4.ui.di.UISynchronize;
 import org.eclipse.jdt.core.IAnnotation;
@@ -64,6 +66,7 @@ import org.eclipse.jdt.junit.model.ITestCaseElement;
 import org.eclipse.jdt.junit.model.ITestElement.Result;
 import org.eclipse.jdt.junit.model.ITestRunSession;
 import org.eclipse.jdt.launching.IJavaLaunchConfigurationConstants;
+import org.osgi.service.prefs.BackingStoreException;
 
 import jakarta.inject.Inject;
 
@@ -481,6 +484,64 @@ public class UnitTestService {
             }
         }
         return sb.toString();
+    }
+
+    /**
+     * Runs {@code launchAction} with the debug platform's launch status-handlers
+     * suppressed, restoring the preference afterwards.
+     * <p>
+     * {@code ILaunchConfiguration.launch} delegates to
+     * {@code LaunchConfigurationDelegate.finalLaunchCheck}, which - when a project in the
+     * launch's build scope carries error markers - asks a registered status handler
+     * (debug-core status code 203, "Errors exist in required project(s). Proceed with
+     * launch?") whether to go on. In the IDE that handler shows a modal dialog; in a
+     * headless or agent-driven run nobody is there to answer it, so the launch parks
+     * forever. The same handler backs the "switch to debug mode" breakpoint prompt.
+     * <p>
+     * {@code DebugPlugin.getStatusHandler} returns {@code null} - skipping every prompt -
+     * when {@code org.eclipse.debug.core/PREF_ENABLE_STATUS_HANDLERS} is {@code false}.
+     * We flip it off only around the launch call and put it back in a {@code finally},
+     * so an interactive launch the user starts is unaffected beyond that window. A run
+     * that then fails because of the compile errors comes back as an ordinary launch
+     * failure - which is what the caller wants: never block, just report.
+     *
+     * @param launchAction performs the actual {@code configuration.launch(...)} call
+     */
+    static ILaunch launchWithoutStatusHandlerPrompts( LaunchAction launchAction ) throws CoreException
+    {
+        IEclipsePreferences prefs = InstanceScope.INSTANCE.getNode( "org.eclipse.debug.core" );
+        boolean previous = prefs.getBoolean( PREF_ENABLE_STATUS_HANDLERS, true );
+        prefs.putBoolean( PREF_ENABLE_STATUS_HANDLERS, false );
+        try
+        {
+            return launchAction.launch();
+        }
+        finally
+        {
+            prefs.putBoolean( PREF_ENABLE_STATUS_HANDLERS, previous );
+            try
+            {
+                prefs.flush();
+            }
+            catch ( BackingStoreException e )
+            {
+                // The preference is restored in memory; a failed flush only means it was
+                // not persisted to disk, which does not affect this or the next launch.
+            }
+        }
+    }
+
+    /**
+     * The key the debug platform reads in {@code DebugPlugin.getStatusHandler} to decide
+     * whether launch prompts fire. Not exported as API, so it is inlined here.
+     */
+    private static final String PREF_ENABLE_STATUS_HANDLERS = "PREF_ENABLE_STATUS_HANDLERS";
+
+    /** A {@code configuration.launch(...)} call that may throw, for {@link #launchWithoutStatusHandlerPrompts}. */
+    @FunctionalInterface
+    interface LaunchAction
+    {
+        ILaunch launch() throws CoreException;
     }
 
     /** The human version number for a TEST_KIND loader id, or {@code null} if unrecognised. */
@@ -1132,7 +1193,8 @@ public class UnitTestService {
                 // Launch the tests
                 sync.syncExec(() -> {
                     try {
-                        launchRef[0] = configuration.launch(launchMode, new NullProgressMonitor());
+                        launchRef[0] = launchWithoutStatusHandlerPrompts(
+                                () -> configuration.launch(launchMode, new NullProgressMonitor()));
                     } catch (CoreException e) {
                         // The launcher refused before any JVM started - a misconfigured launch
                         // or an unmet build-path requirement (e.g. JUnit 5 not on the build

@@ -272,6 +272,39 @@ public class UnitTestServiceLaunchPDETest
         }
     }
 
+    /**
+     * A project with a compile error in a class that the tests do not touch. Before the
+     * fix, {@code finalLaunchCheck} found the error marker and asked the "Errors exist in
+     * required project(s). Proceed with launch?" status handler whether to go on - which
+     * in a headless run has no answer, so the launch parked forever. Suppressing the
+     * status handlers lets the launch proceed; the run must come back with a result
+     * (a status, a diagnostic - anything but a hang), never block.
+     */
+    @Test
+    public void aCompileErrorInASiblingClassDoesNotBlockTheLaunch() throws Exception
+    {
+        IFolder sample = project.getFolder( "src" ).getFolder( "sample" );
+        // A deliberately broken class the tests never reference. It carries an error
+        // marker, which is exactly what used to trip the "Proceed with launch?" prompt.
+        write( sample.getFile( "Broken.java" ), """
+                package sample;
+
+                public class Broken {
+                    void boom() {
+                        return this is not java;
+                    }
+                }
+                """ );
+        project.refreshLocal( IResource.DEPTH_INFINITE, monitor );
+        project.build( IncrementalProjectBuilder.FULL_BUILD, monitor );
+
+        // The call returns rather than hanging on a dialog. That it returns at all within
+        // the timeout is the assertion the bug is about; the exact status depends on
+        // whether the JUnit launch can report back in this environment.
+        TestRunResponse response = service.runClassTests( PROJECT, "sample.TwoTests", 60 );
+        assertNotNull( response, "the run returned instead of blocking on the launch prompt" );
+    }
+
     private static ILaunchConfiguration savedLaunchConfiguration( String name ) throws CoreException
     {
         for ( ILaunchConfiguration configuration : DebugPlugin.getDefault().getLaunchManager().getLaunchConfigurations() )
