@@ -17,7 +17,9 @@ import com.github.gradusnikov.eclipse.assistai.mcp.results.LaunchResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.StackTraceResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.StepResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.results.StopApplicationResponse;
+import com.github.gradusnikov.eclipse.assistai.mcp.results.TestNGLaunchConfigurationResponse;
 import com.github.gradusnikov.eclipse.assistai.mcp.services.JavaLaunchService;
+import com.github.gradusnikov.eclipse.assistai.mcp.services.TestNGLaunchService;
 
 import jakarta.inject.Inject;
 
@@ -27,6 +29,9 @@ public class EclipseRunnerMcpServer
 {
     @Inject
     private JavaLaunchService javaLaunchService;
+
+    @Inject
+    private TestNGLaunchService testNGLaunchService;
 
     @Tool(name = "runJavaApplication", longExecution = true,
           description = "Launches a Java application in run mode. Specify the project and fully qualified main class. "
@@ -86,20 +91,46 @@ public class EclipseRunnerMcpServer
               + "Each entry has: name, typeId, typeName, projectName, mainClass. "
               + "Use this to discover the exact name to pass to launchConfiguration, (eclipse-ide MCP server).runJUnitTests (launcherName), or (eclipse-pde MCP server).runJUnitPluginTests (launcherName). "
               + "Use typeFilter to narrow results: 'junit' for plain JUnit runs, 'junit-plugin' for PDE plug-in tests, "
+              + "'testng' for TestNG runs (such as those createTestNGLaunchConfiguration saves), "
               + "or any substring of the type ID for other types.",
           type = "object", outputType = LaunchConfigurationsResponse.class)
     public LaunchConfigurationsResponse listLaunchConfigurations(
             @ToolParam(name = "typeFilter",
                        description = "Optional filter: 'junit' (org.eclipse.jdt.junit.launchconfig), "
                            + "'junit-plugin' (org.eclipse.pde.ui.JunitLaunchConfig), "
+                           + "'testng' (org.testng.eclipse.launchconfig), "
                            + "'all' or omit for everything, or any substring of the type ID.",
                        required = false) String typeFilter)
     {
         return javaLaunchService.listLaunchConfigurations( typeFilter );
     }
 
+    @Tool(name = "createTestNGLaunchConfiguration",
+          description = "Creates and saves a TestNG launch configuration - the one Eclipse's 'Run As > TestNG Test' saves - without launching it. "
+              + "Requires the TestNG for Eclipse plug-in; without it nothing is saved and diagnostics carry TESTNG_LAUNCH_TYPE_MISSING. "
+              + "Give exactly one target: className (optionally with methodName), packageName, suiteFile, or groups. "
+              + "For groups, the test classes declaring them in @Test(groups=...) are found in the project and the projects it requires, and reported as groupClasses. "
+              + "If a TestNG configuration of the same name exists it is updated in place (created=false); a configuration of any other type with that name is never overwritten (RESOURCE_ALREADY_EXISTS). "
+              + "Run the result with launchConfiguration(configurationName=...) and find it later with listLaunchConfigurations(typeFilter='testng'). "
+              + "Unlike the IDE action, dependsOnGroups/dependsOnMethods are not followed to add further classes.",
+          type = "object", outputType = TestNGLaunchConfigurationResponse.class)
+    public TestNGLaunchConfigurationResponse createTestNGLaunchConfiguration(
+            @ToolParam(name = "projectName", description = "The Eclipse project containing the tests (use listProjects to find it)") String projectName,
+            @ToolParam(name = "className", description = "Fully qualified test class name (e.g. 'com.example.FooTest')", required = false) String className,
+            @ToolParam(name = "methodName", description = "Test method name within className (e.g. 'testCreate'). Requires className", required = false) String methodName,
+            @ToolParam(name = "packageName", description = "Fully qualified package whose tests to run (e.g. 'com.example.service')", required = false) String packageName,
+            @ToolParam(name = "suiteFile", description = "Project-relative path of a TestNG suite file (e.g. 'src/test/resources/testng.xml')", required = false) String suiteFile,
+            @ToolParam(name = "groups", description = "Comma-separated TestNG group names (e.g. 'smoke,fast')", required = false) String groups,
+            @ToolParam(name = "configurationName", description = "Optional name for the configuration. Default follows the IDE: the simple class name, 'Class.method', 'package <name>', or '<project>_<suite path with dots>' for a suite; '<project> groups <names>' for groups", required = false) String configurationName,
+            @ToolParam(name = "vmArgs", description = "Optional JVM arguments (e.g. '-Xmx512m -Dfoo=bar')", required = false) String vmArgs,
+            @ToolParam(name = "programArgs", description = "Optional program arguments passed to TestNG", required = false) String programArgs)
+    {
+        return testNGLaunchService.createLaunchConfiguration(projectName, className, methodName, packageName,
+                suiteFile, groups, configurationName, vmArgs, programArgs);
+    }
+
     @Tool(name = "launchConfiguration", longExecution = true,
-          description = "Launches an existing saved launch configuration by name, exactly as it would run from Eclipse's Run/Debug Configurations dialog (reusing its classpath, program/VM arguments, environment variables, working directory, and agent settings such as JRebel). Use listLaunchConfigurations to find the name. Unlike runJavaApplication/debugJavaApplication, this does NOT create a throwaway configuration. If timeout > 0, waits for the process to finish; if timeout = 0, launches in background and returns immediately. Reports status, exitCode (null when still running), timedOut, and separate stdout/stderr with truncation counts. For JUnit test launches (plain tests or plug-in tests), use the dedicated runJUnitTests (eclipse-ide) or runJUnitPluginTests (eclipse-pde) tools instead — they provide structured test results, per-test status, and polling support that this generic launcher does not.",
+          description = "Launches an existing saved launch configuration by name, exactly as it would run from Eclipse's Run/Debug Configurations dialog (reusing its classpath, program/VM arguments, environment variables, working directory, and agent settings such as JRebel). Use listLaunchConfigurations to find the name. Unlike runJavaApplication/debugJavaApplication, this does NOT create a throwaway configuration. If timeout > 0, waits for the process to finish; if timeout = 0, launches in background and returns immediately. Reports status, exitCode (null when still running), timedOut, and separate stdout/stderr with truncation counts. For JUnit test launches (plain tests or plug-in tests), use the dedicated runJUnitTests (eclipse-ide) or runJUnitPluginTests (eclipse-pde) tools instead — they provide structured test results, per-test status, and polling support that this generic launcher does not. TestNG configurations, including those saved by createTestNGLaunchConfiguration, are run with this tool.",
           type = "object", outputType = LaunchResponse.class)
     public LaunchResponse launchConfiguration(
             @ToolParam(name = "configurationName", description = "The exact name of the launch configuration to launch (e.g., 'Run Snapshot App No Data Compass Local')") String configurationName,

@@ -139,6 +139,12 @@ public enum DiagnosticCode
      */
     MAVEN_LAUNCH_TYPE_MISSING,
 
+    /**
+     * The TestNG for Eclipse plug-in is not installed, so the workspace has no
+     * {@code org.testng.eclipse.launchconfig} launch type to create a configuration of.
+     */
+    TESTNG_LAUNCH_TYPE_MISSING,
+
     /** A saved launch configuration was named but no configuration has that name. */
     LAUNCH_CONFIGURATION_NOT_FOUND,
 

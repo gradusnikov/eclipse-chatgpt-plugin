@@ -69,4 +69,42 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!-- Opt-in: ./mvnw verify -Ptestng adds TestNG for Eclipse to the test runtime, so the
+         TestNGLaunchServicePDETest cases that need the real launch type run (they skip
+         otherwise). Off by default: AssistAI must load and be tested where TestNG is NOT
+         installed, and the default build should not depend on testng.org. -->
+    <profile>
+      <id>testng</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.eclipse.tycho</groupId>
+            <artifactId>target-platform-configuration</artifactId>
+            <version>${tycho.version}</version>
+            <configuration>
+              <target combine.children="append">
+                <file>${project.basedir}/testng.target</file>
+              </target>
+            </configuration>
+          </plugin>
+          <plugin>
+            <groupId>org.eclipse.tycho</groupId>
+            <artifactId>tycho-surefire-plugin</artifactId>
+            <version>${tycho.version}</version>
+            <configuration>
+              <dependencies combine.children="append">
+                <dependency>
+                  <type>eclipse-plugin</type>
+                  <artifactId>org.testng.eclipse</artifactId>
+                  <version>0.0.0</version>
+                </dependency>
+              </dependencies>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

@@ -47,7 +47,7 @@ a `status` a caller can branch on, and `diagnostics` carrying a coded
 | [eclipse-git](#eclipse-git) | 30 |
 | [eclipse-ide](#eclipse-ide) | 42 |
 | [eclipse-pde](#eclipse-pde) | 6 |
-| [eclipse-runner](#eclipse-runner) | 17 |
+| [eclipse-runner](#eclipse-runner) | 18 |
 | [memory](#memory) | 6 |
 | [time](#time) | 2 |
 | [webpage-reader](#webpage-reader) | 1 |
@@ -1341,6 +1341,24 @@ Sets the active Eclipse target platform from a .target file, waits for it to loa
 
 ## eclipse-runner
 
+### `createTestNGLaunchConfiguration`
+
+Creates and saves a TestNG launch configuration - the one Eclipse's 'Run As > TestNG Test' saves - without launching it. Requires the TestNG for Eclipse plug-in; without it nothing is saved and diagnostics carry TESTNG_LAUNCH_TYPE_MISSING. Give exactly one target: className (optionally with methodName), packageName, suiteFile, or groups. For groups, the test classes declaring them in @Test(groups=...) are found in the project and the projects it requires, and reported as groupClasses. If a TestNG configuration of the same name exists it is updated in place (created=false); a configuration of any other type with that name is never overwritten (RESOURCE_ALREADY_EXISTS). Run the result with launchConfiguration(configurationName=...) and find it later with listLaunchConfigurations(typeFilter='testng'). Unlike the IDE action, dependsOnGroups/dependsOnMethods are not followed to add further classes.
+
+| Parameter | | Description |
+|---|---|---|
+| `projectName` | \* | The Eclipse project containing the tests (use listProjects to find it) |
+| `className` |  | Fully qualified test class name (e.g. 'com.example.FooTest') |
+| `methodName` |  | Test method name within className (e.g. 'testCreate'). Requires className |
+| `packageName` |  | Fully qualified package whose tests to run (e.g. 'com.example.service') |
+| `suiteFile` |  | Project-relative path of a TestNG suite file (e.g. 'src/test/resources/testng.xml') |
+| `groups` |  | Comma-separated TestNG group names (e.g. 'smoke,fast') |
+| `configurationName` |  | Optional name for the configuration. Default follows the IDE: the simple class name, 'Class.method', 'package <name>', or '<project>_<suite path with dots>' for a suite; '<project> groups <names>' for groups |
+| `vmArgs` |  | Optional JVM arguments (e.g. '-Xmx512m -Dfoo=bar') |
+| `programArgs` |  | Optional program arguments passed to TestNG |
+
+**Returns** [`TestNGLaunchConfigurationResponse`](#testnglaunchconfigurationresponse)
+
 ### `debugJavaApplication` *(long)*
 
 Launches a Java application in debug mode. The application will stop at breakpoints. Use toggleBreakpoint to set breakpoints before launching. Same result shape as runJavaApplication: status, exitCode (null when still running), timedOut, and separate stdout/stderr with truncation counts.
@@ -1389,7 +1407,7 @@ Rebuilds the debugged project and reports whether the new bytecode actually reac
 
 ### `launchConfiguration` *(long)*
 
-Launches an existing saved launch configuration by name, exactly as it would run from Eclipse's Run/Debug Configurations dialog (reusing its classpath, program/VM arguments, environment variables, working directory, and agent settings such as JRebel). Use listLaunchConfigurations to find the name. Unlike runJavaApplication/debugJavaApplication, this does NOT create a throwaway configuration. If timeout > 0, waits for the process to finish; if timeout = 0, launches in background and returns immediately. Reports status, exitCode (null when still running), timedOut, and separate stdout/stderr with truncation counts. For JUnit test launches (plain tests or plug-in tests), use the dedicated runJUnitTests (eclipse-ide) or runJUnitPluginTests (eclipse-pde) tools instead — they provide structured test results, per-test status, and polling support that this generic launcher does not.
+Launches an existing saved launch configuration by name, exactly as it would run from Eclipse's Run/Debug Configurations dialog (reusing its classpath, program/VM arguments, environment variables, working directory, and agent settings such as JRebel). Use listLaunchConfigurations to find the name. Unlike runJavaApplication/debugJavaApplication, this does NOT create a throwaway configuration. If timeout > 0, waits for the process to finish; if timeout = 0, launches in background and returns immediately. Reports status, exitCode (null when still running), timedOut, and separate stdout/stderr with truncation counts. For JUnit test launches (plain tests or plug-in tests), use the dedicated runJUnitTests (eclipse-ide) or runJUnitPluginTests (eclipse-pde) tools instead — they provide structured test results, per-test status, and polling support that this generic launcher does not. TestNG configurations, including those saved by createTestNGLaunchConfiguration, are run with this tool.
 
 | Parameter | | Description |
 |---|---|---|
@@ -1413,11 +1431,11 @@ Lists all breakpoints currently set in the workspace. Each breakpoint reports pr
 
 ### `listLaunchConfigurations`
 
-Lists all saved launch configurations in the workspace (name, type, and for Java applications the project and main class). Each entry has: name, typeId, typeName, projectName, mainClass. Use this to discover the exact name to pass to launchConfiguration, (eclipse-ide MCP server).runJUnitTests (launcherName), or (eclipse-pde MCP server).runJUnitPluginTests (launcherName). Use typeFilter to narrow results: 'junit' for plain JUnit runs, 'junit-plugin' for PDE plug-in tests, or any substring of the type ID for other types.
+Lists all saved launch configurations in the workspace (name, type, and for Java applications the project and main class). Each entry has: name, typeId, typeName, projectName, mainClass. Use this to discover the exact name to pass to launchConfiguration, (eclipse-ide MCP server).runJUnitTests (launcherName), or (eclipse-pde MCP server).runJUnitPluginTests (launcherName). Use typeFilter to narrow results: 'junit' for plain JUnit runs, 'junit-plugin' for PDE plug-in tests, 'testng' for TestNG runs (such as those createTestNGLaunchConfiguration saves), or any substring of the type ID for other types.
 
 | Parameter | | Description |
 |---|---|---|
-| `typeFilter` |  | Optional filter: 'junit' (org.eclipse.jdt.junit.launchconfig), 'junit-plugin' (org.eclipse.pde.ui.JunitLaunchConfig), 'all' or omit for everything, or any substring of the type ID. |
+| `typeFilter` |  | Optional filter: 'junit' (org.eclipse.jdt.junit.launchconfig), 'junit-plugin' (org.eclipse.pde.ui.JunitLaunchConfig), 'testng' (org.testng.eclipse.launchconfig), 'all' or omit for everything, or any substring of the type ID. |
 
 **Returns** [`LaunchConfigurationsResponse`](#launchconfigurationsresponse)
 
@@ -2425,6 +2443,23 @@ Reads the content of the given web page and returns it as markdown, together wit
 | `bundleCount` | `Integer` |
 | `diagnostics` | [`Diagnostic`](#diagnostic)[] |
 
+### `TestNGLaunchConfigurationResponse`
+
+| Field | Type |
+|---|---|
+| `configurationName` | `String` |
+| `created` | `boolean` |
+| `projectName` | `String` |
+| `launchType` | `String` |
+| `classes` | `String`[] |
+| `methods` | `String`[] |
+| `packages` | `String`[] |
+| `suites` | `String`[] |
+| `groups` | `String`[] |
+| `groupClasses` | `String`[] |
+| `diagnostics` | [`Diagnostic`](#diagnostic)[] |
+| `summaryText` | `String` |
+
 ### `LaunchResponse`
 
 | Field | Type |
@@ -3340,7 +3375,7 @@ Reads the content of the given web page and returns it as markdown, together wit
 
 ### `DiagnosticCode`
 
-`RESOURCE_NOT_FOUND` \| `RESOURCE_NOT_ACCESSIBLE` \| `RESOURCE_ALREADY_EXISTS` \| `READ_ONLY_RESOURCE` \| `INVALID_RANGE` \| `VERSION_CONFLICT` \| `RESOURCE_VERSION_EXPIRED` \| `RESOURCE_OUT_OF_SYNC` \| `HISTORY_UNAVAILABLE` \| `TEXT_NOT_FOUND` \| `AMBIGUOUS_MATCH` \| `OVERLAPPING_EDITS` \| `INVALID_JAVA_EDIT` \| `REFACTORING_PRECONDITION_FAILED` \| `EDITOR_REVEAL_FAILED` \| `FORMATTER_FAILED` \| `PATCH_APPLY_FAILED` \| `MERGE_CONFLICT` \| `CHECKOUT_CONFLICT` \| `BRANCH_NOT_MERGED` \| `REVISION_NOT_FOUND` \| `WRONG_REPOSITORY_STATE` \| `UNCOMMITTED_CHANGES` \| `PUSH_REJECTED` \| `REMOTE_OPERATION_FAILED` \| `PROJECT_NOT_FOUND` \| `TEST_CLASS_NOT_FOUND` \| `TEST_PACKAGE_NOT_FOUND` \| `PDE_LAUNCH_TYPE_MISSING` \| `MAVEN_LAUNCH_TYPE_MISSING` \| `LAUNCH_CONFIGURATION_NOT_FOUND` \| `WORKSPACE_LOCKED` \| `OPERATION_TIMED_OUT` \| `DEPENDENCY_RESOLUTION_FAILED` \| `LAUNCH_FAILED` \| `TEST_RESULTS_NOT_REPORTED` \| `COVERAGE_UNAVAILABLE` \| `VALIDATION_ERROR` \| `INTERNAL_ERROR`
+`RESOURCE_NOT_FOUND` \| `RESOURCE_NOT_ACCESSIBLE` \| `RESOURCE_ALREADY_EXISTS` \| `READ_ONLY_RESOURCE` \| `INVALID_RANGE` \| `VERSION_CONFLICT` \| `RESOURCE_VERSION_EXPIRED` \| `RESOURCE_OUT_OF_SYNC` \| `HISTORY_UNAVAILABLE` \| `TEXT_NOT_FOUND` \| `AMBIGUOUS_MATCH` \| `OVERLAPPING_EDITS` \| `INVALID_JAVA_EDIT` \| `REFACTORING_PRECONDITION_FAILED` \| `EDITOR_REVEAL_FAILED` \| `FORMATTER_FAILED` \| `PATCH_APPLY_FAILED` \| `MERGE_CONFLICT` \| `CHECKOUT_CONFLICT` \| `BRANCH_NOT_MERGED` \| `REVISION_NOT_FOUND` \| `WRONG_REPOSITORY_STATE` \| `UNCOMMITTED_CHANGES` \| `PUSH_REJECTED` \| `REMOTE_OPERATION_FAILED` \| `PROJECT_NOT_FOUND` \| `TEST_CLASS_NOT_FOUND` \| `TEST_PACKAGE_NOT_FOUND` \| `PDE_LAUNCH_TYPE_MISSING` \| `MAVEN_LAUNCH_TYPE_MISSING` \| `TESTNG_LAUNCH_TYPE_MISSING` \| `LAUNCH_CONFIGURATION_NOT_FOUND` \| `WORKSPACE_LOCKED` \| `OPERATION_TIMED_OUT` \| `DEPENDENCY_RESOLUTION_FAILED` \| `LAUNCH_FAILED` \| `TEST_RESULTS_NOT_REPORTED` \| `COVERAGE_UNAVAILABLE` \| `VALIDATION_ERROR` \| `INTERNAL_ERROR`
 
 ### `ResourceDescriptorResourceType`
 
