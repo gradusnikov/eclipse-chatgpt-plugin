@@ -507,7 +507,7 @@ public class UnitTestService {
      *
      * @param launchAction performs the actual {@code configuration.launch(...)} call
      */
-    static ILaunch launchWithoutStatusHandlerPrompts( LaunchAction launchAction ) throws CoreException
+    public static ILaunch launchWithoutStatusHandlerPrompts( LaunchAction launchAction ) throws CoreException
     {
         IEclipsePreferences prefs = InstanceScope.INSTANCE.getNode( DEBUG_CORE_NODE );
         boolean previous = prefs.getBoolean( PREF_ENABLE_STATUS_HANDLERS, true );
@@ -544,7 +544,7 @@ public class UnitTestService {
 
     /** A {@code configuration.launch(...)} call that may throw, for {@link #launchWithoutStatusHandlerPrompts}. */
     @FunctionalInterface
-    interface LaunchAction
+    public interface LaunchAction
     {
         ILaunch launch() throws CoreException;
     }
