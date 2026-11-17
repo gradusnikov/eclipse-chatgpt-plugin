@@ -509,7 +509,7 @@ public class UnitTestService {
      */
     static ILaunch launchWithoutStatusHandlerPrompts( LaunchAction launchAction ) throws CoreException
     {
-        IEclipsePreferences prefs = InstanceScope.INSTANCE.getNode( "org.eclipse.debug.core" );
+        IEclipsePreferences prefs = InstanceScope.INSTANCE.getNode( DEBUG_CORE_NODE );
         boolean previous = prefs.getBoolean( PREF_ENABLE_STATUS_HANDLERS, true );
         prefs.putBoolean( PREF_ENABLE_STATUS_HANDLERS, false );
         try
@@ -533,9 +533,14 @@ public class UnitTestService {
 
     /**
      * The key the debug platform reads in {@code DebugPlugin.getStatusHandler} to decide
-     * whether launch prompts fire. Not exported as API, so it is inlined here.
+     * whether launch prompts fire, and the preference node it lives in. The constant
+     * ({@code IInternalDebugCoreConstants.PREF_ENABLE_STATUS_HANDLERS}) is internal, so
+     * the value is inlined - and it is the plugin-qualified key, read from the
+     * {@code org.eclipse.debug.core} node: {@code DebugPlugin.getStatusHandler} looks it up
+     * as {@code getBoolean("org.eclipse.debug.core", "org.eclipse.debug.core.PREF_ENABLE_STATUS_HANDLERS", ...)}.
      */
-    private static final String PREF_ENABLE_STATUS_HANDLERS = "PREF_ENABLE_STATUS_HANDLERS";
+    private static final String DEBUG_CORE_NODE = "org.eclipse.debug.core";
+    private static final String PREF_ENABLE_STATUS_HANDLERS = DEBUG_CORE_NODE + ".PREF_ENABLE_STATUS_HANDLERS";
 
     /** A {@code configuration.launch(...)} call that may throw, for {@link #launchWithoutStatusHandlerPrompts}. */
     @FunctionalInterface
