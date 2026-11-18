@@ -384,7 +384,8 @@ public class JavaLaunchService
         {
             try
             {
-                launchHolder[0] = configuration.launch(mode, new NullProgressMonitor());
+                launchHolder[0] = UnitTestService.launchWithoutStatusHandlerPrompts(
+                        () -> configuration.launch(mode, new NullProgressMonitor()));
             }
             catch (CoreException e)
             {

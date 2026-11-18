@@ -981,7 +981,11 @@ public class PDEService
                     workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_ADD, false );
                     workingCopy.setAttribute( IPDELauncherConstants.INCLUDE_OPTIONAL, true );
                     workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_INCLUDE_REQUIREMENTS, true );
-                    workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_VALIDATE, true );
+                    // Headless: pre-launch validation pops a modal dialog about optional target
+                    // fragments that do not resolve on this OS (e.g. equo chromium win32, servoy
+                    // nodejs win32, m2e jdt) - warnings only, but nobody is there to dismiss them,
+                    // so the launch would park. An MCP launch is always headless, so never validate.
+                    workingCopy.setAttribute( IPDELauncherConstants.AUTOMATIC_VALIDATE, false );
 
                     Set<String> workspaceBundles = new TreeSet<>();
                     workspaceBundles.add( javaProject.getElementName() + "@default:false" );
@@ -1049,7 +1053,8 @@ public class PDEService
                 sync.asyncExec( () -> {
                     try
                     {
-                        launchRef[0] = configuration.launch( launchMode, new NullProgressMonitor() );
+                        launchRef[0] = UnitTestService.launchWithoutStatusHandlerPrompts(
+                            () -> configuration.launch( launchMode, new NullProgressMonitor() ) );
                     }
                     catch ( CoreException e )
                     {
@@ -1096,13 +1101,14 @@ public class PDEService
                     {
                         if (!launchRef[0].isTerminated() && !launchManagerForListener.isRegistered(launchRef[0]))
                         {
-                        	// can happen, for example, when launching, if a dialog appears like "Errors exist in required project(s) (...) Proceed with launch?"
-                        	// if the user dismisses that or says no then nothing happens; the launch is not actually launched at all
-                        	
-                        	// the lines in this if can be commented out when debugging failing unit tests due to error markers on launch
+                        	// A launch that never registered at all. The "Errors exist in required
+                        	// project(s) ... Proceed with launch?" dialog that used to cause this is now
+                        	// suppressed by launchWithoutStatusHandlerPrompts, so a run with compile
+                        	// errors just proceeds and fails normally. This remains as a backstop for any
+                        	// other delegate that aborts the launch before it registers.
                             completed = true;
 
-                            Status status = new Status(IStatus.CANCEL, getClass(), "Error launching plug-in tests. Launch was not registered to run at all. (error markers maybe? and it was dismissed by user?)");
+                            Status status = new Status(IStatus.CANCEL, getClass(), "Error launching plug-in tests. Launch was not registered to run at all.");
                             launchError[0] = new CoreException(status);
                             logger.log( status );
                         }

@@ -3,6 +3,7 @@ package com.github.gradusnikov.eclipse.plugin.assistai.mcp.services;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -19,8 +20,15 @@ import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.core.runtime.Platform;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.preferences.IEclipsePreferences;
+import org.eclipse.core.runtime.preferences.IPreferencesService;
+import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.debug.core.DebugPlugin;
+import org.eclipse.debug.core.ILaunch;
 import org.eclipse.debug.core.ILaunchConfiguration;
 import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.EclipseContextFactory;
@@ -270,6 +278,55 @@ public class UnitTestServiceLaunchPDETest
                 bare.delete( true, true, monitor );
             }
         }
+    }
+
+    /**
+     * The compile-error launch prompt fires from a debug-core status handler, which
+     * {@code DebugPlugin.getStatusHandler} only returns while
+     * {@code org.eclipse.debug.core.PREF_ENABLE_STATUS_HANDLERS} is {@code true}. The fix
+     * is to flip that preference off around the launch, so the handler is unavailable and
+     * no dialog can pop; a headless run then proceeds instead of parking on a modal
+     * prompt nobody can answer.
+     * <p>
+     * This asserts the mechanism directly rather than observing a launch: during the
+     * action, the status handler must be {@code null} (no prompt possible), and the
+     * preference must be restored to its prior value afterwards. An earlier version of the
+     * fix wrote the preference under the bare, unqualified key, which nothing reads, so the
+     * handler stayed available and the dialog still fired - this test fails on that bug,
+     * where the previous "the call returned non-null" assertion could not.
+     */
+    @Test
+    public void theLaunchHelperSuppressesTheStatusHandlerAndRestoresThePreference() throws Exception
+    {
+        IPreferencesService prefsService = Platform.getPreferencesService();
+        IEclipsePreferences debugCore = InstanceScope.INSTANCE.getNode( "org.eclipse.debug.core" );
+        String key = "org.eclipse.debug.core.PREF_ENABLE_STATUS_HANDLERS";
+
+        // Start from the default (handlers enabled), the state in which the dialog would fire.
+        debugCore.remove( key );
+        debugCore.flush();
+        boolean enabledBefore = prefsService.getBoolean( "org.eclipse.debug.core", key, true, null );
+        assertTrue( enabledBefore, "precondition: status handlers are enabled before the launch" );
+
+        // The status the debug platform uses to look up the launch prompt handler.
+        IStatus promptStatus = new Status( IStatus.INFO, "org.eclipse.debug.ui", 200, "", null );
+        assertNotNull( DebugPlugin.getDefault().getStatusHandler( promptStatus ),
+            "precondition: a prompt handler is registered, so a dialog could fire" );
+
+        boolean[] handlerSeenDuringLaunch = { true };
+        ILaunch sentinel = UnitTestService.launchWithoutStatusHandlerPrompts( () -> {
+            // Inside the guarded window the handler must be gone - that is what stops the
+            // dialog. With the wrong preference key this stays non-null and the test fails.
+            handlerSeenDuringLaunch[0] =
+                DebugPlugin.getDefault().getStatusHandler( promptStatus ) != null;
+            return null; // no real launch needed; we are testing the guard, not a run
+        } );
+
+        assertNull( sentinel, "the helper returns whatever the action returns" );
+        assertFalse( handlerSeenDuringLaunch[0],
+            "the status handler must be suppressed during the launch so no prompt can fire" );
+        assertTrue( prefsService.getBoolean( "org.eclipse.debug.core", key, false, null ),
+            "the preference must be restored to its prior (enabled) value after the launch" );
     }
 
     private static ILaunchConfiguration savedLaunchConfiguration( String name ) throws CoreException

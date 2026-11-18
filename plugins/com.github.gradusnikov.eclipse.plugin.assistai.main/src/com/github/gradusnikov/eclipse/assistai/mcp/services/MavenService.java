@@ -198,7 +198,8 @@ public class MavenService
             sync.syncExec( () -> {
                 try
                 {
-                    launched.set( configuration.launch( ILaunchManager.RUN_MODE, new NullProgressMonitor() ) );
+                    launched.set( UnitTestService.launchWithoutStatusHandlerPrompts(
+                        () -> configuration.launch( ILaunchManager.RUN_MODE, new NullProgressMonitor() ) ) );
                 }
                 catch ( CoreException e )
                 {
