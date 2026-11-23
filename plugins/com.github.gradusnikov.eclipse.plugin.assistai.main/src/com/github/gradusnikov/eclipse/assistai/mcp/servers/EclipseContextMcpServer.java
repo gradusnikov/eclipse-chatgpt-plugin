@@ -100,7 +100,7 @@ public class EclipseContextMcpServer
     public FileHistoryResponse getFileHistory(
             @ToolParam(name = "projectName", description = "The name of the project", required = true) String projectName,
             @ToolParam(name = "filePath", description = "Path to the file relative to the project root", required = true) String filePath,
-            @ToolParam(name = "maxEntries", description = "Maximum number of history entries to show (default: 20)", required = false) String maxEntries )
+            @ToolParam(name = "maxEntries", type = "integer", description = "Maximum number of history entries to show (default: 20)", required = false) String maxEntries )
     {
         return localHistoryService.getFileHistory( projectName, filePath, maxEntries );
     }
@@ -114,7 +114,7 @@ public class EclipseContextMcpServer
     public ResourceReadResult getFileHistoryContent(
             @ToolParam(name = "projectName", description = "The name of the project", required = true) String projectName,
             @ToolParam(name = "filePath", description = "Path to the file relative to the project root", required = true) String filePath,
-            @ToolParam(name = "historyTimestamp", description = "The historyTimestamp of the version, from getFileHistory. "
+            @ToolParam(name = "historyTimestamp", type = "integer", description = "The historyTimestamp of the version, from getFileHistory. "
                       + "Identifies the same content even after further saves, which a positional index does not.", required = true) String historyTimestamp )
     {
         return localHistoryService.getFileHistoryContent( projectName, filePath, historyTimestamp );
@@ -129,7 +129,7 @@ public class EclipseContextMcpServer
     public EditResult restoreFileVersion(
             @ToolParam(name = "projectName", description = "The name of the project", required = true) String projectName,
             @ToolParam(name = "filePath", description = "Path to the file relative to the project root", required = true) String filePath,
-            @ToolParam(name = "historyTimestamp", description = "The historyTimestamp of the version to restore, from getFileHistory", required = true) String historyTimestamp )
+            @ToolParam(name = "historyTimestamp", type = "integer", description = "The historyTimestamp of the version to restore, from getFileHistory", required = true) String historyTimestamp )
     {
         return localHistoryService.restoreFileVersion( projectName, filePath, historyTimestamp );
     }
@@ -142,7 +142,7 @@ public class EclipseContextMcpServer
     public DiffResponse compareWithHistory(
             @ToolParam(name = "projectName", description = "The name of the project", required = true) String projectName,
             @ToolParam(name = "filePath", description = "Path to the file relative to the project root", required = true) String filePath,
-            @ToolParam(name = "historyTimestamp", description = "The historyTimestamp to compare against, from getFileHistory", required = true) String historyTimestamp )
+            @ToolParam(name = "historyTimestamp", type = "integer", description = "The historyTimestamp to compare against, from getFileHistory", required = true) String historyTimestamp )
     {
         return localHistoryService.compareWithHistory( projectName, filePath, historyTimestamp );
     }

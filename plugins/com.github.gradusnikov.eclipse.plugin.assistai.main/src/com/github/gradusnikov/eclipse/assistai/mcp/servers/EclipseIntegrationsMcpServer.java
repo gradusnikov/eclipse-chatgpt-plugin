@@ -144,9 +144,9 @@ public class EclipseIntegrationsMcpServer
     public ResourceReadResult getSource(
             @ToolParam( name = "fullyQualifiedClassName", description = "A fully qualified class name of the Java class", required = true )
             String fullyQualifiedClassName,
-            @ToolParam( name = "startLine", description = "1-based first line to return; omit for the beginning of the file", required = false )
+            @ToolParam( name = "startLine", type = "integer", description = "1-based first line to return; omit for the beginning of the file", required = false )
             String startLine,
-            @ToolParam( name = "endLine", description = "1-based last line to return, inclusive; omit for the end of the file", required = false )
+            @ToolParam( name = "endLine", type = "integer", description = "1-based last line to return, inclusive; omit for the end of the file", required = false )
             String endLine )
     {
         return javaDocService.getSourceWithResource( fullyQualifiedClassName,
@@ -193,7 +193,7 @@ public class EclipseIntegrationsMcpServer
     public ClassOutlineResponse getClassOutline(
             @ToolParam( name = "fullyQualifiedClassName", description = "A fully qualified class name (e.g. 'com.example.MyClass')", required = true )
             String fullyQualifiedClassName,
-            @ToolParam( name = "includeFields", description = "Whether to include field declarations (default: true)", required = false )
+            @ToolParam( name = "includeFields", type = "boolean", description = "Whether to include field declarations (default: true)", required = false )
             String includeFields,
             @ToolParam( name = "javadoc", description = "How much of each member's Javadoc to include: SUMMARY (default) is the first sentence, FULL the whole comment as Markdown, NONE leaves it out", required = false )
             String javadoc )
@@ -214,7 +214,7 @@ public class EclipseIntegrationsMcpServer
             @ToolParam( name = "methodNames", description = "Comma-separated method names to retrieve (e.g. 'findById,save,delete')", required = true )
             String methodNames,
             @ToolParam( name = "methodSignature", description = "Optional parameter type hint to disambiguate overloaded methods (e.g. 'String')", required = false )
-            String methodSignature, @ToolParam( name = "includeJavadoc", description = "Whether to include Javadoc comments (default: true)", required = false )
+            String methodSignature, @ToolParam( name = "includeJavadoc", type = "boolean", description = "Whether to include Javadoc comments (default: true)", required = false )
             String includeJavadoc )
     {
         boolean javadoc = Optional.ofNullable( includeJavadoc ).map( Boolean::parseBoolean ).orElse( true );
@@ -230,7 +230,7 @@ public class EclipseIntegrationsMcpServer
     public ResourceReadResult getFilteredSource(
             @ToolParam( name = "fullyQualifiedClassName", description = "A fully qualified class name (e.g. 'com.example.MyClass')", required = true )
             String fullyQualifiedClassName,
-            @ToolParam( name = "excludeImports", description = "Whether to collapse the import block (default: true)", required = false )
+            @ToolParam( name = "excludeImports", type = "boolean", description = "Whether to collapse the import block (default: true)", required = false )
             String excludeImports,
             @ToolParam( name = "methodNames", description = "Comma-separated method names to fully expand. Methods not listed are collapsed to signatures. If omitted, all methods are expanded.", required = false )
             String methodNames )
@@ -259,7 +259,7 @@ public class EclipseIntegrationsMcpServer
     String projectName,
             @ToolParam( name = "scopePath", description = "Optional path relative to the project root to limit the listing (e.g., 'src/main/java/com/example'). If omitted, shows the entire project.", required = false )
             String scopePath,
-            @ToolParam( name = "maxDepth", description = "Optional maximum depth of the directory tree to display (e.g., '3' for 3 levels deep). If omitted, shows all levels.", required = false )
+            @ToolParam( name = "maxDepth", type = "integer", description = "Optional maximum depth of the directory tree to display (e.g., 3 for 3 levels deep). If omitted, shows all levels.", required = false )
             String maxDepth )
     {
         Integer depth = Optional.ofNullable( maxDepth ).map( Integer::parseInt ).orElse( null );
@@ -276,7 +276,7 @@ public class EclipseIntegrationsMcpServer
             String methodName,
             @ToolParam( name = "methodSignature", description = "The signature of the method (optional, required if method is overloaded)", required = false )
             String methodSignature,
-            @ToolParam( name = "maxDepth", description = "Maximum depth of the call hierarchy to retrieve (default: 3)", required = false )
+            @ToolParam( name = "maxDepth", type = "integer", description = "Maximum depth of the call hierarchy to retrieve (default: 3)", required = false )
             String maxDepth )
     {
         return codeAnalysisService.getMethodCallHierarchy( fullyQualifiedClassName, methodName, methodSignature,
@@ -297,7 +297,7 @@ public class EclipseIntegrationsMcpServer
     public DeadCodeResponse findDeadCode(
             @ToolParam( name = "fullyQualifiedClassName", description = "The fully qualified name of the class whose methods to check (e.g. 'com.example.MyClass')", required = true )
             String fullyQualifiedClassName,
-            @ToolParam( name = "maxResults", description = "Maximum number of candidates to list (default: 50). totalCandidates reports how many matched before truncation.", required = false )
+            @ToolParam( name = "maxResults", type = "integer", description = "Maximum number of candidates to list (default: 50). totalCandidates reports how many matched before truncation.", required = false )
             String maxResults )
     {
         return codeMetricsService.findDeadCode( fullyQualifiedClassName,
@@ -313,11 +313,11 @@ public class EclipseIntegrationsMcpServer
     public MethodMetricsResponse getMethodMetrics(
             @ToolParam( name = "fullyQualifiedClassName", description = "The fully qualified name of the class whose methods to measure (e.g. 'com.example.MyClass')", required = true )
             String fullyQualifiedClassName,
-            @ToolParam( name = "minFanOut", description = "Only report methods whose fanOut (distinct callees) is at least this (default: 0 = no floor)", required = false )
+            @ToolParam( name = "minFanOut", type = "integer", description = "Only report methods whose fanOut (distinct callees) is at least this (default: 0 = no floor)", required = false )
             String minFanOut,
-            @ToolParam( name = "minFanIn", description = "Only report methods whose fanIn (distinct callers) is at least this (default: 0 = no floor)", required = false )
+            @ToolParam( name = "minFanIn", type = "integer", description = "Only report methods whose fanIn (distinct callers) is at least this (default: 0 = no floor)", required = false )
             String minFanIn,
-            @ToolParam( name = "maxResults", description = "Maximum number of methods to list, highest total connectivity first (default: 50)", required = false )
+            @ToolParam( name = "maxResults", type = "integer", description = "Maximum number of methods to list, highest total connectivity first (default: 50)", required = false )
             String maxResults )
     {
         return codeMetricsService.getMethodMetrics( fullyQualifiedClassName,
@@ -337,7 +337,7 @@ public class EclipseIntegrationsMcpServer
             @ToolParam( name = "resourcePath", description = "Project-relative path of a folder or file to restrict the report to, e.g. 'src/com/example' or 'src/com/example/Foo.java' (optional, requires projectName)", required = false )
             String resourcePath,
             @ToolParam( name = "severity", description = "Filter by severity level: 'ERROR', 'WARNING', 'INFO' or 'ALL' (default)", required = false )
-            String severity, @ToolParam( name = "maxResults", description = "Maximum number of problems to return (default: 50)", required = false )
+            String severity, @ToolParam( name = "maxResults", type = "integer", description = "Maximum number of problems to return (default: 50)", required = false )
             String maxResults )
     {
         return codeAnalysisService.getCompilationErrors( projectName, resourcePath, severity,
@@ -352,11 +352,11 @@ public class EclipseIntegrationsMcpServer
     public ResourceReadResult readProjectResource( @ToolParam( name = "projectName", description = "The name of the project containing the resource", required = true )
     String projectName, @ToolParam( name = "resourcePath", description = "The path to the resource relative to the project root", required = true )
     String resourcePath,
-            @ToolParam( name = "startLine", description = "Optional 1-based start line to read from. If omitted, reads from the beginning.", required = false )
+            @ToolParam( name = "startLine", type = "integer", description = "Optional 1-based start line to read from. If omitted, reads from the beginning.", required = false )
             String startLine,
-            @ToolParam( name = "endLine", description = "Optional 1-based end line to read to (inclusive). If omitted, reads to the end.", required = false )
+            @ToolParam( name = "endLine", type = "integer", description = "Optional 1-based end line to read to (inclusive). If omitted, reads to the end.", required = false )
             String endLine,
-            @ToolParam( name = "excludeImports", description = "If 'true', omits a Java import block to save tokens. The omitted lines are reported in omittedRanges. Default: 'false'", required = false )
+            @ToolParam( name = "excludeImports", type = "boolean", description = "If true, omits a Java import block to save tokens. The omitted lines are reported in omittedRanges. Default: false", required = false )
             String excludeImports )
     {
         int start = Optional.ofNullable( startLine ).map( Integer::parseInt ).orElse( 0 );
@@ -421,9 +421,9 @@ public class EclipseIntegrationsMcpServer
             type = "object", outputType = ConsoleOutputResponse.class )
     public ConsoleOutputResponse getConsoleOutput(
             @ToolParam( name = "consoleName", description = "Name of the specific console to retrieve (optional, leave empty for all or most recent console)", required = false )
-            String consoleName, @ToolParam( name = "maxLines", description = "Maximum number of lines to retrieve (default: 100)", required = false )
+            String consoleName, @ToolParam( name = "maxLines", type = "integer", description = "Maximum number of lines to retrieve (default: 100)", required = false )
             String maxLines,
-            @ToolParam( name = "includeAllConsoles", description = "If 'true', includes output from all available consoles. Default: 'false'", required = false )
+            @ToolParam( name = "includeAllConsoles", type = "boolean", description = "If true, includes output from all available consoles. Default: false", required = false )
             String includeAllConsoles )
     {
         // Every tool argument arrives as a String, so a declared Boolean parameter would
@@ -468,12 +468,12 @@ public class EclipseIntegrationsMcpServer
                         description = "The fully qualified package name (e.g. 'com.example.service'). Ignored if className is set.",
                         required = false )
             String packageName,
-            @ToolParam( name = "timeout",
+            @ToolParam( name = "timeout", type = "integer",
                         description = "Maximum time in seconds to wait for test completion (default: 60)",
                         required = false )
             String timeout,
-            @ToolParam( name = "withCoverage",
-                        description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false",
+            @ToolParam( name = "withCoverage", type = "boolean",
+                        description = "If true, runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false",
                         required = false )
             String withCoverage,
             @ToolParam( name = "launcherName",
@@ -567,15 +567,15 @@ public class EclipseIntegrationsMcpServer
             String properties,
             @ToolParam( name = "pomDirectory", description = "Optional project-relative directory holding the pom.xml to build - a module of a multi-module project. Default: the project root", required = false )
             String pomDirectory,
-            @ToolParam( name = "offline", description = "If 'true', works offline (-o). Default: false", required = false )
+            @ToolParam( name = "offline", type = "boolean", description = "If true, works offline (-o). Default: false", required = false )
             String offline,
-            @ToolParam( name = "updateSnapshots", description = "If 'true', forces a check for updated snapshots and releases (-U). Default: false", required = false )
+            @ToolParam( name = "updateSnapshots", type = "boolean", description = "If true, forces a check for updated snapshots and releases (-U). Default: false", required = false )
             String updateSnapshots,
-            @ToolParam( name = "skipTests", description = "If 'true', neither compiles nor runs tests (-Dmaven.test.skip=true -DskipTests). Default: false", required = false )
+            @ToolParam( name = "skipTests", type = "boolean", description = "If true, neither compiles nor runs tests (-Dmaven.test.skip=true -DskipTests). Default: false", required = false )
             String skipTests,
-            @ToolParam( name = "debugOutput", description = "If 'true', asks Maven for debug output and full stack traces (-X -e). Default: false", required = false )
+            @ToolParam( name = "debugOutput", type = "boolean", description = "If true, asks Maven for debug output and full stack traces (-X -e). Default: false", required = false )
             String debugOutput,
-            @ToolParam( name = "timeout", description = "Seconds to wait for the build before this call returns an operationId instead. The build carries on; getOperationStatus reports its output and, once it ends, this same result. Default: 60", required = false )
+            @ToolParam( name = "timeout", type = "integer", description = "Seconds to wait for the build before this call returns an operationId instead. The build carries on; getOperationStatus reports its output and, once it ends, this same result. Default: 60", required = false )
             String timeout )
     {
         return mavenService.runMavenBuild( projectName, goals, profiles, properties, pomDirectory,
@@ -588,9 +588,9 @@ public class EclipseIntegrationsMcpServer
     public String updateMavenProject(
             @ToolParam( name = "projectName", description = "The Eclipse project to update (use listMavenProjects to find it); a Maven artifactId or groupId:artifactId is accepted when no project has that name", required = true )
             String projectName,
-            @ToolParam( name = "forceDependencyUpdate", description = "If 'true', re-resolves snapshots and releases even when already cached (the 'Force Update of Snapshots/Releases' checkbox). Default: false", required = false )
+            @ToolParam( name = "forceDependencyUpdate", type = "boolean", description = "If true, re-resolves snapshots and releases even when already cached (the 'Force Update of Snapshots/Releases' checkbox). Default: false", required = false )
             String forceDependencyUpdate,
-            @ToolParam( name = "offline", description = "If 'true', resolves only from the local repository without reaching the network. Default: false", required = false )
+            @ToolParam( name = "offline", type = "boolean", description = "If true, resolves only from the local repository without reaching the network. Default: false", required = false )
             String offline )
     {
         boolean force = Optional.ofNullable( forceDependencyUpdate ).map( Boolean::parseBoolean ).orElse( false );
@@ -659,9 +659,9 @@ public class EclipseIntegrationsMcpServer
             + "or APPLY_FAILED. On APPLIED, markerResolved says whether the problem actually went away.",
             type = "object", outputType = QuickFixResponse.class )
     public QuickFixResponse executeQuickFix(
-            @ToolParam( name = "markerId", description = "The Marker ID of the problem (from getCompilationErrors or getQuickFixes)", required = true )
+            @ToolParam( name = "markerId", type = "integer", description = "The Marker ID of the problem (from getCompilationErrors or getQuickFixes)", required = true )
             String markerId,
-            @ToolParam( name = "proposalIndex", description = "The 0-based index of the quick fix proposal to apply (from the quick fixes list)", required = true )
+            @ToolParam( name = "proposalIndex", type = "integer", description = "The 0-based index of the quick fix proposal to apply (from the quick fixes list)", required = true )
             String proposalIndex )
     {
         return codeAnalysisService.executeQuickFix( Long.parseLong( markerId ), Integer.parseInt( proposalIndex ) );
@@ -688,7 +688,7 @@ public class EclipseIntegrationsMcpServer
             String containingText,
             @ToolParam( name = "fileNamePatterns", description = "Optional comma-separated file name patterns (e.g. \"*.java,*.xml\"). If omitted, all files are searched.", required = false )
             String fileNamePatterns,
-            @ToolParam( name = "maxResults", description = "Maximum number of matches to return (default: 200). The response reports whether it was truncated.", required = false )
+            @ToolParam( name = "maxResults", type = "integer", description = "Maximum number of matches to return (default: 200). The response reports whether it was truncated.", required = false )
             String maxResults )
     {
         String[] patterns = splitFileNamePatterns( fileNamePatterns );
@@ -703,7 +703,7 @@ public class EclipseIntegrationsMcpServer
     String pattern,
             @ToolParam( name = "fileNamePatterns", description = "Optional comma-separated file name patterns (e.g. \"*.java,*.xml\"). If omitted, all files are searched.", required = false )
             String fileNamePatterns,
-            @ToolParam( name = "maxResults", description = "Maximum number of matches to return (default: 200). The response reports whether it was truncated.", required = false )
+            @ToolParam( name = "maxResults", type = "integer", description = "Maximum number of matches to return (default: 200). The response reports whether it was truncated.", required = false )
             String maxResults )
     {
         String[] patterns = splitFileNamePatterns( fileNamePatterns );
@@ -733,7 +733,7 @@ public class EclipseIntegrationsMcpServer
             type = "object", outputType = FileListResponse.class )
     public FileListResponse findFiles(
             @ToolParam( name = "fileNamePatterns", description = "Comma-separated glob patterns (e.g. \"*.java, pom.xml\"). If omitted, defaults to '*'", required = false )
-            String fileNamePatterns, @ToolParam( name = "maxResults", description = "Maximum number of results to return (default: 200)", required = false )
+            String fileNamePatterns, @ToolParam( name = "maxResults", type = "integer", description = "Maximum number of results to return (default: 200)", required = false )
             String maxResults )
     {
         String[] patterns = splitFileNamePatterns( fileNamePatterns );
@@ -777,7 +777,7 @@ public class EclipseIntegrationsMcpServer
     String resourcePath,
             @ToolParam( name = "heading", description = "The heading to find â either a 1-based index from the outline, or a text substring to match (case-insensitive)", required = true )
             String heading,
-            @ToolParam( name = "includeSubsections", description = "If 'true', includes all subsections under the matched heading. If 'false', returns only the content up to the next heading of any level. Default: true", required = false )
+            @ToolParam( name = "includeSubsections", type = "boolean", description = "If true, includes all subsections under the matched heading. If false, returns only the content up to the next heading of any level. Default: true", required = false )
             String includeSubsections )
     {
         boolean includeSubs = Optional.ofNullable( includeSubsections ).map( Boolean::parseBoolean ).orElse( true );
@@ -840,7 +840,7 @@ public class EclipseIntegrationsMcpServer
                                                       + "or package-qualified (com.example.*Service). "
                                                       + "Tips: try multiple patterns for a concept — e.g. for 'payment' try '*Payment*', '*Billing*', '*Transaction*'.", required = true )
             String pattern,
-            @ToolParam( name = "maxResults", description = "Maximum number of results to return (default: 100)", required = false )
+            @ToolParam( name = "maxResults", type = "integer", description = "Maximum number of results to return (default: 100)", required = false )
             String maxResults,
             @ToolParam( name = "javadoc", description = "How much of each type's Javadoc to include: NONE (default), SUMMARY (first sentence) or FULL (whole comment as Markdown)", required = false )
             String javadoc )
@@ -872,7 +872,7 @@ public class EclipseIntegrationsMcpServer
             @ToolParam( name = "declaringTypePattern", description = "Optional pattern to filter by declaring type name (e.g. '*Service', 'Payment*'). "
                                                                    + "Useful when the method name is common (e.g. 'get*') and you want to narrow to specific classes.", required = false )
             String declaringTypePattern,
-            @ToolParam( name = "maxResults", description = "Maximum number of results to return (default: 100)", required = false )
+            @ToolParam( name = "maxResults", type = "integer", description = "Maximum number of results to return (default: 100)", required = false )
             String maxResults,
             @ToolParam( name = "javadoc", description = "How much of each method's Javadoc to include: NONE (default), SUMMARY (first sentence) or FULL (whole comment as Markdown)", required = false )
             String javadoc )
@@ -916,7 +916,7 @@ public class EclipseIntegrationsMcpServer
             @ToolParam( name = "projectFilter", description = "Optional substring to filter projects by name (e.g. 'payment' shows only payment-related projects, "
                                                             + "'service' shows service projects). Leave empty to see all projects.", required = false )
             String projectFilter,
-            @ToolParam( name = "maxPackagesPerProject", description = "Maximum number of packages to show per project (default: 50). "
+            @ToolParam( name = "maxPackagesPerProject", type = "integer", description = "Maximum number of packages to show per project (default: 50). "
                                                                     + "Lower this for large projects to get a quick overview.", required = false )
             String maxPackagesPerProject )
     {

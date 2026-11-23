@@ -128,11 +128,12 @@ public final class McpApiDoc
                 .toList();
         if ( !parameters.isEmpty() )
         {
-            out.append( "\n| Parameter | | Description |\n|---|---|---|\n" );
+            out.append( "\n| Parameter | Type | | Description |\n|---|---|---|---|\n" );
             for ( Parameter parameter : parameters )
             {
                 ToolParam param = parameter.getAnnotation( ToolParam.class );
                 out.append( "| `" ).append( param.name() ).append( "` | " )
+                   .append( param.type() ).append( " | " )
                    .append( param.required() ? "\\*" : "" ).append( " | " )
                    .append( param.description().trim().replace( "|", "\\|" ) ).append( " |\n" );
             }

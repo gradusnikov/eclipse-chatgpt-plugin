@@ -118,10 +118,14 @@ public class StructuredToolResultPDETest
     }
 
     @Test
-    public void isNotMarkedAsAnError()
+    public void isMarkedAsAnErrorWhileKeepingItsDiagnostics()
     {
-        // A rejected edit is a normal outcome the caller acts on, not a protocol error.
-        assertFalse( convert( StructuredToolResult.of( conflictingEdit(), TEXT ) ).isError() );
+        // A rejected edit did not do what was asked, so isError says so; the payload
+        // still carries the diagnostic the caller branches on. A protocol error would be
+        // a JSON-RPC error instead, with no result at all.
+        CallToolResult result = convert( StructuredToolResult.of( conflictingEdit(), TEXT ) );
+        assertTrue( result.isError() );
+        assertNotNull( structured( result ).get( "diagnostics" ) );
     }
 
     @Test

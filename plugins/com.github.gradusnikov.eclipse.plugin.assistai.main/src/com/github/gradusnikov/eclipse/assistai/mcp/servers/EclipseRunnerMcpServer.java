@@ -44,7 +44,7 @@ public class EclipseRunnerMcpServer
             @ToolParam(name = "mainClass", description = "The fully qualified name of the main class (e.g., 'com.example.Main')") String mainClass,
             @ToolParam(name = "programArgs", description = "Optional program arguments passed to the main method", required = false) String programArgs,
             @ToolParam(name = "vmArgs", description = "Optional JVM arguments (e.g., '-Xmx512m -Dfoo=bar')", required = false) String vmArgs,
-            @ToolParam(name = "timeout", description = "Timeout in seconds to wait for completion. Use '0' to launch in background without waiting. Default: '30'", required = false) String timeout)
+            @ToolParam(name = "timeout", type = "integer", description = "Timeout in seconds to wait for completion. Use 0 to launch in background without waiting. Default: 30", required = false) String timeout)
     {
         int timeoutSeconds = Optional.ofNullable(timeout).map(Integer::parseInt).orElse(30);
         return javaLaunchService.runJavaApplication(projectName, mainClass, programArgs, vmArgs, timeoutSeconds);
@@ -59,7 +59,7 @@ public class EclipseRunnerMcpServer
             @ToolParam(name = "mainClass", description = "The fully qualified name of the main class (e.g., 'com.example.Main')") String mainClass,
             @ToolParam(name = "programArgs", description = "Optional program arguments passed to the main method", required = false) String programArgs,
             @ToolParam(name = "vmArgs", description = "Optional JVM arguments (e.g., '-Xmx512m -Dfoo=bar')", required = false) String vmArgs,
-            @ToolParam(name = "timeout", description = "Timeout in seconds to wait for completion. Use '0' to launch in background without waiting. Default: '0'", required = false) String timeout)
+            @ToolParam(name = "timeout", type = "integer", description = "Timeout in seconds to wait for completion. Use 0 to launch in background without waiting. Default: 0", required = false) String timeout)
     {
         int timeoutSeconds = Optional.ofNullable(timeout).map(Integer::parseInt).orElse(0);
         return javaLaunchService.debugJavaApplication(projectName, mainClass, programArgs, vmArgs, timeoutSeconds);
@@ -135,7 +135,7 @@ public class EclipseRunnerMcpServer
     public LaunchResponse launchConfiguration(
             @ToolParam(name = "configurationName", description = "The exact name of the launch configuration to launch (e.g., 'Run Snapshot App No Data Compass Local')") String configurationName,
             @ToolParam(name = "mode", description = "Launch mode: 'run' or 'debug'. Default: 'run'", required = false) String mode,
-            @ToolParam(name = "timeout", description = "Timeout in seconds to wait for completion. Use '0' to launch in background without waiting. Default: '0'", required = false) String timeout)
+            @ToolParam(name = "timeout", type = "integer", description = "Timeout in seconds to wait for completion. Use 0 to launch in background without waiting. Default: 0", required = false) String timeout)
     {
         int timeoutSeconds = Optional.ofNullable(timeout).map(Integer::parseInt).orElse(0);
         String launchMode = Optional.ofNullable(mode).filter(m -> !m.isBlank()).orElse("run");
@@ -151,7 +151,7 @@ public class EclipseRunnerMcpServer
     public BreakpointResponse toggleBreakpoint(
             @ToolParam(name = "projectName", description = "The name of the project containing the source file") String projectName,
             @ToolParam(name = "typeName", description = "The fully qualified type name (e.g., 'com.example.Main')") String typeName,
-            @ToolParam(name = "lineNumber", description = "The 1-based line number where the breakpoint should be set") String lineNumber)
+            @ToolParam(name = "lineNumber", type = "integer", description = "The 1-based line number where the breakpoint should be set") String lineNumber)
     {
         return javaLaunchService.toggleBreakpoint(projectName, typeName, Integer.parseInt(lineNumber));
     }
@@ -201,7 +201,7 @@ public class EclipseRunnerMcpServer
     public StepResponse resumeDebug(
             @ToolParam(name = "nameOrClass", description = "A substring to match against the debug session name or main class") String nameOrClass,
             @ToolParam(name = "threadName", description = "Optional: the thread to resume. Omit to resume the whole session", required = false) String threadName,
-            @ToolParam(name = "timeout", description = "Seconds to wait for the next suspend. Use '0' to resume without waiting. Default: '10'", required = false) String timeout)
+            @ToolParam(name = "timeout", type = "integer", description = "Seconds to wait for the next suspend. Use 0 to resume without waiting. Default: 10", required = false) String timeout)
     {
         return javaLaunchService.resumeDebug(nameOrClass, threadName, stepTimeout(timeout));
     }
@@ -212,7 +212,7 @@ public class EclipseRunnerMcpServer
     public StepResponse stepOver(
             @ToolParam(name = "nameOrClass", description = "A substring to match against the debug session name or main class") String nameOrClass,
             @ToolParam(name = "threadName", description = "Optional: the thread to step. Omit to take the first suspended thread", required = false) String threadName,
-            @ToolParam(name = "timeout", description = "Seconds to wait for the step to complete. Use '0' not to wait. Default: '10'", required = false) String timeout)
+            @ToolParam(name = "timeout", type = "integer", description = "Seconds to wait for the step to complete. Use 0 not to wait. Default: 10", required = false) String timeout)
     {
         return javaLaunchService.stepOver(nameOrClass, threadName, stepTimeout(timeout));
     }
@@ -223,7 +223,7 @@ public class EclipseRunnerMcpServer
     public StepResponse stepInto(
             @ToolParam(name = "nameOrClass", description = "A substring to match against the debug session name or main class") String nameOrClass,
             @ToolParam(name = "threadName", description = "Optional: the thread to step. Omit to take the first suspended thread", required = false) String threadName,
-            @ToolParam(name = "timeout", description = "Seconds to wait for the step to complete. Use '0' not to wait. Default: '10'", required = false) String timeout)
+            @ToolParam(name = "timeout", type = "integer", description = "Seconds to wait for the step to complete. Use 0 not to wait. Default: 10", required = false) String timeout)
     {
         return javaLaunchService.stepInto(nameOrClass, threadName, stepTimeout(timeout));
     }
@@ -234,7 +234,7 @@ public class EclipseRunnerMcpServer
     public StepResponse stepReturn(
             @ToolParam(name = "nameOrClass", description = "A substring to match against the debug session name or main class") String nameOrClass,
             @ToolParam(name = "threadName", description = "Optional: the thread to step. Omit to take the first suspended thread", required = false) String threadName,
-            @ToolParam(name = "timeout", description = "Seconds to wait for the step to complete. Use '0' not to wait. Default: '10'", required = false) String timeout)
+            @ToolParam(name = "timeout", type = "integer", description = "Seconds to wait for the step to complete. Use 0 not to wait. Default: 10", required = false) String timeout)
     {
         return javaLaunchService.stepReturn(nameOrClass, threadName, stepTimeout(timeout));
     }
@@ -268,9 +268,9 @@ public class EclipseRunnerMcpServer
     public BreakpointResponse setConditionalBreakpoint(
             @ToolParam(name = "projectName", description = "The name of the project containing the source file") String projectName,
             @ToolParam(name = "typeName", description = "The fully qualified type name (e.g., 'com.example.Main')") String typeName,
-            @ToolParam(name = "lineNumber", description = "The 1-based line number where the breakpoint should be set") String lineNumber,
+            @ToolParam(name = "lineNumber", type = "integer", description = "The 1-based line number where the breakpoint should be set") String lineNumber,
             @ToolParam(name = "condition", description = "A Java boolean expression (e.g., 'i > 100', 'name.equals(\"test\")')") String condition,
-            @ToolParam(name = "hitCount", description = "Optional: breakpoint triggers only after being hit N times. Default: '0' (disabled)", required = false) String hitCount)
+            @ToolParam(name = "hitCount", type = "integer", description = "Optional: breakpoint triggers only after being hit N times. Default: 0 (disabled)", required = false) String hitCount)
     {
         int hitCountInt = Optional.ofNullable(hitCount).map(Integer::parseInt).orElse(0);
         return javaLaunchService.setConditionalBreakpoint(projectName, typeName,

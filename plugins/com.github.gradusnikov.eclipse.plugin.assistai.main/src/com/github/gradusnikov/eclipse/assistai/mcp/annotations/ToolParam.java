@@ -13,6 +13,13 @@ public @interface ToolParam
     public String name() default "";
     public String description();
     public boolean required() default true;
+    /**
+     * The JSON Schema type advertised for this parameter: {@code string},
+     * {@code integer} or {@code boolean}. The Java parameter stays a {@code String};
+     * the framework converts a JSON number or boolean to its string form before the
+     * call, and still accepts the string form ("120", "true") from a client that
+     * sends one.
+     */
     public String type() default "string";
 
 }

@@ -64,12 +64,57 @@ public class ToolExecutorPDETest
         assertEquals( "", tools.newString );
         assertEquals( "replaced", result );
     }
+    @Test
+    public void numberAndBooleanArgumentsReachTheToolAsStrings() throws Exception
+    {
+        ReplaceTools tools = new ReplaceTools();
+        ToolExecutor executor = new ToolExecutor( tools );
+
+        executor.call( "replaceString", Map.of( "oldString", "old", "newString", "new", "startLine", 120 ) ).get();
+        assertEquals( "120", tools.startLine );
+
+        executor.call( "replaceString", Map.of( "oldString", "old", "newString", "new", "startLine", 120.0 ) ).get();
+        assertEquals( "120", tools.startLine, "a whole decimal is the same request as the integer" );
+
+        executor.call( "replaceString", Map.of( "oldString", "old", "newString", "new", "startLine", "120" ) ).get();
+        assertEquals( "120", tools.startLine, "the string form still works" );
+
+        executor.call( "replaceString", Map.of( "oldString", "old", "newString", "new", "startLine", 9_999_999_999L ) ).get();
+        assertEquals( "9999999999", tools.startLine );
+    }
+
     /**
-     * Every argument reaches a tool as the String the client sent: the schema declares
-     * every parameter as a string and mapArguments hands the values to Method.invoke
-     * untouched. A tool declaring an int or a Boolean parameter therefore fails on
-     * every call with an argument type mismatch - and no service-level test notices,
-     * because those call the service directly. This catches it at build time.
+     * A misspelt type ("int", "bool") would be advertised to every client as is and
+     * rejected by the schema validator, so the allowed set is checked here.
+     */
+    @Test
+    public void everyToolParameterTypeIsOneTheFrameworkConverts()
+    {
+        java.util.List<String> offenders = new java.util.ArrayList<>();
+        for ( Class<?> server : McpServerBuiltins.BUILT_IN_MCP_SERVERS )
+        {
+            for ( java.lang.reflect.Method method : server.getDeclaredMethods() )
+            {
+                for ( java.lang.reflect.Parameter parameter : method.getParameters() )
+                {
+                    ToolParam annotation = parameter.getAnnotation( ToolParam.class );
+                    if ( annotation != null && !java.util.Set.of( "string", "integer", "boolean" ).contains( annotation.type() ) )
+                    {
+                        offenders.add( server.getSimpleName() + "." + method.getName() + "(" + annotation.type() + " "
+                                + ToolExecutor.toParamName( parameter ) + ")" );
+                    }
+                }
+            }
+        }
+        assertEquals( java.util.List.of(), offenders );
+    }
+
+    /**
+     * The Java parameter of every tool is a String, whatever its schema type: the
+     * framework converts a JSON number or boolean to its string form and the tool
+     * parses it. A tool declaring an int or a Boolean parameter would bypass that and
+     * fail on every call with an argument type mismatch - and no service-level test
+     * notices, because those call the service directly. This catches it at build time.
      */
     @Test
     public void everyToolParameterIsAString()
@@ -102,15 +147,17 @@ public class ToolExecutorPDETest
     {
         private boolean invoked;
         private String newString;
+        private String startLine;
 
         @Tool(name = "replaceString", description = "Test replacement tool", type = "object")
         public String replaceString(
                 @ToolParam(name = "oldString", description = "Old text") String oldString,
                 @ToolParam(name = "newString", description = "New text") String newString,
-                @ToolParam(name = "startLine", description = "Optional start line", required = false) String startLine)
+                @ToolParam(name = "startLine", type = "integer", description = "Optional start line", required = false) String startLine)
         {
             invoked = true;
             this.newString = newString;
+            this.startLine = startLine;
             return "replaced";
         }
     }
