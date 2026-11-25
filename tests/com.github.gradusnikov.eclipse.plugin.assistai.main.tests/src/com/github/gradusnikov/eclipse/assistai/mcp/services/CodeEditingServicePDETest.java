@@ -854,6 +854,79 @@ public class ApplicationNew {
         assertEquals( original, ResourceUtilities.readFileContent( file ) );
     }
 
+    @Test
+    public void testApplyPatchPrefersLooseMatchNearHeaderOverExactCopyFarAway() throws Exception
+    {
+        // Line 1-2 differ from the patch only by trailing whitespace; an exact copy sits >50 lines away.
+        // The match near the header must win (a strict match far away must not), and be reported.
+        StringBuilder original = new StringBuilder( "x = 1;  \ny = 2;\n" );
+        for ( int i = 1; i <= 120; i++ )
+        {
+            original.append( "filler" ).append( i ).append( "\n" );
+        }
+        original.append( "x = 1;\ny = 2;\n" );
+        IFile file = createFile( "src/nearloose.txt", original.toString() );
+        String patch = """
+                @@ -1,2 +1,2 @@
+                 x = 1;
+                -y = 2;
+                +y = 3;
+                """;
+
+        EditResult result = applyPatch( "src/nearloose.txt", patch );
+
+        String content = ResourceUtilities.readFileContent( file );
+        assertTrue( content.startsWith( "x = 1;  \ny = 3;\n" ), content );
+        assertTrue( content.endsWith( "x = 1;\ny = 2;\n" ), content );
+        assertTrue( result.diagnostics().stream().anyMatch( d -> d.message().contains( "fuzzy matching" ) ),
+                () -> result.diagnostics().toString() );
+    }
+
+    @Test
+    public void testApplyPatchReportsExactMatchOutsideHeaderWindowAsDrift() throws Exception
+    {
+        StringBuilder original = new StringBuilder();
+        for ( int i = 1; i <= 200; i++ )
+        {
+            original.append( "line" ).append( i ).append( "\n" );
+        }
+        IFile file = createFile( "src/outsidewindow.txt", original.toString() );
+        // A real (non-placeholder) header that is wrong by more than 50 lines.
+        String patch = """
+                @@ -10,3 +10,3 @@
+                 line149
+                -line150
+                +CHANGED
+                 line151
+                """;
+
+        EditResult result = applyPatch( "src/outsidewindow.txt", patch );
+
+        assertTrue( ResourceUtilities.readFileContent( file ).contains( "line149\nCHANGED\nline151\n" ) );
+        assertTrue( result.diagnostics().stream().anyMatch( d -> d.message().contains( "outside the +/-50 line window" ) ),
+                () -> result.diagnostics().toString() );
+    }
+
+    @Test
+    public void testApplyPatchRejectsLooseTierMatchingTwiceInsideWindow() throws Exception
+    {
+        // Both '  k = 0;' lines match the loose tier inside the window: do not silently take the nearest.
+        String original = "a\n  k = 0;\nb\n  k = 0;\nc\n";
+        IFile file = createFile( "src/looseambiguous.txt", original );
+        String patch = """
+                @@ -3,1 +3,1 @@
+                -k = 0;
+                +k = 9;
+                """;
+
+        EditResult result = applyPatch( "src/looseambiguous.txt", patch );
+
+        assertEquals( EditResult.EditStatus.REJECTED, result.status() );
+        assertTrue( result.diagnostics().get( 0 ).message().contains( "matches 2 locations" ),
+                () -> result.diagnostics().get( 0 ).message() );
+        assertEquals( original, ResourceUtilities.readFileContent( file ) );
+    }
+
     /** applyPatch with no wizard, no staleness check and no preview. */
     private EditResult applyPatch( String filePath, String patch )
     {
