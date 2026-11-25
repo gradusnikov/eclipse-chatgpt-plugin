@@ -3644,9 +3644,12 @@ public class CodeEditingService
         final MatchTier tier;
         final int       droppedLeading;
         final int       droppedTrailing;
+        /** True when a trusted @@ header was given but the match was found outside its +/-50 window. */
+        final boolean   outsideWindow;
 
-        Located( int pos, MatchTier tier, int droppedLeading, int droppedTrailing )
+        Located( int pos, MatchTier tier, int droppedLeading, int droppedTrailing, boolean outsideWindow )
         {
+            this.outsideWindow = outsideWindow;
             this.pos = pos;
             this.tier = tier;
             this.droppedLeading = droppedLeading;
@@ -3664,13 +3667,13 @@ public class CodeEditingService
      */
     private Located locate( List<String> lines, DiffHunk hunk, List<String> expectedLines, int hint )
     {
-        for ( MatchTier tier : MatchTier.values() )
+        // A header such as "@@ -1 +1 @@" in front of a longer block is a placeholder, not a real
+        // position: do not let "nearest to line 1" decide, search the whole file for a unique match.
+        boolean trustHint = !( hunk.originalStart <= 1 && hunk.originalCount != expectedLines.size() );
+        Located direct = locateAllTiers( lines, expectedLines, hint, trustHint, 0, 0 );
+        if ( direct != null )
         {
-            Located found = tryLocateAtTier( lines, expectedLines, hint, tier, 0, 0 );
-            if ( found != null )
-            {
-                return found;
-            }
+            return direct;
         }
         // Tier 4: GNU-patch-style fuzz - drop the OUTERMOST CONTEXT line(s) and retry tiers 1-3.
         //
@@ -3690,15 +3693,8 @@ public class CodeEditingService
             List<String> reducedExpected = expectedBlock( reducedHunkLines );
             if ( !reducedExpected.isEmpty() && reducedExpected.size() < expectedLines.size() )
             {
-                for ( MatchTier tier : MatchTier.values() )
-                {
-                    Located found = tryLocateAtTier( lines, reducedExpected, hint + droppedLeading, tier,
-                            droppedLeading, droppedTrailing );
-                    if ( found != null )
-                    {
-                        return found;
-                    }
-                }
+                return locateAllTiers( lines, reducedExpected, hint + droppedLeading, trustHint,
+                        droppedLeading, droppedTrailing );
             }
         }
         return null;
@@ -3761,7 +3757,40 @@ public class CodeEditingService
      * error; zero matches return {@code null}. {@code droppedLeading}/{@code droppedTrailing} record
      * outer-context fuzz so the splice can compensate.
      */
-    private Located tryLocateAtTier( List<String> lines, List<String> expectedLines, int hint,
+    private Located locateAllTiers( List<String> lines, List<String> expectedLines, int hint, boolean trustHint,
+            int droppedLeading, int droppedTrailing )
+    {
+        // Phase 1: every tier inside the hint window, so a loose match NEAR the hint beats a strict
+        // match far away. Skipped when the header is a placeholder.
+        if ( trustHint )
+        {
+            for ( MatchTier tier : MatchTier.values() )
+            {
+                Located found = tryLocateInWindow( lines, expectedLines, hint, tier, droppedLeading, droppedTrailing );
+                if ( found != null )
+                {
+                    return found;
+                }
+            }
+        }
+        // Phase 2: whole file, strictest tier first.
+        for ( MatchTier tier : MatchTier.values() )
+        {
+            Located found = tryLocateInWholeFile( lines, expectedLines, tier, droppedLeading, droppedTrailing, trustHint );
+            if ( found != null )
+            {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Hint window (exact hint, then the +/-1..50 lines around it). The exact tier takes the nearest
+     * match; the whitespace-tolerant tiers require a unique match in the window and throw the
+     * ambiguity error otherwise, instead of silently picking the nearest of several candidates.
+     */
+    private Located tryLocateInWindow( List<String> lines, List<String> expectedLines, int hint,
             MatchTier tier, int droppedLeading, int droppedTrailing )
     {
         if ( expectedLines.isEmpty() )
@@ -3771,19 +3800,60 @@ public class CodeEditingService
 
         if ( matchesAtTier( lines, expectedLines, hint, tier ) )
         {
-            return new Located( hint, tier, droppedLeading, droppedTrailing );
+            return new Located( hint, tier, droppedLeading, droppedTrailing, false );
         }
-        int maxSearch = 50;
-        for ( int offset = 1; offset <= maxSearch; offset++ )
+        var matches = new java.util.ArrayList<Integer>();
+        for ( int offset = 1; offset <= 50; offset++ )
         {
             if ( matchesAtTier( lines, expectedLines, hint + offset, tier ) )
             {
-                return new Located( hint + offset, tier, droppedLeading, droppedTrailing );
+                matches.add( hint + offset );
             }
             if ( matchesAtTier( lines, expectedLines, hint - offset, tier ) )
             {
-                return new Located( hint - offset, tier, droppedLeading, droppedTrailing );
+                matches.add( hint - offset );
             }
+        }
+        if ( matches.isEmpty() )
+        {
+            return null;
+        }
+        if ( tier == MatchTier.EXACT || matches.size() == 1 )
+        {
+            return new Located( matches.get( 0 ), tier, droppedLeading, droppedTrailing, false );
+        }
+        throw ambiguity( matches );
+    }
+
+    private static RuntimeException ambiguity( List<Integer> matches )
+    {
+        var sorted = new java.util.ArrayList<Integer>( matches );
+        java.util.Collections.sort( sorted );
+        var candidates = new StringBuilder();
+        for ( int i = 0; i < sorted.size(); i++ )
+        {
+            if ( i > 0 )
+            {
+                candidates.append( ", " );
+            }
+            candidates.append( sorted.get( i ) + 1 );
+        }
+        return new RuntimeException( "Error: The hunk context matches " + sorted.size()
+                + " locations (lines " + candidates + "); the @@ header did not disambiguate. "
+                + "Re-emit the patch with a correct @@ line number or a longer unique context." );
+    }
+
+    /**
+     * Full-file scan at one tier: a unique match is used (flagged as outside the window when the
+     * header was trusted, so it is reported as drift); multiple matches throw the ambiguity error;
+     * zero matches return {@code null}.
+     */
+    private Located tryLocateInWholeFile( List<String> lines, List<String> expectedLines,
+            MatchTier tier, int droppedLeading, int droppedTrailing, boolean trustHint )
+    {
+        if ( expectedLines.isEmpty() )
+        {
+            return null;
         }
 
         // Full-file scan: collect every position that matches at this tier.
@@ -3799,22 +3869,11 @@ public class CodeEditingService
 
         if ( matches.size() == 1 )
         {
-            return new Located( matches.get( 0 ), tier, droppedLeading, droppedTrailing );
+            return new Located( matches.get( 0 ), tier, droppedLeading, droppedTrailing, trustHint );
         }
         if ( matches.size() > 1 )
         {
-            var candidates = new StringBuilder();
-            for ( int i = 0; i < matches.size(); i++ )
-            {
-                if ( i > 0 )
-                {
-                    candidates.append( ", " );
-                }
-                candidates.append( matches.get( i ) + 1 );
-            }
-            throw new RuntimeException( "Error: The hunk context matches " + matches.size()
-                    + " locations (lines " + candidates + "); the @@ header did not disambiguate. "
-                    + "Re-emit the patch with a correct @@ line number or a longer unique context." );
+            throw ambiguity( matches );
         }
         return null;
     }
@@ -3891,7 +3950,12 @@ public class CodeEditingService
         // A drop-outer-context match records the base tier of the REDUCED block, which can be EXACT,
         // so also treat any dropped outer context as drift so a tier-4 success still reports fuzz.
         boolean droppedContext = located.droppedLeading > 0 || located.droppedTrailing > 0;
-        if ( driftNotesOut != null && ( located.tier != MatchTier.EXACT || droppedContext ) )
+        if ( driftNotesOut != null && located.outsideWindow && located.tier == MatchTier.EXACT && !droppedContext )
+        {
+            driftNotesOut.add( "Applied at line " + ( located.pos + 1 ) + ", outside the +/-50 line window of the @@ header; "
+                    + "the header position was off. Re-read the affected region to verify." );
+        }
+        else if ( driftNotesOut != null && ( located.tier != MatchTier.EXACT || droppedContext ) )
         {
             int actualExpectedCount = 0;
             for ( String hunkLine : hunk.hunkLines )
