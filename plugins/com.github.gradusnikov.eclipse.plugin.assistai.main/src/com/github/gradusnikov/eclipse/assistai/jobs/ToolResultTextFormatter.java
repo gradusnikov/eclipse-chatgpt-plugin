@@ -46,7 +46,8 @@ final class ToolResultTextFormatter
             case BOTH -> combine( plain, json );
         };
 
-        return result.isError() ? "Error: " + text : text;
+        // A thrown error, or a prose tool's own failure message, already says so.
+        return result.isError() && !text.startsWith( "Error:" ) ? "Error: " + text : text;
     }
 
     /**

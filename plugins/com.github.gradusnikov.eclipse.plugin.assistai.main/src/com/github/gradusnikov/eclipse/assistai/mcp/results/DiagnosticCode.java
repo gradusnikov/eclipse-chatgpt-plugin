@@ -139,6 +139,12 @@ public enum DiagnosticCode
      */
     MAVEN_LAUNCH_TYPE_MISSING,
 
+    /**
+     * The TestNG for Eclipse plug-in is not installed, so the workspace has no
+     * {@code org.testng.eclipse.launchconfig} launch type to create a configuration of.
+     */
+    TESTNG_LAUNCH_TYPE_MISSING,
+
     /** A saved launch configuration was named but no configuration has that name. */
     LAUNCH_CONFIGURATION_NOT_FOUND,
 
@@ -183,5 +189,19 @@ public enum DiagnosticCode
     // --- everything else ---
 
     /** Anything unclassified. The message carries what is known. */
-    INTERNAL_ERROR
+    INTERNAL_ERROR;
+
+    /**
+     * Whether a response carrying this code means the call did not do what was asked,
+     * so its MCP result is flagged {@code isError}.
+     * <p>
+     * Two codes are warnings on a call that otherwise succeeded: the edit was applied
+     * but the editor could not be revealed, and the tests ran but coverage could not be
+     * collected. Reporting those as failures would send a caller to redo work that is
+     * already done.
+     */
+    public boolean failsCall()
+    {
+        return this != EDITOR_REVEAL_FAILED && this != COVERAGE_UNAVAILABLE;
+    }
 }

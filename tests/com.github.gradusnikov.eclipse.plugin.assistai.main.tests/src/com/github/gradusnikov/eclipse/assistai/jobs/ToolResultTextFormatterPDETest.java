@@ -45,6 +45,16 @@ public class ToolResultTextFormatterPDETest
     }
 
     @Test
+    public void anErrorIsPrefixedOnce()
+    {
+        CallToolResult failed = CallToolResult.builder().addTextContent( "Project 'X' not found." ).isError( true ).build();
+        CallToolResult thrown = CallToolResult.builder().addTextContent( "Error: kaboom" ).isError( true ).build();
+
+        assertEquals( "Error: Project 'X' not found.", ToolResultTextFormatter.format( failed, ToolResponseFormat.PLAIN, null ) );
+        assertEquals( "Error: kaboom", ToolResultTextFormatter.format( thrown, ToolResponseFormat.PLAIN, null ) );
+    }
+
+    @Test
     public void jsonFallsBackToPlainWhenStructuredContentIsMissing()
     {
         CallToolResult plainOnly = CallToolResult.builder()

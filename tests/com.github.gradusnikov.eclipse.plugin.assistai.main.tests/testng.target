@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?pde version="3.8"?>
+<!-- Added to the test target platform only by the opt-in Maven profile 'testng'
+     (./mvnw verify -Ptestng). Slicer, no dependencies: just TestNG for Eclipse, the TestNG
+     library it runs and JCommander. Everything else they need (JDT, Debug UI, Guava,
+     org.junit, slf4j) already comes from the main target; pulling the whole TestNG
+     repository in instead brings second copies of ASM and the JUnit platform, and the
+     test runtime then fails to resolve. -->
+<target name="testng-for-tests">
+	<locations>
+		<location includeAllPlatforms="false" includeConfigurePhase="false" includeMode="slicer"
+			includeSource="false" type="InstallableUnit">
+			<repository location="https://testng.org/testng-eclipse-update-site/updatesites/7.11.0.202503091801/" />
+			<unit id="org.testng.eclipse" version="7.11.0.202503091801" />
+			<unit id="org.testng" version="7.11.0.r202503091654" />
+			<unit id="com.beust.jcommander" version="1.83.0" />
+		</location>
+	</locations>
+</target>

@@ -180,7 +180,14 @@ public class McpServerFactory
         operationRegistry.attachFuture( operation, future );
 
         int inlineWait = resolveInlineWait( args, annotation );
-        return createCallToolResult( operationRegistry.awaitOrHandOff( operation, inlineWait ), responseFormat );
+        Object result = operationRegistry.awaitOrHandOff( operation, inlineWait );
+        if ( future.isCompletedExceptionally() && !future.isCancelled() )
+        {
+            // The registry folds the tool's exception into its "Error: ..." text; it is
+            // still a failed call, as it would be had the tool run inline.
+            return McpSchema.CallToolResult.builder().addContent( createTextContent( String.valueOf( result ) ) ).isError( true ).build();
+        }
+        return createCallToolResult( result, responseFormat );
     }
 
     /**
@@ -263,7 +270,9 @@ public class McpServerFactory
         {
             // A tool only wraps its payload when the text has to say something the
             // payload does not - paged console output, say.
-            addStructuredResult( builder, McpJson.toMap( structured.data() ), structured.text(), responseFormat );
+            Map<String, Object> content = McpJson.toMap( structured.data() );
+            addStructuredResult( builder, content, structured.text(), responseFormat );
+            builder.isError( reportsFailure( content ) );
         } 
         else if ( result instanceof Record payload )
         {
@@ -273,12 +282,63 @@ public class McpServerFactory
             // describe two different outcomes.
             Map<String, Object> content = McpJson.toMap( payload );
             addStructuredResult( builder, content, McpPlainText.render( content ), responseFormat );
+            builder.isError( reportsFailure( content ) );
         } 
         else {        	
         	addResultContent( builder, result );
+        	builder.isError( result instanceof String text && text.startsWith( "Error:" ) );
         }
 
         return builder.build();
+    }
+
+    /**
+     * Whether a structured payload says the call did not do what was asked.
+     * <p>
+     * Tools report failures as {@code diagnostics} beside whatever they did manage to
+     * collect, rather than throwing. The payload keeps that detail; {@code isError} is
+     * what a client checks first, and it used to be false for every one of them, so a
+     * missing plug-in or an unknown project read as success unless the client also
+     * parsed the diagnostics. Codes that are only warnings do not count - see
+     * {@link com.github.gradusnikov.eclipse.assistai.mcp.results.DiagnosticCode#failsCall()}.
+     */
+    static boolean reportsFailure( Map<?, ?> content )
+    {
+        if ( content == null )
+        {
+            return false;
+        }
+        // getOperationStatus: an operation that failed, or an id nobody knows, is a
+        // failed poll, and a finished operation's own result is judged as it would have
+        // been had the tool returned it inline. CANCELLED was asked for, so it is not.
+        if ( content.containsKey( "operationId" ) && content.get( "state" ) instanceof String state
+                && ( "FAILED".equals( state ) || "UNKNOWN".equals( state ) ) )
+        {
+            return true;
+        }
+        if ( content.get( "result" ) instanceof Map<?, ?> nested && reportsFailure( nested ) )
+        {
+            return true;
+        }
+        if ( !( content.get( "diagnostics" ) instanceof Collection<?> diagnostics ) )
+        {
+            return false;
+        }
+        return diagnostics.stream().anyMatch( diagnostic -> {
+            Object code = diagnostic instanceof Map<?, ?> map ? map.get( "code" ) : null;
+            if ( code == null )
+            {
+                return true;
+            }
+            try
+            {
+                return com.github.gradusnikov.eclipse.assistai.mcp.results.DiagnosticCode.valueOf( code.toString() ).failsCall();
+            }
+            catch ( IllegalArgumentException e )
+            {
+                return true;
+            }
+        } );
     }
 
     /**
@@ -462,17 +522,17 @@ public class McpServerFactory
                             description = "The operationId handed back by the tool that started "
                                 + "the work (e.g. 'op-3'). Use listOperations if you lost it." )
                 String operationId,
-                @ToolParam( name = "outputOffset",
+                @ToolParam( name = "outputOffset", type = "integer",
                             description = "0-based index of the first output line to return. "
-                                + "Negative counts back from the end, so '-100' is the last 100 lines. Default: 0.",
+                                + "Negative counts back from the end, so -100 is the last 100 lines. Default: 0.",
                             required = false )
                 String outputOffset,
-                @ToolParam( name = "outputLimit",
+                @ToolParam( name = "outputLimit", type = "integer",
                             description = "Number of output lines to return (default: 0, meaning none). "
                                 + "The reply reports the total and the next offset.",
                             required = false )
                 String outputLimit,
-                @ToolParam( name = "waitSeconds",
+                @ToolParam( name = "waitSeconds", type = "integer",
                             description = "Seconds to block for the operation to finish before replying. "
                                 + "Omit (or pass null) to use the automatic backoff sequence "
                                 + "(2 s → 3 s → 5 s → 10 s → 15 s). Pass 0 to reply immediately.",
@@ -581,14 +641,14 @@ public class McpServerFactory
                 .jsonMapper( new JacksonMcpJsonMapperSupplier().get() ).jsonSchemaValidator( createJsonSchemaValidator() ).build();
     }
 
-    private JsonSchemaValidator createJsonSchemaValidator()
+    static JsonSchemaValidator createJsonSchemaValidator()
     {
         var thread = Thread.currentThread();
         var originalClassLoader = thread.getContextClassLoader();
         thread.setContextClassLoader( com.networknt.schema.SchemaRegistry.class.getClassLoader() );
         try
         {
-            return new JacksonJsonSchemaValidatorSupplier().get();
+            return new LenientJsonSchemaValidator( new JacksonJsonSchemaValidatorSupplier().get() );
         }
         finally
         {
@@ -611,7 +671,7 @@ public class McpServerFactory
      *
      * @return The tool specifications to register with the server
      */
-    private List<SyncToolSpecification> createToolSpecifications( Object serverImplementation, Collection<String> excludedTools, String toolPrefix,
+    List<SyncToolSpecification> createToolSpecifications( Object serverImplementation, Collection<String> excludedTools, String toolPrefix,
             ToolResponseFormat responseFormat )
     {
         var excluded = Set.copyOf( excludedTools );

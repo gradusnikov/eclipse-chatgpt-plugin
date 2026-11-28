@@ -80,7 +80,7 @@ public class EclipseGitMcpServer
             outputType = GitLogResponse.class)
     public GitLogResponse gitLog(
             @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
-            @ToolParam(name = "maxCount", description = "Maximum number of commits to show (default: 20)", required = false) String maxCount,
+            @ToolParam(name = "maxCount", type = "integer", description = "Maximum number of commits to show (default: 20)", required = false) String maxCount,
             @ToolParam(name = "revision", description = "Branch, tag or commit to walk back from. Default: HEAD", required = false) String revision,
             @ToolParam(name = "pathFilter", description = "Optional comma-separated files or folders relative to the Eclipse project; only commits touching them are listed", required = false) String pathFilter)
     {
@@ -121,9 +121,9 @@ public class EclipseGitMcpServer
             outputType = GitDiffResponse.class)
     public GitDiffResponse gitDiff(
             @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
-            @ToolParam(name = "staged", description = "If 'true', shows staged (cached) changes instead of unstaged. Ignored when a revision is given. Default: false", required = false) String staged,
+            @ToolParam(name = "staged", type = "boolean", description = "If true, shows staged (cached) changes instead of unstaged. Ignored when a revision is given. Default: false", required = false) String staged,
             @ToolParam(name = "pathFilter", description = "Optional comma-separated file or directory paths relative to the Eclipse project", required = false) String pathFilter,
-            @ToolParam(name = "ignoreWhitespace", description = "If 'true', ignores whitespace when formatting hunks. Default: false", required = false) String ignoreWhitespace,
+            @ToolParam(name = "ignoreWhitespace", type = "boolean", description = "If true, ignores whitespace when formatting hunks. Default: false", required = false) String ignoreWhitespace,
             @ToolParam(name = "fromRevision", description = "Optional older side of the comparison: branch, tag or commit (e.g. 'main', 'HEAD~3')", required = false) String fromRevision,
             @ToolParam(name = "toRevision", description = "Optional newer side of the comparison; the working tree when omitted", required = false) String toRevision)
     {
@@ -198,8 +198,8 @@ public class EclipseGitMcpServer
     public GitCommitResponse gitCommit(
             @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
             @ToolParam(name = "message", description = "The commit message", required = true) String message,
-            @ToolParam(name = "amend", description = "If 'true', replaces the previous commit. Default: false", required = false) String amend,
-            @ToolParam(name = "all", description = "If 'true', stages all tracked modifications and deletions before committing. Default: false", required = false) String all)
+            @ToolParam(name = "amend", type = "boolean", description = "If true, replaces the previous commit. Default: false", required = false) String amend,
+            @ToolParam(name = "all", type = "boolean", description = "If true, stages all tracked modifications and deletions before committing. Default: false", required = false) String all)
     {
         return gitService.commit(projectName, message, flag(amend), flag(all));
     }
@@ -241,7 +241,7 @@ public class EclipseGitMcpServer
             outputType = GitBranchResponse.class)
     public GitBranchResponse gitBranch(
             @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
-            @ToolParam(name = "includeRemote", description = "If 'true', includes remote-tracking branches. Default: false", required = false) String includeRemote)
+            @ToolParam(name = "includeRemote", type = "boolean", description = "If true, includes remote-tracking branches. Default: false", required = false) String includeRemote)
     {
         return gitService.listBranches(projectName, flag(includeRemote));
     }
@@ -262,7 +262,7 @@ public class EclipseGitMcpServer
     public GitDeleteBranchResponse gitDeleteBranch(
             @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
             @ToolParam(name = "branchName", description = "Name of the branch to delete", required = true) String branchName,
-            @ToolParam(name = "force", description = "If 'true', force-deletes even if the branch is not fully merged. Default: false", required = false) String force)
+            @ToolParam(name = "force", type = "boolean", description = "If true, force-deletes even if the branch is not fully merged. Default: false", required = false) String force)
     {
         return gitService.deleteBranch(projectName, branchName, flag(force));
     }
@@ -290,7 +290,7 @@ public class EclipseGitMcpServer
             @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
             @ToolParam(name = "ref", description = "The branch, tag or commit to merge into the current branch", required = true) String ref,
             @ToolParam(name = "fastForward", description = "FF (fast-forward when possible, default), NO_FF (always create a merge commit) or FF_ONLY (refuse unless a fast-forward)", required = false) String fastForward,
-            @ToolParam(name = "squash", description = "If 'true', stages the merged result without committing it. Default: false", required = false) String squash,
+            @ToolParam(name = "squash", type = "boolean", description = "If true, stages the merged result without committing it. Default: false", required = false) String squash,
             @ToolParam(name = "message", description = "Optional message for the merge commit", required = false) String message)
     {
         return gitService.merge(projectName, ref, fastForward, flag(squash), message);
@@ -429,7 +429,7 @@ public class EclipseGitMcpServer
     public GitFetchResponse gitFetch(
             @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
             @ToolParam(name = "remote", description = "The remote name. Default: origin", required = false) String remote,
-            @ToolParam(name = "prune", description = "If 'true', removes remote-tracking refs the remote no longer has. Default: false", required = false) String prune)
+            @ToolParam(name = "prune", type = "boolean", description = "If true, removes remote-tracking refs the remote no longer has. Default: false", required = false) String prune)
     {
         return gitService.fetch(projectName, remote, flag(prune));
     }
@@ -444,7 +444,7 @@ public class EclipseGitMcpServer
             @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
             @ToolParam(name = "remote", description = "The remote name. Default: the branch's configured remote, else origin", required = false) String remote,
             @ToolParam(name = "remoteBranch", description = "The branch on the remote. Default: the branch's configured upstream", required = false) String remoteBranch,
-            @ToolParam(name = "rebase", description = "If 'true', rebases local commits onto the fetched ones instead of merging. Default: false", required = false) String rebase)
+            @ToolParam(name = "rebase", type = "boolean", description = "If true, rebases local commits onto the fetched ones instead of merging. Default: false", required = false) String rebase)
     {
         return gitService.pull(projectName, remote, remoteBranch, flag(rebase));
     }
@@ -459,8 +459,8 @@ public class EclipseGitMcpServer
             @ToolParam(name = "projectName", description = "The Eclipse project name", required = true) String projectName,
             @ToolParam(name = "remote", description = "The remote name. Default: origin", required = false) String remote,
             @ToolParam(name = "branch", description = "The local branch to push. Default: the checked-out branch", required = false) String branch,
-            @ToolParam(name = "setUpstream", description = "If 'true', records the remote branch as the local branch's upstream ('git push -u'). Default: false", required = false) String setUpstream,
-            @ToolParam(name = "force", description = "If 'true', overwrites the remote branch even when it has commits the local one does not. Default: false", required = false) String force)
+            @ToolParam(name = "setUpstream", type = "boolean", description = "If true, records the remote branch as the local branch's upstream ('git push -u'). Default: false", required = false) String setUpstream,
+            @ToolParam(name = "force", type = "boolean", description = "If true, overwrites the remote branch even when it has commits the local one does not. Default: false", required = false) String force)
     {
         return gitService.push(projectName, remote, branch, flag(setUpstream), flag(force));
     }

@@ -68,7 +68,7 @@ public class PDEMcpServer
           description = "Safely rebuilds the AssistAI HTTP MCP servers after the current response completes. Existing MCP connections are interrupted and may need to reconnect.",
           type = "object")
     public String restartMcpServers(
-            @ToolParam(name = "delayMillis", description = "Delay before restart, from 500 to 30000 ms. Default: 1500", required = false) String delayMillis)
+            @ToolParam(name = "delayMillis", type = "integer", description = "Delay before restart, from 500 to 30000 ms. Default: 1500", required = false) String delayMillis)
     {
         return runtimeReloadService.restartMcpServers(parseOptionalInt("delayMillis", delayMillis));
     }
@@ -78,7 +78,7 @@ public class PDEMcpServer
           type = "object")
     public String reloadWorkspaceBundle(
             @ToolParam(name = "symbolicName", description = "Bundle symbolic name; it must also name an open workspace project") String symbolicName,
-            @ToolParam(name = "delayMillis", description = "Delay before reload, from 500 to 30000 ms. Default: 1500", required = false) String delayMillis)
+            @ToolParam(name = "delayMillis", type = "integer", description = "Delay before reload, from 500 to 30000 ms. Default: 1500", required = false) String delayMillis)
     {
         return runtimeReloadService.reloadWorkspaceBundle(symbolicName,
                 parseOptionalInt("delayMillis", delayMillis));
@@ -116,17 +116,17 @@ public class PDEMcpServer
                            + "Ignored if className is set.",
                        required = false)
             String packageName,
-            @ToolParam(name = "timeout",
+            @ToolParam(name = "timeout", type = "integer",
                        description = "Maximum time in seconds to wait for test completion (default: 60)",
                        required = false)
             String timeout,
-            @ToolParam(name = "withCoverage",
-                       description = "If 'true', runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false",
+            @ToolParam(name = "withCoverage", type = "boolean",
+                       description = "If true, runs tests with code coverage (requires EclEmma/JaCoCo installed). Default: false",
                        required = false)
             String withCoverage,
-            @ToolParam(name = "includeAllPlugins",
-                       description = "If 'true', launches with all workspace and target platform plug-ins (USE_DEFAULT mode). "
-                           + "If 'false' (default), auto-resolves required dependencies.",
+            @ToolParam(name = "includeAllPlugins", type = "boolean",
+                       description = "If true, launches with all workspace and target platform plug-ins (USE_DEFAULT mode). "
+                           + "If false (default), auto-resolves required dependencies.",
                        required = false)
             String includeAllPlugins,
             @ToolParam(name = "additionalBundles",

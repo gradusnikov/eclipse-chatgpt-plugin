@@ -54,11 +54,11 @@ public class EclipseCodeEditingMcpServer
         @ToolParam(name = "projectName", description = "The name of the project containing the file", required = true) String projectName,
         @ToolParam(name = "filePath", description = "The path to the file relative to the project root. Do not include project name!", required = true) String filePath,
         @ToolParam(name = "content", description = "The content to insert into the file", required = true) String content,
-        @ToolParam(name = "line", description = "The line number before which to insert the text (1-based index). Existing content at this line and below will be shifted down. "
+        @ToolParam(name = "line", type = "integer", description = "The line number before which to insert the text (1-based index). Existing content at this line and below will be shifted down. "
                 + "Use line=1 to insert at the beginning of the file, or one past the last line to append. Default: 1", required = false) String line,
-        @ToolParam(name="expectedModificationStamp", description="The modificationStamp reported by an earlier read or edit of this file. "
+        @ToolParam(name="expectedModificationStamp", type = "integer", description="The modificationStamp reported by an earlier read or edit of this file. "
                 + "When supplied, the edit is rejected with VERSION_CONFLICT if the file has changed since.", required=false) String expectedModificationStamp,
-        @ToolParam(name="preview", description="If 'true', report what would change without modifying the file. Default: false", required=false) String preview)
+        @ToolParam(name="preview", type = "boolean", description="If true, report what would change without modifying the file. Default: false", required=false) String preview)
     {
         // Default 1, not 0: 0 is not a line, and the previous default made every call
         // that omitted the parameter fail.
@@ -77,14 +77,14 @@ public class EclipseCodeEditingMcpServer
         @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
         @ToolParam(name="oldString", description="The text to replace (must match exactly, including whitespace and indentation)", required=true) String oldString,
         @ToolParam(name="newString", description="The new text to insert in place of the old text", required=true) String newString,
-        @ToolParam(name="startLine", description="Optional line number to start searching from (1-based index)", required=false) String startLine,
-        @ToolParam(name="endLine", description="Optional line number to end searching at (1-based index)", required=false) String endLine,
+        @ToolParam(name="startLine", type = "integer", description="Optional line number to start searching from (1-based index)", required=false) String startLine,
+        @ToolParam(name="endLine", type = "integer", description="Optional line number to end searching at (1-based index)", required=false) String endLine,
         @ToolParam(name="occurrence", description="Which match to replace when there is more than one: UNIQUE (default, fails if not exactly one), "
                 + "FIRST, LAST, ALL, or INDEX with occurrenceIndex", required=false) String occurrence,
-        @ToolParam(name="occurrenceIndex", description="The 1-based match to replace when occurrence=INDEX", required=false) String occurrenceIndex,
-        @ToolParam(name="expectedModificationStamp", description="The modificationStamp reported by an earlier read or edit of this file. "
+        @ToolParam(name="occurrenceIndex", type = "integer", description="The 1-based match to replace when occurrence=INDEX", required=false) String occurrenceIndex,
+        @ToolParam(name="expectedModificationStamp", type = "integer", description="The modificationStamp reported by an earlier read or edit of this file. "
                 + "When supplied, the edit is rejected with VERSION_CONFLICT if the file has changed since.", required=false) String expectedModificationStamp,
-        @ToolParam(name="preview", description="If 'true', report what would change without modifying the file. Default: false", required=false) String preview)
+        @ToolParam(name="preview", type = "boolean", description="If true, report what would change without modifying the file. Default: false", required=false) String preview)
     {
         Integer startLineNum = Optional.ofNullable(startLine).map(Integer::parseInt).orElse(null);
         Integer endLineNum = Optional.ofNullable(endLine).map(Integer::parseInt).orElse(null);
@@ -108,9 +108,9 @@ public class EclipseCodeEditingMcpServer
                 + "Lines and columns are 1-based; endColumn is exclusive. expectedText is optional and, when given, must match the current "
                 + "text of the range or the whole batch is rejected. Ranges refer to the file as it is now, not as it becomes after earlier "
                 + "edits in the list - the platform shifts them for you.", required=true) String edits,
-        @ToolParam(name="expectedModificationStamp", description="The modificationStamp reported by an earlier read or edit of this file. "
+        @ToolParam(name="expectedModificationStamp", type = "integer", description="The modificationStamp reported by an earlier read or edit of this file. "
                 + "When supplied, the batch is rejected with VERSION_CONFLICT if the file has changed since.", required=false) String expectedModificationStamp,
-        @ToolParam(name="preview", description="If 'true', report the resulting diff without modifying the file. Default: false", required=false) String preview)
+        @ToolParam(name="preview", type = "boolean", description="If true, report the resulting diff without modifying the file. Default: false", required=false) String preview)
     {
         return codeEditingService.applyTextEdits(
                 projectName, filePath, parseModificationStamp(expectedModificationStamp),
@@ -219,13 +219,13 @@ public class EclipseCodeEditingMcpServer
     public EditResult refactorRenameJavaElement(
         @ToolParam(name="projectName", description="The name of the project containing the Java file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the Java file relative to the project root (e.g., 'src/com/example/MyClass.java')", required=true) String filePath,
-        @ToolParam(name="line", description="1-based line of the identifier to rename", required=true) String line,
-        @ToolParam(name="column", description="1-based column of the identifier to rename; anywhere within the identifier works", required=true) String column,
+        @ToolParam(name="line", type = "integer", description="1-based line of the identifier to rename", required=true) String line,
+        @ToolParam(name="column", type = "integer", description="1-based column of the identifier to rename; anywhere within the identifier works", required=true) String column,
         @ToolParam(name="newName", description="The new name for the element", required=true) String newName,
         @ToolParam(name="elementName", description="Optional: the current simple name of the element expected at that position, e.g. 'calculateTotal'. When the element found there has a different name the rename is refused.", required=false) String elementName,
-        @ToolParam(name="updateReferences", description="Whether to rewrite references to the element as well. Default: true", required=false) String updateReferences,
-        @ToolParam(name="updateTextualOccurrences", description="Whether to also rewrite occurrences of the name in comments and string literals (types and fields only). Default: false", required=false) String updateTextualOccurrences,
-        @ToolParam(name="updateGettersAndSetters", description="When renaming a field, whether to rename its getter and setter with it. Default: false", required=false) String updateGettersAndSetters)
+        @ToolParam(name="updateReferences", type = "boolean", description="Whether to rewrite references to the element as well. Default: true", required=false) String updateReferences,
+        @ToolParam(name="updateTextualOccurrences", type = "boolean", description="Whether to also rewrite occurrences of the name in comments and string literals (types and fields only). Default: false", required=false) String updateTextualOccurrences,
+        @ToolParam(name="updateGettersAndSetters", type = "boolean", description="When renaming a field, whether to rename its getter and setter with it. Default: false", required=false) String updateGettersAndSetters)
     {
         // Every tool argument arrives as a String; a declared int or Boolean parameter
         // fails at Method.invoke with an argument type mismatch.
@@ -276,7 +276,7 @@ public class EclipseCodeEditingMcpServer
         @ToolParam(name="newMethodName", description="Optional new name for the method; renaming alone is better done with refactorRenameJavaElement", required=false) String newMethodName,
         @ToolParam(name="addExceptions", description="Optional comma-separated fully qualified exception types to add to the throws clause (e.g. 'java.io.IOException')", required=false) String addExceptions,
         @ToolParam(name="removeExceptions", description="Optional comma-separated exception types to remove from the throws clause, simple or fully qualified", required=false) String removeExceptions,
-        @ToolParam(name="keepOriginalAsDelegate", description="If 'true', keep a deprecated method with the old signature that delegates to the new one, so callers outside the workspace keep compiling. Default: false", required=false) String keepOriginalAsDelegate)
+        @ToolParam(name="keepOriginalAsDelegate", type = "boolean", description="If true, keep a deprecated method with the old signature that delegates to the new one, so callers outside the workspace keep compiling. Default: false", required=false) String keepOriginalAsDelegate)
     {
         MethodSignatureChange change = new MethodSignatureChange(
                 parseParameterSpecs(parameters), returnType, visibility, newMethodName,
@@ -390,9 +390,9 @@ public class EclipseCodeEditingMcpServer
     public EditResult normalizeLineDelimiters(
         @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
-        @ToolParam(name="expectedModificationStamp", description="The modificationStamp reported by an earlier read or edit of this file. "
+        @ToolParam(name="expectedModificationStamp", type = "integer", description="The modificationStamp reported by an earlier read or edit of this file. "
                 + "When supplied, the edit is rejected with VERSION_CONFLICT if the file has changed since.", required=false) String expectedModificationStamp,
-        @ToolParam(name="preview", description="If 'true', report what would change without modifying the file. Default: false", required=false) String preview)
+        @ToolParam(name="preview", type = "boolean", description="If true, report what would change without modifying the file. Default: false", required=false) String preview)
     {
         return codeEditingService.normalizeLineDelimiters(projectName, filePath,
                 parseModificationStamp(expectedModificationStamp), parseBoolean(preview));
@@ -405,9 +405,9 @@ public class EclipseCodeEditingMcpServer
         @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
         @ToolParam(name="content", description="The new content to write to the file", required=true) String content,
-        @ToolParam(name="expectedModificationStamp", description="The modificationStamp reported by an earlier read or edit of this file. "
+        @ToolParam(name="expectedModificationStamp", type = "integer", description="The modificationStamp reported by an earlier read or edit of this file. "
                 + "When supplied, the edit is rejected with VERSION_CONFLICT if the file has changed since.", required=false) String expectedModificationStamp,
-        @ToolParam(name="preview", description="If 'true', report what would change without modifying the file. Default: false", required=false) String preview)
+        @ToolParam(name="preview", type = "boolean", description="If true, report what would change without modifying the file. Default: false", required=false) String preview)
     {
         return codeEditingService.replaceFileContent(projectName, filePath, content,
                 parseModificationStamp(expectedModificationStamp), parseBoolean(preview));
@@ -420,11 +420,11 @@ public class EclipseCodeEditingMcpServer
     public EditResult deleteLinesInFile(
         @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
-        @ToolParam(name="startLine", description="The line number to start deletion from (1-based index)", required=true) String startLine,
-        @ToolParam(name="endLine", description="The line number to end deletion at (inclusive, 1-based index)", required=true) String endLine,
-        @ToolParam(name="expectedModificationStamp", description="The modificationStamp reported by an earlier read or edit of this file. "
+        @ToolParam(name="startLine", type = "integer", description="The line number to start deletion from (1-based index)", required=true) String startLine,
+        @ToolParam(name="endLine", type = "integer", description="The line number to end deletion at (inclusive, 1-based index)", required=true) String endLine,
+        @ToolParam(name="expectedModificationStamp", type = "integer", description="The modificationStamp reported by an earlier read or edit of this file. "
                 + "When supplied, the edit is rejected with VERSION_CONFLICT if the file has changed since.", required=false) String expectedModificationStamp,
-        @ToolParam(name="preview", description="If 'true', report what would change without modifying the file. Default: false", required=false) String preview)
+        @ToolParam(name="preview", type = "boolean", description="If true, report what would change without modifying the file. Default: false", required=false) String preview)
     {
         return codeEditingService.deleteLinesInFile(projectName, filePath,
                 Integer.parseInt(startLine), Integer.parseInt(endLine),
@@ -440,10 +440,10 @@ public class EclipseCodeEditingMcpServer
         @ToolParam(name="projectName", description="The name of the project containing the file", required=true) String projectName,
         @ToolParam(name="filePath", description="The path to the file relative to the project root. Do not include project name!", required=true) String filePath,
         @ToolParam(name="patch", description="The unified diff content to apply. Should contain @@ hunk headers and lines prefixed with ' ' (context), '-' (remove), or '+' (add). File headers (--- and +++) are optional.", required=true) String patch,
-        @ToolParam(name="showDialog", description="If 'true', shows Eclipse's Apply Patch wizard dialog for user review instead of applying directly, and the result is a PREVIEW. Default is 'false'.", required=false) String showDialog,
-        @ToolParam(name="expectedModificationStamp", description="The modificationStamp reported by an earlier read or edit of this file. "
+        @ToolParam(name="showDialog", type = "boolean", description="If true, shows Eclipse's Apply Patch wizard dialog for user review instead of applying directly, and the result is a PREVIEW. Default is false.", required=false) String showDialog,
+        @ToolParam(name="expectedModificationStamp", type = "integer", description="The modificationStamp reported by an earlier read or edit of this file. "
                 + "When supplied, the patch is rejected with VERSION_CONFLICT if the file has changed since.", required=false) String expectedModificationStamp,
-        @ToolParam(name="preview", description="If 'true', report what the patch would change without modifying the file. Default: false", required=false) String preview)
+        @ToolParam(name="preview", type = "boolean", description="If true, report what the patch would change without modifying the file. Default: false", required=false) String preview)
     {
         return codeEditingService.applyPatch(projectName, filePath, patch, parseBoolean(showDialog),
                 parseModificationStamp(expectedModificationStamp), parseBoolean(preview));

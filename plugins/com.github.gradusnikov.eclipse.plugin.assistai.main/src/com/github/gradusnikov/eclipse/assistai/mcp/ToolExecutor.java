@@ -179,10 +179,30 @@ public class ToolExecutor
     public Object[] mapArguments( Method method, Map<String, Object> argMap )
     {
         return Arrays.stream( method.getParameters() )
-                    .map( ToolExecutor::toParamName )
-                    .map( argMap::get )
+                    .map( parameter -> toParameterType( parameter, argMap.get( toParamName( parameter ) ) ) )
                     .toArray();
-        
+    }
+
+    /**
+     * Converts a JSON argument to the Java type of the parameter it is bound to.
+     * <p>
+     * A parameter advertised as {@code integer} or {@code boolean} arrives as a JSON
+     * number or boolean, while the tool methods take every argument as a {@code String}.
+     * Handing the raw value to reflection fails with "argument type mismatch".
+     */
+    static Object toParameterType( Parameter parameter, Object value )
+    {
+        if ( value == null || parameter.getType() != String.class || value instanceof String )
+        {
+            return value;
+        }
+        if ( value instanceof Double || value instanceof Float || value instanceof java.math.BigDecimal )
+        {
+            // 120.0 is the same request as 120; an integer parameter would not parse "120.0".
+            var decimal = new java.math.BigDecimal( value.toString() ).stripTrailingZeros();
+            return decimal.scale() <= 0 ? decimal.toBigInteger().toString() : decimal.toPlainString();
+        }
+        return String.valueOf( value );
     }
 
     /**
